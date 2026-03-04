@@ -3,12 +3,6 @@ import path from "node:path";
 import { getSourceFiles } from "../../utils/source-files.js";
 import type { Diagnostic, EngineContext } from "../types.js";
 
-const countNesting = (line: string): number => {
-	const indent = line.match(/^(\s*)/)?.[1].length ?? 0;
-	// Rough heuristic: 2 or 4 spaces = 1 level
-	return Math.floor(indent / 2);
-};
-
 interface FunctionInfo {
 	name: string;
 	startLine: number;
@@ -17,13 +11,38 @@ interface FunctionInfo {
 	paramCount: number;
 }
 
-const FUNCTION_PATTERNS = [
-	/^\s*(?:export\s+)?(?:async\s+)?function\s+(\w+)\s*\(([^)]*)\)/,
-	/^\s*(?:export\s+)?const\s+(\w+)\s*=\s*(?:async\s+)?\(([^)]*)\)\s*(?:=>|:\s*\w)/,
-	/^\s*def\s+(\w+)\s*\(([^)]*)\)/,
-	/^\s*func\s+(?:\([^)]*\)\s+)?(\w+)\s*\(([^)]*)\)/,
-	/^\s*fn\s+(\w+)\s*\(([^)]*)\)/,
-	/^\s*(?:public|private|protected)?\s*(?:static\s+)?(?:\w+\s+)(\w+)\s*\(([^)]*)\)/,
+interface FunctionPattern {
+	regex: RegExp;
+	langFilter: string[];
+}
+
+const FUNCTION_PATTERNS: FunctionPattern[] = [
+	{
+		regex: /^\s*(?:export\s+)?(?:async\s+)?function\s+(\w+)\s*\(([^)]*)\)/,
+		langFilter: [".js", ".ts", ".jsx", ".tsx", ".mjs", ".cjs"],
+	},
+	{
+		regex:
+			/^\s*(?:export\s+)?const\s+(\w+)\s*=\s*(?:async\s+)?\(([^)]*)\)\s*(?:=>|:\s*\w)/,
+		langFilter: [".js", ".ts", ".jsx", ".tsx", ".mjs", ".cjs"],
+	},
+	{
+		regex: /^\s*def\s+(\w+)\s*\(([^)]*)\)/,
+		langFilter: [".py"],
+	},
+	{
+		regex: /^\s*func\s+(?:\([^)]*\)\s+)?(\w+)\s*\(([^)]*)\)/,
+		langFilter: [".go"],
+	},
+	{
+		regex: /^\s*fn\s+(\w+)\s*\(([^)]*)\)/,
+		langFilter: [".rs"],
+	},
+	{
+		regex:
+			/^\s*(?:public|private|protected)?\s*(?:static\s+)?(?:\w+\s+)(\w+)\s*\(([^)]*)\)/,
+		langFilter: [".java", ".cs", ".cpp", ".c", ".php"],
+	},
 ];
 
 const countParams = (paramStr: string): number => {
@@ -33,35 +52,33 @@ const countParams = (paramStr: string): number => {
 
 const matchFunctionOnLine = (
 	line: string,
-): { name: string; params: string } | null => {
-	for (const pattern of FUNCTION_PATTERNS) {
-		const match = line.match(pattern);
-		if (match) return { name: match[1], params: match[2] ?? "" };
+	ext: string,
+): { name: string; params: string; patternIndex: number } | null => {
+	for (let i = 0; i < FUNCTION_PATTERNS.length; i++) {
+		const pattern = FUNCTION_PATTERNS[i];
+		if (!pattern.langFilter.includes(ext)) continue;
+		const match = line.match(pattern.regex);
+		if (match)
+			return { name: match[1], params: match[2] ?? "", patternIndex: i };
 	}
 	return null;
 };
 
-const updateDepthForLine = (
-	line: string,
-	depth: number,
-	started: boolean,
-): { depth: number; started: boolean } => {
-	let d = depth;
-	let s = started;
-	for (const ch of line) {
-		if (ch === "{") {
-			d++;
-			s = true;
-		} else if (ch === ":") {
-			s = true;
-		} else if (ch === "}") {
-			d--;
-		}
-	}
-	return { depth: d, started: s };
-};
+const PYTHON_CONTROL_FLOW_RE =
+	/^\s*(?:if|for|while|with|try|except|else|elif|finally|def|class)\b/;
 
 const findFunctionEnd = (
+	lines: string[],
+	startIndex: number,
+	isPython: boolean,
+): { endLine: number; maxNesting: number } => {
+	if (isPython) {
+		return findPythonFunctionEnd(lines, startIndex);
+	}
+	return findBraceFunctionEnd(lines, startIndex);
+};
+
+const findBraceFunctionEnd = (
 	lines: string[],
 	startIndex: number,
 ): { endLine: number; maxNesting: number } => {
@@ -69,17 +86,27 @@ const findFunctionEnd = (
 	let started = false;
 	let endLine = startIndex;
 	let maxNesting = 0;
+	let functionStartDepth = 0;
 
 	for (let j = startIndex; j < lines.length; j++) {
 		const l = lines[j];
-		({ depth, started } = updateDepthForLine(l, depth, started));
-
-		if (started) {
-			const nesting = countNesting(l);
-			if (nesting > maxNesting) maxNesting = nesting;
+		// Track brace depth char by char, recording nesting relative to function start
+		for (const ch of l) {
+			if (ch === "{") {
+				depth++;
+				if (!started) {
+					started = true;
+					functionStartDepth = depth;
+				} else {
+					const relative = depth - functionStartDepth;
+					if (relative > maxNesting) maxNesting = relative;
+				}
+			} else if (ch === "}") {
+				depth--;
+			}
 		}
 
-		if (started && depth <= 0 && j > startIndex) {
+		if (started && depth < functionStartDepth && j > startIndex) {
 			endLine = j;
 			break;
 		}
@@ -90,15 +117,72 @@ const findFunctionEnd = (
 	return { endLine, maxNesting };
 };
 
-const analyzeFunctions = (content: string): FunctionInfo[] => {
+const findPythonFunctionEnd = (
+	lines: string[],
+	startIndex: number,
+): { endLine: number; maxNesting: number } => {
+	const startLine = lines[startIndex];
+	const baseIndent = startLine.match(/^(\s*)/)?.[1].length ?? 0;
+	let endLine = startIndex;
+	let maxNesting = 0;
+	// Track control-flow nesting depth via a stack of indent levels
+	const controlIndentStack: number[] = [];
+
+	for (let j = startIndex + 1; j < lines.length; j++) {
+		const l = lines[j];
+		// Skip blank lines
+		if (l.trim() === "") {
+			endLine = j;
+			continue;
+		}
+
+		const currentIndent = l.match(/^(\s*)/)?.[1].length ?? 0;
+
+		// If we've returned to or past the base indent, function ended
+		if (currentIndent <= baseIndent) {
+			break;
+		}
+
+		endLine = j;
+
+		// Pop any control-flow levels that we've exited
+		while (
+			controlIndentStack.length > 0 &&
+			currentIndent <= controlIndentStack[controlIndentStack.length - 1]
+		) {
+			controlIndentStack.pop();
+		}
+
+		// If this line starts with a control-flow keyword, push its indent
+		if (PYTHON_CONTROL_FLOW_RE.test(l)) {
+			controlIndentStack.push(currentIndent);
+			const nesting = controlIndentStack.length;
+			if (nesting > maxNesting) maxNesting = nesting;
+		}
+	}
+
+	return { endLine, maxNesting };
+};
+
+const isDataFile = (content: string): boolean => {
+	const lines = content.split("\n");
+	const nonEmpty = lines.filter((l) => l.trim().length > 0);
+	if (nonEmpty.length === 0) return false;
+	const dataLinePattern = /^\s*[{}[\]"']/;
+	const dataLines = nonEmpty.filter((l) => dataLinePattern.test(l));
+	return dataLines.length / nonEmpty.length > 0.8;
+};
+
+const analyzeFunctions = (content: string, ext: string): FunctionInfo[] => {
 	const lines = content.split("\n");
 	const functions: FunctionInfo[] = [];
 
 	for (let i = 0; i < lines.length; i++) {
-		const fnMatch = matchFunctionOnLine(lines[i]);
+		const fnMatch = matchFunctionOnLine(lines[i], ext);
 		if (!fnMatch) continue;
 
-		const { endLine, maxNesting } = findFunctionEnd(lines, i);
+		const isPython = fnMatch.patternIndex === 2;
+		const { endLine, maxNesting } = findFunctionEnd(lines, i, isPython);
 
 		functions.push({
 			name: fnMatch.name,
@@ -126,14 +210,22 @@ const checkFileDiagnostics = (
 ): Diagnostic[] => {
 	const results: Diagnostic[] = [];
 	const lineCount = content.split("\n").length;
+	const ext = path.extname(relativePath).toLowerCase();
 
-	if (lineCount > limits.maxFileLoc) {
+	// Skip data files entirely
+	if (isDataFile(content)) return results;
+
+	// Apply 2x threshold for JSX/TSX files
+	const isJsx = ext === ".jsx" || ext === ".tsx";
+	const effectiveMax = isJsx ? limits.maxFileLoc * 2 : limits.maxFileLoc;
+
+	if (lineCount > effectiveMax) {
 		results.push({
 			filePath: relativePath,
 			engine: "code-quality",
 			rule: "complexity/file-too-large",
 			severity: "warning",
-			message: `File has ${lineCount} lines (max: ${limits.maxFileLoc})`,
+			message: `File has ${lineCount} lines (max: ${effectiveMax})`,
 			help: "Consider splitting this file into smaller modules",
 			line: 0,
 			column: 0,
@@ -213,9 +305,10 @@ const checkFileComplexity = (
 	}
 
 	const relativePath = path.relative(rootDirectory, filePath);
+	const ext = path.extname(filePath).toLowerCase();
 	const diagnostics = checkFileDiagnostics(relativePath, content, limits);
 
-	for (const fn of analyzeFunctions(content)) {
+	for (const fn of analyzeFunctions(content, ext)) {
 		diagnostics.push(...checkFunctionDiagnostics(relativePath, fn, limits));
 	}
 

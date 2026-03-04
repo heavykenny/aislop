@@ -47,6 +47,26 @@ const SECRET_PATTERNS: Array<{ pattern: RegExp; name: string }> = [
 	},
 ];
 
+const PLACEHOLDER_EXACT = new Set([
+	"changeme",
+	"password",
+	"secret",
+	"xxx",
+	"todo",
+	"replace_me",
+]);
+
+const isPlaceholderValue = (matchedText: string): boolean => {
+	if (/env\(/i.test(matchedText)) return true;
+	if (matchedText.includes("process.env")) return true;
+	if (matchedText.includes("os.environ")) return true;
+	if (matchedText.includes("${")) return true;
+	if (matchedText.includes("<") && matchedText.includes(">")) return true;
+	if (/^your_/i.test(matchedText)) return true;
+	if (PLACEHOLDER_EXACT.has(matchedText.toLowerCase())) return true;
+	return false;
+};
+
 export const scanSecrets = async (
 	context: EngineContext,
 ): Promise<Diagnostic[]> => {
@@ -74,6 +94,9 @@ export const scanSecrets = async (
 			let match: RegExpExecArray | null;
 
 			while ((match = regex.exec(content)) !== null) {
+				const matchedText = match[1] ?? match[0];
+				if (isPlaceholderValue(matchedText)) continue;
+
 				const line = content.slice(0, match.index).split("\n").length;
 
 				diagnostics.push({

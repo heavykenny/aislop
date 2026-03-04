@@ -31,12 +31,11 @@ export const createOxlintConfig = (options: {
 		options.framework === "remix";
 
 	if (hasReact) {
-		plugins.push("react", "react-hooks", "react-perf", "jsx-a11y");
+		plugins.push("react", "react-hooks", "jsx-a11y");
 		Object.assign(rules, {
 			"react/no-direct-mutation-state": "error",
 			"react-hooks/rules-of-hooks": "error",
 			"react-hooks/exhaustive-deps": "warn",
-			"react-perf/jsx-no-new-object-as-prop": "warn",
 		});
 	}
 

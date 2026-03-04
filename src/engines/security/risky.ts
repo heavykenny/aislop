@@ -102,9 +102,13 @@ export const detectRiskyConstructs = async (
 		}
 
 		const relativePath = path.relative(context.rootDirectory, filePath);
+		const normalizedPath = relativePath.split(path.sep).join("/");
+		const isMigrationOrSeeder =
+			/(?:^|\/)(migrations|seeders|seeds|migrate)\//.test(normalizedPath);
 
 		for (const { pattern, extensions, name, message, help } of RISKY_PATTERNS) {
 			if (!extensions.includes(ext)) continue;
+			if (isMigrationOrSeeder && name === "sql-injection") continue;
 
 			const regex = new RegExp(pattern.source, pattern.flags);
 			let match: RegExpExecArray | null;

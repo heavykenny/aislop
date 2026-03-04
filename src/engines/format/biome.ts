@@ -44,9 +44,9 @@ const BIOME_EXTENSIONS = new Set([
 ]);
 
 const getBiomeTargets = (context: EngineContext): string[] =>
-	getSourceFiles(context).filter((filePath) =>
-		BIOME_EXTENSIONS.has(path.extname(filePath)),
-	);
+	getSourceFiles(context)
+		.filter((filePath) => BIOME_EXTENSIONS.has(path.extname(filePath)))
+		.map((filePath) => path.relative(context.rootDirectory, filePath));
 
 export const runBiomeFormat = async (
 	context: EngineContext,

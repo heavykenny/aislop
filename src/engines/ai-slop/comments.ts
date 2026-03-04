@@ -4,7 +4,7 @@ import { getSourceFiles } from "../../utils/source-files.js";
 import type { Diagnostic, EngineContext } from "../types.js";
 
 // Patterns that indicate AI-generated trivial comments
-const TRIVIAL_COMMENT_PATTERNS = [
+const TRIVIAL_JS_COMMENT_PATTERNS = [
 	// "This function does X" when function name already says X
 	/\/\/\s*This (?:function|method|class|variable|constant) (?:will |is used to |is responsible for )?/i,
 	// "Import X" above an import statement
@@ -33,13 +33,66 @@ const TRIVIAL_COMMENT_PATTERNS = [
 	/\/\/\s*(?:Get(?:ting)?|Fetch(?:ing)?)\s+(?:the\s+)?/i,
 	// "Increment/Decrement X"
 	/\/\/\s*(?:Increment|Decrement)(?:ing)?\s+/i,
-	// Python equivalents
+];
+
+const TRIVIAL_PYTHON_COMMENT_PATTERNS = [
 	/^#\s*This (?:function|method|class) (?:will |is used to )?/i,
 	/^#\s*(?:Import|Define|Initialize|Return|Check|Create|Update|Delete|Handle|Get|Fetch)/i,
 ];
 
-const isTrivialComment = (line: string): boolean =>
-	TRIVIAL_COMMENT_PATTERNS.some((pattern) => pattern.test(line));
+// Keywords that indicate a comment is explanatory / meaningful
+const EXPLANATORY_KEYWORDS =
+	/\b(?:because|since|note|todo|fixme|hack|warn|warning|workaround|caveat|important|assumes?)\b/i;
+
+// Characters that suggest commented-out code rather than prose
+const COMMENTED_CODE_CHARS = /[({=;}\]>]/;
+
+const MAX_TRIVIAL_COMMENT_LENGTH = 60;
+
+const isJsComment = (trimmed: string): boolean => trimmed.startsWith("//");
+const isPythonComment = (trimmed: string): boolean =>
+	trimmed.startsWith("#") && !trimmed.startsWith("#!");
+
+/**
+ * Extract just the comment text after the comment marker.
+ */
+const getCommentBody = (trimmed: string): string => {
+	if (trimmed.startsWith("//")) return trimmed.slice(2).trim();
+	if (trimmed.startsWith("#")) return trimmed.slice(1).trim();
+	return trimmed;
+};
+
+const isTrivialComment = (
+	trimmed: string,
+	nextLine: string | undefined,
+): boolean => {
+	const isJs = isJsComment(trimmed);
+	const isPy = isPythonComment(trimmed);
+	if (!isJs && !isPy) return false;
+
+	const commentBody = getCommentBody(trimmed);
+
+	// Skip long comments — they likely contain meaningful context
+	if (commentBody.length > MAX_TRIVIAL_COMMENT_LENGTH) return false;
+
+	// Skip comments with explanatory keywords
+	if (EXPLANATORY_KEYWORDS.test(commentBody)) return false;
+
+	// Skip parenthetical explanations like "(excluding ignored directories)"
+	if (commentBody.includes("(") && commentBody.includes(")")) return false;
+
+	// Skip commented-out code (contains code-like characters)
+	if (COMMENTED_CODE_CHARS.test(commentBody)) return false;
+
+	// Skip section dividers (followed by a blank line)
+	if (nextLine !== undefined && nextLine.trim() === "") return false;
+
+	// Now check against the actual trivial patterns
+	const patterns = isJs
+		? TRIVIAL_JS_COMMENT_PATTERNS
+		: TRIVIAL_PYTHON_COMMENT_PATTERNS;
+	return patterns.some((pattern) => pattern.test(trimmed));
+};
 
 const scanFileForTrivialComments = (
 	content: string,
@@ -48,7 +101,9 @@ const scanFileForTrivialComments = (
 	const diagnostics: Diagnostic[] = [];
 	const lines = content.split("\n");
 	for (let i = 0; i < lines.length; i++) {
-		if (!isTrivialComment(lines[i].trim())) continue;
+		const trimmed = lines[i].trim();
+		const nextLine = i + 1 < lines.length ? lines[i + 1] : undefined;
+		if (!isTrivialComment(trimmed, nextLine)) continue;
 		diagnostics.push({
 			filePath: relativePath,
 			engine: "ai-slop",

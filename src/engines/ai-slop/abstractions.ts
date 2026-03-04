@@ -21,23 +21,47 @@ const AI_NAMING_PATTERNS = [
 	/(?:data|temp|result|value|item|obj|arr|str|num|val)\d+/,
 ];
 
+// Python test/framework method names that should not be flagged
+const FRAMEWORK_METHOD_NAMES =
+	/^(?:setUp|tearDown|setUpClass|tearDownClass|setUpModule|tearDownModule)$/;
+
+// Dunder method pattern
+const DUNDER_PATTERN = /^__\w+__$/;
+
 const detectThinWrappers = (
 	content: string,
 	relativePath: string,
 ): Diagnostic[] => {
 	const diagnostics: Diagnostic[] = [];
+	const lines = content.split("\n");
+
 	for (const pattern of THIN_WRAPPER_PATTERNS) {
 		const regex = new RegExp(pattern.source, pattern.flags);
 		let match: RegExpExecArray | null;
 		while ((match = regex.exec(content)) !== null) {
+			const funcName = match[1];
+			const lineNumber = content.slice(0, match.index).split("\n").length;
+
+			// Skip dunder methods like __init__, __str__, etc.
+			if (DUNDER_PATTERN.test(funcName)) continue;
+
+			// Skip Python test/framework method names
+			if (FRAMEWORK_METHOD_NAMES.test(funcName)) continue;
+
+			// Skip functions preceded by a decorator (line above starts with @)
+			if (lineNumber >= 2) {
+				const prevLine = lines[lineNumber - 2]?.trim();
+				if (prevLine && prevLine.startsWith("@")) continue;
+			}
+
 			diagnostics.push({
 				filePath: relativePath,
 				engine: "ai-slop",
 				rule: "ai-slop/thin-wrapper",
 				severity: "warning",
-				message: `Function '${match[1]}' is a thin wrapper that only calls another function`,
+				message: `Function '${funcName}' is a thin wrapper that only calls another function`,
 				help: "Consider calling the inner function directly instead of wrapping it",
-				line: content.slice(0, match.index).split("\n").length,
+				line: lineNumber,
 				column: 0,
 				category: "AI Slop",
 				fixable: false,
