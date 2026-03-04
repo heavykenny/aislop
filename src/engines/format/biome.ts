@@ -1,5 +1,6 @@
 import { createRequire } from "node:module";
 import path from "node:path";
+import { getSourceFiles } from "../../utils/source-files.js";
 import { runSubprocess } from "../../utils/subprocess.js";
 import type { Diagnostic, EngineContext } from "../types.js";
 
@@ -33,89 +34,105 @@ const runBiome = async (
 	});
 };
 
+const BIOME_EXTENSIONS = new Set([
+	".js",
+	".jsx",
+	".ts",
+	".tsx",
+	".mjs",
+	".cjs",
+]);
+
+const getBiomeTargets = (context: EngineContext): string[] =>
+	getSourceFiles(context).filter((filePath) =>
+		BIOME_EXTENSIONS.has(path.extname(filePath)),
+	);
+
 export const runBiomeFormat = async (
 	context: EngineContext,
 ): Promise<Diagnostic[]> => {
-	const args = [
-		"check",
-		"--formatter-enabled=true",
-		"--linter-enabled=false",
-		"--organize-imports-enabled=true",
-		"--diagnostic-level=warn",
-		context.rootDirectory,
-	];
+	const targets = getBiomeTargets(context);
+	if (targets.length === 0) return [];
+	const args = ["format", "--reporter=json", ...targets];
 
 	try {
 		const result = await runBiome(args, context.rootDirectory, 60000);
-
-		const output = result.stderr || result.stdout;
+		const output = [result.stdout, result.stderr].filter(Boolean).join("\n");
 		if (!output) return [];
 
-		return parseBiomeOutput(output, context.rootDirectory);
+		return parseBiomeJsonOutput(output, context.rootDirectory);
 	} catch {
 		return [];
 	}
 };
 
-const ISSUE_PATTERN = /^(.+?):(\d+):(\d+)\s+(.+)/;
-const FILE_PATTERN = /^(.+?)\s+(format|organizeImports)/;
-
-const parseBiomeLine = (line: string, rootDir: string): Diagnostic | null => {
-	const match = line.match(ISSUE_PATTERN);
-	if (match) {
-		return {
-			filePath: path.relative(rootDir, match[1]),
-			engine: "format",
-			rule: "formatting",
-			severity: "warning",
-			message: "File is not formatted correctly",
-			help: "Run `slop fix` to auto-format",
-			line: parseInt(match[2], 10),
-			column: parseInt(match[3], 10),
-			category: "Format",
-			fixable: true,
+interface BiomeJsonDiagnostic {
+	severity?: string;
+	message?: string;
+	location?: {
+		path?: string;
+		start?: {
+			line?: number;
+			column?: number;
 		};
-	}
-
-	const fileMatch = line.match(FILE_PATTERN);
-	if (!fileMatch) return null;
-
-	const isImports = fileMatch[2] === "organizeImports";
-	return {
-		filePath: path.relative(rootDir, fileMatch[1]),
-		engine: "format",
-		rule: isImports ? "import-order" : "formatting",
-		severity: "warning",
-		message: isImports
-			? "Imports are not organized"
-			: "File is not formatted correctly",
-		help: "Run `slop fix` to auto-format",
-		line: 0,
-		column: 0,
-		category: "Format",
-		fixable: true,
 	};
-};
+}
 
-const parseBiomeOutput = (output: string, rootDir: string): Diagnostic[] => {
+interface BiomeJsonPayload {
+	diagnostics?: BiomeJsonDiagnostic[];
+}
+
+const parseBiomeJsonOutput = (
+	output: string,
+	rootDir: string,
+): Diagnostic[] => {
 	const diagnostics: Diagnostic[] = [];
 	for (const line of output.split("\n")) {
-		const diagnostic = parseBiomeLine(line, rootDir);
-		if (diagnostic) diagnostics.push(diagnostic);
+		const trimmed = line.trim();
+		if (!trimmed.startsWith("{")) continue;
+
+		let parsed: BiomeJsonPayload | null = null;
+		try {
+			parsed = JSON.parse(trimmed) as BiomeJsonPayload;
+		} catch {
+			parsed = null;
+		}
+		if (!parsed || !Array.isArray(parsed.diagnostics)) continue;
+
+		for (const entry of parsed.diagnostics) {
+			const rawPath = entry.location?.path;
+			if (!rawPath) continue;
+			const severity = entry.severity === "error" ? "error" : "warning";
+			diagnostics.push({
+				filePath: path.relative(rootDir, rawPath),
+				engine: "format",
+				rule: "formatting",
+				severity,
+				message: entry.message ?? "File is not formatted correctly",
+				help: "Run `slop fix` to auto-format",
+				line: entry.location?.start?.line ?? 0,
+				column: entry.location?.start?.column ?? 0,
+				category: "Format",
+				fixable: true,
+			});
+		}
 	}
 	return diagnostics;
 };
 
-export const fixBiomeFormat = async (rootDirectory: string): Promise<void> => {
+export const fixBiomeFormat = async (context: EngineContext): Promise<void> => {
+	const targets = getBiomeTargets(context);
+	if (targets.length === 0) return;
+
 	const result = await runBiome(
 		[
 			"check",
 			"--write",
 			"--formatter-enabled=true",
 			"--linter-enabled=false",
-			rootDirectory,
+			...targets,
 		],
-		rootDirectory,
+		context.rootDirectory,
 		60000,
 	);
 	if (result.exitCode !== 0) {

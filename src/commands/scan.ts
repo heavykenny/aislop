@@ -5,15 +5,18 @@ import { findConfigDir, RULES_FILE } from "../config/index.js";
 import { runEngines } from "../engines/orchestrator.js";
 import type { EngineConfig } from "../engines/types.js";
 import {
+	formatProjectSummary,
+	printCommandHeader,
+	printProjectMetadata,
+} from "../output/layout.js";
+import {
 	printDiagnostics,
-	printEngineLegend,
 	printEngineStatus,
 	printSummary,
 } from "../output/terminal.js";
 import { calculateScore } from "../scoring/index.js";
 import { discoverProject } from "../utils/discover.js";
 import { getChangedFiles, getStagedFiles } from "../utils/git.js";
-import { highlighter } from "../utils/highlighter.js";
 import { logger } from "../utils/logger.js";
 import { spinner } from "../utils/spinner.js";
 
@@ -22,7 +25,13 @@ interface ScanOptions {
 	staged: boolean;
 	verbose: boolean;
 	json: boolean;
+	showHeader?: boolean;
 }
+
+const shouldUseSpinner = (): boolean =>
+	Boolean(process.stderr.isTTY) &&
+	process.env.CI !== "true" &&
+	process.env.CI !== "1";
 
 export const scanCommand = async (
 	directory: string,
@@ -31,46 +40,39 @@ export const scanCommand = async (
 ): Promise<{ exitCode: number }> => {
 	const startTime = performance.now();
 	const resolvedDir = path.resolve(directory);
+	const showHeader = options.showHeader !== false;
 
-	if (!options.json) {
-		logger.log(`slop v${process.env.VERSION ?? "0.1.0"}`);
-		logger.break();
+	if (!options.json && showHeader) {
+		printCommandHeader("Scan");
 	}
 
-	const discoverSpinner = options.json
-		? null
-		: spinner("Discovering project...").start();
+	const discoverSpinner =
+		options.json || !shouldUseSpinner() || !showHeader
+			? null
+			: spinner("Discovering project...").start();
 	const projectInfo = await discoverProject(resolvedDir);
-	discoverSpinner?.succeed(
-		`Detected ${highlighter.info(projectInfo.languages.join(", "))} in ${highlighter.info(projectInfo.projectName)}`,
-	);
+	const projectSummary = formatProjectSummary(projectInfo);
+	if (discoverSpinner) {
+		discoverSpinner.succeed(projectSummary);
+	} else if (!options.json) {
+		logger.success(`  ✓ ${projectSummary}`);
+	}
 
 	if (!options.json) {
-		logger.log(
-			`  Source files: ${highlighter.info(String(projectInfo.sourceFileCount))}`,
-		);
-
-		if (projectInfo.frameworks.some((f) => f !== "none")) {
-			logger.log(
-				`  Frameworks: ${highlighter.info(projectInfo.frameworks.filter((f) => f !== "none").join(", "))}`,
-			);
-		}
-
-		logger.break();
-		printEngineLegend(config.engines);
+		printProjectMetadata(projectInfo);
 	}
 
 	let files: string[] | undefined;
 	if (options.staged) {
 		files = getStagedFiles(resolvedDir);
 		if (!options.json) {
-			logger.dim(`  Scanning ${files.length} staged files`);
+			logger.dim(`  Scope: ${files.length} staged file(s)`);
 			logger.break();
 		}
 	} else if (options.changes) {
 		files = getChangedFiles(resolvedDir);
 		if (!options.json) {
-			logger.dim(`  Scanning ${files.length} changed files`);
+			logger.dim(`  Scope: ${files.length} changed file(s)`);
 			logger.break();
 		}
 	}
@@ -127,7 +129,7 @@ export const scanCommand = async (
 	logger.break();
 
 	if (allDiagnostics.length === 0) {
-		logger.success("  No issues found!");
+		logger.success("  ✓ No issues found.");
 		logger.break();
 	} else {
 		printDiagnostics(allDiagnostics, options.verbose);

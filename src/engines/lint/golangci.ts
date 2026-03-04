@@ -1,5 +1,6 @@
 import path from "node:path";
 import { runSubprocess } from "../../utils/subprocess.js";
+import { resolveToolBinary } from "../../utils/tooling.js";
 import type { Diagnostic, EngineContext } from "../types.js";
 
 interface GolangciIssue {
@@ -11,9 +12,10 @@ interface GolangciIssue {
 export const runGolangciLint = async (
 	context: EngineContext,
 ): Promise<Diagnostic[]> => {
+	const golangciBinary = resolveToolBinary("golangci-lint");
 	try {
 		const result = await runSubprocess(
-			"golangci-lint",
+			golangciBinary,
 			["run", "--out-format=json", "./..."],
 			{
 				cwd: context.rootDirectory,

@@ -178,6 +178,16 @@ describe("discoverProject", () => {
 		expect(info.frameworks).toContain("vite");
 	});
 
+	it("detects expo from package.json dependency", async () => {
+		createFile(
+			tmpDir,
+			"package.json",
+			JSON.stringify({ name: "app", dependencies: { expo: "54.0.0" } }),
+		);
+		const info = await discoverProject(tmpDir);
+		expect(info.frameworks).toContain("expo");
+	});
+
 	it("detects django from requirements.txt", async () => {
 		createFile(tmpDir, "requirements.txt", "Django==4.2.0\npsycopg2");
 		const info = await discoverProject(tmpDir);

@@ -19,7 +19,8 @@ export const runDependencyAudit = async (
 		if (fs.existsSync(path.join(context.rootDirectory, "pnpm-lock.yaml"))) {
 			promises.push(runPnpmAudit(context.rootDirectory, timeout));
 		} else if (
-			fs.existsSync(path.join(context.rootDirectory, "package-lock.json"))
+			fs.existsSync(path.join(context.rootDirectory, "package-lock.json")) ||
+			fs.existsSync(path.join(context.rootDirectory, "package.json"))
 		) {
 			promises.push(runNpmAudit(context.rootDirectory, timeout));
 		}
@@ -65,7 +66,7 @@ const runNpmAudit = async (
 			cwd: rootDir,
 			timeout,
 		});
-		return parseNpmAudit(result.stdout);
+		return parseJsAudit(result.stdout, "npm audit");
 	} catch {
 		return [];
 	}
@@ -80,42 +81,164 @@ const runPnpmAudit = async (
 			cwd: rootDir,
 			timeout,
 		});
-		return parseNpmAudit(result.stdout);
+		return parseJsAudit(result.stdout, "pnpm audit");
 	} catch {
 		return [];
 	}
 };
 
-const parseNpmAudit = (output: string): Diagnostic[] => {
-	if (!output) return [];
-	try {
-		const parsed = JSON.parse(output);
-		const advisories = parsed.advisories ?? parsed.vulnerabilities ?? {};
-		const diagnostics: Diagnostic[] = [];
+type JsAuditSource = "npm audit" | "pnpm audit";
 
-		for (const [name, advisory] of Object.entries(advisories) as [
-			string,
-			Record<string, unknown>,
-		][]) {
-			const severity = (advisory.severity as string) ?? "moderate";
-			diagnostics.push({
-				filePath: "package.json",
-				engine: "security",
-				rule: "security/vulnerable-dependency",
-				severity:
-					severity === "critical" || severity === "high" ? "error" : "warning",
-				message: `Vulnerable dependency: ${name} (${severity})`,
-				help:
-					(advisory.recommendation as string) ??
-					`Run \`npm audit fix\` to resolve`,
-				line: 0,
-				column: 0,
-				category: "Security",
-				fixable: false,
-			});
+const toSeverity = (value: string): "error" | "warning" =>
+	value === "critical" || value === "high" ? "error" : "warning";
+
+const defaultAuditFixCommand = (source: JsAuditSource): string =>
+	source === "pnpm audit" ? "pnpm audit --fix" : "npm audit fix";
+
+const parseLegacyAdvisories = (
+	advisories: Record<string, Record<string, unknown>>,
+	source: JsAuditSource,
+): Diagnostic[] => {
+	const diagnostics: Diagnostic[] = [];
+
+	for (const [key, advisory] of Object.entries(advisories)) {
+		const packageName =
+			(advisory.module_name as string) ??
+			(advisory.name as string) ??
+			(advisory.package as string) ??
+			key;
+		const severity = (
+			(advisory.severity as string) ?? "moderate"
+		).toLowerCase();
+		const recommendation =
+			(advisory.recommendation as string) ??
+			(advisory.title as string) ??
+			`Run \`${defaultAuditFixCommand(source)}\` to resolve`;
+
+		diagnostics.push({
+			filePath: "package.json",
+			engine: "security",
+			rule: "security/vulnerable-dependency",
+			severity: toSeverity(severity),
+			message: `Vulnerable dependency (${source}): ${packageName} (${severity})`,
+			help: recommendation,
+			line: 0,
+			column: 0,
+			category: "Security",
+			fixable: false,
+		});
+	}
+
+	return diagnostics;
+};
+
+const parseModernVulnerabilities = (
+	vulnerabilities: Record<string, Record<string, unknown>>,
+	source: JsAuditSource,
+): Diagnostic[] => {
+	const diagnostics: Diagnostic[] = [];
+
+	for (const [packageName, vulnerability] of Object.entries(vulnerabilities)) {
+		const severity = (
+			(vulnerability.severity as string) ?? "moderate"
+		).toLowerCase();
+
+		const fixAvailable = vulnerability.fixAvailable;
+		let recommendation = `Run \`${defaultAuditFixCommand(source)}\` to resolve`;
+		if (fixAvailable === false) {
+			recommendation = "No automatic fix available.";
+		} else if (
+			fixAvailable &&
+			typeof fixAvailable === "object" &&
+			"name" in fixAvailable &&
+			"version" in fixAvailable
+		) {
+			const target = fixAvailable as { name?: string; version?: string };
+			if (target.name && target.version) {
+				recommendation = `Upgrade to ${target.name}@${target.version}.`;
+			}
 		}
 
-		return diagnostics;
+		diagnostics.push({
+			filePath: "package.json",
+			engine: "security",
+			rule: "security/vulnerable-dependency",
+			severity: toSeverity(severity),
+			message: `Vulnerable dependency (${source}): ${packageName} (${severity})`,
+			help: recommendation,
+			line: 0,
+			column: 0,
+			category: "Security",
+			fixable: false,
+		});
+	}
+
+	return diagnostics;
+};
+
+const parseJsAudit = (output: string, source: JsAuditSource): Diagnostic[] => {
+	if (!output) return [];
+	try {
+		const parsed = JSON.parse(output) as Record<string, unknown>;
+
+		const error = parsed.error as
+			| { code?: string; summary?: string; detail?: string }
+			| undefined;
+		if (error?.code === "ENOLOCK") {
+			return [
+				{
+					filePath: "package.json",
+					engine: "security",
+					rule: "security/dependency-audit-skipped",
+					severity: "info",
+					message: `Dependency audit skipped (${source}): lockfile is missing`,
+					help:
+						error.detail ??
+						"Generate a lockfile, then re-run `slop scan` for dependency vulnerability checks.",
+					line: 0,
+					column: 0,
+					category: "Security",
+					fixable: false,
+				},
+			];
+		}
+		if (error?.summary || error?.code) {
+			return [
+				{
+					filePath: "package.json",
+					engine: "security",
+					rule: "security/dependency-audit-skipped",
+					severity: "info",
+					message: `Dependency audit did not complete (${source})`,
+					help:
+						error.detail ??
+						error.summary ??
+						"Re-run dependency audit directly to inspect the underlying error.",
+					line: 0,
+					column: 0,
+					category: "Security",
+					fixable: false,
+				},
+			];
+		}
+
+		const advisories = parsed.advisories;
+		if (advisories && typeof advisories === "object") {
+			return parseLegacyAdvisories(
+				advisories as Record<string, Record<string, unknown>>,
+				source,
+			);
+		}
+
+		const vulnerabilities = parsed.vulnerabilities;
+		if (vulnerabilities && typeof vulnerabilities === "object") {
+			return parseModernVulnerabilities(
+				vulnerabilities as Record<string, Record<string, unknown>>,
+				source,
+			);
+		}
+
+		return [];
 	} catch {
 		return [];
 	}

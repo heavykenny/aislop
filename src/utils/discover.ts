@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { isToolInstalled } from "./subprocess.js";
+import { isToolAvailable } from "./tooling.js";
 
 export type Language =
 	| "typescript"
@@ -18,6 +18,7 @@ export type Framework =
 	| "react"
 	| "vite"
 	| "remix"
+	| "expo"
 	| "django"
 	| "flask"
 	| "fastapi"
@@ -56,6 +57,7 @@ const FRAMEWORK_PACKAGES: Record<string, Framework> = {
 	react: "react",
 	vite: "vite",
 	"@remix-run/react": "remix",
+	expo: "expo",
 };
 
 const PYTHON_FRAMEWORKS: Record<string, Framework> = {
@@ -183,6 +185,8 @@ const TOOLS_TO_CHECK = [
 	"biome",
 	"ruff",
 	"golangci-lint",
+	"npm",
+	"pnpm",
 	"govulncheck",
 	"gofmt",
 	"pip-audit",
@@ -198,7 +202,7 @@ const checkInstalledTools = async (): Promise<Record<string, boolean>> => {
 	const results: Record<string, boolean> = {};
 	await Promise.all(
 		TOOLS_TO_CHECK.map(async (tool) => {
-			results[tool] = await isToolInstalled(tool);
+			results[tool] = await isToolAvailable(tool);
 		}),
 	);
 	return results;

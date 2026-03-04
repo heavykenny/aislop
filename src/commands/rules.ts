@@ -1,6 +1,7 @@
 import path from "node:path";
 import { findConfigDir, RULES_FILE } from "../config/index.js";
 import { loadArchitectureRules } from "../engines/architecture/rule-loader.js";
+import { printCommandHeader } from "../output/layout.js";
 import { highlighter } from "../utils/highlighter.js";
 import { logger } from "../utils/logger.js";
 
@@ -56,10 +57,9 @@ const BUILTIN_RULES = [
 export const rulesCommand = async (directory: string): Promise<void> => {
 	const resolvedDir = path.resolve(directory);
 
-	logger.log(`slop rules v${process.env.VERSION ?? "0.1.0"}`);
-	logger.break();
+	printCommandHeader("Rules");
 
-	logger.log("  Built-in rules:");
+	logger.log("  Rule sets");
 	logger.break();
 
 	for (const { engine, rules } of BUILTIN_RULES) {

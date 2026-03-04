@@ -26,7 +26,7 @@ export const formatEngine: Engine = {
 			promises.push(runRuffFormat(context));
 		}
 
-		if (languages.includes("go")) {
+		if (languages.includes("go") && installedTools["gofmt"]) {
 			promises.push(runGofmt(context));
 		}
 

@@ -1,13 +1,15 @@
 import path from "node:path";
 import { runSubprocess } from "../../utils/subprocess.js";
+import { resolveToolBinary } from "../../utils/tooling.js";
 import type { Diagnostic, EngineContext } from "../types.js";
 
 export const runRuffFormat = async (
 	context: EngineContext,
 ): Promise<Diagnostic[]> => {
+	const ruffBinary = resolveToolBinary("ruff");
 	try {
 		const result = await runSubprocess(
-			"ruff",
+			ruffBinary,
 			["format", "--check", "--diff", context.rootDirectory],
 			{
 				cwd: context.rootDirectory,
@@ -53,7 +55,8 @@ const parseRuffFormatOutput = (
 };
 
 export const fixRuffFormat = async (rootDirectory: string): Promise<void> => {
-	const result = await runSubprocess("ruff", ["format", rootDirectory], {
+	const ruffBinary = resolveToolBinary("ruff");
+	const result = await runSubprocess(ruffBinary, ["format", rootDirectory], {
 		cwd: rootDirectory,
 		timeout: 60000,
 	});

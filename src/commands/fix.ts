@@ -1,102 +1,137 @@
 import path from "node:path";
+import { performance } from "node:perf_hooks";
 import type { SlopConfig } from "../config/index.js";
 import { fixBiomeFormat, runBiomeFormat } from "../engines/format/biome.js";
 import { fixGofmt, runGofmt } from "../engines/format/gofmt.js";
 import { fixRuffFormat, runRuffFormat } from "../engines/format/ruff-format.js";
 import { fixRuffLint, runRuffLint } from "../engines/lint/ruff.js";
 import type { Diagnostic, EngineContext } from "../engines/types.js";
+import {
+	formatElapsed,
+	formatProjectSummary,
+	printCommandHeader,
+	printProjectMetadata,
+} from "../output/layout.js";
 import { discoverProject } from "../utils/discover.js";
 import { logger } from "../utils/logger.js";
-import { spinner } from "../utils/spinner.js";
 
 interface FixOptions {
 	verbose: boolean;
+	showHeader?: boolean;
 }
 
-const shouldUseSpinner = (): boolean =>
-	Boolean(process.stderr.isTTY) &&
-	process.env.CI !== "true" &&
-	process.env.CI !== "1";
-
-const uniqueFileCount = (diagnostics: Diagnostic[]): number =>
-	new Set(diagnostics.map((d) => d.filePath)).size;
-
-const printVerboseDiagnostics = (
-	title: string,
-	diagnostics: Diagnostic[],
-): void => {
-	if (diagnostics.length === 0) return;
-	const files = [...new Set(diagnostics.map((d) => d.filePath))];
-	logger.dim(`    ${title}: ${files.length} file(s)`);
-	for (const file of files) {
-		logger.dim(`      ${file}`);
-	}
-};
-
 interface FixStepResult {
+	name: string;
 	beforeIssues: number;
 	afterIssues: number;
 	resolvedIssues: number;
 	beforeFiles: number;
-	afterFiles: number;
+	failed: boolean;
+	elapsedMs: number;
 }
+
+const uniqueFiles = (diagnostics: Diagnostic[]): string[] => [
+	...new Set(diagnostics.map((d) => d.filePath)),
+];
+
+const uniqueFileCount = (diagnostics: Diagnostic[]): number =>
+	uniqueFiles(diagnostics).length;
+
+const printFilePreview = (
+	title: string,
+	files: string[],
+	verbose: boolean,
+): void => {
+	if (files.length === 0) return;
+	logger.dim(`    ${title}: ${files.length} file(s)`);
+	const preview = verbose ? files : files.slice(0, 5);
+	for (const file of preview) {
+		logger.dim(`      ${file}`);
+	}
+	if (!verbose && files.length > preview.length) {
+		logger.dim(
+			`      +${files.length - preview.length} more file(s), use -d for full list`,
+		);
+	}
+};
+
+const getReasonLines = (
+	reason: string,
+): { firstLine: string; printable: string } => {
+	const firstLine =
+		reason.split("\n").find((line) => line.trim().length > 0) ?? reason;
+	return { firstLine, printable: reason };
+};
 
 const runFixStep = async (
 	name: string,
 	detect: () => Promise<Diagnostic[]>,
 	applyFix: () => Promise<void>,
 	options: FixOptions,
-): Promise<void> => {
-	const useSpinner = shouldUseSpinner();
-	const stepSpinner = useSpinner ? spinner(`Fixing ${name}...`).start() : null;
+): Promise<FixStepResult> => {
+	const stepStart = performance.now();
+
+	const before = await detect();
+	let applyError: unknown = null;
 
 	try {
-		const before = await detect();
 		await applyFix();
-		const after = await detect();
+	} catch (error) {
+		applyError = error;
+	}
 
-		const summary: FixStepResult = {
-			beforeIssues: before.length,
-			afterIssues: after.length,
-			resolvedIssues: Math.max(0, before.length - after.length),
-			beforeFiles: uniqueFileCount(before),
-			afterFiles: uniqueFileCount(after),
-		};
+	const after = await detect();
+	const elapsedMs = performance.now() - stepStart;
+	const result: FixStepResult = {
+		name,
+		beforeIssues: before.length,
+		afterIssues: after.length,
+		resolvedIssues: Math.max(0, before.length - after.length),
+		beforeFiles: uniqueFileCount(before),
+		failed: applyError !== null && before.length === after.length,
+		elapsedMs,
+	};
 
-		let message: string;
-		if (summary.beforeIssues === 0) {
-			message = `${name}: already clean (0 issues)`;
-		} else if (summary.afterIssues === 0) {
-			message = `${name}: fixed all issues (${summary.beforeIssues} -> 0 across ${summary.beforeFiles} file(s))`;
-		} else {
-			message = `${name}: partially fixed (${summary.beforeIssues} -> ${summary.afterIssues}, resolved ${summary.resolvedIssues})`;
+	const elapsedLabel = formatElapsed(result.elapsedMs);
+	if (result.failed) {
+		logger.error(
+			`  ✗ ${name}: failed (${result.afterIssues} issue${result.afterIssues === 1 ? "" : "s"} remain, ${elapsedLabel})`,
+		);
+	} else if (result.beforeIssues === 0) {
+		logger.success(`  ✓ ${name}: done (0 issues, ${elapsedLabel})`);
+	} else if (result.afterIssues === 0) {
+		logger.success(
+			`  ✓ ${name}: done (${result.resolvedIssues} resolved across ${result.beforeFiles} file(s), ${elapsedLabel})`,
+		);
+	} else if (result.resolvedIssues > 0) {
+		logger.warn(
+			`  ! ${name}: done (${result.resolvedIssues} resolved, ${result.afterIssues} remaining, ${elapsedLabel})`,
+		);
+	} else {
+		logger.warn(
+			`  ! ${name}: done (no auto-fix changes, ${result.afterIssues} issue${result.afterIssues === 1 ? "" : "s"}, ${elapsedLabel})`,
+		);
+	}
+
+	if (applyError) {
+		const reason =
+			applyError instanceof Error ? applyError.message : String(applyError);
+		const reasonLines = getReasonLines(reason);
+		const reasonToPrint = options.verbose
+			? reasonLines.printable
+			: reasonLines.firstLine;
+		logger.dim(`      ${reasonToPrint}`);
+		if (!options.verbose && reasonLines.printable !== reasonToPrint) {
+			logger.dim("      Re-run with -d for full tool output.");
 		}
+	}
 
-		if (stepSpinner) {
-			stepSpinner.succeed(message);
-		} else {
-			logger.success(`  ${message}`);
-		}
+	printFilePreview("Affected", uniqueFiles(before), options.verbose);
+	if (after.length > 0) {
+		printFilePreview("Remaining", uniqueFiles(after), options.verbose);
+	}
 
-		if (options.verbose) {
-			printVerboseDiagnostics("Detected before fix", before);
-			printVerboseDiagnostics("Still remaining", after);
-		}
-  } catch (error) {
-    const reason = error instanceof Error ? error.message : String(error);
-    const message = `${name}: failed`;
-    const firstLine = reason.split("\n").find((line) => line.trim().length > 0) ?? reason;
-    const reasonToPrint = options.verbose ? reason : firstLine;
-    if (stepSpinner) {
-      stepSpinner.fail(message);
-    } else {
-      logger.error(`  ${message}`);
-    }
-    logger.dim(`    ${reasonToPrint}`);
-    if (!options.verbose && reason !== reasonToPrint) {
-      logger.dim("    Re-run with -d for full tool output.");
-    }
-  }
+	return result;
 };
 
 const createEngineContext = (
@@ -114,83 +149,139 @@ const createEngineContext = (
 	},
 });
 
+const summarizeFixRun = (steps: FixStepResult[]): void => {
+	const totals = steps.reduce(
+		(acc, step) => {
+			acc.beforeIssues += step.beforeIssues;
+			acc.afterIssues += step.afterIssues;
+			acc.resolvedIssues += step.resolvedIssues;
+			if (step.failed) acc.failedSteps += 1;
+			return acc;
+		},
+		{ beforeIssues: 0, afterIssues: 0, resolvedIssues: 0, failedSteps: 0 },
+	);
+
+	if (totals.failedSteps > 0) {
+		logger.log(
+			`  Fix summary: checked ${steps.length} step(s), resolved ${totals.resolvedIssues} issue(s).`,
+		);
+		logger.warn(
+			`  ${totals.failedSteps} step(s) reported tool errors; unresolved issue count is unknown for failed steps.`,
+		);
+	} else {
+		logger.log(
+			`  Fix summary: checked ${steps.length} step(s), resolved ${totals.resolvedIssues} issue(s), remaining ${totals.afterIssues}.`,
+		);
+	}
+
+	if (
+		totals.failedSteps === 0 &&
+		totals.beforeIssues > 0 &&
+		totals.resolvedIssues === 0
+	) {
+		logger.dim(
+			"  No auto-fixable changes were applied. Current findings are likely manual-fix categories.",
+		);
+	}
+};
+
 export const fixCommand = async (
 	directory: string,
 	config: SlopConfig,
-	options: FixOptions = { verbose: false },
+	options: FixOptions = { verbose: false, showHeader: true },
 ): Promise<void> => {
 	const resolvedDir = path.resolve(directory);
 
-	logger.log(`slop fix v${process.env.VERSION ?? "0.1.0"}`);
-	logger.break();
+	if (options.showHeader !== false) {
+		printCommandHeader("Fix");
+	}
 
 	const projectInfo = await discoverProject(resolvedDir);
+	logger.success(`  ✓ ${formatProjectSummary(projectInfo)}`);
+	printProjectMetadata(projectInfo);
 	const context = createEngineContext(resolvedDir, projectInfo, config);
+	const steps: FixStepResult[] = [];
 
-	let stepsRun = 0;
-
-  if (config.engines.format) {
+	if (config.engines.format) {
 		if (
 			projectInfo.languages.includes("typescript") ||
 			projectInfo.languages.includes("javascript")
 		) {
-			stepsRun++;
-			await runFixStep(
-				"JS/TS formatting",
-				() => runBiomeFormat(context),
-				() => fixBiomeFormat(resolvedDir),
-				options,
+			steps.push(
+				await runFixStep(
+					"JS/TS formatting",
+					() => runBiomeFormat(context),
+					() => fixBiomeFormat(context),
+					options,
+				),
 			);
 		}
 
-    if (
-      projectInfo.languages.includes("python") &&
-      projectInfo.installedTools.ruff
-    ) {
-      stepsRun++;
-      await runFixStep(
-        "Python formatting",
-        () => runRuffFormat(context),
-        () => fixRuffFormat(resolvedDir),
-        options,
-      );
-    } else if (projectInfo.languages.includes("python")) {
-      logger.warn("  Python detected but ruff is not installed; skipping Python formatting fixes.");
-    }
+		if (
+			projectInfo.languages.includes("python") &&
+			projectInfo.installedTools.ruff
+		) {
+			steps.push(
+				await runFixStep(
+					"Python formatting",
+					() => runRuffFormat(context),
+					() => fixRuffFormat(resolvedDir),
+					options,
+				),
+			);
+		} else if (projectInfo.languages.includes("python")) {
+			logger.warn(
+				"  Python detected but ruff is not installed; skipping Python formatting fixes.",
+			);
+		}
 
-		if (projectInfo.languages.includes("go")) {
-			stepsRun++;
-			await runFixStep(
-				"Go formatting",
-				() => runGofmt(context),
-				() => fixGofmt(resolvedDir),
-				options,
+		if (
+			projectInfo.languages.includes("go") &&
+			projectInfo.installedTools.gofmt
+		) {
+			steps.push(
+				await runFixStep(
+					"Go formatting",
+					() => runGofmt(context),
+					() => fixGofmt(resolvedDir),
+					options,
+				),
+			);
+		} else if (projectInfo.languages.includes("go")) {
+			logger.warn(
+				"  Go detected but gofmt is not installed; skipping Go formatting fixes.",
 			);
 		}
 	}
 
-  if (config.engines.lint) {
-    if (
-      projectInfo.languages.includes("python") &&
-      projectInfo.installedTools.ruff
-    ) {
-      stepsRun++;
-      await runFixStep(
-        "Python lint fixes",
-        () => runRuffLint(context),
-        () => fixRuffLint(resolvedDir),
-        options,
-      );
-    } else if (projectInfo.languages.includes("python")) {
-      logger.warn("  Python detected but ruff is not installed; skipping Python lint fixes.");
-    }
-  }
+	if (config.engines.lint) {
+		if (
+			projectInfo.languages.includes("python") &&
+			projectInfo.installedTools.ruff
+		) {
+			steps.push(
+				await runFixStep(
+					"Python lint fixes",
+					() => runRuffLint(context),
+					() => fixRuffLint(resolvedDir),
+					options,
+				),
+			);
+		} else if (projectInfo.languages.includes("python")) {
+			logger.warn(
+				"  Python detected but ruff is not installed; skipping Python lint fixes.",
+			);
+		}
+	}
 
-	if (stepsRun === 0) {
+	if (steps.length === 0) {
 		logger.dim("  No applicable auto-fixers found for this project.");
+	} else {
+		logger.break();
+		summarizeFixRun(steps);
 	}
 
 	logger.break();
-	logger.success("  Done! Run `slop scan` to verify.");
+	logger.success("  ✓ Done. Run `slop scan` to verify.");
 	logger.break();
 };

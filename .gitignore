@@ -1,5 +1,6 @@
 node_modules/
 dist/
+tools/
 *.tgz
 .DS_Store
 .claude

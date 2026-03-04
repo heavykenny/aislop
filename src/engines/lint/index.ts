@@ -4,6 +4,7 @@ import type {
 	EngineContext,
 	EngineResult,
 } from "../types.js";
+import { runExpoDoctor } from "./expo-doctor.js";
 import { runGenericLinter } from "./generic.js";
 import { runGolangciLint } from "./golangci.js";
 import { runOxlint } from "./oxlint.js";
@@ -20,6 +21,10 @@ export const lintEngine: Engine = {
 
 		if (languages.includes("typescript") || languages.includes("javascript")) {
 			promises.push(runOxlint(context));
+		}
+
+		if (context.frameworks.includes("expo")) {
+			promises.push(runExpoDoctor(context));
 		}
 
 		if (languages.includes("python") && installedTools["ruff"]) {

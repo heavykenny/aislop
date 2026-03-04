@@ -2,6 +2,11 @@ import fs from "node:fs";
 import path from "node:path";
 import { DEFAULT_CONFIG_YAML, DEFAULT_RULES_YAML } from "../config/defaults.js";
 import { CONFIG_DIR, CONFIG_FILE, RULES_FILE } from "../config/index.js";
+import {
+	formatProjectSummary,
+	printCommandHeader,
+	printProjectMetadata,
+} from "../output/layout.js";
 import { discoverProject } from "../utils/discover.js";
 import { highlighter } from "../utils/highlighter.js";
 import { logger } from "../utils/logger.js";
@@ -10,14 +15,13 @@ import { spinner } from "../utils/spinner.js";
 export const initCommand = async (directory: string): Promise<void> => {
 	const resolvedDir = path.resolve(directory);
 
-	logger.log(`slop init v${process.env.VERSION ?? "0.1.0"}`);
-	logger.break();
+	printCommandHeader("Init");
 
 	const s1 = spinner("Detecting project...").start();
 	const projectInfo = await discoverProject(resolvedDir);
-	s1.succeed(
-		`Detected ${highlighter.info(projectInfo.languages.join(", "))} project: ${highlighter.info(projectInfo.projectName)}`,
-	);
+	s1.stop();
+	logger.success(`  ✓ ${formatProjectSummary(projectInfo)}`);
+	printProjectMetadata(projectInfo);
 
 	const configDir = path.join(resolvedDir, CONFIG_DIR);
 	if (!fs.existsSync(configDir)) {

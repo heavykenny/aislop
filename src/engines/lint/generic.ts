@@ -23,38 +23,67 @@ const runClippy = async (context: EngineContext): Promise<Diagnostic[]> => {
 			["clippy", "--message-format=json", "--quiet"],
 			{ cwd: context.rootDirectory, timeout: 120000 },
 		);
-
-		const diagnostics: Diagnostic[] = [];
-		const lines = result.stdout.split("\n").filter((l) => l.startsWith("{"));
-
-		for (const line of lines) {
-			try {
-				const msg = JSON.parse(line);
-				if (msg.reason !== "compiler-message" || !msg.message) continue;
-				const m = msg.message;
-				const span = m.spans?.[0];
-
-				diagnostics.push({
-					filePath: span?.file_name ?? "",
-					engine: "lint",
-					rule: `clippy/${m.code?.code ?? "unknown"}`,
-					severity: m.level === "error" ? "error" : "warning",
-					message: m.message ?? "",
-					help: m.children?.[0]?.message ?? "",
-					line: span?.line_start ?? 0,
-					column: span?.column_start ?? 0,
-					category: "Rust Lint",
-					fixable: false,
-				});
-			} catch {
-				continue;
-			}
-		}
-
-		return diagnostics;
+		return parseClippyDiagnostics(result.stdout);
 	} catch {
 		return [];
 	}
+};
+
+interface ClippySpan {
+	file_name?: string;
+	line_start?: number;
+	column_start?: number;
+}
+
+interface ClippyMessage {
+	code?: { code?: string };
+	level?: string;
+	message?: string;
+	children?: Array<{ message?: string }>;
+	spans?: ClippySpan[];
+}
+
+interface ClippyEntry {
+	reason?: string;
+	message?: ClippyMessage;
+}
+
+const parseClippyEntry = (line: string): ClippyEntry | null => {
+	if (!line.startsWith("{")) return null;
+	try {
+		return JSON.parse(line) as ClippyEntry;
+	} catch {
+		return null;
+	}
+};
+
+const toClippyDiagnostic = (entry: ClippyEntry): Diagnostic | null => {
+	if (entry.reason !== "compiler-message" || !entry.message) return null;
+	const message = entry.message;
+	const span = message.spans?.[0];
+	return {
+		filePath: span?.file_name ?? "",
+		engine: "lint",
+		rule: `clippy/${message.code?.code ?? "unknown"}`,
+		severity: message.level === "error" ? "error" : "warning",
+		message: message.message ?? "",
+		help: message.children?.[0]?.message ?? "",
+		line: span?.line_start ?? 0,
+		column: span?.column_start ?? 0,
+		category: "Rust Lint",
+		fixable: false,
+	};
+};
+
+const parseClippyDiagnostics = (output: string): Diagnostic[] => {
+	const diagnostics: Diagnostic[] = [];
+	for (const line of output.split("\n")) {
+		const entry = parseClippyEntry(line);
+		if (!entry) continue;
+		const diagnostic = toClippyDiagnostic(entry);
+		if (diagnostic) diagnostics.push(diagnostic);
+	}
+	return diagnostics;
 };
 
 const runRubocop = async (context: EngineContext): Promise<Diagnostic[]> => {

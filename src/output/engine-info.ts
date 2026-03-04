@@ -5,15 +5,6 @@ export interface EngineInfo {
 	description: string;
 }
 
-export const ENGINE_ORDER: EngineName[] = [
-	"format",
-	"lint",
-	"code-quality",
-	"ai-slop",
-	"architecture",
-	"security",
-];
-
 export const ENGINE_INFO: Record<EngineName, EngineInfo> = {
 	format: {
 		label: "Formatting",

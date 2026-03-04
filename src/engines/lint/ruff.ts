@@ -1,5 +1,6 @@
 import path from "node:path";
 import { runSubprocess } from "../../utils/subprocess.js";
+import { resolveToolBinary } from "../../utils/tooling.js";
 import type { Diagnostic, EngineContext } from "../types.js";
 
 interface RuffDiagnostic {
@@ -13,9 +14,10 @@ interface RuffDiagnostic {
 export const runRuffLint = async (
 	context: EngineContext,
 ): Promise<Diagnostic[]> => {
+	const ruffBinary = resolveToolBinary("ruff");
 	try {
 		const result = await runSubprocess(
-			"ruff",
+			ruffBinary,
 			["check", "--output-format=json", context.rootDirectory],
 			{
 				cwd: context.rootDirectory,
@@ -48,8 +50,9 @@ export const runRuffLint = async (
 };
 
 export const fixRuffLint = async (rootDirectory: string): Promise<void> => {
+	const ruffBinary = resolveToolBinary("ruff");
 	const result = await runSubprocess(
-		"ruff",
+		ruffBinary,
 		["check", "--fix", rootDirectory],
 		{
 			cwd: rootDirectory,

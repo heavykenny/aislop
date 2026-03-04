@@ -16,6 +16,7 @@ interface JsonOutput {
 	summary: {
 		errors: number;
 		warnings: number;
+		fixable: number;
 		files: number;
 		elapsed: string;
 	};
@@ -48,6 +49,7 @@ export const buildJsonOutput = (
 		summary: {
 			errors: allDiagnostics.filter((d) => d.severity === "error").length,
 			warnings: allDiagnostics.filter((d) => d.severity === "warning").length,
+			fixable: allDiagnostics.filter((d) => d.fixable).length,
 			files: fileCount,
 			elapsed:
 				elapsedMs < 1000
