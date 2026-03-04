@@ -1,0 +1,14 @@
+# Architecture rules (BYO)
+# Uncomment and customize to enforce your project's conventions.
+#
+# rules:
+#   - name: no-axios
+#     type: forbid_import
+#     match: "axios"
+#     severity: error
+#
+#   - name: controller-no-db
+#     type: forbid_import_from_path
+#     from: "src/controllers/**"
+#     forbid: "src/db/**"
+#     severity: error

@@ -1,0 +1,57 @@
+{
+	"name": "slop",
+	"version": "0.1.0",
+	"description": "The unified code quality CLI. One tool to replace eslint, prettier, ruff, and more.",
+	"type": "module",
+	"bin": {
+		"slop": "./dist/cli.js"
+	},
+	"files": [
+		"dist"
+	],
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"default": "./dist/index.js"
+		}
+	},
+	"scripts": {
+		"dev": "tsdown --watch",
+		"build": "rm -rf dist && NODE_ENV=production tsdown",
+		"typecheck": "tsc --noEmit",
+		"test": "pnpm build && vitest run",
+		"scan": "pnpm build && node dist/cli.js scan .",
+		"scan:json": "pnpm build && node dist/cli.js scan . --json",
+		"quality": "pnpm typecheck && pnpm test && node dist/cli.js scan . --json"
+	},
+	"keywords": [
+		"linter",
+		"formatter",
+		"code-quality",
+		"ai-slop",
+		"cli",
+		"typescript",
+		"python",
+		"go"
+	],
+	"author": "",
+	"license": "MIT",
+	"packageManager": "pnpm@10.28.0",
+	"dependencies": {
+		"@biomejs/biome": "^2.4.5",
+		"@inquirer/prompts": "^8.3.0",
+		"commander": "^14.0.3",
+		"knip": "^5.85.0",
+		"ora": "^9.3.0",
+		"oxlint": "^1.51.0",
+		"picocolors": "^1.1.1",
+		"yaml": "^2.8.2",
+		"zod": "^4.3.6"
+	},
+	"devDependencies": {
+		"@types/node": "^25.3.3",
+		"tsdown": "^0.20.3",
+		"typescript": "^5.9.3",
+		"vitest": "^4.0.18"
+	}
+}

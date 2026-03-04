@@ -1,0 +1,100 @@
+import fs from "node:fs";
+import path from "node:path";
+import { getSourceFiles } from "../../utils/source-files.js";
+import type { Diagnostic, EngineContext } from "../types.js";
+
+// Detect thin wrappers: functions that only call another function
+const THIN_WRAPPER_PATTERNS = [
+	// JS/TS: function that only returns a call
+	/(?:export\s+)?(?:async\s+)?function\s+(\w+)\s*\([^)]*\)\s*(?::\s*\w[^{]*)?\{\s*\n?\s*return\s+\w+\([^)]*\);\s*\n?\s*\}/g,
+	// JS/TS: arrow function that only calls another
+	/(?:export\s+)?const\s+(\w+)\s*=\s*(?:async\s+)?\([^)]*\)\s*(?::\s*\w[^=]*)?\s*=>\s*\w+\([^)]*\);/g,
+	// Python: function that only calls another
+	/def\s+(\w+)\s*\([^)]*\)(?:\s*->[^:]*)?:\s*\n\s+return\s+\w+\([^)]*\)\s*$/gm,
+];
+
+// Detect AI naming patterns
+const AI_NAMING_PATTERNS = [
+	// helper_1, helper_2, etc.
+	/(?:helper|util|handler|process|do|handle|execute|perform)_?\d+/i,
+	// data1, data2, temp1, etc.
+	/(?:data|temp|result|value|item|obj|arr|str|num|val)\d+/,
+];
+
+const detectThinWrappers = (
+	content: string,
+	relativePath: string,
+): Diagnostic[] => {
+	const diagnostics: Diagnostic[] = [];
+	for (const pattern of THIN_WRAPPER_PATTERNS) {
+		const regex = new RegExp(pattern.source, pattern.flags);
+		let match: RegExpExecArray | null;
+		while ((match = regex.exec(content)) !== null) {
+			diagnostics.push({
+				filePath: relativePath,
+				engine: "ai-slop",
+				rule: "ai-slop/thin-wrapper",
+				severity: "warning",
+				message: `Function '${match[1]}' is a thin wrapper that only calls another function`,
+				help: "Consider calling the inner function directly instead of wrapping it",
+				line: content.slice(0, match.index).split("\n").length,
+				column: 0,
+				category: "AI Slop",
+				fixable: false,
+			});
+		}
+	}
+	return diagnostics;
+};
+
+const detectAiNaming = (
+	content: string,
+	relativePath: string,
+): Diagnostic[] => {
+	const diagnostics: Diagnostic[] = [];
+	const lines = content.split("\n");
+	for (let i = 0; i < lines.length; i++) {
+		const declMatch = lines[i].match(
+			/(?:const|let|var|function|def|func|fn)\s+(\w+)/,
+		);
+		if (!declMatch) continue;
+		const name = declMatch[1];
+		const matched = AI_NAMING_PATTERNS.some((pattern) => pattern.test(name));
+		if (!matched) continue;
+		diagnostics.push({
+			filePath: relativePath,
+			engine: "ai-slop",
+			rule: "ai-slop/generic-naming",
+			severity: "info",
+			message: `'${name}' uses generic AI-style naming`,
+			help: "Use descriptive names that explain what the code does",
+			line: i + 1,
+			column: 0,
+			category: "AI Slop",
+			fixable: false,
+		});
+	}
+	return diagnostics;
+};
+
+export const detectOverAbstraction = async (
+	context: EngineContext,
+): Promise<Diagnostic[]> => {
+	const files = getSourceFiles(context);
+	const diagnostics: Diagnostic[] = [];
+
+	for (const filePath of files) {
+		let content: string;
+		try {
+			content = fs.readFileSync(filePath, "utf-8");
+		} catch {
+			continue;
+		}
+
+		const relativePath = path.relative(context.rootDirectory, filePath);
+		diagnostics.push(...detectThinWrappers(content, relativePath));
+		diagnostics.push(...detectAiNaming(content, relativePath));
+	}
+
+	return diagnostics;
+};

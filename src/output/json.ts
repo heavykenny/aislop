@@ -1,0 +1,54 @@
+import type { Diagnostic, EngineResult } from "../engines/types.js";
+import type { ScoreResult } from "../scoring/index.js";
+
+interface JsonOutput {
+	version: string;
+	score: number;
+	label: string;
+	engines: Record<
+		string,
+		{ issues: number; skipped: boolean; elapsed: number }
+	>;
+	diagnostics: Diagnostic[];
+	summary: {
+		errors: number;
+		warnings: number;
+		files: number;
+		elapsed: string;
+	};
+}
+
+export const buildJsonOutput = (
+	results: EngineResult[],
+	scoreResult: ScoreResult,
+	fileCount: number,
+	elapsedMs: number,
+): JsonOutput => {
+	const allDiagnostics = results.flatMap((r) => r.diagnostics);
+	const engines: JsonOutput["engines"] = {};
+
+	for (const result of results) {
+		engines[result.engine] = {
+			issues: result.diagnostics.length,
+			skipped: result.skipped,
+			elapsed: result.elapsed,
+		};
+	}
+
+	return {
+		version: process.env.VERSION ?? "0.1.0",
+		score: scoreResult.score,
+		label: scoreResult.label,
+		engines,
+		diagnostics: allDiagnostics,
+		summary: {
+			errors: allDiagnostics.filter((d) => d.severity === "error").length,
+			warnings: allDiagnostics.filter((d) => d.severity === "warning").length,
+			files: fileCount,
+			elapsed:
+				elapsedMs < 1000
+					? `${Math.round(elapsedMs)}ms`
+					: `${(elapsedMs / 1000).toFixed(1)}s`,
+		},
+	};
+};
