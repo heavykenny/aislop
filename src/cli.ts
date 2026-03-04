@@ -21,7 +21,7 @@ const program = new Command()
 	.argument("[directory]", "project directory to scan", ".")
 	.option("--changes", "only scan changed files (git diff)")
 	.option("--staged", "only scan staged files")
-	.option("--verbose", "show file details per rule")
+	.option("-d, --verbose", "show file details per rule")
 	.option("--json", "output JSON instead of terminal UI")
 	.action(
 		async (
@@ -75,6 +75,7 @@ ${highlighter.dim("Commands:")}
 ${highlighter.dim("Examples:")}
   slop                 Interactive menu
   slop scan            Scan entire project
+  slop scan -d         Scan with file/line details
   slop scan --changes  Scan only changed files
   slop scan --staged   Scan only staged files (for hooks)
   slop fix             Auto-fix issues
@@ -88,7 +89,7 @@ program
 	.description("Run full code quality scan")
 	.option("--changes", "only scan changed files")
 	.option("--staged", "only scan staged files")
-	.option("--verbose", "show file details per rule")
+	.option("-d, --verbose", "show file details per rule")
 	.option("--json", "output JSON")
 	.action(async (directory = ".", _flags, command) => {
 		const flags = command.optsWithGlobals() as {
@@ -110,9 +111,11 @@ program
 program
 	.command("fix [directory]")
 	.description("Auto-fix formatting and lint issues")
-	.action(async (directory = ".") => {
+	.option("-d, --verbose", "show detailed fix progress")
+	.action(async (directory = ".", _flags, command) => {
+		const flags = command.optsWithGlobals() as { verbose?: boolean };
 		const config = loadConfig(directory);
-		await fixCommand(directory, config);
+		await fixCommand(directory, config, { verbose: Boolean(flags.verbose) });
 	});
 
 program

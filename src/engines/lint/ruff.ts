@@ -48,8 +48,19 @@ export const runRuffLint = async (
 };
 
 export const fixRuffLint = async (rootDirectory: string): Promise<void> => {
-	await runSubprocess("ruff", ["check", "--fix", rootDirectory], {
-		cwd: rootDirectory,
-		timeout: 60000,
-	});
+	const result = await runSubprocess(
+		"ruff",
+		["check", "--fix", rootDirectory],
+		{
+			cwd: rootDirectory,
+			timeout: 60000,
+		},
+	);
+	if (result.exitCode !== 0) {
+		throw new Error(
+			result.stderr ||
+				result.stdout ||
+				`ruff check --fix exited with code ${result.exitCode}`,
+		);
+	}
 };

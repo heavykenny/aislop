@@ -27,8 +27,8 @@ export const codeQualityEngine: Engine = {
 		// Complexity checks for all files
 		promises.push(checkComplexity(context));
 
-		// Duplication checks (placeholder for v2)
-		promises.push(checkDuplication());
+		// Duplication checks
+		promises.push(checkDuplication(context));
 
 		const results = await Promise.allSettled(promises);
 		for (const result of results) {

@@ -3,6 +3,7 @@ import type { ScoreResult } from "../scoring/index.js";
 import { getScoreColor } from "../scoring/index.js";
 import { highlighter } from "../utils/highlighter.js";
 import { logger } from "../utils/logger.js";
+import { ENGINE_INFO, ENGINE_ORDER, getEngineLabel } from "./engine-info.js";
 
 const PERFECT_SCORE = 100;
 
@@ -47,7 +48,10 @@ export const printDiagnostics = (
 	const byEngine = groupBy(diagnostics, (d) => d.engine);
 
 	for (const [engine, engineDiags] of byEngine) {
-		logger.log(`  ${highlighter.bold(engine)}`);
+		const label = getEngineLabel(engine as Diagnostic["engine"]);
+		logger.log(
+			`  ${highlighter.bold(label)} ${highlighter.dim(`(${engine})`)}`,
+		);
 
 		const byRule = groupBy(engineDiags, (d) => `${d.rule}:${d.message}`);
 		const sorted = [...byRule.entries()].sort(([, a], [, b]) => {
@@ -106,14 +110,15 @@ export const printSummary = (
 };
 
 export const printEngineStatus = (result: EngineResult): void => {
+	const label = getEngineLabel(result.engine);
 	const elapsed = toElapsedLabel(result.elapsed);
 
 	if (result.skipped) {
 		logger.dim(
-			`  - ${result.engine}: SKIPPED${result.skipReason ? ` (${result.skipReason})` : ""}`,
+			`  - ${label}: SKIPPED${result.skipReason ? ` (${result.skipReason})` : ""}`,
 		);
 	} else if (result.diagnostics.length === 0) {
-		logger.success(`  - ${result.engine}: PASS (${elapsed})`);
+		logger.success(`  - ${label}: PASS (${elapsed})`);
 	} else {
 		const errors = result.diagnostics.filter(
 			(d) => d.severity === "error",
@@ -128,9 +133,23 @@ export const printEngineStatus = (result: EngineResult): void => {
 		const statusText = `${parts.join(", ")} (${elapsed})`;
 
 		if (errors > 0) {
-			logger.error(`  - ${result.engine}: FAIL ${statusText}`);
+			logger.error(`  - ${label}: FAIL ${statusText}`);
 		} else {
-			logger.warn(`  - ${result.engine}: WARN ${statusText}`);
+			logger.warn(`  - ${label}: WARN ${statusText}`);
 		}
 	}
+};
+
+export const printEngineLegend = (
+	enabledEngines: Record<string, boolean>,
+): void => {
+	logger.log(highlighter.bold("Checks (parallel):"));
+	for (const engine of ENGINE_ORDER) {
+		if (enabledEngines[engine] === false) continue;
+		const info = ENGINE_INFO[engine];
+		logger.log(
+			`  - ${highlighter.bold(info.label)}: ${highlighter.dim(info.description)}`,
+		);
+	}
+	logger.break();
 };

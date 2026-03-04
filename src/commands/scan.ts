@@ -6,6 +6,7 @@ import { runEngines } from "../engines/orchestrator.js";
 import type { EngineConfig } from "../engines/types.js";
 import {
 	printDiagnostics,
+	printEngineLegend,
 	printEngineStatus,
 	printSummary,
 } from "../output/terminal.js";
@@ -56,6 +57,7 @@ export const scanCommand = async (
 		}
 
 		logger.break();
+		printEngineLegend(config.engines);
 	}
 
 	let files: string[] | undefined;

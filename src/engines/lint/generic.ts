@@ -46,7 +46,9 @@ const runClippy = async (context: EngineContext): Promise<Diagnostic[]> => {
 					category: "Rust Lint",
 					fixable: false,
 				});
-			} catch {}
+			} catch {
+				continue;
+			}
 		}
 
 		return diagnostics;

@@ -107,5 +107,22 @@ const parseBiomeOutput = (output: string, rootDir: string): Diagnostic[] => {
 };
 
 export const fixBiomeFormat = async (rootDirectory: string): Promise<void> => {
-	await runBiome(["check", "--write", rootDirectory], rootDirectory, 60000);
+	const result = await runBiome(
+		[
+			"check",
+			"--write",
+			"--formatter-enabled=true",
+			"--linter-enabled=false",
+			rootDirectory,
+		],
+		rootDirectory,
+		60000,
+	);
+	if (result.exitCode !== 0) {
+		throw new Error(
+			result.stderr ||
+				result.stdout ||
+				`Biome exited with code ${result.exitCode}`,
+		);
+	}
 };

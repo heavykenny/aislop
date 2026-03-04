@@ -53,8 +53,15 @@ const parseRuffFormatOutput = (
 };
 
 export const fixRuffFormat = async (rootDirectory: string): Promise<void> => {
-	await runSubprocess("ruff", ["format", rootDirectory], {
+	const result = await runSubprocess("ruff", ["format", rootDirectory], {
 		cwd: rootDirectory,
 		timeout: 60000,
 	});
+	if (result.exitCode !== 0) {
+		throw new Error(
+			result.stderr ||
+				result.stdout ||
+				`ruff format exited with code ${result.exitCode}`,
+		);
+	}
 };

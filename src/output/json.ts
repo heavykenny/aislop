@@ -1,5 +1,7 @@
 import type { Diagnostic, EngineResult } from "../engines/types.js";
 import type { ScoreResult } from "../scoring/index.js";
+import type { EngineInfo } from "./engine-info.js";
+import { ENGINE_INFO } from "./engine-info.js";
 
 interface JsonOutput {
 	version: string;
@@ -9,6 +11,7 @@ interface JsonOutput {
 		string,
 		{ issues: number; skipped: boolean; elapsed: number }
 	>;
+	engineDefinitions: Record<string, EngineInfo>;
 	diagnostics: Diagnostic[];
 	summary: {
 		errors: number;
@@ -40,6 +43,7 @@ export const buildJsonOutput = (
 		score: scoreResult.score,
 		label: scoreResult.label,
 		engines,
+		engineDefinitions: ENGINE_INFO,
 		diagnostics: allDiagnostics,
 		summary: {
 			errors: allDiagnostics.filter((d) => d.severity === "error").length,

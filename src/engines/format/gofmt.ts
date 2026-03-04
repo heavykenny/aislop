@@ -32,8 +32,15 @@ export const runGofmt = async (
 };
 
 export const fixGofmt = async (rootDirectory: string): Promise<void> => {
-	await runSubprocess("gofmt", ["-w", rootDirectory], {
+	const result = await runSubprocess("gofmt", ["-w", rootDirectory], {
 		cwd: rootDirectory,
 		timeout: 60000,
 	});
+	if (result.exitCode !== 0) {
+		throw new Error(
+			result.stderr ||
+				result.stdout ||
+				`gofmt exited with code ${result.exitCode}`,
+		);
+	}
 };
