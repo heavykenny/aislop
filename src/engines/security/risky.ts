@@ -83,6 +83,13 @@ const RISKY_PATTERNS: RiskyPattern[] = [
 		message: "Possible SQL injection — template literal in query",
 		help: "Use parameterized queries or an ORM instead of string interpolation",
 	},
+	{
+		pattern: /(?:query|execute|raw)\s*\(\s*["'][^"']*["']\s*\+/g,
+		extensions: [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"],
+		name: "sql-injection",
+		message: "Possible SQL injection — string concatenation in query",
+		help: "Use parameterized queries or an ORM instead of string concatenation",
+	},
 ];
 
 export const detectRiskyConstructs = async (
@@ -115,6 +122,20 @@ export const detectRiskyConstructs = async (
 
 			while ((match = regex.exec(content)) !== null) {
 				const line = content.slice(0, match.index).split("\n").length;
+
+				// For SQL injection: skip if interpolation is clearly safe
+				if (name === "sql-injection") {
+					const afterMatch = content.slice(
+						match.index + match[0].length,
+						match.index + match[0].length + 100,
+					);
+					// Skip if interpolation is .join(), a constant-like name, or array method
+					if (
+						/^(?:\w+\.join\s*\(|[A-Z_]+\}|tableName\}|table\})/.test(afterMatch)
+					) {
+						continue;
+					}
+				}
 
 				diagnostics.push({
 					filePath: relativePath,

@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { runSubprocess } from "../../utils/subprocess.js";
 import type { Diagnostic, EngineContext } from "../types.js";
-import { createOxlintConfig } from "./oxlint-config.js";
+import { createOxlintConfig, type TestFramework } from "./oxlint-config.js";
 
 const esmRequire = createRequire(import.meta.url);
 
@@ -37,6 +37,36 @@ const parseRuleCode = (code: string): { plugin: string; rule: string } => {
 	return { plugin: match[1].replace(/^eslint-plugin-/, ""), rule: match[2] };
 };
 
+const detectTestFramework = (rootDir: string): TestFramework => {
+	try {
+		const raw = fs.readFileSync(path.join(rootDir, "package.json"), "utf-8");
+		const pkg = JSON.parse(raw) as Record<string, Record<string, string>>;
+		const allDeps = { ...pkg.dependencies, ...pkg.devDependencies };
+
+		if (allDeps.vitest) return "vitest";
+		if (allDeps.jest || allDeps["ts-jest"] || allDeps["@jest/core"])
+			return "jest";
+		if (allDeps.mocha) return "mocha";
+
+		// Check for jest in config files
+		if (
+			fs.existsSync(path.join(rootDir, "jest.config.js")) ||
+			fs.existsSync(path.join(rootDir, "jest.config.ts")) ||
+			fs.existsSync(path.join(rootDir, "jest.config.mjs"))
+		)
+			return "jest";
+		if (
+			fs.existsSync(path.join(rootDir, "vitest.config.ts")) ||
+			fs.existsSync(path.join(rootDir, "vitest.config.js"))
+		)
+			return "vitest";
+		if (fs.existsSync(path.join(rootDir, ".mocharc.yml"))) return "mocha";
+	} catch {
+		// ignore
+	}
+	return null;
+};
+
 export const runOxlint = async (
 	context: EngineContext,
 ): Promise<Diagnostic[]> => {
@@ -45,7 +75,8 @@ export const runOxlint = async (
 		`slop-oxlintrc-${process.pid}.json`,
 	);
 	const framework = context.frameworks.find((f) => f !== "none");
-	const config = createOxlintConfig({ framework });
+	const testFramework = detectTestFramework(context.rootDirectory);
+	const config = createOxlintConfig({ framework, testFramework });
 
 	try {
 		fs.writeFileSync(configPath, JSON.stringify(config, null, 2));

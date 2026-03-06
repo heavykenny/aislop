@@ -87,6 +87,24 @@ const readPackageJson = (filePath: string): PackageJson | null => {
 	}
 };
 
+const SOURCE_FILE_EXTENSIONS = new Set([
+	".ts",
+	".tsx",
+	".js",
+	".jsx",
+	".mjs",
+	".cjs",
+	".py",
+	".go",
+	".rs",
+	".rb",
+	".java",
+	".php",
+]);
+
+const EXCLUDED_DIRS_PATTERN =
+	/(?:^|\/)(?:node_modules|dist|build|\.git|vendor|\.next|\.nuxt|coverage|\.turbo)\//;
+
 const countSourceFiles = (rootDirectory: string): number => {
 	const result = spawnSync(
 		"git",
@@ -97,8 +115,51 @@ const countSourceFiles = (rootDirectory: string): number => {
 			maxBuffer: 50 * 1024 * 1024,
 		},
 	);
-	if (result.error || result.status !== 0) return 0;
-	return result.stdout.split("\n").filter((f) => f.length > 0).length;
+	if (result.error || result.status !== 0) {
+		// Fallback: use find for non-git directories
+		const findResult = spawnSync(
+			"find",
+			[
+				".",
+				"-type",
+				"f",
+				"-not",
+				"-path",
+				"*/node_modules/*",
+				"-not",
+				"-path",
+				"*/.git/*",
+				"-not",
+				"-path",
+				"*/dist/*",
+				"-not",
+				"-path",
+				"*/build/*",
+				"-not",
+				"-path",
+				"*/.next/*",
+			],
+			{
+				cwd: rootDirectory,
+				encoding: "utf-8",
+				maxBuffer: 50 * 1024 * 1024,
+			},
+		);
+		if (findResult.error || findResult.status !== 0) return 0;
+		return findResult.stdout
+			.split("\n")
+			.filter(
+				(f) => f.length > 0 && SOURCE_FILE_EXTENSIONS.has(path.extname(f)),
+			).length;
+	}
+	return result.stdout
+		.split("\n")
+		.filter(
+			(f) =>
+				f.length > 0 &&
+				SOURCE_FILE_EXTENSIONS.has(path.extname(f)) &&
+				!EXCLUDED_DIRS_PATTERN.test(f),
+		).length;
 };
 
 const detectLanguages = (directory: string): Language[] => {
