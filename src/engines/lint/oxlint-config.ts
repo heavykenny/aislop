@@ -1,8 +1,11 @@
 import type { Framework } from "../../utils/discover.js";
 
+export type TestFramework = "jest" | "vitest" | "mocha" | null;
+
 export const createOxlintConfig = (options: {
 	framework?: Framework;
 	hasReactCompiler?: boolean;
+	testFramework?: TestFramework;
 }): Record<string, unknown> => {
 	const plugins = ["import", "unicorn", "typescript"];
 	const rules: Record<string, string> = {
@@ -44,10 +47,54 @@ export const createOxlintConfig = (options: {
 		plugins.push("nextjs");
 	}
 
+	const env: Record<string, boolean> = {
+		browser: true,
+		node: true,
+		es2022: true,
+	};
+
+	const globals: Record<string, string> = {};
+
+	// Add test framework globals
+	if (options.testFramework === "jest") {
+		globals.jest = "readonly";
+		globals.describe = "readonly";
+		globals.it = "readonly";
+		globals.expect = "readonly";
+		globals.test = "readonly";
+		globals.beforeAll = "readonly";
+		globals.afterAll = "readonly";
+		globals.beforeEach = "readonly";
+		globals.afterEach = "readonly";
+	} else if (options.testFramework === "vitest") {
+		globals.describe = "readonly";
+		globals.it = "readonly";
+		globals.expect = "readonly";
+		globals.test = "readonly";
+		globals.beforeAll = "readonly";
+		globals.afterAll = "readonly";
+		globals.beforeEach = "readonly";
+		globals.afterEach = "readonly";
+		globals.vi = "readonly";
+	} else if (options.testFramework === "mocha") {
+		globals.describe = "readonly";
+		globals.it = "readonly";
+		globals.before = "readonly";
+		globals.after = "readonly";
+		globals.beforeEach = "readonly";
+		globals.afterEach = "readonly";
+	}
+
+	// Add React Native __DEV__ global
+	if (options.framework === "expo" || options.framework === "react") {
+		globals.__DEV__ = "readonly";
+	}
+
 	return {
 		plugins,
 		rules,
-		env: { browser: true, node: true, es2022: true },
+		env,
+		globals,
 		settings: {},
 	};
 };

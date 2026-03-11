@@ -3,21 +3,26 @@ import { performance } from "node:perf_hooks";
 import type { SlopConfig } from "../config/index.js";
 import { findConfigDir, RULES_FILE } from "../config/index.js";
 import { runEngines } from "../engines/orchestrator.js";
-import type { EngineConfig } from "../engines/types.js";
+import type { EngineConfig, EngineName } from "../engines/types.js";
+import { ENGINE_INFO } from "../output/engine-info.js";
 import {
 	formatProjectSummary,
 	printCommandHeader,
 	printProjectMetadata,
 } from "../output/layout.js";
+import { printMaybePaged } from "../output/pager.js";
+import { ScanProgressRenderer } from "../output/scan-progress.js";
 import {
-	printDiagnostics,
 	printEngineStatus,
-	printSummary,
+	renderDiagnostics,
+	renderSummary,
 } from "../output/terminal.js";
 import { calculateScore } from "../scoring/index.js";
 import { discoverProject } from "../utils/discover.js";
 import { getChangedFiles, getStagedFiles } from "../utils/git.js";
+import { highlighter } from "../utils/highlighter.js";
 import { logger } from "../utils/logger.js";
+import { filterProjectFiles } from "../utils/source-files.js";
 import { spinner } from "../utils/spinner.js";
 
 interface ScanOptions {
@@ -33,6 +38,8 @@ const shouldUseSpinner = (): boolean =>
 	process.env.CI !== "true" &&
 	process.env.CI !== "1";
 
+const ALL_ENGINE_NAMES = Object.keys(ENGINE_INFO) as EngineName[];
+
 export const scanCommand = async (
 	directory: string,
 	config: SlopConfig,
@@ -41,6 +48,7 @@ export const scanCommand = async (
 	const startTime = performance.now();
 	const resolvedDir = path.resolve(directory);
 	const showHeader = options.showHeader !== false;
+	const useLiveProgress = !options.json && shouldUseSpinner();
 
 	if (!options.json && showHeader) {
 		printCommandHeader("Scan");
@@ -64,13 +72,13 @@ export const scanCommand = async (
 
 	let files: string[] | undefined;
 	if (options.staged) {
-		files = getStagedFiles(resolvedDir);
+		files = filterProjectFiles(resolvedDir, getStagedFiles(resolvedDir));
 		if (!options.json) {
 			logger.dim(`  Scope: ${files.length} staged file(s)`);
 			logger.break();
 		}
 	} else if (options.changes) {
-		files = getChangedFiles(resolvedDir);
+		files = filterProjectFiles(resolvedDir, getChangedFiles(resolvedDir));
 		if (!options.json) {
 			logger.dim(`  Scope: ${files.length} changed file(s)`);
 			logger.break();
@@ -85,6 +93,13 @@ export const scanCommand = async (
 		security: config.security,
 		architectureRulesPath: config.engines.architecture ? rulesPath : undefined,
 	};
+	const progressRenderer = useLiveProgress
+		? new ScanProgressRenderer(
+				ALL_ENGINE_NAMES.filter((engine) => config.engines[engine] !== false),
+			)
+		: null;
+
+	progressRenderer?.start();
 
 	const results = await runEngines(
 		{
@@ -96,13 +111,17 @@ export const scanCommand = async (
 			config: engineConfig,
 		},
 		config.engines,
-		undefined,
+		(engine) => {
+			progressRenderer?.markStarted(engine);
+		},
 		(result) => {
-			if (!options.json) {
+			progressRenderer?.markComplete(result);
+			if (!options.json && !progressRenderer) {
 				printEngineStatus(result);
 			}
 		},
 	);
+	progressRenderer?.stop();
 
 	const allDiagnostics = results.flatMap((r) => r.diagnostics);
 	const elapsedMs = performance.now() - startTime;
@@ -126,23 +145,22 @@ export const scanCommand = async (
 		return { exitCode };
 	}
 
-	logger.break();
+	const output = [
+		"",
+		allDiagnostics.length === 0
+			? `${highlighter.success("  ✓ No issues found.")}\n`
+			: renderDiagnostics(allDiagnostics, options.verbose),
+		renderSummary(
+			allDiagnostics,
+			scoreResult,
+			elapsedMs,
+			projectInfo.sourceFileCount,
+			config.scoring.thresholds,
+		),
+		"",
+	].join("\n");
 
-	if (allDiagnostics.length === 0) {
-		logger.success("  ✓ No issues found.");
-		logger.break();
-	} else {
-		printDiagnostics(allDiagnostics, options.verbose);
-	}
-
-	printSummary(
-		allDiagnostics,
-		scoreResult,
-		elapsedMs,
-		projectInfo.sourceFileCount,
-		config.scoring.thresholds,
-	);
-	logger.break();
+	await printMaybePaged(output);
 
 	return { exitCode };
 };

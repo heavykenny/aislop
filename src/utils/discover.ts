@@ -1,6 +1,6 @@
-import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { getSourceFilesForRoot } from "./source-files.js";
 import { isToolAvailable } from "./tooling.js";
 
 export type Language =
@@ -87,19 +87,8 @@ const readPackageJson = (filePath: string): PackageJson | null => {
 	}
 };
 
-const countSourceFiles = (rootDirectory: string): number => {
-	const result = spawnSync(
-		"git",
-		["ls-files", "--cached", "--others", "--exclude-standard"],
-		{
-			cwd: rootDirectory,
-			encoding: "utf-8",
-			maxBuffer: 50 * 1024 * 1024,
-		},
-	);
-	if (result.error || result.status !== 0) return 0;
-	return result.stdout.split("\n").filter((f) => f.length > 0).length;
-};
+const countSourceFiles = (rootDirectory: string): number =>
+	getSourceFilesForRoot(rootDirectory).length;
 
 const detectLanguages = (directory: string): Language[] => {
 	const languages = new Set<Language>();

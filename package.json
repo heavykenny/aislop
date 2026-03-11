@@ -1,7 +1,7 @@
 {
 	"name": "slop",
 	"version": "0.1.0",
-	"description": "The unified code quality CLI. One tool to replace eslint, prettier, ruff, and more.",
+	"description": "Stop AI slop from shipping. A unified code quality CLI that catches the lazy patterns AI coding tools leave behind.",
 	"type": "module",
 	"bin": {
 		"slop": "./dist/cli.js"
@@ -27,21 +27,40 @@
 		"quality": "pnpm typecheck && pnpm test && node dist/cli.js scan . --json"
 	},
 	"keywords": [
+		"slop",
+		"ai-slop",
+		"code-quality",
 		"linter",
 		"formatter",
-		"code-quality",
-		"ai-slop",
 		"cli",
+		"ai",
+		"copilot",
+		"code-review",
+		"static-analysis",
 		"typescript",
+		"javascript",
 		"python",
-		"go"
+		"go",
+		"rust",
+		"ruby",
+		"php"
 	],
-	"author": "",
+	"author": "heavykenny",
 	"license": "MIT",
+	"homepage": "https://github.com/heavykenny/slop#readme",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/heavykenny/slop.git"
+	},
+	"bugs": {
+		"url": "https://github.com/heavykenny/slop/issues"
+	},
+	"engines": {
+		"node": ">=20"
+	},
 	"packageManager": "pnpm@10.28.0",
 	"dependencies": {
 		"@biomejs/biome": "^2.4.5",
-		"@inquirer/prompts": "^8.3.0",
 		"adm-zip": "^0.5.16",
 		"commander": "^14.0.3",
 		"expo-doctor": "^1.18.10",

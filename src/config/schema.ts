@@ -1,104 +1,113 @@
-export interface SlopConfig {
-	version: number;
-	engines: {
-		format: boolean;
-		lint: boolean;
-		"code-quality": boolean;
-		"ai-slop": boolean;
-		architecture: boolean;
-		security: boolean;
-	};
-	quality: {
-		maxFunctionLoc: number;
-		maxFileLoc: number;
-		maxNesting: number;
-		maxParams: number;
-	};
-	security: {
-		audit: boolean;
-		auditTimeout: number;
-	};
-	scoring: {
-		weights: Record<string, number>;
-		thresholds: {
-			good: number;
-			ok: number;
-		};
-	};
-	ci: {
-		failBelow: number;
-		format: "json" | "sarif";
-	};
-}
+import { z } from "zod/v4";
 
-const defaults: SlopConfig = {
-	version: 1,
-	engines: {
+const DEFAULT_WEIGHTS: Record<string, number> = {
+	format: 0.5,
+	lint: 1.0,
+	"code-quality": 1.5,
+	"ai-slop": 1.0,
+	architecture: 1.0,
+	security: 2.0,
+};
+
+const EnginesSchema = z.object({
+	format: z.boolean().default(true),
+	lint: z.boolean().default(true),
+	"code-quality": z.boolean().default(true),
+	"ai-slop": z.boolean().default(true),
+	architecture: z.boolean().default(false),
+	security: z.boolean().default(true),
+});
+
+const QualitySchema = z.object({
+	maxFunctionLoc: z.number().positive().default(80),
+	maxFileLoc: z.number().positive().default(400),
+	maxNesting: z.number().positive().default(5),
+	maxParams: z.number().positive().default(6),
+});
+
+const SecurityConfigSchema = z.object({
+	audit: z.boolean().default(true),
+	auditTimeout: z.number().positive().default(25000),
+});
+
+const ThresholdsSchema = z.object({
+	good: z.number().default(75),
+	ok: z.number().default(50),
+});
+
+const ScoringSchema = z.object({
+	weights: z.record(z.string(), z.number()).default(DEFAULT_WEIGHTS),
+	thresholds: ThresholdsSchema.default(() => ({
+		good: 75,
+		ok: 50,
+	})),
+});
+
+const CiSchema = z.object({
+	failBelow: z.number().default(0),
+	format: z.enum(["json"]).default("json"),
+});
+
+const SlopConfigSchema = z.object({
+	version: z.number().default(1),
+	engines: EnginesSchema.default(() => ({
 		format: true,
 		lint: true,
 		"code-quality": true,
 		"ai-slop": true,
 		architecture: false,
 		security: true,
-	},
-	quality: {
+	})),
+	quality: QualitySchema.default(() => ({
 		maxFunctionLoc: 80,
 		maxFileLoc: 400,
 		maxNesting: 5,
 		maxParams: 6,
-	},
-	security: {
+	})),
+	security: SecurityConfigSchema.default(() => ({
 		audit: true,
 		auditTimeout: 25000,
-	},
-	scoring: {
-		weights: {
-			format: 0.5,
-			lint: 1.0,
-			"code-quality": 1.5,
-			"ai-slop": 1.0,
-			architecture: 1.0,
-			security: 2.0,
-		},
+	})),
+	scoring: ScoringSchema.default(() => ({
+		weights: { ...DEFAULT_WEIGHTS },
 		thresholds: {
 			good: 75,
 			ok: 50,
 		},
-	},
-	ci: {
+	})),
+	ci: CiSchema.default(() => ({
 		failBelow: 0,
-		format: "json",
-	},
-};
+		format: "json" as const,
+	})),
+});
 
-const mergeDeep = (
-	target: Record<string, unknown>,
-	source: Record<string, unknown>,
-): Record<string, unknown> => {
-	const result = { ...target };
-	for (const key of Object.keys(source)) {
-		if (
-			source[key] !== null &&
-			typeof source[key] === "object" &&
-			!Array.isArray(source[key]) &&
-			typeof target[key] === "object" &&
-			target[key] !== null
-		) {
-			result[key] = mergeDeep(
-				target[key] as Record<string, unknown>,
-				source[key] as Record<string, unknown>,
-			);
-		} else {
-			result[key] = source[key];
-		}
-	}
-	return result;
+export type SlopConfig = z.infer<typeof SlopConfigSchema>;
+
+const defaults: SlopConfig = SlopConfigSchema.parse({});
+
+/**
+ * Pre-merge scoring weights so partial overrides extend the defaults
+ * rather than replacing them entirely (z.record replaces by default).
+ */
+const preMergeWeights = (raw: Record<string, unknown>): void => {
+	const scoring = raw.scoring as Record<string, unknown> | undefined;
+	if (!scoring) return;
+
+	const userWeights = scoring.weights as Record<string, number> | undefined;
+	if (!userWeights || typeof userWeights !== "object") return;
+
+	scoring.weights = { ...DEFAULT_WEIGHTS, ...userWeights };
 };
 
 export const parseConfig = (raw: unknown): SlopConfig => {
 	if (!raw || typeof raw !== "object") return defaults;
-	return mergeDeep(
-		defaults as unknown as Record<string, unknown>,
-		raw as Record<string, unknown>,
-	) as unknown as SlopConfig;
+
+	try {
+		const input = raw as Record<string, unknown>;
+		preMergeWeights(input);
+		return SlopConfigSchema.parse(input);
+	} catch {
+		// If validation fails, return defaults rather than crashing
+		return defaults;
+	}
 };

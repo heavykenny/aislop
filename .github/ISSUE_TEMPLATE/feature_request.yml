@@ -1,0 +1,60 @@
+name: Feature Request
+description: Suggest a new feature or rule for slop
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting an improvement. Please describe what you'd like to see.
+
+  - type: dropdown
+    id: type
+    attributes:
+      label: What kind of feature is this?
+      options:
+        - New detection rule (AI slop pattern)
+        - New detection rule (security)
+        - New detection rule (code quality)
+        - New language support
+        - CLI improvement
+        - Configuration option
+        - CI/CD integration
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the problem or pattern you've seen that slop doesn't catch today.
+      placeholder: |
+        I keep seeing AI-generated code that does X, and slop doesn't flag it...
+    validations:
+      required: true
+
+  - type: textarea
+    id: example
+    attributes:
+      label: Example code
+      description: Show an example of the pattern you want detected (or the feature you want). This will be formatted as code.
+      render: typescript
+    validations:
+      required: false
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: How do you think this should work? What should the rule name, severity, and message be?
+    validations:
+      required: false
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Any other approaches you've thought about.
+    validations:
+      required: false

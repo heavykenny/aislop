@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { getSourceFiles } from "../../utils/source-files.js";
@@ -48,6 +49,17 @@ const getBiomeTargets = (context: EngineContext): string[] =>
 		.filter((filePath) => BIOME_EXTENSIONS.has(path.extname(filePath)))
 		.map((filePath) => path.relative(context.rootDirectory, filePath));
 
+const projectUsesDecorators = (rootDir: string): boolean => {
+	try {
+		const tsconfigPath = path.join(rootDir, "tsconfig.json");
+		if (!fs.existsSync(tsconfigPath)) return false;
+		const content = fs.readFileSync(tsconfigPath, "utf-8");
+		return /experimentalDecorators.*true/i.test(content);
+	} catch {
+		return false;
+	}
+};
+
 export const runBiomeFormat = async (
 	context: EngineContext,
 ): Promise<Diagnostic[]> => {
@@ -60,7 +72,17 @@ export const runBiomeFormat = async (
 		const output = [result.stdout, result.stderr].filter(Boolean).join("\n");
 		if (!output) return [];
 
-		return parseBiomeJsonOutput(output, context.rootDirectory);
+		let diagnostics = parseBiomeJsonOutput(output, context.rootDirectory);
+
+		// Filter out decorator-related parse errors for projects using experimentalDecorators
+		if (projectUsesDecorators(context.rootDirectory)) {
+			diagnostics = diagnostics.filter((d) => {
+				const msg = d.message.toLowerCase();
+				return !msg.includes("decorator") && !msg.includes("parsing error");
+			});
+		}
+
+		return diagnostics;
 	} catch {
 		return [];
 	}
@@ -104,7 +126,9 @@ const parseBiomeJsonOutput = (
 			if (!rawPath) continue;
 			const severity = entry.severity === "error" ? "error" : "warning";
 			diagnostics.push({
-				filePath: path.relative(rootDir, rawPath),
+				filePath: path.isAbsolute(rawPath)
+					? path.relative(rootDir, rawPath)
+					: rawPath,
 				engine: "format",
 				rule: "formatting",
 				severity,

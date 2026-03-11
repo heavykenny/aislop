@@ -4,7 +4,6 @@ import type {
 	EngineContext,
 	EngineResult,
 } from "../types.js";
-import { runExpoDoctor } from "./expo-doctor.js";
 import { runGenericLinter } from "./generic.js";
 import { runGolangciLint } from "./golangci.js";
 import { runOxlint } from "./oxlint.js";
@@ -24,7 +23,10 @@ export const lintEngine: Engine = {
 		}
 
 		if (context.frameworks.includes("expo")) {
-			promises.push(runExpoDoctor(context));
+			// Lazy-load expo-doctor only when Expo is detected
+			promises.push(
+				import("./expo-doctor.js").then((mod) => mod.runExpoDoctor(context)),
+			);
 		}
 
 		if (languages.includes("python") && installedTools["ruff"]) {

@@ -6,7 +6,9 @@ import type {
 } from "../types.js";
 import { detectOverAbstraction } from "./abstractions.js";
 import { detectTrivialComments } from "./comments.js";
+import { detectDeadPatterns } from "./dead-patterns.js";
 import { detectSwallowedExceptions } from "./exceptions.js";
+import { detectUnusedImports } from "./unused-imports.js";
 
 export const aiSlopEngine: Engine = {
 	name: "ai-slop",
@@ -18,6 +20,8 @@ export const aiSlopEngine: Engine = {
 			detectTrivialComments(context),
 			detectSwallowedExceptions(context),
 			detectOverAbstraction(context),
+			detectDeadPatterns(context),
+			detectUnusedImports(context),
 		]);
 
 		for (const result of results) {

@@ -2,8 +2,8 @@ import path from "node:path";
 import { findConfigDir, RULES_FILE } from "../config/index.js";
 import { loadArchitectureRules } from "../engines/architecture/rule-loader.js";
 import { printCommandHeader } from "../output/layout.js";
+import { printMaybePaged } from "../output/pager.js";
 import { highlighter } from "../utils/highlighter.js";
-import { logger } from "../utils/logger.js";
 
 const BUILTIN_RULES = [
 	{
@@ -39,6 +39,15 @@ const BUILTIN_RULES = [
 			"ai-slop/swallowed-exception",
 			"ai-slop/thin-wrapper",
 			"ai-slop/generic-naming",
+			"ai-slop/unused-import",
+			"ai-slop/console-leftover",
+			"ai-slop/todo-stub",
+			"ai-slop/unreachable-code",
+			"ai-slop/constant-condition",
+			"ai-slop/empty-function",
+			"ai-slop/unsafe-type-assertion",
+			"ai-slop/double-type-assertion",
+			"ai-slop/ts-directive",
 		],
 	},
 	{
@@ -58,16 +67,14 @@ export const rulesCommand = async (directory: string): Promise<void> => {
 	const resolvedDir = path.resolve(directory);
 
 	printCommandHeader("Rules");
-
-	logger.log("  Rule sets");
-	logger.break();
+	const lines = ["  Rule sets", ""];
 
 	for (const { engine, rules } of BUILTIN_RULES) {
-		logger.log(`  ${highlighter.bold(engine)}`);
+		lines.push(`  ${highlighter.bold(engine)}`);
 		for (const rule of rules) {
-			logger.dim(`    ${rule}`);
+			lines.push(highlighter.dim(`    ${rule}`));
 		}
-		logger.break();
+		lines.push("");
 	}
 
 	// Architecture rules
@@ -76,13 +83,15 @@ export const rulesCommand = async (directory: string): Promise<void> => {
 		const rulesPath = path.join(configDir, RULES_FILE);
 		const archRules = loadArchitectureRules(rulesPath);
 		if (archRules.length > 0) {
-			logger.log(
+			lines.push(
 				`  ${highlighter.bold("architecture")} (from .slop/rules.yml)`,
 			);
 			for (const rule of archRules) {
-				logger.dim(`    arch/${rule.name} (${rule.severity})`);
+				lines.push(highlighter.dim(`    arch/${rule.name} (${rule.severity})`));
 			}
-			logger.break();
+			lines.push("");
 		}
 	}
+
+	await printMaybePaged(`${lines.join("\n")}\n`);
 };
