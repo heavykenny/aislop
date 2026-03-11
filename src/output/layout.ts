@@ -1,6 +1,7 @@
 import type { Framework, Language } from "../utils/discover.js";
 import { highlighter } from "../utils/highlighter.js";
 import { logger } from "../utils/logger.js";
+import { APP_VERSION } from "../version.js";
 
 interface ProjectSummaryInfo {
 	projectName: string;
@@ -19,7 +20,7 @@ export const formatElapsed = (elapsedMs: number): string =>
 
 export const printCommandHeader = (commandName: string): void => {
 	logger.log(highlighter.bold(`slop ${commandName}`));
-	logger.log(highlighter.dim(`v${process.env.VERSION ?? "0.1.0"}`));
+	logger.log(highlighter.dim(`v${APP_VERSION}`));
 	logger.break();
 };
 

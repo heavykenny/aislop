@@ -28,6 +28,9 @@ export default defineConfig([
 		dts: true,
 		target: "node18",
 		platform: "node",
+		env: {
+			VERSION: process.env.VERSION ?? packageJson.version,
+		},
 		fixedExtension: false,
 	},
 ]);

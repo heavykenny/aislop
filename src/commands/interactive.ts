@@ -1,6 +1,7 @@
 import { emitKeypressEvents } from "node:readline";
 import type { SlopConfig } from "../config/index.js";
 import { highlighter } from "../utils/highlighter.js";
+import { APP_VERSION } from "../version.js";
 import { doctorCommand } from "./doctor.js";
 import { fixCommand } from "./fix.js";
 import { initCommand } from "./init.js";
@@ -120,7 +121,7 @@ export const moveInteractiveSelection = (
 
 const renderInteractiveMenu = (selectedIndex: number): string => {
 	const lines = [
-		highlighter.bold(`slop v${process.env.VERSION ?? "0.1.0"}`),
+		highlighter.bold(`slop v${APP_VERSION}`),
 		highlighter.dim("Use ↑↓ or 1-5, Enter select, q quit, Ctrl+C exit"),
 		"",
 		...MENU_OPTIONS.map((option, index) => {
