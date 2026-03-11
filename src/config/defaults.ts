@@ -38,6 +38,9 @@ export const DEFAULT_CONFIG: AislopConfig = {
 		failBelow: 0,
 		format: "json",
 	},
+	telemetry: {
+		enabled: true,
+	},
 };
 
 export const DEFAULT_CONFIG_YAML = `version: 1
@@ -75,6 +78,9 @@ scoring:
 ci:
   failBelow: 0
   format: json
+
+# telemetry:
+#   enabled: true        # set to false to disable anonymous usage analytics
 `;
 
 export const DEFAULT_RULES_YAML = `# Architecture rules (BYO)

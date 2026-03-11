@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] - 2026-03-11
+
+### Added
+
+- Anonymous opt-out telemetry via PostHog for aggregate usage insights
+  - Respects `AISLOP_NO_TELEMETRY=1`, `DO_NOT_TRACK=1`, and `telemetry.enabled: false` in config
+  - No PII collected; fire-and-forget with no impact on scan performance
+  - Disabled automatically in CI environments
+
+### Fixed
+
+- False-positive `function-too-long` warning on `isBlockArrow` caused by the naive brace counter miscounting `{` and `}` characters inside regex literals
+- `complexity.ts` trimmed to stay within the 400-line file size limit
+
 ## [0.1.0] - 2025-07-14
 
 ### Added
