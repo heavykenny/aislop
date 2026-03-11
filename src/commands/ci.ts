@@ -10,5 +10,6 @@ export const ciCommand = async (
 		staged: false,
 		verbose: false,
 		json: true,
+		command: "ci",
 	});
 };

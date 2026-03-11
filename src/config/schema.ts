@@ -48,6 +48,10 @@ const CiSchema = z.object({
 	format: z.enum(["json"]).default("json"),
 });
 
+const TelemetrySchema = z.object({
+	enabled: z.boolean().default(true),
+});
+
 const AislopConfigSchema = z.object({
 	version: z.number().default(1),
 	engines: EnginesSchema.default(() => ({
@@ -78,6 +82,9 @@ const AislopConfigSchema = z.object({
 	ci: CiSchema.default(() => ({
 		failBelow: 0,
 		format: "json" as const,
+	})),
+	telemetry: TelemetrySchema.default(() => ({
+		enabled: true,
 	})),
 });
 

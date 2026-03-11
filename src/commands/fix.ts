@@ -17,6 +17,7 @@ import { printMaybePaged } from "../output/pager.js";
 import { discoverProject } from "../utils/discover.js";
 import { highlighter } from "../utils/highlighter.js";
 import { logger } from "../utils/logger.js";
+import { isTelemetryDisabled, trackEvent } from "../utils/telemetry.js";
 
 interface FixOptions {
 	verbose: boolean;
@@ -323,6 +324,17 @@ export const fixCommand = async (
 	} else {
 		logger.break();
 		summarizeFixRun(steps);
+	}
+
+	// Fire-and-forget anonymous telemetry
+	if (!isTelemetryDisabled(config.telemetry?.enabled)) {
+		const totalResolved = steps.reduce((sum, s) => sum + s.resolvedIssues, 0);
+		trackEvent({
+			command: "fix",
+			languages: projectInfo.languages,
+			fixSteps: steps.length,
+			fixResolved: totalResolved,
+		});
 	}
 
 	logger.break();

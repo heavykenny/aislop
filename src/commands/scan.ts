@@ -24,6 +24,11 @@ import { highlighter } from "../utils/highlighter.js";
 import { logger } from "../utils/logger.js";
 import { filterProjectFiles } from "../utils/source-files.js";
 import { spinner } from "../utils/spinner.js";
+import {
+	getScoreBucket,
+	isTelemetryDisabled,
+	trackEvent,
+} from "../utils/telemetry.js";
 
 interface ScanOptions {
 	changes: boolean;
@@ -31,6 +36,8 @@ interface ScanOptions {
 	verbose: boolean;
 	json: boolean;
 	showHeader?: boolean;
+	/** Used for telemetry to distinguish scan vs ci invocation */
+	command?: "scan" | "ci";
 }
 
 const shouldUseSpinner = (): boolean =>
@@ -132,6 +139,25 @@ export const scanCommand = async (
 		config.scoring.thresholds,
 	);
 	const exitCode = scoreResult.score < config.ci.failBelow ? 1 : 0;
+
+	// Fire-and-forget anonymous telemetry (before output so it doesn't delay exit)
+	if (!isTelemetryDisabled(config.telemetry?.enabled)) {
+		const engineIssues: Record<string, number> = {};
+		const engineTimings: Record<string, number> = {};
+		for (const r of results) {
+			engineIssues[r.engine] = r.diagnostics.length;
+			engineTimings[r.engine] = Math.round(r.elapsed);
+		}
+		trackEvent({
+			command: options.command ?? "scan",
+			languages: projectInfo.languages,
+			scoreBucket: getScoreBucket(scoreResult.score),
+			engineIssues,
+			engineTimings,
+			elapsedMs: Math.round(elapsedMs),
+			fileCount: projectInfo.sourceFileCount,
+		});
+	}
 
 	if (options.json) {
 		const { buildJsonOutput } = await import("../output/json.js");

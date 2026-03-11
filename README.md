@@ -326,6 +326,26 @@ npx aislop scan --staged
 
 ---
 
+## Telemetry
+
+`aislop` collects anonymous usage analytics to help us understand how the tool is used and prioritize improvements. **No code, file paths, project names, or secrets are ever collected.**
+
+What we collect: command run (scan/fix/ci), languages detected, score bucket, issue counts per engine, engine timing, OS, Node version, and aislop version.
+
+Telemetry is **off in CI** by default. To opt out anywhere:
+
+```bash
+# Environment variable (any of these)
+AISLOP_NO_TELEMETRY=1 aislop scan
+DO_NOT_TRACK=1 aislop scan
+
+# Or in .aislop/config.yml
+telemetry:
+  enabled: false
+```
+
+---
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, project architecture, and how to add new rules or engines.
