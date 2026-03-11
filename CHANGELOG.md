@@ -34,6 +34,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Support for `--changes` and `--staged` flags for incremental scanning
 - JSON output for CI pipelines
 - Auto-download of ruff and golangci-lint binaries on install
-- Configuration via `.slop/config.yml` and `.slop/rules.yml`
+- Configuration via `.aislop/config.yml` and `.aislop/rules.yml`
 - Language support: TypeScript, JavaScript, Python, Go, Rust, Ruby, PHP, Java (detection)
 - Framework detection: Next.js, React, Vite, Remix, Expo, Django, Flask, FastAPI

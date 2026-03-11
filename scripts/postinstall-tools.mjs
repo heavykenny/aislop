@@ -12,7 +12,7 @@ import * as tar from "tar";
 const THIS_FILE = fileURLToPath(import.meta.url);
 const PACKAGE_ROOT = path.resolve(path.dirname(THIS_FILE), "..");
 const TOOLS_BIN_DIR = path.join(PACKAGE_ROOT, "tools", "bin");
-const USER_AGENT = "slop-installer";
+const USER_AGENT = "aislop-installer";
 
 const PLATFORM_KEY = `${process.platform}-${process.arch}`;
 
@@ -70,8 +70,8 @@ const TOOL_DEFINITIONS = [
 const isWindows = process.platform === "win32";
 const withExecutableExtension = (name) => (isWindows ? `${name}.exe` : name);
 
-const info = (message) => console.log(`[slop] ${message}`);
-const warn = (message) => console.warn(`[slop] ${message}`);
+const info = (message) => console.log(`[aislop] ${message}`);
+const warn = (message) => console.warn(`[aislop] ${message}`);
 
 const downloadFile = async (url, destination) => {
 	const response = await fetch(url, {
@@ -161,7 +161,9 @@ const installTool = async (tool) => {
 		return true;
 	}
 
-	const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), `slop-${tool.name}-`));
+	const tempDir = fs.mkdtempSync(
+		path.join(os.tmpdir(), `aislop-${tool.name}-`),
+	);
 	const archivePath = path.join(tempDir, assetNames[0]);
 	const extractDir = path.join(tempDir, "extract");
 	fs.mkdirSync(extractDir, { recursive: true });
@@ -196,8 +198,8 @@ const installTool = async (tool) => {
 };
 
 const main = async () => {
-	if (process.env.SLOP_SKIP_TOOL_DOWNLOAD === "1") {
-		info("Skipping bundled tool download (SLOP_SKIP_TOOL_DOWNLOAD=1).");
+	if (process.env.AISLOP_SKIP_TOOL_DOWNLOAD === "1") {
+		info("Skipping bundled tool download (AISLOP_SKIP_TOOL_DOWNLOAD=1).");
 		return;
 	}
 
@@ -221,7 +223,7 @@ const main = async () => {
 			warn(`  - ${failure}`);
 		}
 		warn(
-			"Slop will still run, but coverage for those tools may be reduced until installation succeeds.",
+			"aislop will still run, but coverage for those tools may be reduced until installation succeeds.",
 		);
 	}
 };

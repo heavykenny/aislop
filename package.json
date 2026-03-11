@@ -1,10 +1,10 @@
 {
-	"name": "slop",
+	"name": "aislop",
 	"version": "0.1.0",
 	"description": "Stop AI slop from shipping. A unified code quality CLI that catches the lazy patterns AI coding tools leave behind.",
 	"type": "module",
 	"bin": {
-		"slop": "./dist/cli.js"
+		"aislop": "./dist/cli.js"
 	},
 	"files": [
 		"dist",
@@ -27,7 +27,7 @@
 		"quality": "pnpm typecheck && pnpm test && node dist/cli.js scan . --json"
 	},
 	"keywords": [
-		"slop",
+		"aislop",
 		"ai-slop",
 		"code-quality",
 		"linter",
@@ -47,13 +47,13 @@
 	],
 	"author": "heavykenny",
 	"license": "MIT",
-	"homepage": "https://github.com/heavykenny/slop#readme",
+	"homepage": "https://github.com/heavykenny/aislop#readme",
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/heavykenny/slop.git"
+		"url": "git+https://github.com/heavykenny/aislop.git"
 	},
 	"bugs": {
-		"url": "https://github.com/heavykenny/slop/issues"
+		"url": "https://github.com/heavykenny/aislop/issues"
 	},
 	"engines": {
 		"node": ">=20"

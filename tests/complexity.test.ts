@@ -41,7 +41,7 @@ const makeLines = (count: number, line = "  const x = 1;"): string =>
 	Array(count).fill(line).join("\n");
 
 beforeEach(() => {
-	tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "slop-complexity-"));
+	tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "aislop-complexity-"));
 });
 
 afterEach(() => {

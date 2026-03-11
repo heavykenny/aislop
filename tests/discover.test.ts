@@ -13,7 +13,7 @@ describe("discoverProject", () => {
 	let tmpDir: string;
 
 	beforeEach(() => {
-		tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "slop-discover-"));
+		tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "aislop-discover-"));
 	});
 
 	afterEach(() => {

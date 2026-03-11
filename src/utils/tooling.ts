@@ -15,7 +15,7 @@ const resolvePackageRoot = (startFile: string): string => {
 				const packageJson = JSON.parse(
 					fs.readFileSync(packageJsonPath, "utf-8"),
 				) as { name?: string };
-				if (packageJson.name === "slop") {
+				if (packageJson.name === "aislop") {
 					return current;
 				}
 			} catch {

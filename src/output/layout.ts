@@ -19,7 +19,7 @@ export const formatElapsed = (elapsedMs: number): string =>
 		: `${(elapsedMs / 1000).toFixed(1)}s`;
 
 export const printCommandHeader = (commandName: string): void => {
-	logger.log(highlighter.bold(`slop ${commandName}`));
+	logger.log(highlighter.bold(`aislop ${commandName}`));
 	logger.log(highlighter.dim(`v${APP_VERSION}`));
 	logger.break();
 };

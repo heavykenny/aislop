@@ -84,7 +84,7 @@ export const rulesCommand = async (directory: string): Promise<void> => {
 		const archRules = loadArchitectureRules(rulesPath);
 		if (archRules.length > 0) {
 			lines.push(
-				`  ${highlighter.bold("architecture")} (from .slop/rules.yml)`,
+				`  ${highlighter.bold("architecture")} (from .aislop/rules.yml)`,
 			);
 			for (const rule of archRules) {
 				lines.push(highlighter.dim(`    arch/${rule.name} (${rule.severity})`));

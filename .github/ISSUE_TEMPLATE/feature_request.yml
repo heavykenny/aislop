@@ -1,5 +1,5 @@
 name: Feature Request
-description: Suggest a new feature or rule for slop
+description: Suggest a new feature or rule for aislop
 title: "[Feature]: "
 labels: ["enhancement"]
 body:
@@ -28,9 +28,9 @@ body:
     id: problem
     attributes:
       label: What problem does this solve?
-      description: Describe the problem or pattern you've seen that slop doesn't catch today.
+      description: Describe the problem or pattern you've seen that aislop doesn't catch today.
       placeholder: |
-        I keep seeing AI-generated code that does X, and slop doesn't flag it...
+        I keep seeing AI-generated code that does X, and aislop doesn't flag it...
     validations:
       required: true
 

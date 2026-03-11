@@ -1,9 +1,9 @@
-import type { SlopConfig } from "../config/index.js";
+import type { AislopConfig } from "../config/index.js";
 import { scanCommand } from "./scan.js";
 
 export const ciCommand = async (
 	directory: string,
-	config: SlopConfig,
+	config: AislopConfig,
 ): Promise<{ exitCode: number }> => {
 	return scanCommand(directory, config, {
 		changes: false,

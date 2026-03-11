@@ -3,7 +3,7 @@ export { fixCommand } from "./commands/fix.js";
 export { initCommand } from "./commands/init.js";
 export { scanCommand } from "./commands/scan.js";
 export { loadConfig } from "./config/index.js";
-export type { SlopConfig } from "./config/schema.js";
+export type { AislopConfig } from "./config/schema.js";
 export type {
 	Diagnostic,
 	EngineName,

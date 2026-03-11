@@ -43,7 +43,7 @@ const parseRuffFormatOutput = (
 			rule: "python-formatting",
 			severity: "warning",
 			message: "Python file is not formatted correctly",
-			help: "Run `slop fix` to auto-format with ruff",
+			help: "Run `aislop fix` to auto-format with ruff",
 			line: 0,
 			column: 0,
 			category: "Format",

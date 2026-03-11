@@ -14,7 +14,7 @@ process.on("SIGINT", () => process.exit(0));
 process.on("SIGTERM", () => process.exit(0));
 
 const program = new Command()
-	.name("slop")
+	.name("aislop")
 	.description("The unified code quality CLI")
 	.version(APP_VERSION, "-v, --version")
 	.argument("[directory]", "project directory to scan", ".")
@@ -64,21 +64,21 @@ const program = new Command()
 		"after",
 		`
 ${highlighter.dim("Commands:")}
-  slop scan [dir]      Full code quality scan
-  slop fix [dir]       Auto-fix formatting and lint issues
-  slop init [dir]      Initialize slop config
-  slop doctor [dir]    Check installed tools
-  slop ci [dir]        CI-friendly JSON output
-  slop rules [dir]     List all rules
+  aislop scan [dir]      Full code quality scan
+  aislop fix [dir]       Auto-fix formatting and lint issues
+  aislop init [dir]      Initialize aislop config
+  aislop doctor [dir]    Check installed tools
+  aislop ci [dir]        CI-friendly JSON output
+  aislop rules [dir]     List all rules
 
 ${highlighter.dim("Examples:")}
-  slop                 Interactive menu
-  slop scan            Scan entire project
-  slop scan -d         Scan with file/line details
-  slop scan --changes  Scan only changed files
-  slop scan --staged   Scan only staged files (for hooks)
-  slop fix             Auto-fix issues
-  slop ci              JSON output for CI pipelines
+  aislop                 Interactive menu
+  aislop scan            Scan entire project
+  aislop scan -d         Scan with file/line details
+  aislop scan --changes  Scan only changed files
+  aislop scan --staged   Scan only staged files (for hooks)
+  aislop fix             Auto-fix issues
+  aislop ci              JSON output for CI pipelines
 `,
 	);
 
@@ -119,7 +119,7 @@ program
 
 program
 	.command("init [directory]")
-	.description("Initialize slop config in project")
+	.description("Initialize aislop config in project")
 	.action(async (directory = ".") => {
 		await initCommand(directory);
 	});

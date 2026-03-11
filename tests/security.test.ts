@@ -35,7 +35,7 @@ const writeFile = (filename: string, content: string): string => {
 };
 
 beforeEach(() => {
-	tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "slop-security-"));
+	tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "aislop-security-"));
 });
 
 afterEach(() => {

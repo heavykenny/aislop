@@ -161,36 +161,36 @@ describe("findConfigDir", () => {
 	let tmpDir: string;
 
 	beforeEach(() => {
-		tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "slop-test-"));
+		tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "aislop-test-"));
 	});
 
 	afterEach(() => {
 		fs.rmSync(tmpDir, { recursive: true, force: true });
 	});
 
-	it("returns null when no .slop directory exists", () => {
+	it("returns null when no .aislop directory exists", () => {
 		const result = findConfigDir(tmpDir);
 		expect(result).toBeNull();
 	});
 
-	it("finds .slop in the given directory", () => {
-		const slopDir = path.join(tmpDir, CONFIG_DIR);
-		fs.mkdirSync(slopDir);
+	it("finds .aislop in the given directory", () => {
+		const aislopDir = path.join(tmpDir, CONFIG_DIR);
+		fs.mkdirSync(aislopDir);
 		const result = findConfigDir(tmpDir);
-		expect(result).toBe(slopDir);
+		expect(result).toBe(aislopDir);
 	});
 
-	it("finds .slop in a parent directory", () => {
-		const slopDir = path.join(tmpDir, CONFIG_DIR);
-		fs.mkdirSync(slopDir);
+	it("finds .aislop in a parent directory", () => {
+		const aislopDir = path.join(tmpDir, CONFIG_DIR);
+		fs.mkdirSync(aislopDir);
 		const nestedDir = path.join(tmpDir, "src", "lib");
 		fs.mkdirSync(nestedDir, { recursive: true });
 		const result = findConfigDir(nestedDir);
-		expect(result).toBe(slopDir);
+		expect(result).toBe(aislopDir);
 	});
 
-	it("does not match a file named .slop (must be a directory)", () => {
-		// create a file named .slop instead of a directory
+	it("does not match a file named .aislop (must be a directory)", () => {
+		// create a file named .aislop instead of a directory
 		fs.writeFileSync(path.join(tmpDir, CONFIG_DIR), "not a dir");
 		const result = findConfigDir(tmpDir);
 		expect(result).toBeNull();
@@ -201,29 +201,29 @@ describe("loadConfig", () => {
 	let tmpDir: string;
 
 	beforeEach(() => {
-		tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "slop-config-test-"));
+		tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "aislop-config-test-"));
 	});
 
 	afterEach(() => {
 		fs.rmSync(tmpDir, { recursive: true, force: true });
 	});
 
-	it("returns DEFAULT_CONFIG when no .slop directory exists", () => {
+	it("returns DEFAULT_CONFIG when no .aislop directory exists", () => {
 		const result = loadConfig(tmpDir);
 		expect(result).toEqual(DEFAULT_CONFIG);
 	});
 
-	it("returns DEFAULT_CONFIG when .slop dir exists but config.yml is absent", () => {
+	it("returns DEFAULT_CONFIG when .aislop dir exists but config.yml is absent", () => {
 		fs.mkdirSync(path.join(tmpDir, CONFIG_DIR));
 		const result = loadConfig(tmpDir);
 		expect(result).toEqual(DEFAULT_CONFIG);
 	});
 
 	it("loads and merges a valid config.yml", () => {
-		const slopDir = path.join(tmpDir, CONFIG_DIR);
-		fs.mkdirSync(slopDir);
+		const aislopDir = path.join(tmpDir, CONFIG_DIR);
+		fs.mkdirSync(aislopDir);
 		fs.writeFileSync(
-			path.join(slopDir, CONFIG_FILE),
+			path.join(aislopDir, CONFIG_FILE),
 			"quality:\n  maxFunctionLoc: 40\n",
 			"utf-8",
 		);
@@ -234,10 +234,10 @@ describe("loadConfig", () => {
 	});
 
 	it("returns DEFAULT_CONFIG when config.yml contains invalid YAML", () => {
-		const slopDir = path.join(tmpDir, CONFIG_DIR);
-		fs.mkdirSync(slopDir);
+		const aislopDir = path.join(tmpDir, CONFIG_DIR);
+		fs.mkdirSync(aislopDir);
 		fs.writeFileSync(
-			path.join(slopDir, CONFIG_FILE),
+			path.join(aislopDir, CONFIG_FILE),
 			"{ invalid yaml: [",
 			"utf-8",
 		);
@@ -246,18 +246,18 @@ describe("loadConfig", () => {
 	});
 
 	it("returns DEFAULT_CONFIG when config.yml is empty", () => {
-		const slopDir = path.join(tmpDir, CONFIG_DIR);
-		fs.mkdirSync(slopDir);
-		fs.writeFileSync(path.join(slopDir, CONFIG_FILE), "", "utf-8");
+		const aislopDir = path.join(tmpDir, CONFIG_DIR);
+		fs.mkdirSync(aislopDir);
+		fs.writeFileSync(path.join(aislopDir, CONFIG_FILE), "", "utf-8");
 		const result = loadConfig(tmpDir);
 		expect(result).toEqual(DEFAULT_CONFIG);
 	});
 
 	it("loads ci override from config.yml", () => {
-		const slopDir = path.join(tmpDir, CONFIG_DIR);
-		fs.mkdirSync(slopDir);
+		const aislopDir = path.join(tmpDir, CONFIG_DIR);
+		fs.mkdirSync(aislopDir);
 		fs.writeFileSync(
-			path.join(slopDir, CONFIG_FILE),
+			path.join(aislopDir, CONFIG_FILE),
 			"ci:\n  format: json\n  failBelow: 70\n",
 			"utf-8",
 		);

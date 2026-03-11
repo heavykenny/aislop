@@ -2,9 +2,9 @@ import fs from "node:fs";
 import path from "node:path";
 import YAML from "yaml";
 import { DEFAULT_CONFIG } from "./defaults.js";
-import { parseConfig, type SlopConfig } from "./schema.js";
+import { type AislopConfig, parseConfig } from "./schema.js";
 
-export const CONFIG_DIR = ".slop";
+export const CONFIG_DIR = ".aislop";
 export const CONFIG_FILE = "config.yml";
 export const RULES_FILE = "rules.yml";
 
@@ -22,7 +22,7 @@ export const findConfigDir = (startDir: string): string | null => {
 	return null;
 };
 
-export const loadConfig = (directory: string): SlopConfig => {
+export const loadConfig = (directory: string): AislopConfig => {
 	const configDir = findConfigDir(directory);
 	if (!configDir) return DEFAULT_CONFIG;
 
@@ -38,4 +38,4 @@ export const loadConfig = (directory: string): SlopConfig => {
 	}
 };
 
-export type { SlopConfig } from "./schema.js";
+export type { AislopConfig } from "./schema.js";

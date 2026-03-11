@@ -1,6 +1,6 @@
-import type { SlopConfig } from "./schema.js";
+import type { AislopConfig } from "./schema.js";
 
-export const DEFAULT_CONFIG: SlopConfig = {
+export const DEFAULT_CONFIG: AislopConfig = {
 	version: 1,
 	engines: {
 		format: true,
