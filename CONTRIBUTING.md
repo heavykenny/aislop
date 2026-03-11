@@ -245,7 +245,7 @@ Language support involves several layers:
 
 ## Releases
 
-Releases are automated. When a maintainer creates a GitHub Release (or pushes a `v*` tag), CI builds and publishes to npm. See `.github/workflows/release.yml`.
+Releases are automated. When a maintainer creates a GitHub Release (or pushes a `v*` tag), CI builds and publishes to npm using OIDC trusted publishing -- no long-lived tokens required. See `.github/workflows/release.yml`.
 
 Version bumps follow [semver](https://semver.org/):
 
