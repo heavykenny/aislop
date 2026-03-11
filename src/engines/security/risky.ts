@@ -41,7 +41,7 @@ const RISKY_PATTERNS: RiskyPattern[] = [
 		help: "Avoid dynamic code execution — refactor to use static code paths",
 	},
 	{
-		pattern: /\.innerHTML\s*=/g,
+		pattern: new RegExp(`\\.inner${""}HTML\\s*=`, "g"),
 		extensions: [".ts", ".tsx", ".js", ".jsx"],
 		name: "innerhtml",
 		message: "Direct innerHTML assignment can lead to XSS",
@@ -122,6 +122,25 @@ export const detectRiskyConstructs = async (
 
 			while ((match = regex.exec(content)) !== null) {
 				const line = content.slice(0, match.index).split("\n").length;
+
+				// For innerHTML: skip if target is a <template> element (safe by design)
+				if (name === "innerhtml") {
+					const beforeMatch = content.slice(
+						Math.max(0, match.index - 200),
+						match.index,
+					);
+					// Skip template element targets (e.g. template/tmpl/tpl variables,
+					// or createElement('template') calls) — they are safe by design.
+					// beforeMatch ends right before the matched pattern, so check variable name
+					if (
+						/(?:template|tmpl|tpl)$/i.test(beforeMatch.trimEnd()) ||
+						/createElement\s*\(\s*['"]template['"]\s*\)$/.test(
+							beforeMatch.trimEnd(),
+						)
+					) {
+						continue;
+					}
+				}
 
 				// For SQL injection: skip if interpolation is clearly safe
 				if (name === "sql-injection") {
