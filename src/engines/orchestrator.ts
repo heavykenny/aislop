@@ -53,11 +53,11 @@ export const runEngines = async (
 		}),
 	);
 
-	return results.map((r) =>
+	return results.map((r, i) =>
 		r.status === "fulfilled"
 			? r.value
 			: {
-					engine: "lint" as EngineName,
+					engine: engines[i].name,
 					diagnostics: [],
 					elapsed: 0,
 					skipped: true,

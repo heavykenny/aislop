@@ -58,9 +58,10 @@ describe("parseConfig", () => {
 		);
 	});
 
-	it("overrides ci.format to sarif", () => {
+	it("falls back to defaults when ci.format is an invalid value", () => {
 		const result = parseConfig({ ci: { format: "sarif" } });
-		expect(result.ci.format).toBe("sarif");
+		// "sarif" is not a valid format, so zod validation falls back to defaults
+		expect(result.ci.format).toBe("json");
 		expect(result.ci.failBelow).toBe(DEFAULT_CONFIG.ci.failBelow);
 	});
 
@@ -252,16 +253,16 @@ describe("loadConfig", () => {
 		expect(result).toEqual(DEFAULT_CONFIG);
 	});
 
-	it("loads ci format override from config.yml", () => {
+	it("loads ci override from config.yml", () => {
 		const slopDir = path.join(tmpDir, CONFIG_DIR);
 		fs.mkdirSync(slopDir);
 		fs.writeFileSync(
 			path.join(slopDir, CONFIG_FILE),
-			"ci:\n  format: sarif\n  failBelow: 70\n",
+			"ci:\n  format: json\n  failBelow: 70\n",
 			"utf-8",
 		);
 		const result = loadConfig(tmpDir);
-		expect(result.ci.format).toBe("sarif");
+		expect(result.ci.format).toBe("json");
 		expect(result.ci.failBelow).toBe(70);
 	});
 });

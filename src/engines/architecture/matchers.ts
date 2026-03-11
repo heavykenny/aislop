@@ -5,11 +5,44 @@ import type { Diagnostic, EngineContext } from "../types.js";
 import type { ArchitectureRule } from "./rule-loader.js";
 
 const minimatch = (filePath: string, pattern: string): boolean => {
-	// Simple glob matching for common patterns
-	const regex = pattern
-		.replace(/\*\*/g, "GLOBSTAR")
-		.replace(/\*/g, "[^/]*")
-		.replace(/GLOBSTAR/g, ".*");
+	// Escape regex special chars except glob characters (* ? [ ])
+	let regex = "";
+	let i = 0;
+	while (i < pattern.length) {
+		const ch = pattern[i];
+		if (ch === "*" && pattern[i + 1] === "*") {
+			// ** matches any path segment (including /)
+			regex += ".*";
+			i += 2;
+			// Skip trailing /
+			if (pattern[i] === "/") i++;
+		} else if (ch === "*") {
+			// * matches anything except /
+			regex += "[^/]*";
+			i++;
+		} else if (ch === "?") {
+			// ? matches a single character except /
+			regex += "[^/]";
+			i++;
+		} else if (ch === "[") {
+			// Character class — pass through until ]
+			const closeIndex = pattern.indexOf("]", i + 1);
+			if (closeIndex === -1) {
+				regex += "\\[";
+				i++;
+			} else {
+				regex += pattern.slice(i, closeIndex + 1);
+				i = closeIndex + 1;
+			}
+		} else if (".+^${}()|\\".includes(ch)) {
+			// Escape regex special characters
+			regex += `\\${ch}`;
+			i++;
+		} else {
+			regex += ch;
+			i++;
+		}
+	}
 	return new RegExp(`^${regex}$`).test(filePath);
 };
 
@@ -39,10 +72,21 @@ const extractImports = (content: string, ext: string): string[] => {
 	}
 
 	if (ext === ".go") {
-		const goPattern = /"([^"]+)"/g;
+		// Match imports inside import () blocks or single import "..." statements
+		const goSingleImport = /^\s*import\s+"([^"]+)"/gm;
 		let match: RegExpExecArray | null;
-		while ((match = goPattern.exec(content)) !== null) {
+		while ((match = goSingleImport.exec(content)) !== null) {
 			imports.push(match[1]);
+		}
+		// Multi-line import block: import ( "pkg" \n "pkg2" )
+		const goMultiImport = /import\s*\(([^)]*)\)/gs;
+		while ((match = goMultiImport.exec(content)) !== null) {
+			const block = match[1];
+			const pkgPattern = /"([^"]+)"/g;
+			let pkgMatch: RegExpExecArray | null;
+			while ((pkgMatch = pkgPattern.exec(block)) !== null) {
+				imports.push(pkgMatch[1]);
+			}
 		}
 	}
 

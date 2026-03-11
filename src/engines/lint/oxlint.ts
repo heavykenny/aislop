@@ -137,3 +137,37 @@ export const runOxlint = async (
 		}
 	}
 };
+
+export const fixOxlint = async (context: EngineContext): Promise<void> => {
+	const configPath = path.join(
+		os.tmpdir(),
+		`slop-oxlintrc-fix-${process.pid}.json`,
+	);
+	const framework = context.frameworks.find((f) => f !== "none");
+	const testFramework = detectTestFramework(context.rootDirectory);
+	const config = createOxlintConfig({ framework, testFramework });
+
+	try {
+		fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+
+		const binary = resolveOxlintBinary();
+		const args = [binary, "-c", configPath, "--fix", "."];
+
+		const result = await runSubprocess(process.execPath, args, {
+			cwd: context.rootDirectory,
+			timeout: 120000,
+		});
+
+		if (result.exitCode !== 0) {
+			throw new Error(
+				result.stderr ||
+					result.stdout ||
+					`Oxlint exited with code ${result.exitCode}`,
+			);
+		}
+	} finally {
+		if (fs.existsSync(configPath)) {
+			fs.unlinkSync(configPath);
+		}
+	}
+};

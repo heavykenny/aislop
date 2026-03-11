@@ -4,6 +4,7 @@ import type { SlopConfig } from "../config/index.js";
 import { fixBiomeFormat, runBiomeFormat } from "../engines/format/biome.js";
 import { fixGofmt, runGofmt } from "../engines/format/gofmt.js";
 import { fixRuffFormat, runRuffFormat } from "../engines/format/ruff-format.js";
+import { fixOxlint, runOxlint } from "../engines/lint/oxlint.js";
 import { fixRuffLint, runRuffLint } from "../engines/lint/ruff.js";
 import type { Diagnostic, EngineContext } from "../engines/types.js";
 import {
@@ -12,7 +13,9 @@ import {
 	printCommandHeader,
 	printProjectMetadata,
 } from "../output/layout.js";
+import { printMaybePaged } from "../output/pager.js";
 import { discoverProject } from "../utils/discover.js";
+import { highlighter } from "../utils/highlighter.js";
 import { logger } from "../utils/logger.js";
 
 interface FixOptions {
@@ -37,22 +40,27 @@ const uniqueFiles = (diagnostics: Diagnostic[]): string[] => [
 const uniqueFileCount = (diagnostics: Diagnostic[]): number =>
 	uniqueFiles(diagnostics).length;
 
-const printFilePreview = (
+const getFilePreviewLines = (
 	title: string,
 	files: string[],
 	verbose: boolean,
-): void => {
-	if (files.length === 0) return;
-	logger.dim(`    ${title}: ${files.length} file(s)`);
+): string[] => {
+	if (files.length === 0) return [];
+
+	const lines = [highlighter.dim(`    ${title}: ${files.length} file(s)`)];
 	const preview = verbose ? files : files.slice(0, 5);
 	for (const file of preview) {
-		logger.dim(`      ${file}`);
+		lines.push(highlighter.dim(`      ${file}`));
 	}
 	if (!verbose && files.length > preview.length) {
-		logger.dim(
-			`      +${files.length - preview.length} more file(s), use -d for full list`,
+		lines.push(
+			highlighter.dim(
+				`      +${files.length - preview.length} more file(s), use -d for full list`,
+			),
 		);
 	}
+
+	return lines;
 };
 
 const getReasonLines = (
@@ -61,6 +69,38 @@ const getReasonLines = (
 	const firstLine =
 		reason.split("\n").find((line) => line.trim().length > 0) ?? reason;
 	return { firstLine, printable: reason };
+};
+
+const getStepStatusLine = (
+	result: FixStepResult,
+	name: string,
+	elapsedLabel: string,
+): string => {
+	if (result.failed) {
+		return highlighter.error(
+			`  ✗ ${name}: failed (${result.afterIssues} issue${result.afterIssues === 1 ? "" : "s"} remain, ${elapsedLabel})`,
+		);
+	}
+
+	if (result.beforeIssues === 0) {
+		return highlighter.success(`  ✓ ${name}: done (0 issues, ${elapsedLabel})`);
+	}
+
+	if (result.afterIssues === 0) {
+		return highlighter.success(
+			`  ✓ ${name}: done (${result.resolvedIssues} resolved across ${result.beforeFiles} file(s), ${elapsedLabel})`,
+		);
+	}
+
+	if (result.resolvedIssues > 0) {
+		return highlighter.warn(
+			`  ! ${name}: done (${result.resolvedIssues} resolved, ${result.afterIssues} remaining, ${elapsedLabel})`,
+		);
+	}
+
+	return highlighter.warn(
+		`  ! ${name}: done (no auto-fix changes, ${result.afterIssues} issue${result.afterIssues === 1 ? "" : "s"}, ${elapsedLabel})`,
+	);
 };
 
 const runFixStep = async (
@@ -93,25 +133,7 @@ const runFixStep = async (
 	};
 
 	const elapsedLabel = formatElapsed(result.elapsedMs);
-	if (result.failed) {
-		logger.error(
-			`  ✗ ${name}: failed (${result.afterIssues} issue${result.afterIssues === 1 ? "" : "s"} remain, ${elapsedLabel})`,
-		);
-	} else if (result.beforeIssues === 0) {
-		logger.success(`  ✓ ${name}: done (0 issues, ${elapsedLabel})`);
-	} else if (result.afterIssues === 0) {
-		logger.success(
-			`  ✓ ${name}: done (${result.resolvedIssues} resolved across ${result.beforeFiles} file(s), ${elapsedLabel})`,
-		);
-	} else if (result.resolvedIssues > 0) {
-		logger.warn(
-			`  ! ${name}: done (${result.resolvedIssues} resolved, ${result.afterIssues} remaining, ${elapsedLabel})`,
-		);
-	} else {
-		logger.warn(
-			`  ! ${name}: done (no auto-fix changes, ${result.afterIssues} issue${result.afterIssues === 1 ? "" : "s"}, ${elapsedLabel})`,
-		);
-	}
+	const lines = [getStepStatusLine(result, name, elapsedLabel)];
 
 	if (applyError) {
 		const reason =
@@ -120,16 +142,24 @@ const runFixStep = async (
 		const reasonToPrint = options.verbose
 			? reasonLines.printable
 			: reasonLines.firstLine;
-		logger.dim(`      ${reasonToPrint}`);
+		for (const line of reasonToPrint.split("\n")) {
+			lines.push(highlighter.dim(`      ${line}`));
+		}
 		if (!options.verbose && reasonLines.printable !== reasonToPrint) {
-			logger.dim("      Re-run with -d for full tool output.");
+			lines.push(highlighter.dim("      Re-run with -d for full tool output."));
 		}
 	}
 
-	printFilePreview("Affected", uniqueFiles(before), options.verbose);
+	lines.push(
+		...getFilePreviewLines("Affected", uniqueFiles(before), options.verbose),
+	);
 	if (after.length > 0) {
-		printFilePreview("Remaining", uniqueFiles(after), options.verbose);
+		lines.push(
+			...getFilePreviewLines("Remaining", uniqueFiles(after), options.verbose),
+		);
 	}
+
+	await printMaybePaged(`${lines.join("\n")}\n\n`);
 
 	return result;
 };
@@ -255,6 +285,20 @@ export const fixCommand = async (
 	}
 
 	if (config.engines.lint) {
+		if (
+			projectInfo.languages.includes("typescript") ||
+			projectInfo.languages.includes("javascript")
+		) {
+			steps.push(
+				await runFixStep(
+					"JS/TS lint fixes",
+					() => runOxlint(context),
+					() => fixOxlint(context),
+					options,
+				),
+			);
+		}
+
 		if (
 			projectInfo.languages.includes("python") &&
 			projectInfo.installedTools.ruff

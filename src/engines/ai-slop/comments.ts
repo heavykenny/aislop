@@ -87,6 +87,10 @@ const isTrivialComment = (
 	// Skip section dividers (followed by a blank line)
 	if (nextLine !== undefined && nextLine.trim() === "") return false;
 
+	// Skip section divider / header comments (contain box-drawing or repeated dashes)
+	if (/[─━═╌╍┄┅│┃]/.test(commentBody)) return false;
+	if (/^-{3,}|─{3,}/.test(commentBody)) return false;
+
 	// Now check against the actual trivial patterns
 	const patterns = isJs
 		? TRIVIAL_JS_COMMENT_PATTERNS

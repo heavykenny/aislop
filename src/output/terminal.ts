@@ -47,15 +47,16 @@ const toLocationLabel = (diagnostic: Diagnostic): string => {
 	return `${diagnostic.filePath}${line}${column}`;
 };
 
-export const printDiagnostics = (
+export const renderDiagnostics = (
 	diagnostics: Diagnostic[],
 	verbose: boolean,
-): void => {
+): string => {
+	const lines: string[] = [];
 	const byEngine = groupBy(diagnostics, (d) => d.engine);
 
 	for (const [engine, engineDiags] of byEngine) {
 		const label = getEngineLabel(engine as Diagnostic["engine"]);
-		logger.log(`  ${highlighter.bold(`➤ ${label}`)}`);
+		lines.push(`  ${highlighter.bold(`➤ ${label}`)}`);
 
 		const byRule = groupBy(engineDiags, (d) => `${d.rule}:${d.message}`);
 		const sorted = [...byRule.entries()].sort(([, a], [, b]) => {
@@ -72,32 +73,38 @@ export const printDiagnostics = (
 			const count = ruleDiags.length > 1 ? ` (${ruleDiags.length})` : "";
 			const status = colorBySeverity(level, first.severity);
 
-			logger.log(`    [${status}] ${first.message}${count}`);
+			lines.push(`    [${status}] ${first.message}${count}`);
 
 			const locations = verbose ? ruleDiags : ruleDiags.slice(0, 3);
 			for (const diagnostic of locations) {
-				logger.dim(`      ${toLocationLabel(diagnostic)}`);
+				lines.push(highlighter.dim(`      ${toLocationLabel(diagnostic)}`));
 			}
 			if (!verbose && ruleDiags.length > locations.length) {
-				logger.dim(
-					`      +${ruleDiags.length - locations.length} more location(s), use -d for full list`,
+				lines.push(
+					highlighter.dim(
+						`      +${ruleDiags.length - locations.length} more location(s), use -d for full list`,
+					),
 				);
 			}
 
-			if (first.help) logger.dim(`      ${first.help}`);
+			if (first.help) {
+				lines.push(highlighter.dim(`      ${first.help}`));
+			}
 
-			logger.break();
+			lines.push("");
 		}
 	}
+
+	return `${lines.join("\n")}\n`;
 };
 
-export const printSummary = (
+export const renderSummary = (
 	diagnostics: Diagnostic[],
 	scoreResult: ScoreResult,
 	elapsedMs: number,
 	fileCount: number,
 	thresholds: { good: number; ok: number },
-): void => {
+): string => {
 	const errorCount = diagnostics.filter((d) => d.severity === "error").length;
 	const warningCount = diagnostics.filter(
 		(d) => d.severity === "warning",
@@ -105,26 +112,22 @@ export const printSummary = (
 	const fixableCount = diagnostics.filter((d) => d.fixable).length;
 	const elapsed = toElapsedLabel(elapsedMs);
 
-	logger.log(
+	const lines = [
 		highlighter.dim(
 			"------------------------------------------------------------",
 		),
-	);
-	logger.log(highlighter.bold("Summary"));
-	logger.log(
+		highlighter.bold("Summary"),
 		`  Score: ${colorByScore(`${scoreResult.score}/${PERFECT_SCORE}`, scoreResult.score, thresholds)} ${colorByScore(`(${scoreResult.label})`, scoreResult.score, thresholds)}`,
-	);
-	logger.log(
 		`  Issues: ${highlighter.error(`${errorCount} error${errorCount === 1 ? "" : "s"}`)}, ${highlighter.warn(`${warningCount} warning${warningCount === 1 ? "" : "s"}`)}`,
-	);
-	logger.log(`  Auto-fixable: ${highlighter.info(String(fixableCount))}`);
-	logger.log(`  Files: ${highlighter.info(String(fileCount))}`);
-	logger.log(`  Time: ${highlighter.info(elapsed)}`);
-	logger.log(
+		`  Auto-fixable: ${highlighter.info(String(fixableCount))}`,
+		`  Files: ${highlighter.info(String(fileCount))}`,
+		`  Time: ${highlighter.info(elapsed)}`,
 		highlighter.dim(
 			"------------------------------------------------------------",
 		),
-	);
+	];
+
+	return `${lines.join("\n")}\n`;
 };
 
 export const printEngineStatus = (result: EngineResult): void => {
