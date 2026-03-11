@@ -1,6 +1,6 @@
-# Contributing to slop
+# Contributing to aislop
 
-Thanks for your interest in making `slop` better. This document covers everything you need to get started.
+Thanks for your interest in making `aislop` better. This document covers everything you need to get started.
 
 ## Code of Conduct
 
@@ -18,8 +18,8 @@ This project follows the [Contributor Covenant](CODE_OF_CONDUCT.md). By particip
 ### Setup
 
 ```bash
-git clone https://github.com/heavykenny/slop.git
-cd slop
+git clone https://github.com/heavykenny/aislop.git
+cd aislop
 pnpm install
 ```
 
@@ -30,10 +30,10 @@ pnpm build        # Build with tsdown
 pnpm typecheck    # Run tsc --noEmit
 pnpm test         # Build + run vitest
 pnpm vitest run   # Run tests without rebuilding
-pnpm scan         # Build + run slop on itself
+pnpm scan         # Build + run aislop on itself
 ```
 
-### Running slop locally
+### Running aislop locally
 
 After building you can run it directly:
 
@@ -45,7 +45,7 @@ node dist/cli.js scan /path/to/other/project
 Or use `pnpm exec`:
 
 ```bash
-pnpm exec slop scan .
+pnpm exec aislop scan .
 ```
 
 ---
@@ -88,7 +88,7 @@ src/
 
 tests/                      # Vitest test suite
 scripts/                    # Postinstall tool downloads
-.slop/                      # slop's own configuration
+.aislop/                    # aislop's own configuration
 ```
 
 ---
@@ -97,16 +97,16 @@ scripts/                    # Postinstall tool downloads
 
 ### Reporting bugs
 
-Open a [bug report](https://github.com/heavykenny/slop/issues/new?template=bug_report.yml). Include:
+Open a [bug report](https://github.com/heavykenny/aislop/issues/new?template=bug_report.yml). Include:
 
 - What you ran
 - What happened vs. what you expected
-- `slop` version (`slop --version`)
+- `aislop` version (`aislop --version`)
 - Node version, OS, package manager
 
 ### Suggesting features
 
-Open a [feature request](https://github.com/heavykenny/slop/issues/new?template=feature_request.yml). Describe the problem it solves and give an example of the pattern you want detected.
+Open a [feature request](https://github.com/heavykenny/aislop/issues/new?template=feature_request.yml). Describe the problem it solves and give an example of the pattern you want detected.
 
 ### Submitting a pull request
 
@@ -179,10 +179,10 @@ const detectMyPattern = (
 
 ### 3. Avoid self-detection
 
-Since `slop` scans itself, your detector's source code might contain the exact patterns it detects. Use string concatenation to build regex patterns and messages:
+Since `aislop` scans itself, your detector's source code might contain the exact patterns it detects. Use string concatenation to build regex patterns and messages:
 
 ```typescript
-// Bad -- slop will flag its own source
+// Bad -- aislop will flag its own source
 const pattern = /as any/;
 
 // Good -- breaks the literal so it won't self-match
@@ -191,7 +191,7 @@ const pattern = new RegExp(`${"a" + "s"}\\s+${"an" + "y"}`);
 
 ### 4. Register the rule name
 
-Add your rule to the `BUILTIN_RULES` array in `src/commands/rules.ts` so it appears in `slop rules`.
+Add your rule to the `BUILTIN_RULES` array in `src/commands/rules.ts` so it appears in `aislop rules`.
 
 ### 5. Write tests
 
@@ -239,7 +239,7 @@ Language support involves several layers:
 - TypeScript strict mode
 - Tabs for indentation (biome default)
 - No unused imports or variables
-- Run `slop` on your changes -- it should score Healthy
+- Run `aislop` on your changes -- it should score Healthy
 
 ---
 

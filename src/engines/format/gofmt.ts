@@ -20,7 +20,7 @@ export const runGofmt = async (
 			rule: "go-formatting",
 			severity: "warning" as const,
 			message: "Go file is not formatted correctly",
-			help: "Run `slop fix` to auto-format with gofmt",
+			help: "Run `aislop fix` to auto-format with gofmt",
 			line: 0,
 			column: 0,
 			category: "Format",

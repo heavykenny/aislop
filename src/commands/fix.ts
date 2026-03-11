@@ -1,6 +1,6 @@
 import path from "node:path";
 import { performance } from "node:perf_hooks";
-import type { SlopConfig } from "../config/index.js";
+import type { AislopConfig } from "../config/index.js";
 import { fixBiomeFormat, runBiomeFormat } from "../engines/format/biome.js";
 import { fixGofmt, runGofmt } from "../engines/format/gofmt.js";
 import { fixRuffFormat, runRuffFormat } from "../engines/format/ruff-format.js";
@@ -167,7 +167,7 @@ const runFixStep = async (
 const createEngineContext = (
 	rootDirectory: string,
 	projectInfo: Awaited<ReturnType<typeof discoverProject>>,
-	config: SlopConfig,
+	config: AislopConfig,
 ): EngineContext => ({
 	rootDirectory,
 	languages: projectInfo.languages,
@@ -217,7 +217,7 @@ const summarizeFixRun = (steps: FixStepResult[]): void => {
 
 export const fixCommand = async (
 	directory: string,
-	config: SlopConfig,
+	config: AislopConfig,
 	options: FixOptions = { verbose: false, showHeader: true },
 ): Promise<void> => {
 	const resolvedDir = path.resolve(directory);
@@ -326,6 +326,6 @@ export const fixCommand = async (
 	}
 
 	logger.break();
-	logger.success("  ✓ Done. Run `slop scan` to verify.");
+	logger.success("  ✓ Done. Run `aislop scan` to verify.");
 	logger.break();
 };

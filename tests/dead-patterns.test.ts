@@ -35,7 +35,7 @@ const writeFile = (filename: string, content: string): string => {
 };
 
 beforeEach(() => {
-	tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "slop-dead-patterns-"));
+	tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "aislop-dead-patterns-"));
 });
 
 afterEach(() => {

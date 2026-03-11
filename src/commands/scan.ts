@@ -1,6 +1,6 @@
 import path from "node:path";
 import { performance } from "node:perf_hooks";
-import type { SlopConfig } from "../config/index.js";
+import type { AislopConfig } from "../config/index.js";
 import { findConfigDir, RULES_FILE } from "../config/index.js";
 import { runEngines } from "../engines/orchestrator.js";
 import type { EngineConfig, EngineName } from "../engines/types.js";
@@ -42,7 +42,7 @@ const ALL_ENGINE_NAMES = Object.keys(ENGINE_INFO) as EngineName[];
 
 export const scanCommand = async (
 	directory: string,
-	config: SlopConfig,
+	config: AislopConfig,
 	options: ScanOptions,
 ): Promise<{ exitCode: number }> => {
 	const startTime = performance.now();

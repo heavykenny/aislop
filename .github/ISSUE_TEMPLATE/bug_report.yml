@@ -1,5 +1,5 @@
 name: Bug Report
-description: Report a bug in slop
+description: Report a bug in aislop
 title: "[Bug]: "
 labels: ["bug"]
 body:
@@ -31,16 +31,16 @@ body:
       label: Steps to reproduce
       description: How can we reproduce this?
       placeholder: |
-        1. Run `slop scan` on a project with...
+        1. Run `aislop scan` on a project with...
         2. See error...
     validations:
       required: true
 
   - type: input
-    id: slop-version
+    id: aislop-version
     attributes:
-      label: slop version
-      description: Output of `slop --version`
+      label: aislop version
+      description: Output of `aislop --version`
       placeholder: "0.1.0"
     validations:
       required: true

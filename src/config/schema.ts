@@ -48,7 +48,7 @@ const CiSchema = z.object({
 	format: z.enum(["json"]).default("json"),
 });
 
-const SlopConfigSchema = z.object({
+const AislopConfigSchema = z.object({
 	version: z.number().default(1),
 	engines: EnginesSchema.default(() => ({
 		format: true,
@@ -81,9 +81,9 @@ const SlopConfigSchema = z.object({
 	})),
 });
 
-export type SlopConfig = z.infer<typeof SlopConfigSchema>;
+export type AislopConfig = z.infer<typeof AislopConfigSchema>;
 
-const defaults: SlopConfig = SlopConfigSchema.parse({});
+const defaults: AislopConfig = AislopConfigSchema.parse({});
 
 /**
  * Pre-merge scoring weights so partial overrides extend the defaults
@@ -99,13 +99,13 @@ const preMergeWeights = (raw: Record<string, unknown>): void => {
 	scoring.weights = { ...DEFAULT_WEIGHTS, ...userWeights };
 };
 
-export const parseConfig = (raw: unknown): SlopConfig => {
+export const parseConfig = (raw: unknown): AislopConfig => {
 	if (!raw || typeof raw !== "object") return defaults;
 
 	try {
 		const input = raw as Record<string, unknown>;
 		preMergeWeights(input);
-		return SlopConfigSchema.parse(input);
+		return AislopConfigSchema.parse(input);
 	} catch {
 		// If validation fails, return defaults rather than crashing
 		return defaults;

@@ -1,5 +1,5 @@
 import { emitKeypressEvents } from "node:readline";
-import type { SlopConfig } from "../config/index.js";
+import type { AislopConfig } from "../config/index.js";
 import { highlighter } from "../utils/highlighter.js";
 import { APP_VERSION } from "../version.js";
 import { doctorCommand } from "./doctor.js";
@@ -34,7 +34,7 @@ const MENU_OPTIONS: InteractiveMenuOption[] = [
 		key: "3",
 		action: "init",
 		label: "Init",
-		description: "Create slop config files",
+		description: "Create aislop config files",
 	},
 	{
 		key: "4",
@@ -121,7 +121,7 @@ export const moveInteractiveSelection = (
 
 const renderInteractiveMenu = (selectedIndex: number): string => {
 	const lines = [
-		highlighter.bold(`slop v${APP_VERSION}`),
+		highlighter.bold(`aislop v${APP_VERSION}`),
 		highlighter.dim("Use ↑↓ or 1-5, Enter select, q quit, Ctrl+C exit"),
 		"",
 		...MENU_OPTIONS.map((option, index) => {
@@ -257,7 +257,7 @@ const promptForNextAction = async (): Promise<InteractiveAction | "menu"> =>
 const runInteractiveAction = async (
 	action: InteractiveAction,
 	directory: string,
-	config: SlopConfig,
+	config: AislopConfig,
 ): Promise<void> => {
 	switch (action) {
 		case "scan":
@@ -291,7 +291,7 @@ const runInteractiveAction = async (
 
 export const interactiveCommand = async (
 	directory: string,
-	config: SlopConfig,
+	config: AislopConfig,
 ): Promise<void> => {
 	let action: InteractiveAction | "menu" = "menu";
 

@@ -72,7 +72,7 @@ export const runOxlint = async (
 ): Promise<Diagnostic[]> => {
 	const configPath = path.join(
 		os.tmpdir(),
-		`slop-oxlintrc-${process.pid}.json`,
+		`aislop-oxlintrc-${process.pid}.json`,
 	);
 	const framework = context.frameworks.find((f) => f !== "none");
 	const testFramework = detectTestFramework(context.rootDirectory);
@@ -141,7 +141,7 @@ export const runOxlint = async (
 export const fixOxlint = async (context: EngineContext): Promise<void> => {
 	const configPath = path.join(
 		os.tmpdir(),
-		`slop-oxlintrc-fix-${process.pid}.json`,
+		`aislop-oxlintrc-fix-${process.pid}.json`,
 	);
 	const framework = context.frameworks.find((f) => f !== "none");
 	const testFramework = detectTestFramework(context.rootDirectory);

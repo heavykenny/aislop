@@ -23,7 +23,7 @@ describe("source file selection", () => {
 	let tmpDir: string;
 
 	beforeEach(() => {
-		tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "slop-source-files-"));
+		tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "aislop-source-files-"));
 		git(tmpDir, ["init"]);
 	});
 

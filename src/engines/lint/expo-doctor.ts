@@ -157,7 +157,7 @@ export const runExpoDoctor = async (
 				rule: "expo-doctor/config-error",
 				severity: "warning",
 				message: configError,
-				help: "Install project dependencies, then re-run `slop scan`.",
+				help: "Install project dependencies, then re-run `aislop scan`.",
 				line: 0,
 				column: 0,
 				category: "Expo",

@@ -133,7 +133,7 @@ const parseBiomeJsonOutput = (
 				rule: "formatting",
 				severity,
 				message: entry.message ?? "File is not formatted correctly",
-				help: "Run `slop fix` to auto-format",
+				help: "Run `aislop fix` to auto-format",
 				line: entry.location?.start?.line ?? 0,
 				column: entry.location?.start?.column ?? 0,
 				category: "Format",
