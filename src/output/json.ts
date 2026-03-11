@@ -1,5 +1,6 @@
 import type { Diagnostic, EngineResult } from "../engines/types.js";
 import type { ScoreResult } from "../scoring/index.js";
+import { APP_VERSION } from "../version.js";
 import type { EngineInfo } from "./engine-info.js";
 import { ENGINE_INFO } from "./engine-info.js";
 
@@ -40,7 +41,7 @@ export const buildJsonOutput = (
 	}
 
 	return {
-		version: process.env.VERSION ?? "0.1.0",
+		version: APP_VERSION,
 		score: scoreResult.score,
 		label: scoreResult.label,
 		engines,

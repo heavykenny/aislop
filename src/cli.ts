@@ -8,8 +8,7 @@ import { rulesCommand } from "./commands/rules.js";
 import { scanCommand } from "./commands/scan.js";
 import { loadConfig } from "./config/index.js";
 import { highlighter } from "./utils/highlighter.js";
-
-const VERSION = process.env.VERSION ?? "0.1.0";
+import { APP_VERSION } from "./version.js";
 
 process.on("SIGINT", () => process.exit(0));
 process.on("SIGTERM", () => process.exit(0));
@@ -17,7 +16,7 @@ process.on("SIGTERM", () => process.exit(0));
 const program = new Command()
 	.name("slop")
 	.description("The unified code quality CLI")
-	.version(VERSION, "-v, --version")
+	.version(APP_VERSION, "-v, --version")
 	.argument("[directory]", "project directory to scan", ".")
 	.option("--changes", "only scan changed files (git diff)")
 	.option("--staged", "only scan staged files")
