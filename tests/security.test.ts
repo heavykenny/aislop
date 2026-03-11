@@ -360,6 +360,36 @@ describe("detectRiskyConstructs", () => {
 		expect(diagnostics).toHaveLength(0);
 	});
 
+	it("does NOT flag template.innerHTML as XSS", async () => {
+		const filePath = writeFile(
+			"template.ts",
+			"const template = document.createElement('template');\ntemplate.innerHTML = html;",
+		);
+		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));
+		const innerHtmlDiags = diagnostics.filter(
+			(d) => d.rule === "security/innerhtml",
+		);
+		expect(innerHtmlDiags).toHaveLength(0);
+	});
+
+	it("does NOT flag tmpl.innerHTML as XSS (template variable naming)", async () => {
+		const filePath = writeFile("tmpl.ts", "tmpl.innerHTML = sanitizedHtml;");
+		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));
+		const innerHtmlDiags = diagnostics.filter(
+			(d) => d.rule === "security/innerhtml",
+		);
+		expect(innerHtmlDiags).toHaveLength(0);
+	});
+
+	it("still flags non-template innerHTML as XSS", async () => {
+		const filePath = writeFile("div.ts", "div.innerHTML = userInput;");
+		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));
+		const innerHtmlDiags = diagnostics.filter(
+			(d) => d.rule === "security/innerhtml",
+		);
+		expect(innerHtmlDiags).toHaveLength(1);
+	});
+
 	it("detects multiple risky constructs in the same file", async () => {
 		const filePath = writeFile(
 			"multi.ts",
