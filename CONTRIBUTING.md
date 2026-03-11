@@ -12,7 +12,7 @@ This project follows the [Contributor Covenant](CODE_OF_CONDUCT.md). By particip
 
 ### Prerequisites
 
-- **Node.js** >= 18
+- **Node.js** >= 20
 - **pnpm** >= 10
 
 ### Setup

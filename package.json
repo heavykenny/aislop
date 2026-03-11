@@ -56,7 +56,7 @@
 		"url": "https://github.com/heavykenny/slop/issues"
 	},
 	"engines": {
-		"node": ">=18"
+		"node": ">=20"
 	},
 	"packageManager": "pnpm@10.28.0",
 	"dependencies": {
