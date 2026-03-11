@@ -3,6 +3,11 @@ import type { Diagnostic } from "../src/engines/types.js";
 import { countRenderedLines, shouldPageOutput } from "../src/output/pager.js";
 import { renderDiagnostics, renderSummary } from "../src/output/terminal.js";
 
+// Strip ANSI escape codes so assertions work regardless of color support
+// eslint-disable-next-line no-control-regex
+const ANSI_RE = new RegExp(String.raw`\x1B\[\d+m`, "g");
+const stripAnsi = (s: string) => s.replace(ANSI_RE, "");
+
 const createDiagnostic = (
 	overrides: Partial<Diagnostic> = {},
 ): Diagnostic => ({
@@ -88,13 +93,14 @@ describe("terminal rendering", () => {
 			}),
 		];
 
-		const output = renderSummary(
+		const raw = renderSummary(
 			diagnostics,
 			{ score: 82, label: "Needs Work" },
 			1520,
 			17,
 			{ good: 90, ok: 75 },
 		);
+		const output = stripAnsi(raw);
 
 		expect(output).toContain("Summary");
 		expect(output).toContain("82/100");
