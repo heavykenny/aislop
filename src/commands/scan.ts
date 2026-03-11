@@ -138,7 +138,8 @@ export const scanCommand = async (
 		config.scoring.weights,
 		config.scoring.thresholds,
 	);
-	const exitCode = scoreResult.score < config.ci.failBelow ? 1 : 0;
+	const hasErrors = allDiagnostics.some((d) => d.severity === "error");
+	const exitCode = hasErrors || scoreResult.score < config.ci.failBelow ? 1 : 0;
 
 	// Fire-and-forget anonymous telemetry (before output so it doesn't delay exit)
 	if (!isTelemetryDisabled(config.telemetry?.enabled)) {
