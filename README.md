@@ -13,7 +13,7 @@
 ```
 $ npx aislop scan
 
-aislop Scan v0.1.3
+aislop Scan v0.2.0
 
   ✓ Project my-app (typescript)
   Source files: 142
