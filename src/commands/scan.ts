@@ -137,6 +137,7 @@ export const scanCommand = async (
 		allDiagnostics,
 		config.scoring.weights,
 		config.scoring.thresholds,
+		projectInfo.sourceFileCount,
 		config.scoring.smoothing,
 	);
 	const hasErrors = allDiagnostics.some((d) => d.severity === "error");
