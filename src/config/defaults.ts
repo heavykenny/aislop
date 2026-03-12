@@ -33,6 +33,7 @@ export const DEFAULT_CONFIG: AislopConfig = {
 			good: 75,
 			ok: 50,
 		},
+		smoothing: 10,
 	},
 	ci: {
 		failBelow: 0,

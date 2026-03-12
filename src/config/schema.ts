@@ -41,6 +41,7 @@ const ScoringSchema = z.object({
 		good: 75,
 		ok: 50,
 	})),
+	smoothing: z.number().nonnegative().default(10),
 });
 
 const CiSchema = z.object({
@@ -78,6 +79,7 @@ const AislopConfigSchema = z.object({
 			good: 75,
 			ok: 50,
 		},
+		smoothing: 10,
 	})),
 	ci: CiSchema.default(() => ({
 		failBelow: 0,
