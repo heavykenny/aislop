@@ -1,55 +1,80 @@
 import type { Diagnostic } from "../engines/types.js";
 
 export interface ScoreResult {
-	score: number;
-	label: string;
+  score: number;
+  label: string;
 }
 
 const PERFECT_SCORE = 100;
+const ISSUE_DENSITY_SMOOTHING = 10;
+
+const getEffectiveFileCount = (
+  diagnostics: Diagnostic[],
+  sourceFileCount?: number,
+): number => {
+  if (typeof sourceFileCount === "number" && sourceFileCount > 0) {
+    return sourceFileCount;
+  }
+
+  // Fallback for direct API use when caller doesn't provide source file count.
+  const filesWithDiagnostics = new Set(diagnostics.map((d) => d.filePath)).size;
+  return Math.max(1, filesWithDiagnostics);
+};
 
 export const calculateScore = (
-	diagnostics: Diagnostic[],
-	weights: Record<string, number>,
-	thresholds: { good: number; ok: number },
+  diagnostics: Diagnostic[],
+  weights: Record<string, number>,
+  thresholds: { good: number; ok: number },
+  sourceFileCount?: number,
 ): ScoreResult => {
-	if (diagnostics.length === 0) {
-		return { score: PERFECT_SCORE, label: "Healthy" };
-	}
+  if (diagnostics.length === 0) {
+    return { score: PERFECT_SCORE, label: "Healthy" };
+  }
 
-	let deductions = 0;
+  let deductions = 0;
 
-	for (const d of diagnostics) {
-		const engineWeight = weights[d.engine] ?? 1.0;
-		const severityPenalty =
-			d.severity === "error" ? 3 : d.severity === "warning" ? 1 : 0.25;
-		deductions += severityPenalty * engineWeight;
-	}
+  for (const d of diagnostics) {
+    const engineWeight = weights[d.engine] ?? 1.0;
+    const severityPenalty =
+      d.severity === "error" ? 3 : d.severity === "warning" ? 1 : 0.25;
+    deductions += severityPenalty * engineWeight;
+  }
 
-	// Logarithmic scaling: first issues matter most, score can't go below 0
-	const score = Math.max(
-		0,
-		Math.round(
-			PERFECT_SCORE -
-				(PERFECT_SCORE * Math.log1p(deductions)) /
-					Math.log1p(PERFECT_SCORE + deductions),
-		),
-	);
+  const effectiveFileCount = getEffectiveFileCount(
+    diagnostics,
+    sourceFileCount,
+  );
+  const issueDensity = Math.min(
+    1,
+    diagnostics.length / (effectiveFileCount + ISSUE_DENSITY_SMOOTHING),
+  );
+  const scaledDeductions = deductions * Math.sqrt(issueDensity);
 
-	const label =
-		score >= thresholds.good
-			? "Healthy"
-			: score >= thresholds.ok
-				? "Needs Work"
-				: "Critical";
+  // Logarithmic scaling: first issues matter most, score can't go below 0
+  const score = Math.max(
+    0,
+    Math.round(
+      PERFECT_SCORE -
+        (PERFECT_SCORE * Math.log1p(scaledDeductions)) /
+          Math.log1p(PERFECT_SCORE + scaledDeductions),
+    ),
+  );
 
-	return { score, label };
+  const label =
+    score >= thresholds.good
+      ? "Healthy"
+      : score >= thresholds.ok
+        ? "Needs Work"
+        : "Critical";
+
+  return { score, label };
 };
 
 export const getScoreColor = (
-	score: number,
-	thresholds: { good: number; ok: number },
+  score: number,
+  thresholds: { good: number; ok: number },
 ): "success" | "warn" | "error" => {
-	if (score >= thresholds.good) return "success";
-	if (score >= thresholds.ok) return "warn";
-	return "error";
+  if (score >= thresholds.good) return "success";
+  if (score >= thresholds.ok) return "warn";
+  return "error";
 };

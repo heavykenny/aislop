@@ -108,25 +108,25 @@ npx aislop
 
 ## Commands
 
-| Command | What it does |
-|---|---|
-| `aislop` | Interactive TTY menu (falls back to `scan` in non-TTY) |
-| `aislop scan [dir]` | Run all enabled engines and print a scored report |
-| `aislop fix [dir]` | Apply safe auto-fixes (formatting + lint) |
-| `aislop ci [dir]` | Output JSON for CI pipelines |
-| `aislop init [dir]` | Create `.aislop/config.yml` and `.aislop/rules.yml` |
-| `aislop doctor [dir]` | Report which tools are installed and available |
-| `aislop rules [dir]` | List all built-in and configured rules |
+| Command               | What it does                                           |
+| --------------------- | ------------------------------------------------------ |
+| `aislop`              | Interactive TTY menu (falls back to `scan` in non-TTY) |
+| `aislop scan [dir]`   | Run all enabled engines and print a scored report      |
+| `aislop fix [dir]`    | Apply safe auto-fixes (formatting + lint)              |
+| `aislop ci [dir]`     | Output JSON for CI pipelines                           |
+| `aislop init [dir]`   | Create `.aislop/config.yml` and `.aislop/rules.yml`    |
+| `aislop doctor [dir]` | Report which tools are installed and available         |
+| `aislop rules [dir]`  | List all built-in and configured rules                 |
 
 ### Flags
 
-| Flag | Description |
-|---|---|
-| `--changes` | Only scan files changed from `HEAD` |
-| `--staged` | Only scan staged files |
-| `-d, --verbose` | Show detailed per-file output |
-| `--json` | Output JSON instead of terminal UI |
-| `-v, --version` | Print version |
+| Flag            | Description                         |
+| --------------- | ----------------------------------- |
+| `--changes`     | Only scan files changed from `HEAD` |
+| `--staged`      | Only scan staged files              |
+| `-d, --verbose` | Show detailed per-file output       |
+| `--json`        | Output JSON instead of terminal UI  |
+| `-v, --version` | Print version                       |
 
 ---
 
@@ -138,82 +138,82 @@ npx aislop
 
 Enforces consistent formatting using the best tool for each language.
 
-| Language | Tool |
-|---|---|
-| TypeScript / JavaScript | Biome |
-| Python | ruff format |
-| Go | gofmt |
-| Rust | cargo fmt |
-| Ruby | rubocop |
-| PHP | php-cs-fixer |
+| Language                | Tool         |
+| ----------------------- | ------------ |
+| TypeScript / JavaScript | Biome        |
+| Python                  | ruff format  |
+| Go                      | gofmt        |
+| Rust                    | cargo fmt    |
+| Ruby                    | rubocop      |
+| PHP                     | php-cs-fixer |
 
 ### Linting
 
 Catches bugs and bad practices.
 
-| Language | Tool |
-|---|---|
+| Language                | Tool                                           |
+| ----------------------- | ---------------------------------------------- |
 | TypeScript / JavaScript | oxlint (bundled, with React/Next.js awareness) |
-| Python | ruff |
-| Go | golangci-lint |
-| Rust | clippy |
-| Ruby | rubocop |
+| Python                  | ruff                                           |
+| Go                      | golangci-lint                                  |
+| Rust                    | clippy                                         |
+| Ruby                    | rubocop                                        |
 
 ### Code quality
 
 Measures structural complexity and finds dead code.
 
-| Rule | What it checks |
-|---|---|
-| `complexity/function-too-long` | Functions exceeding configurable line limit (default: 80) |
-| `complexity/file-too-large` | Files exceeding configurable line limit (default: 400) |
-| `complexity/deep-nesting` | Control-flow nesting beyond threshold (default: 5) |
-| `complexity/too-many-params` | Functions with too many parameters (default: 6) |
-| `duplication/block` | Cross-file duplicate code blocks (12+ lines) |
-| `knip/files`, `knip/exports`, `knip/types` | Dead code via knip (JS/TS) |
+| Rule                                       | What it checks                                            |
+| ------------------------------------------ | --------------------------------------------------------- |
+| `complexity/function-too-long`             | Functions exceeding configurable line limit (default: 80) |
+| `complexity/file-too-large`                | Files exceeding configurable line limit (default: 400)    |
+| `complexity/deep-nesting`                  | Control-flow nesting beyond threshold (default: 5)        |
+| `complexity/too-many-params`               | Functions with too many parameters (default: 6)           |
+| `duplication/block`                        | Cross-file duplicate code blocks (12+ lines)              |
+| `knip/files`, `knip/exports`, `knip/types` | Dead code via knip (JS/TS)                                |
 
 ### AI slop detection (Maintainability)
 
 The rules that make aislop unique. These catch the patterns AI assistants leave behind.
 
-| Rule | Severity | What it catches |
-|---|---|---|
-| `ai-slop/trivial-comment` | warning | Comments restating the code (`// Import React`, `// Return the value`) |
-| `ai-slop/swallowed-exception` | error | Empty catch blocks, catch blocks that only log (JS/TS/Python/Go/Ruby/Java) |
-| `ai-slop/thin-wrapper` | warning | Functions that only delegate to another function |
-| `ai-slop/generic-naming` | info | AI-generated names: `helper_1`, `data2`, `temp1` |
-| `ai-slop/unused-import` | warning | Unused imports (JS/TS and Python) |
-| `ai-slop/console-leftover` | warning | `console.log`/`debug`/`info` left in production code |
-| `ai-slop/todo-stub` | info | Unresolved TODO/FIXME/HACK comments |
-| `ai-slop/unreachable-code` | warning | Code after `return`/`throw` statements |
-| `ai-slop/constant-condition` | warning | `if (true)`, `if (false)`, `if (0)` |
-| `ai-slop/empty-function` | info | Empty function bodies |
-| `ai-slop/unsafe-type-assertion` | warning | `as any` in TypeScript |
-| `ai-slop/double-type-assertion` | warning | `as unknown as X` pattern |
-| `ai-slop/ts-directive` | info | `@ts-ignore` / `@ts-expect-error` usage |
+| Rule                            | Severity | What it catches                                                            |
+| ------------------------------- | -------- | -------------------------------------------------------------------------- |
+| `ai-slop/trivial-comment`       | warning  | Comments restating the code (`// Import React`, `// Return the value`)     |
+| `ai-slop/swallowed-exception`   | error    | Empty catch blocks, catch blocks that only log (JS/TS/Python/Go/Ruby/Java) |
+| `ai-slop/thin-wrapper`          | warning  | Functions that only delegate to another function                           |
+| `ai-slop/generic-naming`        | info     | AI-generated names: `helper_1`, `data2`, `temp1`                           |
+| `ai-slop/unused-import`         | warning  | Unused imports (JS/TS and Python)                                          |
+| `ai-slop/console-leftover`      | warning  | `console.log`/`debug`/`info` left in production code                       |
+| `ai-slop/todo-stub`             | info     | Unresolved TODO/FIXME/HACK comments                                        |
+| `ai-slop/unreachable-code`      | warning  | Code after `return`/`throw` statements                                     |
+| `ai-slop/constant-condition`    | warning  | `if (true)`, `if (false)`, `if (0)`                                        |
+| `ai-slop/empty-function`        | info     | Empty function bodies                                                      |
+| `ai-slop/unsafe-type-assertion` | warning  | `as any` in TypeScript                                                     |
+| `ai-slop/double-type-assertion` | warning  | `as unknown as X` pattern                                                  |
+| `ai-slop/ts-directive`          | info     | `@ts-ignore` / `@ts-expect-error` usage                                    |
 
 ### Security
 
 Finds secrets, risky constructs, and vulnerable dependencies.
 
-| Rule | What it catches |
-|---|---|
-| `security/hardcoded-secret` | API keys, AWS credentials, JWT tokens, database URLs, passwords |
-| `security/eval` | `eval()` usage (JS/TS/Python/Ruby/PHP) |
-| `security/innerhtml` | `.innerHTML` and `dangerouslySetInnerHTML` |
-| `security/sql-injection` | String concatenation in SQL queries |
-| `security/shell-injection` | User input in command execution |
-| `security/vulnerable-dependency` | npm/pip/cargo/go dependency audit |
+| Rule                             | What it catches                                                 |
+| -------------------------------- | --------------------------------------------------------------- |
+| `security/hardcoded-secret`      | API keys, AWS credentials, JWT tokens, database URLs, passwords |
+| `security/eval`                  | `eval()` usage (JS/TS/Python/Ruby/PHP)                          |
+| `security/innerhtml`             | `.innerHTML` and `dangerouslySetInnerHTML`                      |
+| `security/sql-injection`         | String concatenation in SQL queries                             |
+| `security/shell-injection`       | User input in command execution                                 |
+| `security/vulnerable-dependency` | npm/pip/cargo/go dependency audit                               |
 
 ### Architecture (opt-in)
 
 Custom import and path rules defined in `.aislop/rules.yml`.
 
-| Rule type | Example |
-|---|---|
-| `forbid_import` | Ban `axios` project-wide |
+| Rule type                 | Example                                    |
+| ------------------------- | ------------------------------------------ |
+| `forbid_import`           | Ban `axios` project-wide                   |
 | `forbid_import_from_path` | Controllers cannot import database modules |
-| `require_pattern` | Require error handling in API routes |
+| `require_pattern`         | Require error handling in API routes       |
 
 ---
 
@@ -222,18 +222,18 @@ Custom import and path rules defined in `.aislop/rules.yml`.
 Every diagnostic contributes a weighted penalty:
 
 | Severity | Penalty |
-|---|---|
-| Error | 3.0 |
-| Warning | 1.0 |
-| Info | 0.25 |
+| -------- | ------- |
+| Error    | 3.0     |
+| Warning  | 1.0     |
+| Info     | 0.25    |
 
-Penalties are multiplied by engine weight (configurable, security defaults to 2x). The final score uses logarithmic scaling so a few issues cause a noticeable drop, but the score does not collapse to zero from minor findings.
+Penalties are multiplied by engine weight (configurable, security defaults to 2x). The final score uses logarithmic scaling with issue-density normalization (relative to source file count), so a few issues still matter but a single finding in an otherwise clean project remains proportional.
 
-| Score | Label |
-|---|---|
-| 75 -- 100 | Healthy |
-| 50 -- 74 | Needs Work |
-| 0 -- 49 | Critical |
+| Score     | Label      |
+| --------- | ---------- |
+| 75 -- 100 | Healthy    |
+| 50 -- 74  | Needs Work |
+| 0 -- 49   | Critical   |
 
 ---
 
@@ -249,7 +249,7 @@ engines:
   lint: true
   code-quality: true
   ai-slop: true
-  architecture: false    # opt-in, needs rules.yml
+  architecture: false # opt-in, needs rules.yml
   security: true
 
 quality:
@@ -275,7 +275,7 @@ scoring:
     ok: 50
 
 ci:
-  failBelow: 0           # set to e.g. 70 to fail CI below that score
+  failBelow: 0 # set to e.g. 70 to fail CI below that score
   format: json
 ```
 
@@ -314,15 +314,15 @@ npx aislop scan --staged
 
 ## Supported languages
 
-| Language | Format | Lint | Code quality | AI slop | Security |
-|---|---|---|---|---|---|
-| TypeScript | Biome | oxlint | knip, complexity | All rules | All rules |
-| JavaScript | Biome | oxlint | knip, complexity | All rules | All rules |
-| Python | ruff | ruff | complexity | Imports, exceptions, comments | Secrets, audit |
-| Go | gofmt | golangci-lint | complexity | Exceptions, comments | Secrets, audit |
-| Rust | cargo fmt | clippy | complexity | Comments | Secrets, audit |
-| Ruby | rubocop | rubocop | complexity | Exceptions, comments | Secrets |
-| PHP | php-cs-fixer | -- | complexity | Comments | Secrets |
+| Language   | Format       | Lint          | Code quality     | AI slop                       | Security       |
+| ---------- | ------------ | ------------- | ---------------- | ----------------------------- | -------------- |
+| TypeScript | Biome        | oxlint        | knip, complexity | All rules                     | All rules      |
+| JavaScript | Biome        | oxlint        | knip, complexity | All rules                     | All rules      |
+| Python     | ruff         | ruff          | complexity       | Imports, exceptions, comments | Secrets, audit |
+| Go         | gofmt        | golangci-lint | complexity       | Exceptions, comments          | Secrets, audit |
+| Rust       | cargo fmt    | clippy        | complexity       | Comments                      | Secrets, audit |
+| Ruby       | rubocop      | rubocop       | complexity       | Exceptions, comments          | Secrets        |
+| PHP        | php-cs-fixer | --            | complexity       | Comments                      | Secrets        |
 
 ---
 
