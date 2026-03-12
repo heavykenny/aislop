@@ -1,0 +1,24 @@
+# Normalize line endings
+* text=auto eol=lf
+
+# Explicitly declare text files
+*.ts text
+*.js text
+*.mjs text
+*.json text
+*.yml text
+*.yaml text
+*.md text
+*.css text
+*.html text
+
+# Declare binary files
+*.png binary
+*.jpg binary
+*.gif binary
+*.ico binary
+*.tgz binary
+
+# Linguist overrides — keep generated files out of stats/diffs
+dist/** linguist-generated
+pnpm-lock.yaml linguist-generated

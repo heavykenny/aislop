@@ -110,14 +110,16 @@ Open a [feature request](https://github.com/heavykenny/aislop/issues/new?templat
 
 ### Submitting a pull request
 
-1. Fork the repo and create a branch from `main`
+1. Fork the repo and create a branch from `develop`
 2. Make your changes
 3. Add or update tests for any new behavior
 4. Run the full check:
    ```bash
-   pnpm typecheck && pnpm test && node dist/cli.js scan .
+   pnpm typecheck && pnpm test && pnpm scan
    ```
-5. Open a PR with a clear description of what changed and why
+5. Open a PR to `develop` with a clear description of what changed and why
+
+> **AI assistants**: see [AGENTS.md](AGENTS.md) for build commands, architecture notes, and self-detection avoidance rules.
 
 ---
 

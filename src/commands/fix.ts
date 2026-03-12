@@ -4,6 +4,10 @@ import type { AislopConfig } from "../config/index.js";
 import { fixBiomeFormat, runBiomeFormat } from "../engines/format/biome.js";
 import { fixGofmt, runGofmt } from "../engines/format/gofmt.js";
 import { fixRuffFormat, runRuffFormat } from "../engines/format/ruff-format.js";
+import {
+	fixUnusedDependencies,
+	runKnipDependencyCheck,
+} from "../engines/code-quality/knip.js";
 import { fixOxlint, runOxlint } from "../engines/lint/oxlint.js";
 import { fixRuffLint, runRuffLint } from "../engines/lint/ruff.js";
 import type { Diagnostic, EngineContext } from "../engines/types.js";
@@ -315,6 +319,22 @@ export const fixCommand = async (
 		} else if (projectInfo.languages.includes("python")) {
 			logger.warn(
 				"  Python detected but ruff is not installed; skipping Python lint fixes.",
+			);
+		}
+	}
+
+	if (config.engines["code-quality"]) {
+		if (
+			projectInfo.languages.includes("typescript") ||
+			projectInfo.languages.includes("javascript")
+		) {
+			steps.push(
+				await runFixStep(
+					"Unused dependencies",
+					() => runKnipDependencyCheck(resolvedDir),
+					() => fixUnusedDependencies(resolvedDir),
+					options,
+				),
 			);
 		}
 	}

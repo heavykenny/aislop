@@ -8,6 +8,7 @@ import { rulesCommand } from "./commands/rules.js";
 import { scanCommand } from "./commands/scan.js";
 import { loadConfig } from "./config/index.js";
 import { highlighter } from "./utils/highlighter.js";
+import { flushTelemetry } from "./utils/telemetry.js";
 import { APP_VERSION } from "./version.js";
 
 process.on("SIGINT", () => process.exit(0));
@@ -50,14 +51,17 @@ const program = new Command()
 				}
 			}
 
-			const { exitCode } = await scanCommand(directory, config, {
-				changes: Boolean(flags.changes),
-				staged: Boolean(flags.staged),
-				verbose: Boolean(flags.verbose),
-				json: Boolean(flags.json),
-			});
+		const { exitCode } = await scanCommand(directory, config, {
+			changes: Boolean(flags.changes),
+			staged: Boolean(flags.staged),
+			verbose: Boolean(flags.verbose),
+			json: Boolean(flags.json),
+		});
 
-			if (exitCode !== 0) process.exit(exitCode);
+			if (exitCode !== 0) {
+				await flushTelemetry();
+				process.exit(exitCode);
+			}
 		},
 	)
 	.addHelpText(
@@ -104,7 +108,10 @@ program
 			verbose: Boolean(flags.verbose),
 			json: Boolean(flags.json),
 		});
-		if (exitCode !== 0) process.exit(exitCode);
+		if (exitCode !== 0) {
+			await flushTelemetry();
+			process.exit(exitCode);
+		}
 	});
 
 program
@@ -137,7 +144,10 @@ program
 	.action(async (directory = ".") => {
 		const config = loadConfig(directory);
 		const { exitCode } = await ciCommand(directory, config);
-		if (exitCode !== 0) process.exit(exitCode);
+		if (exitCode !== 0) {
+			await flushTelemetry();
+			process.exit(exitCode);
+		}
 	});
 
 program
@@ -149,6 +159,7 @@ program
 
 const main = async () => {
 	await program.parseAsync();
+	await flushTelemetry();
 };
 
 main();

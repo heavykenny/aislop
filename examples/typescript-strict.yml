@@ -1,0 +1,34 @@
+# .aislop/config.yml — Strict TypeScript project
+# Tight thresholds for teams that want zero AI slop in production code.
+
+version: 1
+
+engines:
+  format: true
+  lint: true
+  code-quality: true
+  ai-slop: true
+  architecture: false
+  security: true
+
+quality:
+  maxFunctionLoc: 60
+  maxFileLoc: 300
+  maxNesting: 4
+  maxParams: 4
+
+scoring:
+  weights:
+    format: 1.0
+    lint: 1.5
+    code-quality: 2.0
+    ai-slop: 1.5
+    architecture: 1.0
+    security: 2.0
+  thresholds:
+    good: 85
+    ok: 65
+
+ci:
+  failBelow: 75
+  format: json
