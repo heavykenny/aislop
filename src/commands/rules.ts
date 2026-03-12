@@ -24,6 +24,11 @@ const BUILTIN_RULES = [
 		engine: "code-quality",
 		rules: [
 			"knip/files",
+			"knip/dependencies",
+			"knip/devDependencies",
+			"knip/unlisted",
+			"knip/unresolved",
+			"knip/binaries",
 			"knip/exports",
 			"knip/types",
 			"complexity/file-too-large",

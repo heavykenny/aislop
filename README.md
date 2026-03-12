@@ -138,7 +138,7 @@ Six engines run in parallel: **Formatting**, **Linting**, **Code Quality**, **AI
 |---|---|
 | Formatting | Biome, ruff, gofmt, cargo fmt, rubocop, php-cs-fixer |
 | Linting | oxlint, ruff, golangci-lint, clippy, expo-doctor |
-| Code Quality | Function/file size limits, deep nesting, duplication, dead code (knip) |
+| Code Quality | Function/file size limits, deep nesting, duplication, dead code, unused dependencies (knip) |
 | AI Slop | Trivial comments, swallowed exceptions, unused imports, console leftovers, type assertion abuse, TODO stubs |
 | Security | Hardcoded secrets, eval, innerHTML, SQL/shell injection, dependency audits |
 | Architecture | Custom import bans, layering rules, required patterns |
@@ -164,6 +164,17 @@ See the full [rules reference](docs/rules.md) for all 30+ built-in rules.
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and how to add new rules. AI coding assistants can find project context in [AGENTS.md](AGENTS.md).
+
+## Acknowledgments
+
+`aislop` is built on top of excellent open-source projects:
+
+- [Biome](https://biomejs.dev/) — formatting and linting for JS/TS
+- [oxlint](https://oxc.rs/) — fast JavaScript/TypeScript linter
+- [knip](https://knip.dev/) — unused files, exports, and dependencies
+- [ruff](https://docs.astral.sh/ruff/) — Python linting and formatting
+- [golangci-lint](https://golangci-lint.run/) — Go linting
+- [expo-doctor](https://docs.expo.dev/) — Expo/React Native project health
 
 ## Contributors
 

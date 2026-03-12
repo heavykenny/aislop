@@ -30,7 +30,7 @@ Catches bugs and bad practices.
 
 ## Code Quality
 
-Measures structural complexity and finds dead code.
+Measures structural complexity, finds dead code, and detects unused dependencies.
 
 | Rule | What it checks |
 |---|---|
@@ -39,7 +39,13 @@ Measures structural complexity and finds dead code.
 | `complexity/deep-nesting` | Control-flow nesting beyond threshold (default: 5) |
 | `complexity/too-many-params` | Functions with too many parameters (default: 6) |
 | `duplication/block` | Cross-file duplicate code blocks (12+ lines) |
-| `knip/files`, `knip/exports`, `knip/types` | Dead code via knip (JS/TS) |
+| `knip/files` | Unused files not imported anywhere (JS/TS) |
+| `knip/exports`, `knip/types` | Unused exports and types (JS/TS) |
+| `knip/dependencies` | Unused dependencies in package.json (fixable with `aislop fix`) |
+| `knip/devDependencies` | Unused devDependencies in package.json (fixable with `aislop fix`) |
+| `knip/unlisted` | Packages imported in code but missing from package.json |
+| `knip/unresolved` | Imports that cannot be resolved |
+| `knip/binaries` | Binaries used but not declared in package.json |
 
 ## AI Slop Detection (Maintainability)
 
