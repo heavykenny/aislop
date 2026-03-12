@@ -99,6 +99,12 @@ npm install -g aislop
 aislop scan
 ```
 
+### Install from GitHub Packages
+
+```bash
+npm install --save-dev @heavykenny/aislop --registry=https://npm.pkg.github.com
+```
+
 `aislop` ships with Node-based tooling (oxlint, biome, knip) as package dependencies. On install it also downloads bundled binaries for **ruff** and **golangci-lint**. To skip those downloads:
 
 ```bash
