@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.3] - 2026-03-12
+
+### Fixed
+
+- Scoring penalties are now proportional to codebase size — a single issue in a 200-file project no longer tanks the score the same as in a 2-file project (fixes #9)
+- Add `smoothing` to scoring config schema (was missing, causing TypeScript error)
+- Fix `calculateScore` call in scan.ts to pass `sourceFileCount` and `smoothing` as separate arguments (smoothing was previously passed in the sourceFileCount position)
+- Compact `countParams` to keep `complexity.ts` under the 400-line limit after biome formatting
+
+### Added
+
+- 52 comprehensive scoring tests covering severity ordering, engine weights, edge cases, and density-aware scoring
+- Configurable `scoring.smoothing` option (default: 10) for issue-density normalization
+- 285 total tests across 13 test files
+
 ## [0.1.2] - 2026-03-11
 
 ### Fixed
