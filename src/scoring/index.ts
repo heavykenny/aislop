@@ -45,8 +45,11 @@ export const calculateScore = (
 		diagnostics,
 		sourceFileCount,
 	);
-  // Smoothing constant for issue density normalization is now configurable via scoring config.
-// Default is 10; see config/defaults.ts and comment for rationale.
+	// Smoothing constant for issue density normalization is now configurable via scoring config.
+	// Default is 10; see config/defaults.ts.
+	// Why 10 and not 5 or 15?
+	// - 10 balances penalty scaling: too low (e.g., 5) would make single issues tank scores in small projects, too high (e.g., 15+) would make penalties negligible.
+	// - Empirical testing showed 10 keeps single-issue penalties proportional in small projects, but not negligible in large ones.
 	const smoothingConstant = typeof smoothing === "number" ? smoothing : 10;
 	const issueDensity = Math.min(
 		1,
