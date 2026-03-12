@@ -1,4 +1,4 @@
-# CLAUDE.md — AI Agent Instructions for aislop
+# AI Agent Instructions for aislop
 
 This file provides context for AI coding assistants (Claude Code, OpenCode, Copilot, Cursor, etc.) working on the aislop codebase.
 
