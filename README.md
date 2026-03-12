@@ -3,6 +3,7 @@
 **Stop AI slop from shipping.**
 
 [![npm version](https://img.shields.io/npm/v/aislop.svg)](https://www.npmjs.com/package/aislop)
+[![npm downloads](https://img.shields.io/npm/dm/aislop.svg)](https://www.npmjs.com/package/aislop)
 [![CI](https://github.com/heavykenny/aislop/actions/workflows/ci.yml/badge.svg)](https://github.com/heavykenny/aislop/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Node >= 20](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](https://nodejs.org)
@@ -26,22 +27,97 @@ aislop Scan v0.1.3
   Score: 80/100 (Healthy)
 ```
 
-## Quick start
+---
+
+## Installation
 
 ```bash
-npx aislop scan          # scan current directory
-npx aislop fix           # auto-fix formatting + lint
-npx aislop scan --staged # scan staged files (pre-commit)
-npx aislop ci            # JSON output for CI pipelines
-```
+# Run without installing
+npx aislop scan
 
-Install as a dev dependency:
-
-```bash
+# npm
 npm install --save-dev aislop
+
+# yarn
+yarn add --dev aislop
+
+# pnpm
+pnpm add -D aislop
+
+# Global
+npm install -g aislop
 ```
 
-Also available via `pnpm add -D aislop`, `yarn add --dev aislop`, or [GitHub Packages](docs/installation.md).
+Also available as [`@heavykenny/aislop`](docs/installation.md) on GitHub Packages.
+
+---
+
+## Usage
+
+### Scan your project
+
+```bash
+aislop scan                # scan current directory
+aislop scan ./src          # scan a specific directory
+aislop scan --changes      # only files changed from HEAD
+aislop scan --staged       # only staged files (pre-commit)
+aislop scan --json         # output JSON
+```
+
+### Fix issues automatically
+
+```bash
+aislop fix                 # auto-fix formatting + lint issues
+```
+
+### Use in CI pipelines
+
+```bash
+aislop ci                  # JSON output, exits 1 if score < threshold
+```
+
+### Other commands
+
+```bash
+aislop init                # create .aislop/config.yml
+aislop doctor              # check which tools are available
+aislop rules               # list all built-in rules
+aislop                     # interactive menu
+```
+
+See [all commands and flags](docs/commands.md).
+
+---
+
+## Use in your project
+
+### Pre-commit hook
+
+```bash
+npx aislop scan --staged
+```
+
+### GitHub Actions
+
+```yaml
+- uses: actions/setup-node@v6
+  with:
+    node-version: 20
+- run: npx aislop ci
+```
+
+### Quality gate
+
+Set a minimum score in `.aislop/config.yml`:
+
+```yaml
+ci:
+  failBelow: 70
+```
+
+`aislop ci` exits with code 1 when the score drops below the threshold. See [CI/CD docs](docs/ci.md) for more.
+
+---
 
 ## Why aislop?
 
@@ -69,24 +145,7 @@ Six engines run in parallel: **Formatting**, **Linting**, **Code Quality**, **AI
 
 See the full [rules reference](docs/rules.md) for all 30+ built-in rules.
 
-## CI / CD
-
-```yaml
-# GitHub Actions
-- uses: actions/setup-node@v6
-  with:
-    node-version: 20
-- run: npx aislop ci
-```
-
-Set a quality gate in `.aislop/config.yml`:
-
-```yaml
-ci:
-  failBelow: 70
-```
-
-See [CI/CD docs](docs/ci.md) for pre-commit hooks and more.
+---
 
 ## Documentation
 
@@ -99,6 +158,8 @@ See [CI/CD docs](docs/ci.md) for pre-commit hooks and more.
 | Scoring | [docs/scoring.md](docs/scoring.md) |
 | CI / CD | [docs/ci.md](docs/ci.md) |
 | Telemetry | [docs/telemetry.md](docs/telemetry.md) |
+
+---
 
 ## Contributing
 
