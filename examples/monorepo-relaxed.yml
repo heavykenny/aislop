@@ -1,0 +1,35 @@
+# .aislop/config.yml — Relaxed monorepo
+# Looser thresholds for large codebases or early-stage projects
+# adopting aislop incrementally.
+
+version: 1
+
+engines:
+  format: true
+  lint: true
+  code-quality: true
+  ai-slop: true
+  architecture: false
+  security: true
+
+quality:
+  maxFunctionLoc: 120
+  maxFileLoc: 600
+  maxNesting: 6
+  maxParams: 8
+
+scoring:
+  weights:
+    format: 0.5
+    lint: 1.0
+    code-quality: 1.0
+    ai-slop: 0.5
+    architecture: 1.0
+    security: 2.0
+  thresholds:
+    good: 70
+    ok: 40
+
+ci:
+  failBelow: 0
+  format: json

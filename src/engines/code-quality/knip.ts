@@ -12,6 +12,11 @@ interface KnipIssueItem {
 
 interface KnipFileIssue {
 	file: string;
+	dependencies?: KnipIssueItem[];
+	devDependencies?: KnipIssueItem[];
+	unlisted?: KnipIssueItem[];
+	unresolved?: KnipIssueItem[];
+	binaries?: KnipIssueItem[];
 	exports?: KnipIssueItem[];
 	types?: KnipIssueItem[];
 	duplicates?: KnipIssueItem[];
@@ -24,9 +29,48 @@ interface KnipJsonOutput {
 
 const KNIP_MESSAGE_MAP: Record<string, string> = {
 	files: "Unused file",
+	dependencies: "Unused dependency",
+	devDependencies: "Unused devDependency",
+	unlisted: "Unlisted dependency",
+	unresolved: "Unresolved import",
+	binaries: "Unlisted binary",
 	exports: "Unused export",
 	types: "Unused type",
 	duplicates: "Duplicate export",
+};
+
+const DEPENDENCY_TYPES = [
+	"dependencies",
+	"devDependencies",
+	"unlisted",
+	"unresolved",
+	"binaries",
+] as const;
+
+const isDependencyType = (
+	type: string,
+): type is (typeof DEPENDENCY_TYPES)[number] =>
+	(DEPENDENCY_TYPES as readonly string[]).includes(type);
+
+const getIssueItems = (
+	fileIssue: KnipFileIssue,
+	issueType: string,
+): KnipIssueItem[] => {
+	const items = fileIssue[issueType as keyof KnipFileIssue];
+	return Array.isArray(items) ? items : [];
+};
+
+const DEPENDENCY_HELP: Record<string, string> = {
+	dependencies:
+		"This package is listed in package.json but not imported anywhere. Remove it with `npm uninstall` or `aislop fix`.",
+	devDependencies:
+		"This package is listed in package.json but not imported anywhere. Remove it with `npm uninstall` or `aislop fix`.",
+	unlisted:
+		"This package is imported in code but not declared in package.json. Run `npm install` to add it.",
+	unresolved:
+		"This import cannot be resolved. Check for typos or missing packages.",
+	binaries:
+		"This binary is used but its package is not in package.json.",
 };
 
 const collectIssues = (
@@ -36,12 +80,16 @@ const collectIssues = (
 	knipCwd: string,
 ): Diagnostic[] => {
 	const diagnostics: Diagnostic[] = [];
-	const issues =
-		issueType === "exports"
-			? (fileIssue.exports ?? [])
-			: issueType === "types"
-				? (fileIssue.types ?? [])
-				: (fileIssue.duplicates ?? []);
+	const issues = getIssueItems(fileIssue, issueType);
+	const isDepType = isDependencyType(issueType);
+	const category = isDepType ? "Dependencies" : "Dead Code";
+	const severity =
+		issueType === "unlisted" || issueType === "unresolved"
+			? "error"
+			: "warning";
+	const fixable =
+		issueType === "dependencies" || issueType === "devDependencies";
+	const help = DEPENDENCY_HELP[issueType] ?? "";
 
 	for (const issue of issues) {
 		const symbol = issue.name ?? issue.symbol ?? "unknown";
@@ -50,13 +98,13 @@ const collectIssues = (
 			filePath: path.relative(rootDir, absolutePath),
 			engine: "code-quality",
 			rule: `knip/${issueType}`,
-			severity: "warning",
+			severity,
 			message: `${KNIP_MESSAGE_MAP[issueType]}: ${symbol}`,
-			help: "",
+			help,
 			line: issue.line ?? 0,
 			column: issue.col ?? 0,
-			category: "Dead Code",
-			fixable: false,
+			category,
+			fixable,
 		});
 	}
 
@@ -103,6 +151,61 @@ const findKnipBin = (
 	return null;
 };
 
+export const runKnipDependencyCheck = async (
+	rootDirectory: string,
+): Promise<Diagnostic[]> => {
+	const all = await runKnip(rootDirectory);
+	return all.filter(
+		(d) => d.rule === "knip/dependencies" || d.rule === "knip/devDependencies",
+	);
+};
+
+export const fixUnusedDependencies = async (
+	rootDirectory: string,
+): Promise<void> => {
+	const diagnostics = await runKnipDependencyCheck(rootDirectory);
+	if (diagnostics.length === 0) return;
+
+	const pkgPath = path.join(rootDirectory, "package.json");
+	if (!fs.existsSync(pkgPath)) return;
+
+	const raw = fs.readFileSync(pkgPath, "utf-8");
+	const pkg = JSON.parse(raw) as Record<string, Record<string, string>>;
+
+	const unusedDeps = new Set<string>();
+	const unusedDevDeps = new Set<string>();
+
+	for (const d of diagnostics) {
+		const pkgName = d.message.replace(/^Unused (dev)?[Dd]ependency: /, "");
+		if (d.rule === "knip/dependencies") unusedDeps.add(pkgName);
+		if (d.rule === "knip/devDependencies") unusedDevDeps.add(pkgName);
+	}
+
+	let changed = false;
+
+	if (pkg.dependencies) {
+		for (const name of unusedDeps) {
+			if (name in pkg.dependencies) {
+				delete pkg.dependencies[name];
+				changed = true;
+			}
+		}
+	}
+
+	if (pkg.devDependencies) {
+		for (const name of unusedDevDeps) {
+			if (name in pkg.devDependencies) {
+				delete pkg.devDependencies[name];
+				changed = true;
+			}
+		}
+	}
+
+	if (changed) {
+		fs.writeFileSync(pkgPath, `${JSON.stringify(pkg, null, "\t")}\n`);
+	}
+};
+
 export const runKnip = async (rootDirectory: string): Promise<Diagnostic[]> => {
 	const monorepoRoot = findMonorepoRoot(rootDirectory);
 	const knipRuntime = findKnipBin(rootDirectory, monorepoRoot);
@@ -145,8 +248,14 @@ export const runKnip = async (rootDirectory: string): Promise<Diagnostic[]> => {
 		}
 
 		const issues = parsed.issues ?? [];
+		const issueTypes = [
+			...DEPENDENCY_TYPES,
+			"exports",
+			"types",
+			"duplicates",
+		] as const;
 		for (const fileIssue of issues) {
-			for (const type of ["exports", "types", "duplicates"] as const) {
+			for (const type of issueTypes) {
 				diagnostics.push(
 					...collectIssues(fileIssue, type, rootDirectory, knipRuntime.cwd),
 				);

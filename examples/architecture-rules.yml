@@ -1,0 +1,21 @@
+# .aislop/rules.yml — Example architecture rules
+# Place in .aislop/rules.yml and enable the architecture engine
+# in config.yml (engines.architecture: true).
+
+rules:
+  # Prevent direct axios usage — prefer the shared HTTP client
+  - type: forbid_import
+    module: "axios"
+    message: "Use the shared httpClient instead of importing axios directly"
+
+  # Controllers should not access the database layer directly
+  - type: forbid_import_from_path
+    from: "src/controllers/**"
+    module: "src/database/**"
+    message: "Controllers must go through the service layer"
+
+  # API routes must include error handling
+  - type: require_pattern
+    path: "src/routes/**"
+    pattern: "catch"
+    message: "API routes must include error handling"

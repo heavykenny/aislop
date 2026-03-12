@@ -4,6 +4,32 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-03-12
+
+### Added
+
+- **Unused dependency detection** — 5 new rules powered by knip:
+  - `knip/dependencies` — unused packages in package.json
+  - `knip/devDependencies` — unused devDependencies in package.json
+  - `knip/unlisted` — packages imported but missing from package.json
+  - `knip/unresolved` — imports that cannot be resolved
+  - `knip/binaries` — binaries used but not declared
+- **`aislop fix` removes unused dependencies** — detects and removes unused deps/devDeps from package.json automatically
+- **GitHub Packages publishing** — each release now also publishes `@heavykenny/aislop` to npm.pkg.github.com
+- **Documentation site** — detailed docs moved to `docs/` directory (installation, commands, rules, configuration, scoring, CI/CD, telemetry)
+- **Example configs** — `examples/` directory with 4 preset configurations (typescript-strict, monorepo-relaxed, python-go, architecture-rules)
+- **Project infrastructure** — `.editorconfig`, `.nvmrc`, `.gitattributes`, `biome.json`, `AGENTS.md`, `knip.json`
+- **Acknowledgments** — README now credits the open-source projects aislop is built on
+- npm downloads badge in README
+
+### Changed
+
+- README slimmed from 374 to ~185 lines — reference material moved to docs/
+- README restructured: Installation → Usage → Use in project → Why → What it catches
+- CONTRIBUTING.md updated to target `develop` branch with AGENTS.md reference
+- Expo/React Native documented in supported languages and linting tables
+- 288 total tests across 14 test files
+
 ## [0.1.3] - 2026-03-12
 
 ### Fixed
