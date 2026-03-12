@@ -665,3 +665,146 @@ describe("getScoreColor integration with calculateScore", () => {
 		}
 	});
 });
+
+// ─── Issue #9 fix: density-aware scoring (sourceFileCount) ─────────────────────
+
+describe("density-aware scoring (sourceFileCount)", () => {
+	it("single innerHTML in large codebase scores higher than in small codebase", () => {
+		const smallProject = calculateScore(
+			[makeInnerHTMLDiagnostic()],
+			defaultWeights,
+			defaultThresholds,
+			2, // 2 source files
+		);
+		const largeProject = calculateScore(
+			[makeInnerHTMLDiagnostic()],
+			defaultWeights,
+			defaultThresholds,
+			200, // 200 source files
+		);
+
+		expect(largeProject.score).toBeGreaterThan(smallProject.score);
+	});
+
+	it("single innerHTML in 200-file project stays in Healthy range", () => {
+		const result = calculateScore(
+			[makeInnerHTMLDiagnostic()],
+			defaultWeights,
+			defaultThresholds,
+			200,
+		);
+
+		// Before fix: score was 58 (Needs Work). After: should be 75+ (Healthy)
+		expect(result.score).toBeGreaterThanOrEqual(75);
+		expect(result.label).toBe("Healthy");
+	});
+
+	it("single innerHTML in 2-file project still has meaningful penalty", () => {
+		const result = calculateScore(
+			[makeInnerHTMLDiagnostic()],
+			defaultWeights,
+			defaultThresholds,
+			2,
+		);
+
+		// Should not be perfect — there IS an issue
+		expect(result.score).toBeLessThan(100);
+		// But should be better than the old flat 58
+		expect(result.score).toBeGreaterThan(58);
+	});
+
+	it("omitting sourceFileCount preserves original behavior (backward compat)", () => {
+		const withoutFileCount = calculateScore(
+			[makeInnerHTMLDiagnostic()],
+			defaultWeights,
+			defaultThresholds,
+		);
+
+		// Same as the snapshot test: 58
+		expect(withoutFileCount.score).toBe(58);
+	});
+
+	it("sourceFileCount=0 preserves original behavior", () => {
+		const result = calculateScore(
+			[makeInnerHTMLDiagnostic()],
+			defaultWeights,
+			defaultThresholds,
+			0,
+		);
+
+		expect(result.score).toBe(58);
+	});
+
+	it("density caps at 1.0 for heavily polluted codebases", () => {
+		// 100 issues in 5 files = extremely dense, density capped at 1.0
+		const diagnostics = Array(100).fill(
+			makeDiagnostic({ engine: "security", severity: "error" }),
+		);
+		const withDensity = calculateScore(
+			diagnostics,
+			defaultWeights,
+			defaultThresholds,
+			5,
+		);
+		const withoutDensity = calculateScore(
+			diagnostics,
+			defaultWeights,
+			defaultThresholds,
+		);
+
+		// When density >= 1.0, sqrt(1.0)=1.0, so deductions are unscaled
+		expect(withDensity.score).toBe(withoutDensity.score);
+	});
+
+	it("more files = higher score for the same diagnostics", () => {
+		const diagnostics = Array(5).fill(
+			makeDiagnostic({ engine: "lint", severity: "warning" }),
+		);
+
+		const scores = [10, 50, 100, 500].map(
+			(fileCount) =>
+				calculateScore(
+					diagnostics,
+					defaultWeights,
+					defaultThresholds,
+					fileCount,
+				).score,
+		);
+
+		// Each step should be >= the previous (monotonically non-decreasing)
+		for (let i = 1; i < scores.length; i++) {
+			expect(scores[i]).toBeGreaterThanOrEqual(scores[i - 1]);
+		}
+	});
+
+	it("score never goes below 0 even with density scaling", () => {
+		const diagnostics = Array(500).fill(
+			makeDiagnostic({ engine: "security", severity: "error" }),
+		);
+		const result = calculateScore(
+			diagnostics,
+			defaultWeights,
+			defaultThresholds,
+			10,
+		);
+
+		expect(result.score).toBeGreaterThanOrEqual(0);
+	});
+
+	it("score is always an integer with density scaling", () => {
+		const result = calculateScore(
+			[makeDiagnostic({ severity: "warning" })],
+			defaultWeights,
+			defaultThresholds,
+			42,
+		);
+
+		expect(Number.isInteger(result.score)).toBe(true);
+	});
+
+	it("empty diagnostics returns 100 regardless of sourceFileCount", () => {
+		const result = calculateScore([], defaultWeights, defaultThresholds, 500);
+		expect(result.score).toBe(100);
+		expect(result.label).toBe("Healthy");
+	});
+});
