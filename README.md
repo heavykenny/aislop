@@ -217,8 +217,6 @@ Custom import and path rules defined in `.aislop/rules.yml`.
 
 ---
 
-## Scoring
-
 Every diagnostic contributes a weighted penalty:
 
 | Severity | Penalty |
@@ -227,7 +225,7 @@ Every diagnostic contributes a weighted penalty:
 | Warning | 1.0 |
 | Info | 0.25 |
 
-Penalties are multiplied by engine weight (configurable, security defaults to 2x). The final score uses logarithmic scaling so a few issues cause a noticeable drop, but the score does not collapse to zero from minor findings.
+Penalties are multiplied by engine weight (configurable, security defaults to 2x). The final score uses logarithmic scaling with issue-density normalization (relative to source file count), so a few issues still matter but a single finding in an otherwise clean project remains proportional.
 
 | Score | Label |
 |---|---|

@@ -137,6 +137,7 @@ export const scanCommand = async (
 		allDiagnostics,
 		config.scoring.weights,
 		config.scoring.thresholds,
+		config.scoring.smoothing,
 	);
 	const hasErrors = allDiagnostics.some((d) => d.severity === "error");
 	const exitCode = hasErrors || scoreResult.score < config.ci.failBelow ? 1 : 0;

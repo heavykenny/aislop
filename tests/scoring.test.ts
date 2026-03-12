@@ -92,6 +92,38 @@ describe("calculateScore", () => {
 		expect(securityResult.score).toBeLessThan(formatResult.score);
 	});
 
+  it("single security error in a small clean codebase stays in a proportional range", () => {
+    const result = calculateScore(
+      [makeDiagnostic({ engine: "security", severity: "error" })],
+      defaultWeights,
+      defaultThresholds,
+      2,
+    );
+
+    expect(result.score).toBeGreaterThanOrEqual(75);
+    expect(result.score).toBeLessThanOrEqual(85);
+  });
+
+  it("same issue has lower impact in larger codebases", () => {
+    const diagnostics = [
+      makeDiagnostic({ engine: "security", severity: "error" }),
+    ];
+    const smallCodebase = calculateScore(
+      diagnostics,
+      defaultWeights,
+      defaultThresholds,
+      2,
+    );
+    const largeCodebase = calculateScore(
+      diagnostics,
+      defaultWeights,
+      defaultThresholds,
+      200,
+    );
+
+    expect(largeCodebase.score).toBeGreaterThan(smallCodebase.score);
+  });
+
 	it("unknown engine falls back to weight 1.0", () => {
 		// "custom-engine" not in weights → default 1.0
 		const result = calculateScore(
