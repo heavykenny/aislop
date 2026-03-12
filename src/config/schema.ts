@@ -41,6 +41,7 @@ const ScoringSchema = z.object({
 		good: 75,
 		ok: 50,
 	})),
+	smoothing: z.number().default(10),
 });
 
 const CiSchema = z.object({
