@@ -7,18 +7,17 @@ export interface ScoreResult {
 
 const PERFECT_SCORE = 100;
 
-
 const getEffectiveFileCount = (
-  diagnostics: Diagnostic[],
-  sourceFileCount?: number,
+	diagnostics: Diagnostic[],
+	sourceFileCount?: number,
 ): number => {
-  if (typeof sourceFileCount === "number" && sourceFileCount > 0) {
-    return sourceFileCount;
-  }
+	if (typeof sourceFileCount === "number" && sourceFileCount > 0) {
+		return sourceFileCount;
+	}
 
-  // Fallback for direct API use when caller doesn't provide source file count.
-  const filesWithDiagnostics = new Set(diagnostics.map((d) => d.filePath)).size;
-  return Math.max(1, filesWithDiagnostics);
+	// Fallback for direct API use when caller doesn't provide source file count.
+	const filesWithDiagnostics = new Set(diagnostics.map((d) => d.filePath)).size;
+	return Math.max(1, filesWithDiagnostics);
 };
 
 export const calculateScore = (
@@ -62,8 +61,8 @@ export const calculateScore = (
 		0,
 		Math.round(
 			PERFECT_SCORE -
-        (PERFECT_SCORE * Math.log1p(scaledDeductions)) /
-          Math.log1p(PERFECT_SCORE + scaledDeductions),
+				(PERFECT_SCORE * Math.log1p(scaledDeductions)) /
+					Math.log1p(PERFECT_SCORE + scaledDeductions),
 		),
 	);
 
