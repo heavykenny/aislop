@@ -90,9 +90,14 @@ const getAnonymousId = (): string => {
 	return `aislop_${(hash >>> 0).toString(36)}`;
 };
 
+/** Pending telemetry request — kept alive so Node doesn't exit before it completes. */
+let pendingRequest: Promise<void> | null = null;
+
 /**
  * Fire-and-forget telemetry event to PostHog.
- * Never throws, never blocks, never affects CLI output or exit code.
+ * Never throws, never blocks CLI output.
+ * The request is kept alive via `flushTelemetry()` so Node doesn't
+ * exit before it completes.
  */
 export const trackEvent = (event: TelemetryEvent): void => {
 	// Validate that we have an API key configured
@@ -121,15 +126,28 @@ export const trackEvent = (event: TelemetryEvent): void => {
 		timestamp: new Date().toISOString(),
 	};
 
-	// Fire and forget — do not await, do not catch
-	fetch(`${POSTHOG_HOST}/capture/`, {
+	pendingRequest = fetch(`${POSTHOG_HOST}/capture/`, {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
 		body: JSON.stringify(payload),
 		signal: AbortSignal.timeout(3000),
-	}).catch(() => {
-		// Silently ignore — telemetry must never affect the user experience
-	});
+	})
+		.then(() => {})
+		.catch(() => {
+			// Silently ignore — telemetry must never affect the user experience
+		});
+};
+
+/**
+ * Wait for any pending telemetry request to complete.
+ * Call this before `process.exit()` to ensure the event is delivered.
+ * Times out after 3 seconds so it never hangs the CLI.
+ */
+export const flushTelemetry = async (): Promise<void> => {
+	if (pendingRequest) {
+		await pendingRequest;
+		pendingRequest = null;
+	}
 };
 
 export { getScoreBucket };
