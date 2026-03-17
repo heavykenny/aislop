@@ -33,9 +33,7 @@ const hasHardcodedArgs = (matchText: string): boolean => {
 	// Extract the inner function call's arguments
 	const innerCallMatch = matchText.match(/=>\s*\w+\(([^)]*)\)\s*;?\s*$/);
 	if (!innerCallMatch) {
-		const returnCallMatch = matchText.match(
-			/return\s+\w+\(([^)]*)\)\s*;?\s*\}/,
-		);
+		const returnCallMatch = matchText.match(/return\s+\w+\(([^)]*)\)\s*;?\s*\}/);
 		if (!returnCallMatch) return false;
 		return /['"`]\w+['"`]|(?<!\w)\d+(?!\w)/.test(returnCallMatch[1]);
 	}
@@ -47,10 +45,7 @@ const hasHardcodedArgs = (matchText: string): boolean => {
 const isUseContextWrapper = (matchText: string): boolean =>
 	/\buse\w+/.test(matchText) && /useContext\s*\(/.test(matchText);
 
-const detectThinWrappers = (
-	content: string,
-	relativePath: string,
-): Diagnostic[] => {
+const detectThinWrappers = (content: string, relativePath: string): Diagnostic[] => {
 	const diagnostics: Diagnostic[] = [];
 	const lines = content.split("\n");
 
@@ -97,16 +92,11 @@ const detectThinWrappers = (
 	return diagnostics;
 };
 
-const detectAiNaming = (
-	content: string,
-	relativePath: string,
-): Diagnostic[] => {
+const detectAiNaming = (content: string, relativePath: string): Diagnostic[] => {
 	const diagnostics: Diagnostic[] = [];
 	const lines = content.split("\n");
 	for (let i = 0; i < lines.length; i++) {
-		const declMatch = lines[i].match(
-			/(?:const|let|var|function|def|func|fn)\s+(\w+)/,
-		);
+		const declMatch = lines[i].match(/(?:const|let|var|function|def|func|fn)\s+(\w+)/);
 		if (!declMatch) continue;
 		const name = declMatch[1];
 		const matched = AI_NAMING_PATTERNS.some((pattern) => pattern.test(name));
@@ -127,9 +117,7 @@ const detectAiNaming = (
 	return diagnostics;
 };
 
-export const detectOverAbstraction = async (
-	context: EngineContext,
-): Promise<Diagnostic[]> => {
+export const detectOverAbstraction = async (context: EngineContext): Promise<Diagnostic[]> => {
 	const files = getSourceFiles(context);
 	const diagnostics: Diagnostic[] = [];
 

@@ -50,9 +50,7 @@ const extractJsImportedSymbols = (
 			continue;
 		}
 
-		const defaultMatch = fullImport.match(
-			/import\s+(\w+)\s*(?:,\s*\{[^}]*\})?\s+from/,
-		);
+		const defaultMatch = fullImport.match(/import\s+(\w+)\s*(?:,\s*\{[^}]*\})?\s+from/);
 		if (defaultMatch && defaultMatch[1] !== "type") {
 			symbols.push({
 				name: defaultMatch[1],
@@ -198,14 +196,10 @@ export const getUnusedSymbols = (
 	importLines: Set<number>,
 ): ImportedSymbol[] => {
 	const content = lines.join("\n");
-	return symbols.filter(
-		(symbol) => !isSymbolUsed(symbol.name, content, importLines, lines),
-	);
+	return symbols.filter((symbol) => !isSymbolUsed(symbol.name, content, importLines, lines));
 };
 
-export const detectUnusedImports = async (
-	context: EngineContext,
-): Promise<Diagnostic[]> => {
+export const detectUnusedImports = async (context: EngineContext): Promise<Diagnostic[]> => {
 	const files = getSourceFiles(context);
 	const diagnostics: Diagnostic[] = [];
 
@@ -214,11 +208,7 @@ export const detectUnusedImports = async (
 		if (!analysis) continue;
 
 		const relativePath = path.relative(context.rootDirectory, filePath);
-		const unused = getUnusedSymbols(
-			analysis.lines,
-			analysis.symbols,
-			analysis.importLines,
-		);
+		const unused = getUnusedSymbols(analysis.lines, analysis.symbols, analysis.importLines);
 
 		for (const symbol of unused) {
 			diagnostics.push({

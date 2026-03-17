@@ -2,28 +2,22 @@ import fs from "node:fs";
 import { getSourceFiles } from "../../utils/source-files.js";
 import type { EngineContext } from "../types.js";
 import {
+	analyzeFile,
+	getUnusedSymbols,
 	type ImportedSymbol,
 	JS_EXTENSIONS,
 	PY_EXTENSIONS,
 	REMOVE_MARKER,
-	analyzeFile,
-	getUnusedSymbols,
 } from "./unused-imports.js";
 
-export const fixUnusedImports = async (
-	context: EngineContext,
-): Promise<void> => {
+export const fixUnusedImports = async (context: EngineContext): Promise<void> => {
 	const files = getSourceFiles(context);
 
 	for (const filePath of files) {
 		const analysis = analyzeFile(filePath);
 		if (!analysis) continue;
 
-		const unused = getUnusedSymbols(
-			analysis.lines,
-			analysis.symbols,
-			analysis.importLines,
-		);
+		const unused = getUnusedSymbols(analysis.lines, analysis.symbols, analysis.importLines);
 
 		if (unused.length === 0) continue;
 
@@ -73,10 +67,7 @@ export const fixUnusedImports = async (
 	}
 };
 
-const getImportSpan = (
-	startIdx: number,
-	importLines: Set<number>,
-): number[] => {
+const getImportSpan = (startIdx: number, importLines: Set<number>): number[] => {
 	const span = [startIdx];
 	let idx = startIdx + 1;
 	while (importLines.has(idx)) {
@@ -97,9 +88,7 @@ const rewriteJsImportSpan = (
 	const namedMatch = fullImport.match(/\{([^}]+)\}/s);
 	if (!namedMatch) return;
 
-	const unusedNamed = syms.filter(
-		(s) => !s.isDefault && !s.isNamespace && unusedNames.has(s.name),
-	);
+	const unusedNamed = syms.filter((s) => !s.isDefault && !s.isNamespace && unusedNames.has(s.name));
 	if (unusedNamed.length === 0) return;
 
 	const unusedNamedSet = new Set(unusedNamed.map((s) => s.name));
@@ -117,13 +106,9 @@ const rewriteJsImportSpan = (
 	});
 
 	if (keptSpecifiers.length === 0) {
-		const defaultSym = syms.find(
-			(s) => s.isDefault && !unusedNames.has(s.name),
-		);
+		const defaultSym = syms.find((s) => s.isDefault && !unusedNames.has(s.name));
 		if (defaultSym) {
-			const rewritten = fullImport
-				.replace(/,\s*\{[^}]*\}/s, "")
-				.replace(/\{[^}]*\}\s*,?\s*/s, "");
+			const rewritten = fullImport.replace(/,\s*\{[^}]*\}/s, "").replace(/\{[^}]*\}\s*,?\s*/s, "");
 			lines[span[0]] = rewritten.replace(/\n/g, " ").replace(/\s+/g, " ");
 			for (let i = 1; i < span.length; i++) {
 				lines[span[i]] = REMOVE_MARKER;
@@ -144,9 +129,7 @@ const rewriteJsImportSpan = (
 	if (wasMultiLine && keptSpecifiers.length > 2) {
 		const indentMatch = lines[span[1]]?.match(/^(\s+)/);
 		const indent = indentMatch ? indentMatch[1] : "\t";
-		const specLines = keptSpecifiers
-			.map((s) => `${indent}${s},`)
-			.join("\n");
+		const specLines = keptSpecifiers.map((s) => `${indent}${s},`).join("\n");
 		newImport = `${prefix}{\n${specLines}\n} ${fromClause}`;
 	} else {
 		newImport = `${prefix}{ ${keptSpecifiers.join(", ")} } ${fromClause}`;

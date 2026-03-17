@@ -62,10 +62,7 @@ const getCommentBody = (trimmed: string): string => {
 	return trimmed;
 };
 
-const isTrivialComment = (
-	trimmed: string,
-	nextLine: string | undefined,
-): boolean => {
+const isTrivialComment = (trimmed: string, nextLine: string | undefined): boolean => {
 	const isJs = isJsComment(trimmed);
 	const isPy = isPythonComment(trimmed);
 	if (!isJs && !isPy) return false;
@@ -92,16 +89,11 @@ const isTrivialComment = (
 	if (/^-{3,}|─{3,}/.test(commentBody)) return false;
 
 	// Now check against the actual trivial patterns
-	const patterns = isJs
-		? TRIVIAL_JS_COMMENT_PATTERNS
-		: TRIVIAL_PYTHON_COMMENT_PATTERNS;
+	const patterns = isJs ? TRIVIAL_JS_COMMENT_PATTERNS : TRIVIAL_PYTHON_COMMENT_PATTERNS;
 	return patterns.some((pattern) => pattern.test(trimmed));
 };
 
-const scanFileForTrivialComments = (
-	content: string,
-	relativePath: string,
-): Diagnostic[] => {
+const scanFileForTrivialComments = (content: string, relativePath: string): Diagnostic[] => {
 	const diagnostics: Diagnostic[] = [];
 	const lines = content.split("\n");
 	for (let i = 0; i < lines.length; i++) {
@@ -124,9 +116,7 @@ const scanFileForTrivialComments = (
 	return diagnostics;
 };
 
-export const detectTrivialComments = async (
-	context: EngineContext,
-): Promise<Diagnostic[]> => {
+export const detectTrivialComments = async (context: EngineContext): Promise<Diagnostic[]> => {
 	const files = getSourceFiles(context);
 	const diagnostics: Diagnostic[] = [];
 

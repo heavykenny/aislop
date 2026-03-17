@@ -3,19 +3,14 @@ import path from "node:path";
 import { runSubprocess } from "../../utils/subprocess.js";
 import type { Diagnostic, EngineContext } from "../types.js";
 
-export const runDependencyAudit = async (
-	context: EngineContext,
-): Promise<Diagnostic[]> => {
+export const runDependencyAudit = async (context: EngineContext): Promise<Diagnostic[]> => {
 	const diagnostics: Diagnostic[] = [];
 	const timeout = context.config.security.auditTimeout;
 
 	const promises: Promise<Diagnostic[]>[] = [];
 
 	// npm/pnpm audit
-	if (
-		context.languages.includes("typescript") ||
-		context.languages.includes("javascript")
-	) {
+	if (context.languages.includes("typescript") || context.languages.includes("javascript")) {
 		if (fs.existsSync(path.join(context.rootDirectory, "pnpm-lock.yaml"))) {
 			promises.push(runPnpmAudit(context.rootDirectory, timeout));
 		} else if (
@@ -27,18 +22,12 @@ export const runDependencyAudit = async (
 	}
 
 	// pip-audit
-	if (
-		context.languages.includes("python") &&
-		context.installedTools["pip-audit"]
-	) {
+	if (context.languages.includes("python") && context.installedTools["pip-audit"]) {
 		promises.push(runPipAudit(context.rootDirectory, timeout));
 	}
 
 	// govulncheck
-	if (
-		context.languages.includes("go") &&
-		context.installedTools["govulncheck"]
-	) {
+	if (context.languages.includes("go") && context.installedTools["govulncheck"]) {
 		promises.push(runGovulncheck(context.rootDirectory, timeout));
 	}
 
@@ -57,10 +46,7 @@ export const runDependencyAudit = async (
 	return diagnostics;
 };
 
-const runNpmAudit = async (
-	rootDir: string,
-	timeout: number,
-): Promise<Diagnostic[]> => {
+const runNpmAudit = async (rootDir: string, timeout: number): Promise<Diagnostic[]> => {
 	try {
 		const result = await runSubprocess("npm", ["audit", "--json"], {
 			cwd: rootDir,
@@ -72,10 +58,7 @@ const runNpmAudit = async (
 	}
 };
 
-const runPnpmAudit = async (
-	rootDir: string,
-	timeout: number,
-): Promise<Diagnostic[]> => {
+const runPnpmAudit = async (rootDir: string, timeout: number): Promise<Diagnostic[]> => {
 	try {
 		const result = await runSubprocess("pnpm", ["audit", "--json"], {
 			cwd: rootDir,
@@ -107,9 +90,7 @@ const parseLegacyAdvisories = (
 			(advisory.name as string) ??
 			(advisory.package as string) ??
 			key;
-		const severity = (
-			(advisory.severity as string) ?? "moderate"
-		).toLowerCase();
+		const severity = ((advisory.severity as string) ?? "moderate").toLowerCase();
 		const recommendation =
 			(advisory.recommendation as string) ??
 			(advisory.title as string) ??
@@ -139,9 +120,7 @@ const parseModernVulnerabilities = (
 	const diagnostics: Diagnostic[] = [];
 
 	for (const [packageName, vulnerability] of Object.entries(vulnerabilities)) {
-		const severity = (
-			(vulnerability.severity as string) ?? "moderate"
-		).toLowerCase();
+		const severity = ((vulnerability.severity as string) ?? "moderate").toLowerCase();
 
 		const fixAvailable = vulnerability.fixAvailable;
 		let recommendation = `Run \`${defaultAuditFixCommand(source)}\` to resolve`;
@@ -181,9 +160,7 @@ const parseJsAudit = (output: string, source: JsAuditSource): Diagnostic[] => {
 	try {
 		const parsed = JSON.parse(output) as Record<string, unknown>;
 
-		const error = parsed.error as
-			| { code?: string; summary?: string; detail?: string }
-			| undefined;
+		const error = parsed.error as { code?: string; summary?: string; detail?: string } | undefined;
 		if (error?.code === "ENOLOCK") {
 			return [
 				{
@@ -224,10 +201,7 @@ const parseJsAudit = (output: string, source: JsAuditSource): Diagnostic[] => {
 
 		const advisories = parsed.advisories;
 		if (advisories && typeof advisories === "object") {
-			return parseLegacyAdvisories(
-				advisories as Record<string, Record<string, unknown>>,
-				source,
-			);
+			return parseLegacyAdvisories(advisories as Record<string, Record<string, unknown>>, source);
 		}
 
 		const vulnerabilities = parsed.vulnerabilities;
@@ -244,10 +218,7 @@ const parseJsAudit = (output: string, source: JsAuditSource): Diagnostic[] => {
 	}
 };
 
-const runPipAudit = async (
-	rootDir: string,
-	timeout: number,
-): Promise<Diagnostic[]> => {
+const runPipAudit = async (rootDir: string, timeout: number): Promise<Diagnostic[]> => {
 	try {
 		const result = await runSubprocess("pip-audit", ["--format=json"], {
 			cwd: rootDir,
@@ -257,8 +228,7 @@ const runPipAudit = async (
 		const parsed = JSON.parse(result.stdout);
 		return (parsed.dependencies ?? [])
 			.filter(
-				(d: Record<string, unknown>) =>
-					Array.isArray(d.vulns) && (d.vulns as unknown[]).length > 0,
+				(d: Record<string, unknown>) => Array.isArray(d.vulns) && (d.vulns as unknown[]).length > 0,
 			)
 			.map((d: Record<string, unknown>) => ({
 				filePath: "requirements.txt",
@@ -277,10 +247,7 @@ const runPipAudit = async (
 	}
 };
 
-const runGovulncheck = async (
-	rootDir: string,
-	timeout: number,
-): Promise<Diagnostic[]> => {
+const runGovulncheck = async (rootDir: string, timeout: number): Promise<Diagnostic[]> => {
 	try {
 		const result = await runSubprocess("govulncheck", ["-json", "./..."], {
 			cwd: rootDir,
@@ -335,10 +302,7 @@ const parseGovulncheckOutput = (output: string): Diagnostic[] => {
 	return diagnostics;
 };
 
-const runCargoAudit = async (
-	rootDir: string,
-	timeout: number,
-): Promise<Diagnostic[]> => {
+const runCargoAudit = async (rootDir: string, timeout: number): Promise<Diagnostic[]> => {
 	try {
 		const result = await runSubprocess("cargo", ["audit", "--json"], {
 			cwd: rootDir,
@@ -346,20 +310,18 @@ const runCargoAudit = async (
 		});
 		if (!result.stdout) return [];
 		const parsed = JSON.parse(result.stdout);
-		return (parsed.vulnerabilities?.list ?? []).map(
-			(v: Record<string, unknown>) => ({
-				filePath: "Cargo.toml",
-				engine: "security" as const,
-				rule: "security/vulnerable-dependency",
-				severity: "error" as const,
-				message: `Rust vulnerability: ${(v.advisory as Record<string, unknown>)?.id ?? "unknown"}`,
-				help: (v.advisory as Record<string, unknown>)?.title ?? "",
-				line: 0,
-				column: 0,
-				category: "Security",
-				fixable: false,
-			}),
-		);
+		return (parsed.vulnerabilities?.list ?? []).map((v: Record<string, unknown>) => ({
+			filePath: "Cargo.toml",
+			engine: "security" as const,
+			rule: "security/vulnerable-dependency",
+			severity: "error" as const,
+			message: `Rust vulnerability: ${(v.advisory as Record<string, unknown>)?.id ?? "unknown"}`,
+			help: (v.advisory as Record<string, unknown>)?.title ?? "",
+			line: 0,
+			column: 0,
+			category: "Security",
+			fixable: false,
+		}));
 	} catch {
 		return [];
 	}

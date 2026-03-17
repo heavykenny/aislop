@@ -19,8 +19,7 @@ const resolveExpoDoctorScript = (): string | null => {
 		const pkg = JSON.parse(fs.readFileSync(packageJsonPath, "utf-8")) as {
 			bin?: string | Record<string, string>;
 		};
-		const binRelativePath =
-			typeof pkg.bin === "string" ? pkg.bin : pkg.bin?.["expo-doctor"];
+		const binRelativePath = typeof pkg.bin === "string" ? pkg.bin : pkg.bin?.["expo-doctor"];
 		if (!binRelativePath) return null;
 		return path.join(path.dirname(packageJsonPath), binRelativePath);
 	} catch {
@@ -38,9 +37,7 @@ const toRuleSuffix = (title: string): string => {
 
 const parseIssues = (output: string): ExpoDoctorIssue[] => {
 	const lines = output.split("\n").map((line) => line.trimEnd());
-	const startIndex = lines.findIndex((line) =>
-		line.includes("Possible issues detected:"),
-	);
+	const startIndex = lines.findIndex((line) => line.includes("Possible issues detected:"));
 	if (startIndex < 0) return [];
 
 	const issues: ExpoDoctorIssue[] = [];
@@ -82,9 +79,7 @@ const parseIssues = (output: string): ExpoDoctorIssue[] => {
 };
 
 const parseConfigError = (output: string): string | null => {
-	const line = output
-		.split("\n")
-		.find((candidate) => candidate.trim().startsWith("ConfigError:"));
+	const line = output.split("\n").find((candidate) => candidate.trim().startsWith("ConfigError:"));
 	return line ? line.trim() : null;
 };
 
@@ -92,9 +87,7 @@ const toDiagnostics = (issues: ExpoDoctorIssue[]): Diagnostic[] =>
 	issues.map((issue) => {
 		const detailText = issue.details.join(" ").trim();
 		const adviceText = issue.advice.join(" ").trim();
-		const helpParts = [detailText, adviceText].filter(
-			(part) => part.length > 0,
-		);
+		const helpParts = [detailText, adviceText].filter((part) => part.length > 0);
 
 		return {
 			filePath: "package.json",
@@ -110,9 +103,7 @@ const toDiagnostics = (issues: ExpoDoctorIssue[]): Diagnostic[] =>
 		};
 	});
 
-export const runExpoDoctor = async (
-	context: EngineContext,
-): Promise<Diagnostic[]> => {
+export const runExpoDoctor = async (context: EngineContext): Promise<Diagnostic[]> => {
 	const scriptPath = resolveExpoDoctorScript();
 	let stdout = "";
 	let stderr = "";

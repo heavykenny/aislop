@@ -23,12 +23,9 @@ const isIgnorableLine = (line: string): boolean => {
 	);
 };
 
-const normalizeLine = (line: string): string =>
-	line.trim().replace(/\s+/g, " ");
+const normalizeLine = (line: string): string => line.trim().replace(/\s+/g, " ");
 
-const extractDuplicateBlocks = (
-	content: string,
-): Array<{ key: string; startLine: number }> => {
+const extractDuplicateBlocks = (content: string): Array<{ key: string; startLine: number }> => {
 	const blocks: Array<{ key: string; startLine: number }> = [];
 	const lines = content.split("\n");
 
@@ -46,9 +43,7 @@ const extractDuplicateBlocks = (
 	return blocks;
 };
 
-export const checkDuplication = async (
-	context: EngineContext,
-): Promise<Diagnostic[]> => {
+export const checkDuplication = async (context: EngineContext): Promise<Diagnostic[]> => {
 	const files = getSourceFiles(context);
 	const duplicates = new Map<string, DuplicateOccurrence[]>();
 
@@ -61,10 +56,7 @@ export const checkDuplication = async (
 			continue;
 		}
 
-		const relativeFilePath = path.relative(
-			context.rootDirectory,
-			absoluteFilePath,
-		);
+		const relativeFilePath = path.relative(context.rootDirectory, absoluteFilePath);
 		for (const block of extractDuplicateBlocks(content)) {
 			const occurrence = {
 				filePath: relativeFilePath,
@@ -84,10 +76,7 @@ export const checkDuplication = async (
 
 		for (const occurrence of occurrences.slice(1)) {
 			if (diagnostics.length >= MAX_DUPLICATE_REPORTS) return diagnostics;
-			if (
-				occurrence.filePath === source.filePath &&
-				occurrence.startLine === source.startLine
-			)
+			if (occurrence.filePath === source.filePath && occurrence.startLine === source.startLine)
 				continue;
 			if (occurrence.filePath === source.filePath) continue;
 

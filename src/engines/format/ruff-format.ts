@@ -3,9 +3,7 @@ import { runSubprocess } from "../../utils/subprocess.js";
 import { resolveToolBinary } from "../../utils/tooling.js";
 import type { Diagnostic, EngineContext } from "../types.js";
 
-export const runRuffFormat = async (
-	context: EngineContext,
-): Promise<Diagnostic[]> => {
+export const runRuffFormat = async (context: EngineContext): Promise<Diagnostic[]> => {
 	const ruffBinary = resolveToolBinary("ruff");
 	try {
 		const result = await runSubprocess(
@@ -27,10 +25,7 @@ export const runRuffFormat = async (
 	}
 };
 
-const parseRuffFormatOutput = (
-	output: string,
-	rootDir: string,
-): Diagnostic[] => {
+const parseRuffFormatOutput = (output: string, rootDir: string): Diagnostic[] => {
 	const diagnostics: Diagnostic[] = [];
 	const filePattern = /^--- (.+)$/gm;
 	let match: RegExpExecArray | null;
@@ -62,9 +57,7 @@ export const fixRuffFormat = async (rootDirectory: string): Promise<void> => {
 	});
 	if (result.exitCode !== 0) {
 		throw new Error(
-			result.stderr ||
-				result.stdout ||
-				`ruff format exited with code ${result.exitCode}`,
+			result.stderr || result.stdout || `ruff format exited with code ${result.exitCode}`,
 		);
 	}
 };

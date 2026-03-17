@@ -56,9 +56,7 @@ const MENU_OPTIONS: InteractiveMenuOption[] = [
 	},
 ];
 
-const MENU_LABEL_WIDTH = Math.max(
-	...MENU_OPTIONS.map((option) => option.label.length),
-);
+const MENU_LABEL_WIDTH = Math.max(...MENU_OPTIONS.map((option) => option.label.length));
 
 const clearRenderedLines = (lineCount: number): void => {
 	if (lineCount === 0) return;
@@ -75,9 +73,7 @@ const clearRenderedLines = (lineCount: number): void => {
 	}
 };
 
-export const parseInteractiveActionInput = (
-	input: string,
-): InteractiveAction | null => {
+export const parseInteractiveActionInput = (input: string): InteractiveAction | null => {
 	const normalized = input.trim().toLowerCase();
 
 	switch (normalized) {
@@ -109,10 +105,7 @@ export const parseInteractiveActionInput = (
 	}
 };
 
-export const moveInteractiveSelection = (
-	currentIndex: number,
-	direction: -1 | 1,
-): number => {
+export const moveInteractiveSelection = (currentIndex: number, direction: -1 | 1): number => {
 	const nextIndex = currentIndex + direction;
 	if (nextIndex < 0) return MENU_OPTIONS.length - 1;
 	if (nextIndex >= MENU_OPTIONS.length) return 0;
@@ -127,8 +120,7 @@ const renderInteractiveMenu = (selectedIndex: number): string => {
 		...MENU_OPTIONS.map((option, index) => {
 			const cursor = index === selectedIndex ? "➤" : " ";
 			const paddedLabel = option.label.padEnd(MENU_LABEL_WIDTH, " ");
-			const label =
-				index === selectedIndex ? highlighter.bold(paddedLabel) : paddedLabel;
+			const label = index === selectedIndex ? highlighter.bold(paddedLabel) : paddedLabel;
 			return `${cursor} ${option.key}. ${label}  ${option.description}`;
 		}),
 		"",
@@ -165,10 +157,7 @@ const promptForAction = async (): Promise<InteractiveAction> =>
 			resolve(action);
 		};
 
-		const onKeypress = (
-			str: string,
-			key: { name?: string; ctrl?: boolean },
-		) => {
+		const onKeypress = (str: string, key: { name?: string; ctrl?: boolean }) => {
 			if (key.ctrl && key.name === "c") {
 				process.stdout.write("\n");
 				finish("quit");
@@ -225,10 +214,7 @@ const promptForNextAction = async (): Promise<InteractiveAction | "menu"> =>
 			resolve(action);
 		};
 
-		const onKeypress = (
-			str: string,
-			key: { name?: string; ctrl?: boolean },
-		) => {
+		const onKeypress = (str: string, key: { name?: string; ctrl?: boolean }) => {
 			if (key.ctrl && key.name === "c") {
 				finish("quit");
 				return;

@@ -2,9 +2,7 @@ import path from "node:path";
 import { runSubprocess } from "../../utils/subprocess.js";
 import type { Diagnostic, EngineContext } from "../types.js";
 
-export const runGofmt = async (
-	context: EngineContext,
-): Promise<Diagnostic[]> => {
+export const runGofmt = async (context: EngineContext): Promise<Diagnostic[]> => {
 	try {
 		const result = await runSubprocess("gofmt", ["-l", context.rootDirectory], {
 			cwd: context.rootDirectory,
@@ -37,10 +35,6 @@ export const fixGofmt = async (rootDirectory: string): Promise<void> => {
 		timeout: 60000,
 	});
 	if (result.exitCode !== 0) {
-		throw new Error(
-			result.stderr ||
-				result.stdout ||
-				`gofmt exited with code ${result.exitCode}`,
-		);
+		throw new Error(result.stderr || result.stdout || `gofmt exited with code ${result.exitCode}`);
 	}
 };

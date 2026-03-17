@@ -10,22 +10,84 @@
 
 `aislop` is a unified code-quality CLI that catches the lazy patterns AI coding tools leave behind. One command, one score out of 100.
 
-```
-$ npx aislop scan
+`aislop` helps teams review AI-assisted code faster by combining formatting, linting, maintainability, AI-pattern detection, architecture checks, and security checks into a single report.
 
-aislop Scan v0.2.0
+## See it in action
+
+### Scan
+
+![aislop scan demo](assets/scan.gif)
+
+### Fix
+
+![aislop fix demo](assets/fix.gif)
+
+## Quick start
+
+```bash
+# scan your project
+npx aislop scan
+
+# auto-fix what can be fixed safely
+npx aislop fix
+
+# CI mode (JSON output + quality gate)
+npx aislop ci
+```
+
+Sample output:
+
+```text
+aislop scan v0.2.0
 
   ✓ Project my-app (typescript)
   Source files: 142
 
-  ✓ Formatting:      done (0 issues)
-  ✓ Linting:         done (2 warnings)
-  ✓ Code Quality:    done (1 warning)
-  ! Maintainability:  done (4 warnings)
-  ✓ Security:        done (0 issues)
+  ✓ Formatting: done (0 issues)
+  ! Linting: done (2 warnings)
+  ! Code Quality: done (1 warning)
+  ✓ Maintainability: done (0 issues)
+  ✓ Security: done (0 issues)
 
-  Score: 80/100 (Healthy)
+------------------------------------------------------------
+Summary
+  Score: 89/100 (Healthy)
+  Issues: 0 errors, 3 warnings
+  Auto-fixable: 2
+  Files: 142
+  Time: 2.3s
+------------------------------------------------------------
 ```
+
+---
+
+## Why aislop
+
+AI-generated changes often pass review because problems are spread across many files and many categories.
+`aislop` gives you one view and one score.
+
+- **One command, full picture**: formatting + lint + maintainability + AI slop + security (+ architecture)
+- **Score-based quality gate**: use a single 0-100 score in CI and PR checks
+- **Auto-fix support**: remove unused imports, apply lint suggestions, and format in one pass
+- **Duplication visibility**: flag repeated blocks and encourage extraction into shared modules
+- **Software engineering best practices**: enforce function/file size limits, nesting limits, dead code cleanup, and safer patterns
+- **Works across stacks**: TypeScript, JavaScript, Python, Go, Rust, Ruby, PHP, Expo/React Native
+- **Zero-config start**: run `npx aislop scan` and get useful output immediately
+
+## What it catches
+
+Six engines run in parallel: **Formatting**, **Linting**, **Code Quality**, **AI Slop Detection**, **Security**, and **Architecture** (opt-in).
+
+| Engine | Examples |
+|---|---|
+| Formatting | Biome, ruff, gofmt, cargo fmt, rubocop, php-cs-fixer |
+| Linting | oxlint, ruff, golangci-lint, clippy, expo-doctor |
+| Code Quality | Function/file size limits, deep nesting, duplication, dead code, unused dependencies (knip) |
+| AI Slop | Trivial comments, swallowed exceptions, unused imports, console leftovers, type assertion abuse, TODO stubs |
+| Security | Hardcoded secrets, eval, innerHTML, SQL/shell injection, dependency audits |
+| Architecture | Custom import bans, layering rules, required patterns |
+
+See the full [rules reference](docs/rules.md).
 
 ---
 
@@ -67,13 +129,26 @@ aislop scan --json         # output JSON
 ### Fix issues automatically
 
 ```bash
-aislop fix                 # auto-fix formatting + lint issues
+aislop fix                 # auto-fix unused imports, formatting, and lint fixes
 ```
 
 ### Use in CI pipelines
 
 ```bash
 aislop ci                  # JSON output, exits 1 if score < threshold
+```
+
+### Common workflow
+
+```bash
+# before commit
+aislop scan --staged
+
+# during local cleanup
+aislop fix
+
+# full project check
+aislop scan
 ```
 
 ### Other commands
@@ -103,6 +178,7 @@ npx aislop scan --staged
 - uses: actions/setup-node@v6
   with:
     node-version: 20
+- run: npm ci
 - run: npx aislop ci
 ```
 
@@ -116,34 +192,6 @@ ci:
 ```
 
 `aislop ci` exits with code 1 when the score drops below the threshold. See [CI/CD docs](docs/ci.md) for more.
-
----
-
-## Why aislop?
-
-AI-generated code passes review because issues are spread across dozens of files. No single linter catches all of them. `aislop` does:
-
-- **AI-specific pattern detection** — trivial comments, thin wrappers, generic names, swallowed exceptions, `as any` casts
-- **Multi-language** — TypeScript, JavaScript, Python, Go, Rust, Ruby, PHP, Expo/React Native
-- **Single score** — one number to gate PRs, track in CI, and trend over time
-- **Zero config** — run `npx aislop scan` and get results immediately
-- **Framework-aware** — auto-detects Next.js, React, Expo, Vite, Remix, Django, Flask, FastAPI
-- **Batteries included** — ships with oxlint, biome, knip; downloads ruff and golangci-lint on install
-
-## What it catches
-
-Six engines run in parallel: **Formatting**, **Linting**, **Code Quality**, **AI Slop Detection**, **Security**, and **Architecture** (opt-in).
-
-| Engine | Examples |
-|---|---|
-| Formatting | Biome, ruff, gofmt, cargo fmt, rubocop, php-cs-fixer |
-| Linting | oxlint, ruff, golangci-lint, clippy, expo-doctor |
-| Code Quality | Function/file size limits, deep nesting, duplication, dead code, unused dependencies (knip) |
-| AI Slop | Trivial comments, swallowed exceptions, unused imports, console leftovers, type assertion abuse, TODO stubs |
-| Security | Hardcoded secrets, eval, innerHTML, SQL/shell injection, dependency audits |
-| Architecture | Custom import bans, layering rules, required patterns |
-
-See the full [rules reference](docs/rules.md) for all 30+ built-in rules.
 
 ---
 

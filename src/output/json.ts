@@ -8,10 +8,7 @@ interface JsonOutput {
 	version: string;
 	score: number;
 	label: string;
-	engines: Record<
-		string,
-		{ issues: number; skipped: boolean; elapsed: number }
-	>;
+	engines: Record<string, { issues: number; skipped: boolean; elapsed: number }>;
 	engineDefinitions: Record<string, EngineInfo>;
 	diagnostics: Diagnostic[];
 	summary: {
@@ -53,9 +50,7 @@ export const buildJsonOutput = (
 			fixable: allDiagnostics.filter((d) => d.fixable).length,
 			files: fileCount,
 			elapsed:
-				elapsedMs < 1000
-					? `${Math.round(elapsedMs)}ms`
-					: `${(elapsedMs / 1000).toFixed(1)}s`,
+				elapsedMs < 1000 ? `${Math.round(elapsedMs)}ms` : `${(elapsedMs / 1000).toFixed(1)}s`,
 		},
 	};
 };

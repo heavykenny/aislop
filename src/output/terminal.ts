@@ -31,9 +31,7 @@ const colorByScore = (
 };
 
 const toElapsedLabel = (elapsedMs: number): string =>
-	elapsedMs < 1000
-		? `${Math.round(elapsedMs)}ms`
-		: `${(elapsedMs / 1000).toFixed(1)}s`;
+	elapsedMs < 1000 ? `${Math.round(elapsedMs)}ms` : `${(elapsedMs / 1000).toFixed(1)}s`;
 
 const toSeverityLabel = (severity: Diagnostic["severity"]): string => {
 	if (severity === "error") return "ERROR";
@@ -47,10 +45,7 @@ const toLocationLabel = (diagnostic: Diagnostic): string => {
 	return `${diagnostic.filePath}${line}${column}`;
 };
 
-export const renderDiagnostics = (
-	diagnostics: Diagnostic[],
-	verbose: boolean,
-): string => {
+export const renderDiagnostics = (diagnostics: Diagnostic[], verbose: boolean): string => {
 	const lines: string[] = [];
 	const byEngine = groupBy(diagnostics, (d) => d.engine);
 
@@ -60,10 +55,8 @@ export const renderDiagnostics = (
 
 		const byRule = groupBy(engineDiags, (d) => `${d.rule}:${d.message}`);
 		const sorted = [...byRule.entries()].sort(([, a], [, b]) => {
-			const sa =
-				a[0].severity === "error" ? 0 : a[0].severity === "warning" ? 1 : 2;
-			const sb =
-				b[0].severity === "error" ? 0 : b[0].severity === "warning" ? 1 : 2;
+			const sa = a[0].severity === "error" ? 0 : a[0].severity === "warning" ? 1 : 2;
+			const sb = b[0].severity === "error" ? 0 : b[0].severity === "warning" ? 1 : 2;
 			return sa - sb;
 		});
 
@@ -106,25 +99,19 @@ export const renderSummary = (
 	thresholds: { good: number; ok: number },
 ): string => {
 	const errorCount = diagnostics.filter((d) => d.severity === "error").length;
-	const warningCount = diagnostics.filter(
-		(d) => d.severity === "warning",
-	).length;
+	const warningCount = diagnostics.filter((d) => d.severity === "warning").length;
 	const fixableCount = diagnostics.filter((d) => d.fixable).length;
 	const elapsed = toElapsedLabel(elapsedMs);
 
 	const lines = [
-		highlighter.dim(
-			"------------------------------------------------------------",
-		),
+		highlighter.dim("------------------------------------------------------------"),
 		highlighter.bold("Summary"),
 		`  Score: ${colorByScore(`${scoreResult.score}/${PERFECT_SCORE}`, scoreResult.score, thresholds)} ${colorByScore(`(${scoreResult.label})`, scoreResult.score, thresholds)}`,
 		`  Issues: ${highlighter.error(`${errorCount} error${errorCount === 1 ? "" : "s"}`)}, ${highlighter.warn(`${warningCount} warning${warningCount === 1 ? "" : "s"}`)}`,
 		`  Auto-fixable: ${highlighter.info(String(fixableCount))}`,
 		`  Files: ${highlighter.info(String(fileCount))}`,
 		`  Time: ${highlighter.info(elapsed)}`,
-		highlighter.dim(
-			"------------------------------------------------------------",
-		),
+		highlighter.dim("------------------------------------------------------------"),
 	];
 
 	return `${lines.join("\n")}\n`;
@@ -135,22 +122,15 @@ export const printEngineStatus = (result: EngineResult): void => {
 	const elapsed = toElapsedLabel(result.elapsed);
 
 	if (result.skipped) {
-		logger.warn(
-			`  ! ${label}: skipped${result.skipReason ? ` (${result.skipReason})` : ""}`,
-		);
+		logger.warn(`  ! ${label}: skipped${result.skipReason ? ` (${result.skipReason})` : ""}`);
 	} else if (result.diagnostics.length === 0) {
 		logger.success(`  ✓ ${label}: done (0 issues, ${elapsed})`);
 	} else {
-		const errors = result.diagnostics.filter(
-			(d) => d.severity === "error",
-		).length;
-		const warnings = result.diagnostics.filter(
-			(d) => d.severity === "warning",
-		).length;
+		const errors = result.diagnostics.filter((d) => d.severity === "error").length;
+		const warnings = result.diagnostics.filter((d) => d.severity === "warning").length;
 		const parts: string[] = [];
 		if (errors > 0) parts.push(`${errors} error${errors === 1 ? "" : "s"}`);
-		if (warnings > 0)
-			parts.push(`${warnings} warning${warnings === 1 ? "" : "s"}`);
+		if (warnings > 0) parts.push(`${warnings} warning${warnings === 1 ? "" : "s"}`);
 		const statusText = `${parts.join(", ")}, ${elapsed}`;
 
 		if (errors > 0) {

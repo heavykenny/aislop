@@ -126,9 +126,7 @@ const applyForbidImportFromPath = (
 	if (!minimatch(relativePath, rule.from)) return [];
 	return imports
 		.filter(
-			(imp) =>
-				minimatch(imp, rule.forbid!) ||
-				imp.includes(rule.forbid!.replace(/\*\*/g, "")),
+			(imp) => minimatch(imp, rule.forbid!) || imp.includes(rule.forbid!.replace(/\*\*/g, "")),
 		)
 		.map((imp) => ({
 			filePath: relativePath,

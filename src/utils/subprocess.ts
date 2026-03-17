@@ -44,20 +44,14 @@ export const runSubprocess = (
 				child.kill("SIGTERM");
 				setTimeout(() => child.kill("SIGKILL"), 1000).unref();
 				finalize(() =>
-					reject(
-						new Error(
-							`Command timed out after ${options.timeout}ms: ${command}`,
-						),
-					),
+					reject(new Error(`Command timed out after ${options.timeout}ms: ${command}`)),
 				);
 			}, options.timeout);
 			timer.unref();
 		}
 
 		child.once("error", (error) =>
-			finalize(() =>
-				reject(new Error(`Failed to run ${command}: ${error.message}`)),
-			),
+			finalize(() => reject(new Error(`Failed to run ${command}: ${error.message}`))),
 		);
 		child.once("close", (code) => {
 			finalize(() =>

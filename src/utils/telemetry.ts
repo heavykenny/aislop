@@ -48,10 +48,7 @@ interface TelemetryEvent {
  */
 export const isTelemetryDisabled = (configEnabled?: boolean): boolean => {
 	// Explicit env var opt-out
-	if (
-		process.env.AISLOP_NO_TELEMETRY === "1" ||
-		process.env.DO_NOT_TRACK === "1"
-	) {
+	if (process.env.AISLOP_NO_TELEMETRY === "1" || process.env.DO_NOT_TRACK === "1") {
 		return true;
 	}
 

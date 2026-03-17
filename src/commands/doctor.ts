@@ -5,18 +5,11 @@ import {
 	printCommandHeader,
 	printProjectMetadata,
 } from "../output/layout.js";
-import {
-	discoverProject,
-	type Language,
-	type ProjectInfo,
-} from "../utils/discover.js";
+import { discoverProject, type Language, type ProjectInfo } from "../utils/discover.js";
 import { logger } from "../utils/logger.js";
 import { isBundledTool, isNodePackageAvailable } from "../utils/tooling.js";
 
-const LANGUAGE_TOOLS: Record<
-	Language,
-	Array<{ name: string; purpose: string }>
-> = {
+const LANGUAGE_TOOLS: Record<Language, Array<{ name: string; purpose: string }>> = {
 	typescript: [
 		{ name: "oxlint", purpose: "Lint (JS/TS)" },
 		{ name: "biome", purpose: "Format (JS/TS)" },
@@ -63,11 +56,7 @@ const createToolReporter = (): {
 	let allGood = true;
 	const seenTools = new Set<string>();
 
-	const reportTool: ReportTool = (
-		name,
-		purpose,
-		options = { installed: false },
-	): void => {
+	const reportTool: ReportTool = (name, purpose, options = { installed: false }): void => {
 		if (seenTools.has(name)) return;
 		seenTools.add(name);
 
@@ -90,10 +79,7 @@ const reportBundledTools = (): void => {
 	logger.success("  ✓ knip (bundled)");
 };
 
-const reportLanguageTools = (
-	projectInfo: ProjectInfo,
-	reportTool: ReportTool,
-): void => {
+const reportLanguageTools = (projectInfo: ProjectInfo, reportTool: ReportTool): void => {
 	for (const lang of projectInfo.languages) {
 		for (const tool of LANGUAGE_TOOLS[lang] ?? []) {
 			if (tool.name === "oxlint" || tool.name === "biome") continue;
@@ -111,8 +97,7 @@ const reportJsAuditTool = (
 	reportTool: ReportTool,
 ): void => {
 	const hasJsLanguage =
-		projectInfo.languages.includes("typescript") ||
-		projectInfo.languages.includes("javascript");
+		projectInfo.languages.includes("typescript") || projectInfo.languages.includes("javascript");
 	if (!hasJsLanguage) return;
 
 	const hasPnpmLock = fs.existsSync(path.join(resolvedDir, "pnpm-lock.yaml"));
@@ -131,10 +116,7 @@ const reportJsAuditTool = (
 	}
 };
 
-const reportFrameworkTools = (
-	projectInfo: ProjectInfo,
-	reportTool: ReportTool,
-): void => {
+const reportFrameworkTools = (projectInfo: ProjectInfo, reportTool: ReportTool): void => {
 	if (!projectInfo.frameworks.includes("expo")) return;
 	const hasExpoDoctor = isNodePackageAvailable("expo-doctor");
 	reportTool("expo-doctor", "Expo project health checks", {
