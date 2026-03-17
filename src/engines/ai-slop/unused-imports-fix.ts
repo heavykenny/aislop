@@ -36,8 +36,9 @@ export const fixUnusedImports = async (context: EngineContext): Promise<void> =>
 		for (const [lineNo, syms] of symbolsByLine) {
 			const lineIdx = lineNo - 1;
 			const allUnused = syms.every((s) => unusedNames.has(s.name));
-
-			const importSpan = getImportSpan(lineIdx, analysis.importLines);
+			const importSpan = JS_EXTENSIONS.has(analysis.ext)
+				? getJsImportSpan(lines, lineIdx)
+				: [lineIdx];
 
 			if (allUnused) {
 				for (const idx of importSpan) {
@@ -67,11 +68,17 @@ export const fixUnusedImports = async (context: EngineContext): Promise<void> =>
 	}
 };
 
-const getImportSpan = (startIdx: number, importLines: Set<number>): number[] => {
+const getJsImportSpan = (lines: string[], startIdx: number): number[] => {
 	const span = [startIdx];
+	let fullImport = lines[startIdx]?.trim() ?? "";
+	if (!fullImport.startsWith("import ")) {
+		return span;
+	}
+
 	let idx = startIdx + 1;
-	while (importLines.has(idx)) {
+	while (!fullImport.includes("from") && idx < lines.length) {
 		span.push(idx);
+		fullImport += ` ${lines[idx].trim()}`;
 		idx++;
 	}
 	return span;
