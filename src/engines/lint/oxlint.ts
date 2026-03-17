@@ -151,7 +151,7 @@ export const fixOxlint = async (context: EngineContext): Promise<void> => {
 		fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
 
 		const binary = resolveOxlintBinary();
-		const args = [binary, "-c", configPath, "--fix", "."];
+		const args = [binary, "-c", configPath, "--fix", "--fix-suggestions", "."];
 
 		const result = await runSubprocess(process.execPath, args, {
 			cwd: context.rootDirectory,

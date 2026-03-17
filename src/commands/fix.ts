@@ -8,6 +8,10 @@ import {
 	fixUnusedDependencies,
 	runKnipDependencyCheck,
 } from "../engines/code-quality/knip.js";
+import {
+	detectUnusedImports,
+} from "../engines/ai-slop/unused-imports.js";
+import { fixUnusedImports } from "../engines/ai-slop/unused-imports-fix.js";
 import { fixOxlint, runOxlint } from "../engines/lint/oxlint.js";
 import { fixRuffLint, runRuffLint } from "../engines/lint/ruff.js";
 import type { Diagnostic, EngineContext } from "../engines/types.js";
@@ -236,6 +240,17 @@ export const fixCommand = async (
 	printProjectMetadata(projectInfo);
 	const context = createEngineContext(resolvedDir, projectInfo, config);
 	const steps: FixStepResult[] = [];
+
+	if (config.engines["ai-slop"]) {
+		steps.push(
+			await runFixStep(
+				"Unused imports",
+				() => detectUnusedImports(context),
+				() => fixUnusedImports(context),
+				options,
+			),
+		);
+	}
 
 	if (config.engines.format) {
 		if (
