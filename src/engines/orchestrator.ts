@@ -5,12 +5,7 @@ import { codeQualityEngine } from "./code-quality/index.js";
 import { formatEngine } from "./format/index.js";
 import { lintEngine } from "./lint/index.js";
 import { securityEngine } from "./security/index.js";
-import type {
-	Engine,
-	EngineContext,
-	EngineName,
-	EngineResult,
-} from "./types.js";
+import type { Engine, EngineContext, EngineName, EngineResult } from "./types.js";
 
 const ALL_ENGINES: Engine[] = [
 	formatEngine,
@@ -61,8 +56,7 @@ export const runEngines = async (
 					diagnostics: [],
 					elapsed: 0,
 					skipped: true,
-					skipReason:
-						r.reason instanceof Error ? r.reason.message : String(r.reason),
+					skipReason: r.reason instanceof Error ? r.reason.message : String(r.reason),
 				},
 	);
 };

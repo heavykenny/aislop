@@ -53,9 +53,7 @@ const SWALLOWED_EXCEPTION_PATTERNS: Array<{
 	},
 ];
 
-export const detectSwallowedExceptions = async (
-	context: EngineContext,
-): Promise<Diagnostic[]> => {
+export const detectSwallowedExceptions = async (context: EngineContext): Promise<Diagnostic[]> => {
 	const files = getSourceFiles(context);
 	const diagnostics: Diagnostic[] = [];
 
@@ -72,11 +70,7 @@ export const detectSwallowedExceptions = async (
 		const relativePath = path.relative(context.rootDirectory, filePath);
 
 		// Check swallowed exceptions
-		for (const {
-			pattern,
-			languages,
-			message,
-		} of SWALLOWED_EXCEPTION_PATTERNS) {
+		for (const { pattern, languages, message } of SWALLOWED_EXCEPTION_PATTERNS) {
 			if (!languages.includes(ext)) continue;
 
 			let match: RegExpExecArray | null;

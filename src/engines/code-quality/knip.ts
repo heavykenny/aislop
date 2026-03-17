@@ -47,15 +47,10 @@ const DEPENDENCY_TYPES = [
 	"binaries",
 ] as const;
 
-const isDependencyType = (
-	type: string,
-): type is (typeof DEPENDENCY_TYPES)[number] =>
+const isDependencyType = (type: string): type is (typeof DEPENDENCY_TYPES)[number] =>
 	(DEPENDENCY_TYPES as readonly string[]).includes(type);
 
-const getIssueItems = (
-	fileIssue: KnipFileIssue,
-	issueType: string,
-): KnipIssueItem[] => {
+const getIssueItems = (fileIssue: KnipFileIssue, issueType: string): KnipIssueItem[] => {
 	const items = fileIssue[issueType as keyof KnipFileIssue];
 	return Array.isArray(items) ? items : [];
 };
@@ -67,10 +62,8 @@ const DEPENDENCY_HELP: Record<string, string> = {
 		"This package is listed in package.json but not imported anywhere. Remove it with `npm uninstall` or `aislop fix`.",
 	unlisted:
 		"This package is imported in code but not declared in package.json. Run `npm install` to add it.",
-	unresolved:
-		"This import cannot be resolved. Check for typos or missing packages.",
-	binaries:
-		"This binary is used but its package is not in package.json.",
+	unresolved: "This import cannot be resolved. Check for typos or missing packages.",
+	binaries: "This binary is used but its package is not in package.json.",
 };
 
 const collectIssues = (
@@ -83,12 +76,8 @@ const collectIssues = (
 	const issues = getIssueItems(fileIssue, issueType);
 	const isDepType = isDependencyType(issueType);
 	const category = isDepType ? "Dependencies" : "Dead Code";
-	const severity =
-		issueType === "unlisted" || issueType === "unresolved"
-			? "error"
-			: "warning";
-	const fixable =
-		issueType === "dependencies" || issueType === "devDependencies";
+	const severity = issueType === "unlisted" || issueType === "unresolved" ? "error" : "warning";
+	const fixable = issueType === "dependencies" || issueType === "devDependencies";
 	const help = DEPENDENCY_HELP[issueType] ?? "";
 
 	for (const issue of issues) {
@@ -151,18 +140,12 @@ const findKnipBin = (
 	return null;
 };
 
-export const runKnipDependencyCheck = async (
-	rootDirectory: string,
-): Promise<Diagnostic[]> => {
+export const runKnipDependencyCheck = async (rootDirectory: string): Promise<Diagnostic[]> => {
 	const all = await runKnip(rootDirectory);
-	return all.filter(
-		(d) => d.rule === "knip/dependencies" || d.rule === "knip/devDependencies",
-	);
+	return all.filter((d) => d.rule === "knip/dependencies" || d.rule === "knip/devDependencies");
 };
 
-export const fixUnusedDependencies = async (
-	rootDirectory: string,
-): Promise<void> => {
+export const fixUnusedDependencies = async (rootDirectory: string): Promise<void> => {
 	const diagnostics = await runKnipDependencyCheck(rootDirectory);
 	if (diagnostics.length === 0) return;
 
@@ -212,13 +195,7 @@ export const runKnip = async (rootDirectory: string): Promise<Diagnostic[]> => {
 	if (!knipRuntime) return [];
 
 	try {
-		const args = [
-			knipRuntime.binPath,
-			"--no-progress",
-			"--reporter",
-			"json",
-			"--no-exit-code",
-		];
+		const args = [knipRuntime.binPath, "--no-progress", "--reporter", "json", "--no-exit-code"];
 		const result = await runSubprocess(process.execPath, args, {
 			cwd: knipRuntime.cwd,
 			timeout: 20000,
@@ -231,10 +208,7 @@ export const runKnip = async (rootDirectory: string): Promise<Diagnostic[]> => {
 		const files = parsed.files ?? [];
 		for (const unusedFile of files) {
 			diagnostics.push({
-				filePath: path.relative(
-					rootDirectory,
-					path.resolve(knipRuntime.cwd, unusedFile),
-				),
+				filePath: path.relative(rootDirectory, path.resolve(knipRuntime.cwd, unusedFile)),
 				engine: "code-quality",
 				rule: "knip/files",
 				severity: "warning",
@@ -248,17 +222,10 @@ export const runKnip = async (rootDirectory: string): Promise<Diagnostic[]> => {
 		}
 
 		const issues = parsed.issues ?? [];
-		const issueTypes = [
-			...DEPENDENCY_TYPES,
-			"exports",
-			"types",
-			"duplicates",
-		] as const;
+		const issueTypes = [...DEPENDENCY_TYPES, "exports", "types", "duplicates"] as const;
 		for (const fileIssue of issues) {
 			for (const type of issueTypes) {
-				diagnostics.push(
-					...collectIssues(fileIssue, type, rootDirectory, knipRuntime.cwd),
-				);
+				diagnostics.push(...collectIssues(fileIssue, type, rootDirectory, knipRuntime.cwd));
 			}
 		}
 

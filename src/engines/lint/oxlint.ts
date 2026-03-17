@@ -44,8 +44,7 @@ const detectTestFramework = (rootDir: string): TestFramework => {
 		const allDeps = { ...pkg.dependencies, ...pkg.devDependencies };
 
 		if (allDeps.vitest) return "vitest";
-		if (allDeps.jest || allDeps["ts-jest"] || allDeps["@jest/core"])
-			return "jest";
+		if (allDeps.jest || allDeps["ts-jest"] || allDeps["@jest/core"]) return "jest";
 		if (allDeps.mocha) return "mocha";
 
 		// Check for jest in config files
@@ -67,13 +66,8 @@ const detectTestFramework = (rootDir: string): TestFramework => {
 	return null;
 };
 
-export const runOxlint = async (
-	context: EngineContext,
-): Promise<Diagnostic[]> => {
-	const configPath = path.join(
-		os.tmpdir(),
-		`aislop-oxlintrc-${process.pid}.json`,
-	);
+export const runOxlint = async (context: EngineContext): Promise<Diagnostic[]> => {
+	const configPath = path.join(os.tmpdir(), `aislop-oxlintrc-${process.pid}.json`);
 	const framework = context.frameworks.find((f) => f !== "none");
 	const testFramework = detectTestFramework(context.rootDirectory);
 	const config = createOxlintConfig({ framework, testFramework });
@@ -85,10 +79,7 @@ export const runOxlint = async (
 		const args = [binary, "-c", configPath, "--format", "json"];
 
 		const hasTs = context.languages.includes("typescript");
-		if (
-			hasTs &&
-			fs.existsSync(path.join(context.rootDirectory, "tsconfig.json"))
-		) {
+		if (hasTs && fs.existsSync(path.join(context.rootDirectory, "tsconfig.json"))) {
 			args.push("--tsconfig", "./tsconfig.json");
 		}
 
@@ -117,17 +108,11 @@ export const runOxlint = async (
 				engine: "lint" as const,
 				rule: `${plugin}/${rule}`,
 				severity: d.severity,
-				message:
-					d.message.replace(/\S+\.\w+:\d+:\d+[\s\S]*$/, "").trim() || d.message,
+				message: d.message.replace(/\S+\.\w+:\d+:\d+[\s\S]*$/, "").trim() || d.message,
 				help: d.help || "",
 				line: label?.span.line ?? 0,
 				column: label?.span.column ?? 0,
-				category:
-					plugin === "react"
-						? "React"
-						: plugin === "import"
-							? "Imports"
-							: "Lint",
+				category: plugin === "react" ? "React" : plugin === "import" ? "Imports" : "Lint",
 				fixable: false,
 			};
 		});
@@ -139,10 +124,7 @@ export const runOxlint = async (
 };
 
 export const fixOxlint = async (context: EngineContext): Promise<void> => {
-	const configPath = path.join(
-		os.tmpdir(),
-		`aislop-oxlintrc-fix-${process.pid}.json`,
-	);
+	const configPath = path.join(os.tmpdir(), `aislop-oxlintrc-fix-${process.pid}.json`);
 	const framework = context.frameworks.find((f) => f !== "none");
 	const testFramework = detectTestFramework(context.rootDirectory);
 	const config = createOxlintConfig({ framework, testFramework });
@@ -151,7 +133,7 @@ export const fixOxlint = async (context: EngineContext): Promise<void> => {
 		fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
 
 		const binary = resolveOxlintBinary();
-		const args = [binary, "-c", configPath, "--fix", "."];
+		const args = [binary, "-c", configPath, "--fix", "--fix-suggestions", "."];
 
 		const result = await runSubprocess(process.execPath, args, {
 			cwd: context.rootDirectory,
@@ -160,9 +142,7 @@ export const fixOxlint = async (context: EngineContext): Promise<void> => {
 
 		if (result.exitCode !== 0) {
 			throw new Error(
-				result.stderr ||
-					result.stdout ||
-					`Oxlint exited with code ${result.exitCode}`,
+				result.stderr || result.stdout || `Oxlint exited with code ${result.exitCode}`,
 			);
 		}
 	} finally {

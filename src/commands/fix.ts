@@ -1,13 +1,12 @@
 import path from "node:path";
 import { performance } from "node:perf_hooks";
 import type { AislopConfig } from "../config/index.js";
+import { detectUnusedImports } from "../engines/ai-slop/unused-imports.js";
+import { fixUnusedImports } from "../engines/ai-slop/unused-imports-fix.js";
+import { fixUnusedDependencies, runKnipDependencyCheck } from "../engines/code-quality/knip.js";
 import { fixBiomeFormat, runBiomeFormat } from "../engines/format/biome.js";
 import { fixGofmt, runGofmt } from "../engines/format/gofmt.js";
 import { fixRuffFormat, runRuffFormat } from "../engines/format/ruff-format.js";
-import {
-	fixUnusedDependencies,
-	runKnipDependencyCheck,
-} from "../engines/code-quality/knip.js";
 import { fixOxlint, runOxlint } from "../engines/lint/oxlint.js";
 import { fixRuffLint, runRuffLint } from "../engines/lint/ruff.js";
 import type { Diagnostic, EngineContext } from "../engines/types.js";
@@ -17,7 +16,7 @@ import {
 	printCommandHeader,
 	printProjectMetadata,
 } from "../output/layout.js";
-import { printMaybePaged } from "../output/pager.js";
+
 import { discoverProject } from "../utils/discover.js";
 import { highlighter } from "../utils/highlighter.js";
 import { logger } from "../utils/logger.js";
@@ -42,14 +41,9 @@ const uniqueFiles = (diagnostics: Diagnostic[]): string[] => [
 	...new Set(diagnostics.map((d) => d.filePath)),
 ];
 
-const uniqueFileCount = (diagnostics: Diagnostic[]): number =>
-	uniqueFiles(diagnostics).length;
+const uniqueFileCount = (diagnostics: Diagnostic[]): number => uniqueFiles(diagnostics).length;
 
-const getFilePreviewLines = (
-	title: string,
-	files: string[],
-	verbose: boolean,
-): string[] => {
+const getFilePreviewLines = (title: string, files: string[], verbose: boolean): string[] => {
 	if (files.length === 0) return [];
 
 	const lines = [highlighter.dim(`    ${title}: ${files.length} file(s)`)];
@@ -59,28 +53,19 @@ const getFilePreviewLines = (
 	}
 	if (!verbose && files.length > preview.length) {
 		lines.push(
-			highlighter.dim(
-				`      +${files.length - preview.length} more file(s), use -d for full list`,
-			),
+			highlighter.dim(`      +${files.length - preview.length} more file(s), use -d for full list`),
 		);
 	}
 
 	return lines;
 };
 
-const getReasonLines = (
-	reason: string,
-): { firstLine: string; printable: string } => {
-	const firstLine =
-		reason.split("\n").find((line) => line.trim().length > 0) ?? reason;
+const getReasonLines = (reason: string): { firstLine: string; printable: string } => {
+	const firstLine = reason.split("\n").find((line) => line.trim().length > 0) ?? reason;
 	return { firstLine, printable: reason };
 };
 
-const getStepStatusLine = (
-	result: FixStepResult,
-	name: string,
-	elapsedLabel: string,
-): string => {
+const getStepStatusLine = (result: FixStepResult, name: string, elapsedLabel: string): string => {
 	if (result.failed) {
 		return highlighter.error(
 			`  ✗ ${name}: failed (${result.afterIssues} issue${result.afterIssues === 1 ? "" : "s"} remain, ${elapsedLabel})`,
@@ -141,12 +126,9 @@ const runFixStep = async (
 	const lines = [getStepStatusLine(result, name, elapsedLabel)];
 
 	if (applyError) {
-		const reason =
-			applyError instanceof Error ? applyError.message : String(applyError);
+		const reason = applyError instanceof Error ? applyError.message : String(applyError);
 		const reasonLines = getReasonLines(reason);
-		const reasonToPrint = options.verbose
-			? reasonLines.printable
-			: reasonLines.firstLine;
+		const reasonToPrint = options.verbose ? reasonLines.printable : reasonLines.firstLine;
 		for (const line of reasonToPrint.split("\n")) {
 			lines.push(highlighter.dim(`      ${line}`));
 		}
@@ -155,16 +137,12 @@ const runFixStep = async (
 		}
 	}
 
-	lines.push(
-		...getFilePreviewLines("Affected", uniqueFiles(before), options.verbose),
-	);
+	lines.push(...getFilePreviewLines("Affected", uniqueFiles(before), options.verbose));
 	if (after.length > 0) {
-		lines.push(
-			...getFilePreviewLines("Remaining", uniqueFiles(after), options.verbose),
-		);
+		lines.push(...getFilePreviewLines("Remaining", uniqueFiles(after), options.verbose));
 	}
 
-	await printMaybePaged(`${lines.join("\n")}\n\n`);
+	process.stdout.write(`${lines.join("\n")}\n\n`);
 
 	return result;
 };
@@ -209,11 +187,7 @@ const summarizeFixRun = (steps: FixStepResult[]): void => {
 		);
 	}
 
-	if (
-		totals.failedSteps === 0 &&
-		totals.beforeIssues > 0 &&
-		totals.resolvedIssues === 0
-	) {
+	if (totals.failedSteps === 0 && totals.beforeIssues > 0 && totals.resolvedIssues === 0) {
 		logger.dim(
 			"  No auto-fixable changes were applied. Current findings are likely manual-fix categories.",
 		);
@@ -237,56 +211,18 @@ export const fixCommand = async (
 	const context = createEngineContext(resolvedDir, projectInfo, config);
 	const steps: FixStepResult[] = [];
 
-	if (config.engines.format) {
-		if (
-			projectInfo.languages.includes("typescript") ||
-			projectInfo.languages.includes("javascript")
-		) {
-			steps.push(
-				await runFixStep(
-					"JS/TS formatting",
-					() => runBiomeFormat(context),
-					() => fixBiomeFormat(context),
-					options,
-				),
-			);
-		}
+	// Phase 1: Code changes (imports, lint, dependencies)
+	// These modify file contents and must run before formatting.
 
-		if (
-			projectInfo.languages.includes("python") &&
-			projectInfo.installedTools.ruff
-		) {
-			steps.push(
-				await runFixStep(
-					"Python formatting",
-					() => runRuffFormat(context),
-					() => fixRuffFormat(resolvedDir),
-					options,
-				),
-			);
-		} else if (projectInfo.languages.includes("python")) {
-			logger.warn(
-				"  Python detected but ruff is not installed; skipping Python formatting fixes.",
-			);
-		}
-
-		if (
-			projectInfo.languages.includes("go") &&
-			projectInfo.installedTools.gofmt
-		) {
-			steps.push(
-				await runFixStep(
-					"Go formatting",
-					() => runGofmt(context),
-					() => fixGofmt(resolvedDir),
-					options,
-				),
-			);
-		} else if (projectInfo.languages.includes("go")) {
-			logger.warn(
-				"  Go detected but gofmt is not installed; skipping Go formatting fixes.",
-			);
-		}
+	if (config.engines["ai-slop"]) {
+		steps.push(
+			await runFixStep(
+				"Unused imports",
+				() => detectUnusedImports(context),
+				() => fixUnusedImports(context),
+				options,
+			),
+		);
 	}
 
 	if (config.engines.lint) {
@@ -304,10 +240,7 @@ export const fixCommand = async (
 			);
 		}
 
-		if (
-			projectInfo.languages.includes("python") &&
-			projectInfo.installedTools.ruff
-		) {
+		if (projectInfo.languages.includes("python") && projectInfo.installedTools.ruff) {
 			steps.push(
 				await runFixStep(
 					"Python lint fixes",
@@ -317,9 +250,7 @@ export const fixCommand = async (
 				),
 			);
 		} else if (projectInfo.languages.includes("python")) {
-			logger.warn(
-				"  Python detected but ruff is not installed; skipping Python lint fixes.",
-			);
+			logger.warn("  Python detected but ruff is not installed; skipping Python lint fixes.");
 		}
 	}
 
@@ -336,6 +267,50 @@ export const fixCommand = async (
 					options,
 				),
 			);
+		}
+	}
+
+	// Phase 2: Formatting (runs last to clean up after all code changes)
+
+	if (config.engines.format) {
+		if (
+			projectInfo.languages.includes("typescript") ||
+			projectInfo.languages.includes("javascript")
+		) {
+			steps.push(
+				await runFixStep(
+					"JS/TS formatting",
+					() => runBiomeFormat(context),
+					() => fixBiomeFormat(context),
+					options,
+				),
+			);
+		}
+
+		if (projectInfo.languages.includes("python") && projectInfo.installedTools.ruff) {
+			steps.push(
+				await runFixStep(
+					"Python formatting",
+					() => runRuffFormat(context),
+					() => fixRuffFormat(resolvedDir),
+					options,
+				),
+			);
+		} else if (projectInfo.languages.includes("python")) {
+			logger.warn("  Python detected but ruff is not installed; skipping Python formatting fixes.");
+		}
+
+		if (projectInfo.languages.includes("go") && projectInfo.installedTools.gofmt) {
+			steps.push(
+				await runFixStep(
+					"Go formatting",
+					() => runGofmt(context),
+					() => fixGofmt(resolvedDir),
+					options,
+				),
+			);
+		} else if (projectInfo.languages.includes("go")) {
+			logger.warn("  Go detected but gofmt is not installed; skipping Go formatting fixes.");
 		}
 	}
 

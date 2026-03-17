@@ -10,13 +10,9 @@ import {
 	printCommandHeader,
 	printProjectMetadata,
 } from "../output/layout.js";
-import { printMaybePaged } from "../output/pager.js";
+
 import { ScanProgressRenderer } from "../output/scan-progress.js";
-import {
-	printEngineStatus,
-	renderDiagnostics,
-	renderSummary,
-} from "../output/terminal.js";
+import { printEngineStatus, renderDiagnostics, renderSummary } from "../output/terminal.js";
 import { calculateScore } from "../scoring/index.js";
 import { discoverProject } from "../utils/discover.js";
 import { getChangedFiles, getStagedFiles } from "../utils/git.js";
@@ -24,11 +20,7 @@ import { highlighter } from "../utils/highlighter.js";
 import { logger } from "../utils/logger.js";
 import { filterProjectFiles } from "../utils/source-files.js";
 import { spinner } from "../utils/spinner.js";
-import {
-	getScoreBucket,
-	isTelemetryDisabled,
-	trackEvent,
-} from "../utils/telemetry.js";
+import { getScoreBucket, isTelemetryDisabled, trackEvent } from "../utils/telemetry.js";
 
 interface ScanOptions {
 	changes: boolean;
@@ -41,9 +33,7 @@ interface ScanOptions {
 }
 
 const shouldUseSpinner = (): boolean =>
-	Boolean(process.stderr.isTTY) &&
-	process.env.CI !== "true" &&
-	process.env.CI !== "1";
+	Boolean(process.stderr.isTTY) && process.env.CI !== "true" && process.env.CI !== "1";
 
 const ALL_ENGINE_NAMES = Object.keys(ENGINE_INFO) as EngineName[];
 
@@ -164,12 +154,7 @@ export const scanCommand = async (
 
 	if (options.json) {
 		const { buildJsonOutput } = await import("../output/json.js");
-		const jsonOut = buildJsonOutput(
-			results,
-			scoreResult,
-			projectInfo.sourceFileCount,
-			elapsedMs,
-		);
+		const jsonOut = buildJsonOutput(results, scoreResult, projectInfo.sourceFileCount, elapsedMs);
 		console.log(JSON.stringify(jsonOut, null, 2));
 		return { exitCode };
 	}
@@ -189,7 +174,7 @@ export const scanCommand = async (
 		"",
 	].join("\n");
 
-	await printMaybePaged(output);
+	process.stdout.write(output);
 
 	return { exitCode };
 };

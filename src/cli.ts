@@ -36,13 +36,7 @@ const program = new Command()
 			const config = loadConfig(directory);
 
 			// If no flags, show interactive menu (if TTY)
-			if (
-				!flags.changes &&
-				!flags.staged &&
-				!flags.verbose &&
-				!flags.json &&
-				process.stdin.isTTY
-			) {
+			if (!flags.changes && !flags.staged && !flags.verbose && !flags.json && process.stdin.isTTY) {
 				try {
 					await interactiveCommand(directory, config);
 					return;
@@ -51,12 +45,12 @@ const program = new Command()
 				}
 			}
 
-		const { exitCode } = await scanCommand(directory, config, {
-			changes: Boolean(flags.changes),
-			staged: Boolean(flags.staged),
-			verbose: Boolean(flags.verbose),
-			json: Boolean(flags.json),
-		});
+			const { exitCode } = await scanCommand(directory, config, {
+				changes: Boolean(flags.changes),
+				staged: Boolean(flags.staged),
+				verbose: Boolean(flags.verbose),
+				json: Boolean(flags.json),
+			});
 
 			if (exitCode !== 0) {
 				await flushTelemetry();

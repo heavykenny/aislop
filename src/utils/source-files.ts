@@ -69,38 +69,27 @@ const AUTO_GENERATED_PATTERNS = [
 ];
 
 const toProjectPath = (rootDirectory: string, filePath: string): string => {
-	const absolutePath = path.isAbsolute(filePath)
-		? filePath
-		: path.resolve(rootDirectory, filePath);
+	const absolutePath = path.isAbsolute(filePath) ? filePath : path.resolve(rootDirectory, filePath);
 	return path.relative(rootDirectory, absolutePath).split(path.sep).join("/");
 };
 
 const isWithinProject = (relativePath: string): boolean =>
 	relativePath.length > 0 && !relativePath.startsWith("..");
 
-const hasAllowedExtension = (
-	filePath: string,
-	extraExtensions: Set<string>,
-): boolean => {
+const hasAllowedExtension = (filePath: string, extraExtensions: Set<string>): boolean => {
 	const extension = path.extname(filePath);
 	return SOURCE_EXTENSIONS.has(extension) || extraExtensions.has(extension);
 };
 
 const isExcludedPath = (filePath: string): boolean =>
 	EXCLUDED_DIRS.some(
-		(dir) =>
-			filePath === dir ||
-			filePath.startsWith(`${dir}/`) ||
-			filePath.includes(`/${dir}/`),
+		(dir) => filePath === dir || filePath.startsWith(`${dir}/`) || filePath.includes(`/${dir}/`),
 	);
 
 const isTestFile = (filePath: string): boolean =>
 	TEST_FILE_PATTERNS.some((pattern) => pattern.test(filePath));
 
-const getIgnoredPaths = (
-	rootDirectory: string,
-	files: string[],
-): Set<string> => {
+const getIgnoredPaths = (rootDirectory: string, files: string[]): Set<string> => {
 	if (files.length === 0) return new Set<string>();
 
 	const result = spawnSync("git", ["check-ignore", "--no-index", "--stdin"], {
@@ -123,15 +112,11 @@ const getIgnoredPaths = (
 };
 
 const listProjectFiles = (rootDirectory: string): string[] => {
-	const result = spawnSync(
-		"git",
-		["ls-files", "--cached", "--others", "--exclude-standard"],
-		{
-			cwd: rootDirectory,
-			encoding: "utf-8",
-			maxBuffer: MAX_BUFFER,
-		},
-	);
+	const result = spawnSync("git", ["ls-files", "--cached", "--others", "--exclude-standard"], {
+		cwd: rootDirectory,
+		encoding: "utf-8",
+		maxBuffer: MAX_BUFFER,
+	});
 
 	if (!result.error && result.status === 0) {
 		return result.stdout.split("\n").filter((file) => file.length > 0);
@@ -172,9 +157,7 @@ export const filterProjectFiles = (
 	const extraSet = new Set(extraExtensions);
 	const normalizedFiles = files
 		.map((file) => {
-			const absolutePath = path.isAbsolute(file)
-				? file
-				: path.resolve(rootDirectory, file);
+			const absolutePath = path.isAbsolute(file) ? file : path.resolve(rootDirectory, file);
 			const relativePath = toProjectPath(rootDirectory, absolutePath);
 			return { absolutePath, relativePath };
 		})
@@ -205,16 +188,13 @@ const filterExplicitFiles = (
 
 	return files
 		.map((file) => {
-			const absolutePath = path.isAbsolute(file)
-				? file
-				: path.resolve(rootDirectory, file);
+			const absolutePath = path.isAbsolute(file) ? file : path.resolve(rootDirectory, file);
 			const relativePath = toProjectPath(rootDirectory, absolutePath);
 			return { absolutePath, relativePath };
 		})
 		.filter(
 			({ relativePath }) =>
-				isWithinProject(relativePath) &&
-				hasAllowedExtension(relativePath, extraSet),
+				isWithinProject(relativePath) && hasAllowedExtension(relativePath, extraSet),
 		)
 		.map(({ absolutePath }) => absolutePath);
 };
@@ -248,11 +228,7 @@ export const getSourceFilesWithExtras = (
 	extraExtensions: string[],
 ): string[] => {
 	if (context.files) {
-		return filterExplicitFiles(
-			context.rootDirectory,
-			context.files,
-			extraExtensions,
-		);
+		return filterExplicitFiles(context.rootDirectory, context.files, extraExtensions);
 	}
 
 	return filterProjectFiles(

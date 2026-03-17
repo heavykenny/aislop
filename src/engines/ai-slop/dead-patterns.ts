@@ -5,8 +5,7 @@ import type { Diagnostic, EngineContext } from "../types.js";
 
 const JS_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"]);
 
-const CONSOLE_LOG_PATTERN =
-	/\bconsole\.(?:log|debug|info|trace|dir|table)\s*\(/;
+const CONSOLE_LOG_PATTERN = /\bconsole\.(?:log|debug|info|trace|dir|table)\s*\(/;
 
 // Files that are intentionally logging infrastructure (not leftover debugging)
 const LOGGER_FILE_PATTERN = /(?:^|\/)(?:logger|logging|log)\.[^/]+$/i;
@@ -63,10 +62,7 @@ const TODO_PATTERN = new RegExp(
 	"i",
 );
 
-const detectTodoStubs = (
-	content: string,
-	relativePath: string,
-): Diagnostic[] => {
+const detectTodoStubs = (content: string, relativePath: string): Diagnostic[] => {
 	const diagnostics: Diagnostic[] = [];
 	const lines = content.split("\n");
 
@@ -155,8 +151,7 @@ const detectDeadCodePatterns = (
 				engine: "ai-slop",
 				rule: "ai-slop/constant-condition",
 				severity: "warning",
-				message:
-					"Conditional with a constant value — likely debugging leftover",
+				message: "Conditional with a constant value — likely debugging leftover",
 				help: "Remove the constant condition or replace with proper logic",
 				line: i + 1,
 				column: 0,
@@ -177,8 +172,7 @@ const detectDeadCodePatterns = (
 				engine: "ai-slop",
 				rule: "ai-slop/empty-function",
 				severity: "info",
-				message:
-					"Empty function body — possible stub or unfinished implementation",
+				message: "Empty function body — possible stub or unfinished implementation",
 				help: "Implement the function body or add a comment explaining why it's empty",
 				line: i + 1,
 				column: 0,
@@ -193,9 +187,7 @@ const detectDeadCodePatterns = (
 
 // Build regex patterns with concatenation to avoid self-detection
 const asAnyPattern = new RegExp(`\\b${"a" + "s"}\\s+${"an" + "y"}\\b`);
-const doubleAssertPattern = new RegExp(
-	`\\b${"a" + "s"}\\s+${"unkn" + "own"}\\s+${"a" + "s"}\\s+`,
-);
+const doubleAssertPattern = new RegExp(`\\b${"a" + "s"}\\s+${"unkn" + "own"}\\s+${"a" + "s"}\\s+`);
 
 const detectUnsafeTypePatterns = (
 	content: string,
@@ -220,8 +212,7 @@ const detectUnsafeTypePatterns = (
 				engine: "ai-slop",
 				rule: "ai-slop/ts-directive",
 				severity: "info",
-				message:
-					"@ts-ignore/@ts-expect-error suppresses type checking — review if still needed",
+				message: "@ts-ignore/@ts-expect-error suppresses type checking — review if still needed",
 				help: "Fix the underlying type issue instead of suppressing the error",
 				line: i + 1,
 				column: 0,
@@ -271,9 +262,7 @@ const detectUnsafeTypePatterns = (
 	return diagnostics;
 };
 
-export const detectDeadPatterns = async (
-	context: EngineContext,
-): Promise<Diagnostic[]> => {
+export const detectDeadPatterns = async (context: EngineContext): Promise<Diagnostic[]> => {
 	const files = getSourceFiles(context);
 	const diagnostics: Diagnostic[] = [];
 

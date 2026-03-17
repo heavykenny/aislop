@@ -12,9 +12,9 @@ const resolvePackageRoot = (startFile: string): string => {
 		const packageJsonPath = path.join(current, "package.json");
 		if (fs.existsSync(packageJsonPath)) {
 			try {
-				const packageJson = JSON.parse(
-					fs.readFileSync(packageJsonPath, "utf-8"),
-				) as { name?: string };
+				const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf-8")) as {
+					name?: string;
+				};
 				if (packageJson.name === "aislop") {
 					return current;
 				}
@@ -48,8 +48,7 @@ const getBundledToolPath = (toolName: string): string | null => {
 export const resolveToolBinary = (toolName: string): string =>
 	getBundledToolPath(toolName) ?? toolName;
 
-export const isBundledTool = (toolName: string): boolean =>
-	getBundledToolPath(toolName) !== null;
+export const isBundledTool = (toolName: string): boolean => getBundledToolPath(toolName) !== null;
 
 export const isToolAvailable = async (toolName: string): Promise<boolean> => {
 	if (isBundledTool(toolName)) return true;

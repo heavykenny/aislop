@@ -14,13 +14,12 @@ interface ProjectMetadataInfo {
 }
 
 export const formatElapsed = (elapsedMs: number): string =>
-	elapsedMs < 1000
-		? `${Math.round(elapsedMs)}ms`
-		: `${(elapsedMs / 1000).toFixed(1)}s`;
+	elapsedMs < 1000 ? `${Math.round(elapsedMs)}ms` : `${(elapsedMs / 1000).toFixed(1)}s`;
 
 export const printCommandHeader = (commandName: string): void => {
-	logger.log(highlighter.bold(`aislop ${commandName}`));
-	logger.log(highlighter.dim(`v${APP_VERSION}`));
+	logger.log(
+		`${highlighter.bold(`aislop ${commandName.toLowerCase()}`)} ${highlighter.dim(`v${APP_VERSION}`)}`,
+	);
 	logger.break();
 };
 
@@ -28,12 +27,8 @@ export const formatProjectSummary = (project: ProjectSummaryInfo): string =>
 	`Project ${highlighter.info(project.projectName)} (${highlighter.info(project.languages.join(", "))})`;
 
 export const printProjectMetadata = (project: ProjectMetadataInfo): void => {
-	logger.log(
-		`  Source files: ${highlighter.info(String(project.sourceFileCount))}`,
-	);
-	const frameworks = project.frameworks.filter(
-		(framework) => framework !== "none",
-	);
+	logger.log(`  Source files: ${highlighter.info(String(project.sourceFileCount))}`);
+	const frameworks = project.frameworks.filter((framework) => framework !== "none");
 	if (frameworks.length > 0) {
 		logger.log(`  Frameworks: ${highlighter.info(frameworks.join(", "))}`);
 	}

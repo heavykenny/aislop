@@ -35,14 +35,7 @@ const runBiome = async (
 	});
 };
 
-const BIOME_EXTENSIONS = new Set([
-	".js",
-	".jsx",
-	".ts",
-	".tsx",
-	".mjs",
-	".cjs",
-]);
+const BIOME_EXTENSIONS = new Set([".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"]);
 
 const getBiomeTargets = (context: EngineContext): string[] =>
 	getSourceFiles(context)
@@ -60,9 +53,7 @@ const projectUsesDecorators = (rootDir: string): boolean => {
 	}
 };
 
-export const runBiomeFormat = async (
-	context: EngineContext,
-): Promise<Diagnostic[]> => {
+export const runBiomeFormat = async (context: EngineContext): Promise<Diagnostic[]> => {
 	const targets = getBiomeTargets(context);
 	if (targets.length === 0) return [];
 	const args = ["format", "--reporter=json", ...targets];
@@ -104,10 +95,7 @@ interface BiomeJsonPayload {
 	diagnostics?: BiomeJsonDiagnostic[];
 }
 
-const parseBiomeJsonOutput = (
-	output: string,
-	rootDir: string,
-): Diagnostic[] => {
+const parseBiomeJsonOutput = (output: string, rootDir: string): Diagnostic[] => {
 	const diagnostics: Diagnostic[] = [];
 	for (const line of output.split("\n")) {
 		const trimmed = line.trim();
@@ -126,9 +114,7 @@ const parseBiomeJsonOutput = (
 			if (!rawPath) continue;
 			const severity = entry.severity === "error" ? "error" : "warning";
 			diagnostics.push({
-				filePath: path.isAbsolute(rawPath)
-					? path.relative(rootDir, rawPath)
-					: rawPath,
+				filePath: path.isAbsolute(rawPath) ? path.relative(rootDir, rawPath) : rawPath,
 				engine: "format",
 				rule: "formatting",
 				severity,
@@ -148,22 +134,5 @@ export const fixBiomeFormat = async (context: EngineContext): Promise<void> => {
 	const targets = getBiomeTargets(context);
 	if (targets.length === 0) return;
 
-	const result = await runBiome(
-		[
-			"check",
-			"--write",
-			"--formatter-enabled=true",
-			"--linter-enabled=false",
-			...targets,
-		],
-		context.rootDirectory,
-		60000,
-	);
-	if (result.exitCode !== 0) {
-		throw new Error(
-			result.stderr ||
-				result.stdout ||
-				`Biome exited with code ${result.exitCode}`,
-		);
-	}
+	await runBiome(["format", "--write", ...targets], context.rootDirectory, 60000);
 };

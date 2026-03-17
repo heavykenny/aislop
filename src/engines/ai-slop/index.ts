@@ -1,9 +1,4 @@
-import type {
-	Diagnostic,
-	Engine,
-	EngineContext,
-	EngineResult,
-} from "../types.js";
+import type { Diagnostic, Engine, EngineContext, EngineResult } from "../types.js";
 import { detectOverAbstraction } from "./abstractions.js";
 import { detectTrivialComments } from "./comments.js";
 import { detectDeadPatterns } from "./dead-patterns.js";

@@ -48,9 +48,7 @@ export const initCommand = async (directory: string): Promise<void> => {
 
 	logger.break();
 	logger.log("  Next steps:");
-	logger.dim(
-		"  1. Edit .aislop/config.yml to customize engines and thresholds",
-	);
+	logger.dim("  1. Edit .aislop/config.yml to customize engines and thresholds");
 	logger.dim("  2. Edit .aislop/rules.yml to add architecture rules");
 	logger.dim("  3. Run `aislop scan` to see your score");
 	logger.dim("  4. Add `aislop scan --staged` to your pre-commit hook");
