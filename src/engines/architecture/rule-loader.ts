@@ -17,9 +17,7 @@ interface RulesFile {
 	rules?: ArchitectureRule[];
 }
 
-export const loadArchitectureRules = (
-	rulesPath: string,
-): ArchitectureRule[] => {
+export const loadArchitectureRules = (rulesPath: string): ArchitectureRule[] => {
 	if (!fs.existsSync(rulesPath)) return [];
 
 	try {

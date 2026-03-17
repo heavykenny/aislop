@@ -9,19 +9,13 @@ interface GolangciIssue {
 	Pos: { Filename: string; Line: number; Column: number };
 }
 
-export const runGolangciLint = async (
-	context: EngineContext,
-): Promise<Diagnostic[]> => {
+export const runGolangciLint = async (context: EngineContext): Promise<Diagnostic[]> => {
 	const golangciBinary = resolveToolBinary("golangci-lint");
 	try {
-		const result = await runSubprocess(
-			golangciBinary,
-			["run", "--out-format=json", "./..."],
-			{
-				cwd: context.rootDirectory,
-				timeout: 120000,
-			},
-		);
+		const result = await runSubprocess(golangciBinary, ["run", "--out-format=json", "./..."], {
+			cwd: context.rootDirectory,
+			timeout: 120000,
+		});
 
 		const output = result.stdout;
 		if (!output) return [];

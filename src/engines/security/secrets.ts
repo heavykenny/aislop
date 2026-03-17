@@ -12,8 +12,7 @@ const SECRET_PATTERNS: Array<{ pattern: RegExp; name: string }> = [
 	// AWS
 	{ pattern: /AKIA[0-9A-Z]{16}/g, name: "AWS Access Key" },
 	{
-		pattern:
-			/(?:aws[_-]?secret|secret[_-]?key)\s*[:=]\s*["']([A-Za-z0-9/+=]{40})["']/gi,
+		pattern: /(?:aws[_-]?secret|secret[_-]?key)\s*[:=]\s*["']([A-Za-z0-9/+=]{40})["']/gi,
 		name: "AWS Secret Key",
 	},
 	// Generic secrets/passwords
@@ -47,14 +46,7 @@ const SECRET_PATTERNS: Array<{ pattern: RegExp; name: string }> = [
 	},
 ];
 
-const PLACEHOLDER_EXACT = new Set([
-	"changeme",
-	"password",
-	"secret",
-	"xxx",
-	"todo",
-	"replace_me",
-]);
+const PLACEHOLDER_EXACT = new Set(["changeme", "password", "secret", "xxx", "todo", "replace_me"]);
 
 const isPlaceholderValue = (matchedText: string): boolean => {
 	if (/env\(/i.test(matchedText)) return true;
@@ -67,16 +59,8 @@ const isPlaceholderValue = (matchedText: string): boolean => {
 	return false;
 };
 
-export const scanSecrets = async (
-	context: EngineContext,
-): Promise<Diagnostic[]> => {
-	const files = getSourceFilesWithExtras(context, [
-		".env",
-		".yaml",
-		".yml",
-		".json",
-		".toml",
-	]);
+export const scanSecrets = async (context: EngineContext): Promise<Diagnostic[]> => {
+	const files = getSourceFilesWithExtras(context, [".env", ".yaml", ".yml", ".json", ".toml"]);
 	const diagnostics: Diagnostic[] = [];
 
 	for (const filePath of files) {

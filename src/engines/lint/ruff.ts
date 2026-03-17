@@ -11,9 +11,7 @@ interface RuffDiagnostic {
 	fix?: { applicability: string };
 }
 
-export const runRuffLint = async (
-	context: EngineContext,
-): Promise<Diagnostic[]> => {
+export const runRuffLint = async (context: EngineContext): Promise<Diagnostic[]> => {
 	const ruffBinary = resolveToolBinary("ruff");
 	try {
 		const result = await runSubprocess(
@@ -51,19 +49,13 @@ export const runRuffLint = async (
 
 export const fixRuffLint = async (rootDirectory: string): Promise<void> => {
 	const ruffBinary = resolveToolBinary("ruff");
-	const result = await runSubprocess(
-		ruffBinary,
-		["check", "--fix", rootDirectory],
-		{
-			cwd: rootDirectory,
-			timeout: 60000,
-		},
-	);
+	const result = await runSubprocess(ruffBinary, ["check", "--fix", rootDirectory], {
+		cwd: rootDirectory,
+		timeout: 60000,
+	});
 	if (result.exitCode !== 0) {
 		throw new Error(
-			result.stderr ||
-				result.stdout ||
-				`ruff check --fix exited with code ${result.exitCode}`,
+			result.stderr || result.stdout || `ruff check --fix exited with code ${result.exitCode}`,
 		);
 	}
 };

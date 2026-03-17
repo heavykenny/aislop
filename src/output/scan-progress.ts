@@ -13,25 +13,17 @@ export interface EngineScanState {
 }
 
 const shouldRenderLiveScanProgress = (): boolean =>
-	Boolean(process.stderr.isTTY) &&
-	process.env.CI !== "true" &&
-	process.env.CI !== "1";
+	Boolean(process.stderr.isTTY) && process.env.CI !== "true" && process.env.CI !== "1";
 
 const formatElapsed = (elapsedMs: number): string =>
-	elapsedMs < 1000
-		? `${Math.round(elapsedMs)}ms`
-		: `${(elapsedMs / 1000).toFixed(1)}s`;
+	elapsedMs < 1000 ? `${Math.round(elapsedMs)}ms` : `${(elapsedMs / 1000).toFixed(1)}s`;
 
 const truncateText = (text: string, maxLength = 52): string =>
 	text.length <= maxLength ? text : `${text.slice(0, maxLength - 1)}…`;
 
 const getIssueSummary = (result: EngineResult): string => {
-	const errors = result.diagnostics.filter(
-		(d) => d.severity === "error",
-	).length;
-	const warnings = result.diagnostics.filter(
-		(d) => d.severity === "warning",
-	).length;
+	const errors = result.diagnostics.filter((d) => d.severity === "error").length;
+	const warnings = result.diagnostics.filter((d) => d.severity === "warning").length;
 
 	if (errors === 0 && warnings === 0) {
 		return `Done (0 issues, ${formatElapsed(result.elapsed)})`;
@@ -39,8 +31,7 @@ const getIssueSummary = (result: EngineResult): string => {
 
 	const parts: string[] = [];
 	if (errors > 0) parts.push(`${errors} error${errors === 1 ? "" : "s"}`);
-	if (warnings > 0)
-		parts.push(`${warnings} warning${warnings === 1 ? "" : "s"}`);
+	if (warnings > 0) parts.push(`${warnings} warning${warnings === 1 ? "" : "s"}`);
 
 	return `Done (${parts.join(", ")}, ${formatElapsed(result.elapsed)})`;
 };
@@ -51,9 +42,7 @@ const getStatusParts = (
 ): { icon: string; detail: string } => {
 	if (state.status === "running") {
 		return {
-			icon: highlighter.info(
-				SPINNER_FRAMES[frameIndex % SPINNER_FRAMES.length],
-			),
+			icon: highlighter.info(SPINNER_FRAMES[frameIndex % SPINNER_FRAMES.length]),
 			detail: highlighter.info("Running"),
 		};
 	}
@@ -68,9 +57,7 @@ const getStatusParts = (
 		}
 
 		const hasErrors = result.diagnostics.some((d) => d.severity === "error");
-		const hasWarnings = result.diagnostics.some(
-			(d) => d.severity === "warning",
-		);
+		const hasWarnings = result.diagnostics.some((d) => d.severity === "warning");
 
 		let icon = highlighter.success("✓");
 		if (hasErrors) {
@@ -87,9 +74,7 @@ const getStatusParts = (
 
 	if (state.status === "skipped") {
 		const reason =
-			state.result?.skipReason
-				?.split("\n")
-				.find((line) => line.trim().length > 0) ?? "Skipped";
+			state.result?.skipReason?.split("\n").find((line) => line.trim().length > 0) ?? "Skipped";
 		return {
 			icon: highlighter.warn("!"),
 			detail: highlighter.dim(`Skipped (${truncateText(reason)})`),
@@ -102,10 +87,7 @@ const getStatusParts = (
 	};
 };
 
-export const renderScanProgressBlock = (
-	states: EngineScanState[],
-	frameIndex: number,
-): string => {
+export const renderScanProgressBlock = (states: EngineScanState[], frameIndex: number): string => {
 	if (states.length === 0) {
 		return `  ${highlighter.bold("Engines 0/0")} ${highlighter.dim("nothing to run")}\n`;
 	}
@@ -113,12 +95,8 @@ export const renderScanProgressBlock = (
 	const completedCount = states.filter(
 		(state) => state.status === "done" || state.status === "skipped",
 	).length;
-	const runningCount = states.filter(
-		(state) => state.status === "running",
-	).length;
-	const labelWidth = Math.max(
-		...states.map((state) => getEngineLabel(state.engine).length),
-	);
+	const runningCount = states.filter((state) => state.status === "running").length;
+	const labelWidth = Math.max(...states.map((state) => getEngineLabel(state.engine).length));
 
 	const headingStatus =
 		completedCount === states.length

@@ -13,9 +13,7 @@ const createNoopHandle = (): SpinnerHandle => ({
 });
 
 const shouldRenderSpinner = (): boolean =>
-	Boolean(process.stderr.isTTY) &&
-	process.env.CI !== "true" &&
-	process.env.CI !== "1";
+	Boolean(process.stderr.isTTY) && process.env.CI !== "true" && process.env.CI !== "1";
 
 export const spinner = (text: string) => ({
 	start(): SpinnerHandle {

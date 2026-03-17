@@ -1,9 +1,4 @@
-import type {
-	Diagnostic,
-	Engine,
-	EngineContext,
-	EngineResult,
-} from "../types.js";
+import type { Diagnostic, Engine, EngineContext, EngineResult } from "../types.js";
 import { checkComplexity } from "./complexity.js";
 import { checkDuplication } from "./duplication.js";
 import { runKnip } from "./knip.js";
@@ -17,10 +12,7 @@ export const codeQualityEngine: Engine = {
 		const promises: Promise<Diagnostic[]>[] = [];
 
 		// Knip for JS/TS dead code
-		if (
-			context.languages.includes("typescript") ||
-			context.languages.includes("javascript")
-		) {
+		if (context.languages.includes("typescript") || context.languages.includes("javascript")) {
 			promises.push(runKnip(context.rootDirectory));
 		}
 

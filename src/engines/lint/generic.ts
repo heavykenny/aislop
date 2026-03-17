@@ -18,11 +18,10 @@ export const runGenericLinter = async (
 
 const runClippy = async (context: EngineContext): Promise<Diagnostic[]> => {
 	try {
-		const result = await runSubprocess(
-			"cargo",
-			["clippy", "--message-format=json", "--quiet"],
-			{ cwd: context.rootDirectory, timeout: 120000 },
-		);
+		const result = await runSubprocess("cargo", ["clippy", "--message-format=json", "--quiet"], {
+			cwd: context.rootDirectory,
+			timeout: 120000,
+		});
 		return parseClippyDiagnostics(result.stdout);
 	} catch {
 		return [];
@@ -88,11 +87,10 @@ const parseClippyDiagnostics = (output: string): Diagnostic[] => {
 
 const runRubocop = async (context: EngineContext): Promise<Diagnostic[]> => {
 	try {
-		const result = await runSubprocess(
-			"rubocop",
-			["--format", "json", "--except", "Layout"],
-			{ cwd: context.rootDirectory, timeout: 60000 },
-		);
+		const result = await runSubprocess("rubocop", ["--format", "json", "--except", "Layout"], {
+			cwd: context.rootDirectory,
+			timeout: 60000,
+		});
 
 		const output = result.stdout;
 		if (!output) return [];
@@ -107,9 +105,7 @@ const runRubocop = async (context: EngineContext): Promise<Diagnostic[]> => {
 					engine: "lint",
 					rule: `rubocop/${offense.cop_name}`,
 					severity:
-						offense.severity === "error" || offense.severity === "fatal"
-							? "error"
-							: "warning",
+						offense.severity === "error" || offense.severity === "fatal" ? "error" : "warning",
 					message: offense.message,
 					help: "",
 					line: offense.location?.start_line ?? 0,

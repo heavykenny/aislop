@@ -1,9 +1,4 @@
-import type {
-	Diagnostic,
-	Engine,
-	EngineContext,
-	EngineResult,
-} from "../types.js";
+import type { Diagnostic, Engine, EngineContext, EngineResult } from "../types.js";
 import { runDependencyAudit } from "./audit.js";
 import { detectRiskyConstructs } from "./risky.js";
 import { scanSecrets } from "./secrets.js";

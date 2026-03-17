@@ -16,13 +16,11 @@ export const ENGINE_INFO: Record<EngineName, EngineInfo> = {
 	},
 	"code-quality": {
 		label: "Code Quality",
-		description:
-			"Complexity limits, dead code detection, and duplication checks",
+		description: "Complexity limits, dead code detection, and duplication checks",
 	},
 	"ai-slop": {
 		label: "Maintainability",
-		description:
-			"Over-abstraction, swallowed errors, and low-signal code patterns",
+		description: "Over-abstraction, swallowed errors, and low-signal code patterns",
 	},
 	architecture: {
 		label: "Architecture",
@@ -34,5 +32,4 @@ export const ENGINE_INFO: Record<EngineName, EngineInfo> = {
 	},
 };
 
-export const getEngineLabel = (engine: EngineName): string =>
-	ENGINE_INFO[engine].label;
+export const getEngineLabel = (engine: EngineName): string => ENGINE_INFO[engine].label;

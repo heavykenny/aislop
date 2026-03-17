@@ -18,17 +18,7 @@ const Fn = "Func" + "tion";
 const RISKY_PATTERNS: RiskyPattern[] = [
 	{
 		pattern: new RegExp(`\\b${ev}\\s*\\(`, "g"),
-		extensions: [
-			".ts",
-			".tsx",
-			".js",
-			".jsx",
-			".mjs",
-			".cjs",
-			".py",
-			".rb",
-			".php",
-		],
+		extensions: [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".py", ".rb", ".php"],
 		name: "eval",
 		message: `Use of ${ev}() is a security risk`,
 		help: `Avoid ${ev} — use safer alternatives like JSON.parse, Function constructor, or AST-based approaches`,
@@ -69,8 +59,7 @@ const RISKY_PATTERNS: RiskyPattern[] = [
 		help: "Avoid exec — use safer alternatives",
 	},
 	{
-		pattern:
-			/(?:child_process|subprocess|os\.system|exec|spawn)\s*\([^)]*\$\{/g,
+		pattern: /(?:child_process|subprocess|os\.system|exec|spawn)\s*\([^)]*\$\{/g,
 		extensions: [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".py"],
 		name: "shell-injection",
 		message: "Possible shell injection — user input in command execution",
@@ -92,9 +81,7 @@ const RISKY_PATTERNS: RiskyPattern[] = [
 	},
 ];
 
-export const detectRiskyConstructs = async (
-	context: EngineContext,
-): Promise<Diagnostic[]> => {
+export const detectRiskyConstructs = async (context: EngineContext): Promise<Diagnostic[]> => {
 	const files = getSourceFiles(context);
 	const diagnostics: Diagnostic[] = [];
 
@@ -110,8 +97,7 @@ export const detectRiskyConstructs = async (
 
 		const relativePath = path.relative(context.rootDirectory, filePath);
 		const normalizedPath = relativePath.split(path.sep).join("/");
-		const isMigrationOrSeeder =
-			/(?:^|\/)(migrations|seeders|seeds|migrate)\//.test(normalizedPath);
+		const isMigrationOrSeeder = /(?:^|\/)(migrations|seeders|seeds|migrate)\//.test(normalizedPath);
 
 		for (const { pattern, extensions, name, message, help } of RISKY_PATTERNS) {
 			if (!extensions.includes(ext)) continue;
@@ -125,18 +111,13 @@ export const detectRiskyConstructs = async (
 
 				// For innerHTML: skip if target is a <template> element (safe by design)
 				if (name === "innerhtml") {
-					const beforeMatch = content.slice(
-						Math.max(0, match.index - 200),
-						match.index,
-					);
+					const beforeMatch = content.slice(Math.max(0, match.index - 200), match.index);
 					// Skip template element targets (e.g. template/tmpl/tpl variables,
 					// or createElement('template') calls) — they are safe by design.
 					// beforeMatch ends right before the matched pattern, so check variable name
 					if (
 						/(?:template|tmpl|tpl)$/i.test(beforeMatch.trimEnd()) ||
-						/createElement\s*\(\s*['"]template['"]\s*\)$/.test(
-							beforeMatch.trimEnd(),
-						)
+						/createElement\s*\(\s*['"]template['"]\s*\)$/.test(beforeMatch.trimEnd())
 					) {
 						continue;
 					}
@@ -149,9 +130,7 @@ export const detectRiskyConstructs = async (
 						match.index + match[0].length + 100,
 					);
 					// Skip if interpolation is .join(), a constant-like name, or array method
-					if (
-						/^(?:\w+\.join\s*\(|[A-Z_]+\}|tableName\}|table\})/.test(afterMatch)
-					) {
+					if (/^(?:\w+\.join\s*\(|[A-Z_]+\}|tableName\}|table\})/.test(afterMatch)) {
 						continue;
 					}
 				}

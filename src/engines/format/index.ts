@@ -1,9 +1,4 @@
-import type {
-	Diagnostic,
-	Engine,
-	EngineContext,
-	EngineResult,
-} from "../types.js";
+import type { Diagnostic, Engine, EngineContext, EngineResult } from "../types.js";
 import { runBiomeFormat } from "./biome.js";
 import { runGenericFormatter } from "./generic.js";
 import { runGofmt } from "./gofmt.js";

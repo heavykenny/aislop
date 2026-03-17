@@ -197,9 +197,7 @@ const checkInstalledTools = async (): Promise<Record<string, boolean>> => {
 	return results;
 };
 
-export const discoverProject = async (
-	directory: string,
-): Promise<ProjectInfo> => {
+export const discoverProject = async (directory: string): Promise<ProjectInfo> => {
 	const resolvedDir = path.resolve(directory);
 	const languages = detectLanguages(resolvedDir);
 	const frameworks = detectFrameworks(resolvedDir);
