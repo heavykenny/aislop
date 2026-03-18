@@ -6,7 +6,7 @@
 |---|---|
 | `aislop` | Interactive TTY menu (falls back to `scan` in non-TTY) |
 | `aislop scan [dir]` | Run all enabled engines and print a scored report |
-| `aislop fix [dir]` | Apply safe auto-fixes (formatting + lint) |
+| `aislop fix [dir]` | Apply safe auto-fixes (imports, lint, formatting, deps) |
 | `aislop ci [dir]` | Output JSON for CI pipelines |
 | `aislop init [dir]` | Create `.aislop/config.yml` and `.aislop/rules.yml` |
 | `aislop doctor [dir]` | Report which tools are installed and available |
@@ -20,6 +20,7 @@
 | `--staged` | Only scan staged files |
 | `-d, --verbose` | Show detailed per-file output |
 | `--json` | Output JSON instead of terminal UI |
+| `-f, --force` | For `fix`: run aggressive fixes (audit + Expo dependency alignment) |
 | `-v, --version` | Print version |
 
 ## Examples
@@ -39,6 +40,9 @@ aislop scan --staged
 
 # Auto-fix what can be fixed
 aislop fix
+
+# Aggressive fix mode (may change dependency graph)
+aislop fix --force
 
 # CI-friendly JSON output
 aislop ci

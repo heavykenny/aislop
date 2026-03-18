@@ -1,12 +1,12 @@
 import { z } from "zod/v4";
 
 const DEFAULT_WEIGHTS: Record<string, number> = {
-	format: 0.5,
-	lint: 1.0,
-	"code-quality": 1.5,
-	"ai-slop": 1.0,
+	format: 0.3,
+	lint: 0.6,
+	"code-quality": 0.8,
+	"ai-slop": 2.5,
 	architecture: 1.0,
-	security: 2.0,
+	security: 1.5,
 };
 
 const EnginesSchema = z.object({
@@ -41,7 +41,7 @@ const ScoringSchema = z.object({
 		good: 75,
 		ok: 50,
 	})),
-	smoothing: z.number().nonnegative().default(10),
+	smoothing: z.number().nonnegative().default(20),
 });
 
 const CiSchema = z.object({
@@ -79,7 +79,7 @@ const AislopConfigSchema = z.object({
 			good: 75,
 			ok: 50,
 		},
-		smoothing: 10,
+		smoothing: 20,
 	})),
 	ci: CiSchema.default(() => ({
 		failBelow: 0,

@@ -1,151 +1,40 @@
 import path from "node:path";
-import { performance } from "node:perf_hooks";
 import type { AislopConfig } from "../config/index.js";
+import { findConfigDir, RULES_FILE } from "../config/index.js";
+import { detectTrivialComments } from "../engines/ai-slop/comments.js";
+import { detectDeadPatterns } from "../engines/ai-slop/dead-patterns.js";
+import { fixDeadPatterns } from "../engines/ai-slop/dead-patterns-fix.js";
 import { detectUnusedImports } from "../engines/ai-slop/unused-imports.js";
 import { fixUnusedImports } from "../engines/ai-slop/unused-imports-fix.js";
 import { fixUnusedDependencies, runKnipDependencyCheck } from "../engines/code-quality/knip.js";
 import { fixBiomeFormat, runBiomeFormat } from "../engines/format/biome.js";
 import { fixGofmt, runGofmt } from "../engines/format/gofmt.js";
 import { fixRuffFormat, runRuffFormat } from "../engines/format/ruff-format.js";
-import { fixOxlint, runOxlint } from "../engines/lint/oxlint.js";
-import { fixRuffLint, runRuffLint } from "../engines/lint/ruff.js";
-import type { Diagnostic, EngineContext } from "../engines/types.js";
+import { runExpoDoctor } from "../engines/lint/expo-doctor.js";
+import { fixOxlint, fixOxlintForce, runOxlint } from "../engines/lint/oxlint.js";
+import { fixRuffLint, fixRuffLintForce, runRuffLint } from "../engines/lint/ruff.js";
+import { runEngines } from "../engines/orchestrator.js";
+import { runDependencyAudit } from "../engines/security/audit.js";
+import type { EngineConfig, EngineContext } from "../engines/types.js";
+import { FixProgressRenderer, type FixStepResult } from "../output/fix-progress.js";
 import {
-	formatElapsed,
 	formatProjectSummary,
 	printCommandHeader,
 	printProjectMetadata,
 } from "../output/layout.js";
-
+import { calculateScore } from "../scoring/index.js";
 import { discoverProject } from "../utils/discover.js";
 import { highlighter } from "../utils/highlighter.js";
 import { logger } from "../utils/logger.js";
 import { isTelemetryDisabled, trackEvent } from "../utils/telemetry.js";
+import { fixDependencyAudit, fixExpoDependencies } from "./fix-force.js";
+import { runFixStep, summarizeFixRun } from "./fix-step.js";
 
 interface FixOptions {
 	verbose: boolean;
+	force?: boolean;
 	showHeader?: boolean;
 }
-
-interface FixStepResult {
-	name: string;
-	beforeIssues: number;
-	afterIssues: number;
-	resolvedIssues: number;
-	beforeFiles: number;
-	failed: boolean;
-	elapsedMs: number;
-}
-
-const uniqueFiles = (diagnostics: Diagnostic[]): string[] => [
-	...new Set(diagnostics.map((d) => d.filePath)),
-];
-
-const uniqueFileCount = (diagnostics: Diagnostic[]): number => uniqueFiles(diagnostics).length;
-
-const getFilePreviewLines = (title: string, files: string[], verbose: boolean): string[] => {
-	if (files.length === 0) return [];
-
-	const lines = [highlighter.dim(`    ${title}: ${files.length} file(s)`)];
-	const preview = verbose ? files : files.slice(0, 5);
-	for (const file of preview) {
-		lines.push(highlighter.dim(`      ${file}`));
-	}
-	if (!verbose && files.length > preview.length) {
-		lines.push(
-			highlighter.dim(`      +${files.length - preview.length} more file(s), use -d for full list`),
-		);
-	}
-
-	return lines;
-};
-
-const getReasonLines = (reason: string): { firstLine: string; printable: string } => {
-	const firstLine = reason.split("\n").find((line) => line.trim().length > 0) ?? reason;
-	return { firstLine, printable: reason };
-};
-
-const getStepStatusLine = (result: FixStepResult, name: string, elapsedLabel: string): string => {
-	if (result.failed) {
-		return highlighter.error(
-			`  ✗ ${name}: failed (${result.afterIssues} issue${result.afterIssues === 1 ? "" : "s"} remain, ${elapsedLabel})`,
-		);
-	}
-
-	if (result.beforeIssues === 0) {
-		return highlighter.success(`  ✓ ${name}: done (0 issues, ${elapsedLabel})`);
-	}
-
-	if (result.afterIssues === 0) {
-		return highlighter.success(
-			`  ✓ ${name}: done (${result.resolvedIssues} resolved across ${result.beforeFiles} file(s), ${elapsedLabel})`,
-		);
-	}
-
-	if (result.resolvedIssues > 0) {
-		return highlighter.warn(
-			`  ! ${name}: done (${result.resolvedIssues} resolved, ${result.afterIssues} remaining, ${elapsedLabel})`,
-		);
-	}
-
-	return highlighter.warn(
-		`  ! ${name}: done (no auto-fix changes, ${result.afterIssues} issue${result.afterIssues === 1 ? "" : "s"}, ${elapsedLabel})`,
-	);
-};
-
-const runFixStep = async (
-	name: string,
-	detect: () => Promise<Diagnostic[]>,
-	applyFix: () => Promise<void>,
-	options: FixOptions,
-): Promise<FixStepResult> => {
-	const stepStart = performance.now();
-
-	const before = await detect();
-	let applyError: unknown = null;
-
-	try {
-		await applyFix();
-	} catch (error) {
-		applyError = error;
-	}
-
-	const after = await detect();
-	const elapsedMs = performance.now() - stepStart;
-	const result: FixStepResult = {
-		name,
-		beforeIssues: before.length,
-		afterIssues: after.length,
-		resolvedIssues: Math.max(0, before.length - after.length),
-		beforeFiles: uniqueFileCount(before),
-		failed: applyError !== null && before.length === after.length,
-		elapsedMs,
-	};
-
-	const elapsedLabel = formatElapsed(result.elapsedMs);
-	const lines = [getStepStatusLine(result, name, elapsedLabel)];
-
-	if (applyError) {
-		const reason = applyError instanceof Error ? applyError.message : String(applyError);
-		const reasonLines = getReasonLines(reason);
-		const reasonToPrint = options.verbose ? reasonLines.printable : reasonLines.firstLine;
-		for (const line of reasonToPrint.split("\n")) {
-			lines.push(highlighter.dim(`      ${line}`));
-		}
-		if (!options.verbose && reasonLines.printable !== reasonToPrint) {
-			lines.push(highlighter.dim("      Re-run with -d for full tool output."));
-		}
-	}
-
-	lines.push(...getFilePreviewLines("Affected", uniqueFiles(before), options.verbose));
-	if (after.length > 0) {
-		lines.push(...getFilePreviewLines("Remaining", uniqueFiles(after), options.verbose));
-	}
-
-	process.stdout.write(`${lines.join("\n")}\n\n`);
-
-	return result;
-};
 
 const createEngineContext = (
 	rootDirectory: string,
@@ -161,38 +50,6 @@ const createEngineContext = (
 		security: config.security,
 	},
 });
-
-const summarizeFixRun = (steps: FixStepResult[]): void => {
-	const totals = steps.reduce(
-		(acc, step) => {
-			acc.beforeIssues += step.beforeIssues;
-			acc.afterIssues += step.afterIssues;
-			acc.resolvedIssues += step.resolvedIssues;
-			if (step.failed) acc.failedSteps += 1;
-			return acc;
-		},
-		{ beforeIssues: 0, afterIssues: 0, resolvedIssues: 0, failedSteps: 0 },
-	);
-
-	if (totals.failedSteps > 0) {
-		logger.log(
-			`  Fix summary: checked ${steps.length} step(s), resolved ${totals.resolvedIssues} issue(s).`,
-		);
-		logger.warn(
-			`  ${totals.failedSteps} step(s) reported tool errors; unresolved issue count is unknown for failed steps.`,
-		);
-	} else {
-		logger.log(
-			`  Fix summary: checked ${steps.length} step(s), resolved ${totals.resolvedIssues} issue(s), remaining ${totals.afterIssues}.`,
-		);
-	}
-
-	if (totals.failedSteps === 0 && totals.beforeIssues > 0 && totals.resolvedIssues === 0) {
-		logger.dim(
-			"  No auto-fixable changes were applied. Current findings are likely manual-fix categories.",
-		);
-	}
-};
 
 export const fixCommand = async (
 	directory: string,
@@ -211,9 +68,53 @@ export const fixCommand = async (
 	const context = createEngineContext(resolvedDir, projectInfo, config);
 	const steps: FixStepResult[] = [];
 
-	// Phase 1: Code changes (imports, lint, dependencies)
-	// These modify file contents and must run before formatting.
+	const stepNames: string[] = [];
+	if (config.engines["ai-slop"]) {
+		stepNames.push("Unused imports");
+		stepNames.push("Dead code & comments");
+	}
+	if (config.engines.lint) {
+		if (
+			projectInfo.languages.includes("typescript") ||
+			projectInfo.languages.includes("javascript")
+		) {
+			stepNames.push("JS/TS lint fixes");
+		}
+		if (projectInfo.languages.includes("python") && projectInfo.installedTools.ruff) {
+			stepNames.push("Python lint fixes");
+		}
+	}
+	if (config.engines["code-quality"]) {
+		if (
+			projectInfo.languages.includes("typescript") ||
+			projectInfo.languages.includes("javascript")
+		) {
+			stepNames.push("Unused dependencies");
+		}
+	}
+	if (config.engines.format) {
+		if (
+			projectInfo.languages.includes("typescript") ||
+			projectInfo.languages.includes("javascript")
+		) {
+			stepNames.push("JS/TS formatting");
+		}
+		if (projectInfo.languages.includes("python") && projectInfo.installedTools.ruff) {
+			stepNames.push("Python formatting");
+		}
+		if (projectInfo.languages.includes("go") && projectInfo.installedTools.gofmt) {
+			stepNames.push("Go formatting");
+		}
+	}
+	if (options.force) {
+		if (config.engines.security) stepNames.push("Dependency audit fixes");
+		if (projectInfo.frameworks.includes("expo")) stepNames.push("Expo dependency alignment");
+	}
 
+	const progress = new FixProgressRenderer(stepNames);
+	progress.start();
+
+	// Phase 1: Code changes (imports, lint, dependencies)
 	if (config.engines["ai-slop"]) {
 		steps.push(
 			await runFixStep(
@@ -221,6 +122,25 @@ export const fixCommand = async (
 				() => detectUnusedImports(context),
 				() => fixUnusedImports(context),
 				options,
+				progress,
+			),
+		);
+
+		const detectFixableSlop = async () => {
+			const [comments, dead] = await Promise.all([
+				detectTrivialComments(context),
+				detectDeadPatterns(context),
+			]);
+			return [...comments, ...dead].filter((d) => d.fixable);
+		};
+
+		steps.push(
+			await runFixStep(
+				"Dead code & comments",
+				detectFixableSlop,
+				() => fixDeadPatterns(context),
+				options,
+				progress,
 			),
 		);
 	}
@@ -234,8 +154,9 @@ export const fixCommand = async (
 				await runFixStep(
 					"JS/TS lint fixes",
 					() => runOxlint(context),
-					() => fixOxlint(context),
+					() => (options.force ? fixOxlintForce(context) : fixOxlint(context)),
 					options,
+					progress,
 				),
 			);
 		}
@@ -245,8 +166,9 @@ export const fixCommand = async (
 				await runFixStep(
 					"Python lint fixes",
 					() => runRuffLint(context),
-					() => fixRuffLint(resolvedDir),
+					() => (options.force ? fixRuffLintForce(resolvedDir) : fixRuffLint(resolvedDir)),
 					options,
+					progress,
 				),
 			);
 		} else if (projectInfo.languages.includes("python")) {
@@ -265,13 +187,13 @@ export const fixCommand = async (
 					() => runKnipDependencyCheck(resolvedDir),
 					() => fixUnusedDependencies(resolvedDir),
 					options,
+					progress,
 				),
 			);
 		}
 	}
 
 	// Phase 2: Formatting (runs last to clean up after all code changes)
-
 	if (config.engines.format) {
 		if (
 			projectInfo.languages.includes("typescript") ||
@@ -283,6 +205,7 @@ export const fixCommand = async (
 					() => runBiomeFormat(context),
 					() => fixBiomeFormat(context),
 					options,
+					progress,
 				),
 			);
 		}
@@ -294,6 +217,7 @@ export const fixCommand = async (
 					() => runRuffFormat(context),
 					() => fixRuffFormat(resolvedDir),
 					options,
+					progress,
 				),
 			);
 		} else if (projectInfo.languages.includes("python")) {
@@ -307,12 +231,43 @@ export const fixCommand = async (
 					() => runGofmt(context),
 					() => fixGofmt(resolvedDir),
 					options,
+					progress,
 				),
 			);
 		} else if (projectInfo.languages.includes("go")) {
 			logger.warn("  Go detected but gofmt is not installed; skipping Go formatting fixes.");
 		}
 	}
+
+	if (options.force) {
+		if (config.engines.security) {
+			steps.push(
+				await runFixStep(
+					"Dependency audit fixes",
+					() => runDependencyAudit(context),
+					() => fixDependencyAudit(context),
+					options,
+					progress,
+				),
+			);
+		}
+
+		if (projectInfo.frameworks.includes("expo")) {
+			steps.push(
+				await runFixStep(
+					"Expo dependency alignment",
+					() => runExpoDoctor(context),
+					() => fixExpoDependencies(context),
+					options,
+					progress,
+				),
+			);
+		}
+	}
+
+	progress.stop();
+
+	const totalResolved = steps.reduce((sum, s) => sum + s.resolvedIssues, 0);
 
 	if (steps.length === 0) {
 		logger.dim("  No applicable auto-fixers found for this project.");
@@ -323,7 +278,6 @@ export const fixCommand = async (
 
 	// Fire-and-forget anonymous telemetry
 	if (!isTelemetryDisabled(config.telemetry?.enabled)) {
-		const totalResolved = steps.reduce((sum, s) => sum + s.resolvedIssues, 0);
 		trackEvent({
 			command: "fix",
 			languages: projectInfo.languages,
@@ -333,6 +287,67 @@ export const fixCommand = async (
 	}
 
 	logger.break();
-	logger.success("  ✓ Done. Run `aislop scan` to verify.");
+
+	// Silent post-fix scan: run engines quietly, then print compact summary
+	const configDir = findConfigDir(resolvedDir);
+	const rulesPath = configDir ? path.join(configDir, RULES_FILE) : undefined;
+	const engineConfig: EngineConfig = {
+		quality: config.quality,
+		security: config.security,
+		architectureRulesPath: config.engines.architecture ? rulesPath : undefined,
+	};
+
+	const scanResults = await runEngines(
+		{
+			rootDirectory: resolvedDir,
+			languages: projectInfo.languages,
+			frameworks: projectInfo.frameworks,
+			installedTools: projectInfo.installedTools,
+			config: engineConfig,
+		},
+		config.engines,
+		() => {},
+		() => {},
+	);
+
+	const allDiagnostics = scanResults.flatMap((r) => r.diagnostics);
+	const scoreResult = calculateScore(
+		allDiagnostics,
+		config.scoring.weights,
+		config.scoring.thresholds,
+		projectInfo.sourceFileCount,
+		config.scoring.smoothing,
+	);
+
+	const errors = allDiagnostics.filter((d) => d.severity === "error").length;
+	const warnings = allDiagnostics.filter((d) => d.severity === "warning").length;
+	const fixable = allDiagnostics.filter((d) => d.fixable).length;
+	const manual = errors + warnings - fixable;
+
+	const scoreColor =
+		scoreResult.score >= config.scoring.thresholds.good
+			? highlighter.success
+			: scoreResult.score >= config.scoring.thresholds.ok
+				? highlighter.warn
+				: highlighter.error;
+
+	logger.log(highlighter.dim("------------------------------------------------------------"));
+	logger.log(highlighter.bold("Result"));
+	logger.log(
+		`  Score: ${scoreColor(`${scoreResult.score}/100`)} ${scoreColor(`(${scoreResult.label})`)}`,
+	);
+	logger.log(
+		`  Resolved: ${highlighter.success(String(totalResolved))} issue${totalResolved === 1 ? "" : "s"}`,
+	);
+	logger.log(
+		`  Remaining: ${errors + warnings > 0 ? highlighter.warn(String(errors + warnings)) : highlighter.success("0")} (${errors} error${errors === 1 ? "" : "s"}, ${warnings} warning${warnings === 1 ? "" : "s"})`,
+	);
+	if (fixable > 0) {
+		logger.log(`  Auto-fixable: ${highlighter.info(String(fixable))}`);
+	}
+	if (manual > 0) {
+		logger.log(`  Manual effort: ${highlighter.dim(String(manual))}`);
+	}
+	logger.log(highlighter.dim("------------------------------------------------------------"));
 	logger.break();
 };

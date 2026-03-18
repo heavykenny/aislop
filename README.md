@@ -38,7 +38,7 @@ npx aislop ci
 Sample output:
 
 ```text
-aislop scan v0.2.0
+aislop scan v0.2.1
 
   ✓ Project my-app (typescript)
   Source files: 142
@@ -68,6 +68,7 @@ AI-generated changes often pass review because problems are spread across many f
 
 - **One command, full picture**: formatting + lint + maintainability + AI slop + security (+ architecture)
 - **Score-based quality gate**: use a single 0-100 score in CI and PR checks
+- **AI-slop-first scoring**: defaults weight AI-pattern findings more than generic style noise
 - **Auto-fix support**: remove unused imports, apply lint suggestions, and format in one pass
 - **Duplication visibility**: flag repeated blocks and encourage extraction into shared modules
 - **Software engineering best practices**: enforce function/file size limits, nesting limits, dead code cleanup, and safer patterns
@@ -130,6 +131,7 @@ aislop scan --json         # output JSON
 
 ```bash
 aislop fix                 # auto-fix unused imports, formatting, and lint fixes
+aislop fix --force         # aggressive mode: dependency audit + Expo alignment
 ```
 
 ### Use in CI pipelines

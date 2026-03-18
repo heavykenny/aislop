@@ -63,7 +63,7 @@ const program = new Command()
 		`
 ${highlighter.dim("Commands:")}
   aislop scan [dir]      Full code quality scan
-  aislop fix [dir]       Auto-fix formatting and lint issues
+  aislop fix [dir]       Auto-fix ai slop in codebase
   aislop init [dir]      Initialize aislop config
   aislop doctor [dir]    Check installed tools
   aislop ci [dir]        CI-friendly JSON output
@@ -75,7 +75,8 @@ ${highlighter.dim("Examples:")}
   aislop scan -d         Scan with file/line details
   aislop scan --changes  Scan only changed files
   aislop scan --staged   Scan only staged files (for hooks)
-  aislop fix             Auto-fix issues
+  aislop fix             Auto-fix ai slop in codebase
+  aislop fix --force     Run aggressive fixes (includes audit and dependency alignment)
   aislop ci              JSON output for CI pipelines
 `,
 	);
@@ -110,12 +111,16 @@ program
 
 program
 	.command("fix [directory]")
-	.description("Auto-fix formatting and lint issues")
+	.description("Auto-fix ai slop in codebase")
 	.option("-d, --verbose", "show detailed fix progress")
+	.option("-f, --force", "run aggressive fixes (audit and framework dependency alignment)")
 	.action(async (directory = ".", _flags, command) => {
-		const flags = command.optsWithGlobals() as { verbose?: boolean };
+		const flags = command.optsWithGlobals() as { verbose?: boolean; force?: boolean };
 		const config = loadConfig(directory);
-		await fixCommand(directory, config, { verbose: Boolean(flags.verbose) });
+		await fixCommand(directory, config, {
+			verbose: Boolean(flags.verbose),
+			force: Boolean(flags.force),
+		});
 	});
 
 program

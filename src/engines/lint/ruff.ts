@@ -59,3 +59,20 @@ export const fixRuffLint = async (rootDirectory: string): Promise<void> => {
 		);
 	}
 };
+
+export const fixRuffLintForce = async (rootDirectory: string): Promise<void> => {
+	const ruffBinary = resolveToolBinary("ruff");
+	const result = await runSubprocess(
+		ruffBinary,
+		["check", "--fix", "--unsafe-fixes", rootDirectory],
+		{
+			cwd: rootDirectory,
+			timeout: 60000,
+		},
+	);
+	if (result.exitCode !== 0) {
+		throw new Error(
+			result.stderr || result.stdout || `ruff check --fix exited with code ${result.exitCode}`,
+		);
+	}
+};
