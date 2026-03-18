@@ -12,7 +12,24 @@ Every diagnostic contributes a weighted penalty based on its severity:
 | Warning | 1.0 |
 | Info | 0.25 |
 
-Penalties are multiplied by the engine weight (configurable in `.aislop/config.yml`, security defaults to 2x).
+Penalties are multiplied by the engine weight (configurable in `.aislop/config.yml`).
+
+By default, aislop now uses an **AI-slop-first** weighting profile:
+
+```yaml
+scoring:
+  weights:
+    format: 0.3
+    lint: 0.6
+    code-quality: 0.8
+    ai-slop: 2.5
+    architecture: 1.0
+    security: 1.5
+  smoothing: 20
+```
+
+This means AI-slop findings are weighted more heavily than generic lint/format noise,
+while security still carries significant impact.
 
 ## Density normalization
 
@@ -38,6 +55,13 @@ scoring:
     good: 75    # scores above this are "Healthy"
     ok: 50      # scores above this are "Needs Work", below is "Critical"
 ```
+
+## Tuning guidance
+
+- Increase `ai-slop` weight if you want strict AI-output hygiene.
+- Increase `security` weight if dependency/runtime risk should dominate your score.
+- Increase `smoothing` for large legacy codebases so a few warnings are less punitive.
+- Lower `lint` and `code-quality` weights if you want scores to emphasize AI-specific findings.
 
 ## CI quality gate
 

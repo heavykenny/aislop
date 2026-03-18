@@ -36,8 +36,9 @@ export const fixUnusedImports = async (context: EngineContext): Promise<void> =>
 		for (const [lineNo, syms] of symbolsByLine) {
 			const lineIdx = lineNo - 1;
 			const allUnused = syms.every((s) => unusedNames.has(s.name));
-
-			const importSpan = getImportSpan(lineIdx, analysis.importLines);
+			const importSpan = JS_EXTENSIONS.has(analysis.ext)
+				? getJsImportSpan(lines, lineIdx)
+				: [lineIdx];
 
 			if (allUnused) {
 				for (const idx of importSpan) {
@@ -67,11 +68,17 @@ export const fixUnusedImports = async (context: EngineContext): Promise<void> =>
 	}
 };
 
-const getImportSpan = (startIdx: number, importLines: Set<number>): number[] => {
+const getJsImportSpan = (lines: string[], startIdx: number): number[] => {
 	const span = [startIdx];
+	let fullImport = lines[startIdx]?.trim() ?? "";
+	if (!fullImport.startsWith("import ")) {
+		return span;
+	}
+
 	let idx = startIdx + 1;
-	while (importLines.has(idx)) {
+	while (!fullImport.includes("from") && idx < lines.length) {
 		span.push(idx);
+		fullImport += ` ${lines[idx].trim()}`;
 		idx++;
 	}
 	return span;
@@ -89,7 +96,9 @@ const rewriteJsImportSpan = (
 	if (!namedMatch) return;
 
 	const unusedNamed = syms.filter((s) => !s.isDefault && !s.isNamespace && unusedNames.has(s.name));
-	if (unusedNamed.length === 0) return;
+	const defaultUnused = syms.some((s) => s.isDefault && unusedNames.has(s.name));
+
+	if (unusedNamed.length === 0 && !defaultUnused) return;
 
 	const unusedNamedSet = new Set(unusedNamed.map((s) => s.name));
 	const originalSpecifiers = namedMatch[1]
@@ -105,20 +114,33 @@ const rewriteJsImportSpan = (
 		return !unusedNamedSet.has(localName);
 	});
 
+	const fromMatch = fullImport.match(/from\s+["']([^"']+)["'];?/);
+	const fromClause = fromMatch ? `from "${fromMatch[1]}"` : "";
+
 	if (keptSpecifiers.length === 0) {
-		const defaultSym = syms.find((s) => s.isDefault && !unusedNames.has(s.name));
-		if (defaultSym) {
-			const rewritten = fullImport.replace(/,\s*\{[^}]*\}/s, "").replace(/\{[^}]*\}\s*,?\s*/s, "");
-			lines[span[0]] = rewritten.replace(/\n/g, " ").replace(/\s+/g, " ");
+		const usedDefault = syms.find((s) => s.isDefault && !unusedNames.has(s.name));
+		if (usedDefault) {
+			const defaultMatch = fullImport.match(/^import\s+(\w+)/);
+			const defaultName = defaultMatch ? defaultMatch[1] : usedDefault.name;
+			lines[span[0]] = `import ${defaultName} ${fromClause};`;
 			for (let i = 1; i < span.length; i++) {
 				lines[span[i]] = REMOVE_MARKER;
+			}
+		} else {
+			for (const idx of span) {
+				lines[idx] = REMOVE_MARKER;
 			}
 		}
 		return;
 	}
 
-	const fromMatch = fullImport.match(/\}\s*(from\s+.+)$/s);
-	const fromClause = fromMatch ? fromMatch[1].trim() : "";
+	if (defaultUnused) {
+		lines[span[0]] = `import { ${keptSpecifiers.join(", ")} } ${fromClause};`;
+		for (let i = 1; i < span.length; i++) {
+			lines[span[i]] = REMOVE_MARKER;
+		}
+		return;
+	}
 
 	const importPrefix = fullImport.match(/^(import\s+(?:\w+\s*,\s*)?)/);
 	const prefix = importPrefix ? importPrefix[1] : "import ";
@@ -130,9 +152,9 @@ const rewriteJsImportSpan = (
 		const indentMatch = lines[span[1]]?.match(/^(\s+)/);
 		const indent = indentMatch ? indentMatch[1] : "\t";
 		const specLines = keptSpecifiers.map((s) => `${indent}${s},`).join("\n");
-		newImport = `${prefix}{\n${specLines}\n} ${fromClause}`;
+		newImport = `${prefix}{\n${specLines}\n} ${fromClause};`;
 	} else {
-		newImport = `${prefix}{ ${keptSpecifiers.join(", ")} } ${fromClause}`;
+		newImport = `${prefix}{ ${keptSpecifiers.join(", ")} } ${fromClause};`;
 	}
 
 	lines[span[0]] = newImport;

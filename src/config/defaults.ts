@@ -22,18 +22,18 @@ export const DEFAULT_CONFIG: AislopConfig = {
 	},
 	scoring: {
 		weights: {
-			format: 0.5,
-			lint: 1.0,
-			"code-quality": 1.5,
-			"ai-slop": 1.0,
+			format: 0.3,
+			lint: 0.6,
+			"code-quality": 0.8,
+			"ai-slop": 2.5,
 			architecture: 1.0,
-			security: 2.0,
+			security: 1.5,
 		},
 		thresholds: {
 			good: 75,
 			ok: 50,
 		},
-		smoothing: 10,
+		smoothing: 20,
 	},
 	ci: {
 		failBelow: 0,
@@ -66,15 +66,16 @@ security:
 
 scoring:
   weights:
-    format: 0.5
-    lint: 1.0
-    code-quality: 1.5
-    ai-slop: 1.0
+    format: 0.3
+    lint: 0.6
+    code-quality: 0.8
+    ai-slop: 2.5
     architecture: 1.0
-    security: 2.0
+    security: 1.5
   thresholds:
     good: 75
     ok: 50
+  smoothing: 20
 
 ci:
   failBelow: 0
