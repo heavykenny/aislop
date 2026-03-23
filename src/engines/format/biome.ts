@@ -113,12 +113,17 @@ const parseBiomeJsonOutput = (output: string, rootDir: string): Diagnostic[] => 
 			const rawPath = entry.location?.path;
 			if (!rawPath) continue;
 			const severity = entry.severity === "error" ? "error" : "warning";
+			const rawMessage = entry.message ?? "";
+			const message =
+				!rawMessage || rawMessage.toLowerCase().includes("would have printed")
+					? "File is not formatted correctly"
+					: rawMessage;
 			diagnostics.push({
 				filePath: path.isAbsolute(rawPath) ? path.relative(rootDir, rawPath) : rawPath,
 				engine: "format",
 				rule: "formatting",
 				severity,
-				message: entry.message ?? "File is not formatted correctly",
+				message,
 				help: "Run `aislop fix` to auto-format",
 				line: entry.location?.start?.line ?? 0,
 				column: entry.location?.start?.column ?? 0,
