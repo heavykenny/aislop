@@ -31,7 +31,8 @@ const resolveOxlintBinary = (): string => {
 	}
 };
 
-const parseRuleCode = (code: string): { plugin: string; rule: string } => {
+const parseRuleCode = (code: string | undefined): { plugin: string; rule: string } => {
+	if (!code) return { plugin: "unknown", rule: "unknown" };
 	const match = code.match(/^(.+)\((.+)\)$/);
 	if (!match) return { plugin: "unknown", rule: code };
 	return { plugin: match[1].replace(/^eslint-plugin-/, ""), rule: match[2] };
@@ -122,52 +123,42 @@ const prefixIdentifierOnLine = (
 	const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 	if (type === "parameter") {
-		const paramPattern = new RegExp(`\\b${escaped}\\b`);
-		if (paramPattern.test(line)) {
-			return line.replace(paramPattern, `_${name}`);
+		const destructureMatch = line.match(/\{[^}]*\}/);
+		if (destructureMatch) {
+			const { 0: content, index: start } = destructureMatch;
+			const propPattern = new RegExp(`(?<!:\\s*)\\b${escaped}\\b(?!\\s*:)`);
+			if (propPattern.test(content)) {
+				const updated = content.replace(propPattern, `${name}: _${name}`);
+				if (updated !== content) {
+					return line.slice(0, start!) + updated + line.slice(start! + content.length);
+				}
+			}
 		}
-		return line;
+		const paramPattern = new RegExp(`\\b${escaped}\\b`);
+		return paramPattern.test(line) ? line.replace(paramPattern, `_${name}`) : line;
 	}
 
-	// Handle: const name = await expr  →  await expr
-	// Handle: const name = expr()  →  expr()
 	const assignPattern = new RegExp(`(\\s*)(const|let|var)\\s+${escaped}\\s*=\\s*(.+)$`);
 	const assignMatch = line.match(assignPattern);
 	if (assignMatch) {
-		const indent = assignMatch[1];
-		const expression = assignMatch[3];
-		// Only drop the variable if the RHS has a side effect (function call or await)
+		const [, indent, , expression] = assignMatch;
 		if (/await\s/.test(expression) || /\w+\s*\(/.test(expression)) {
 			return `${indent}${expression}`;
 		}
-		// Pure value assignment with no side effect — remove the entire line
 		return "";
 	}
 
 	const destructureMatch = line.match(/\{[^}]*\}/);
 	if (destructureMatch) {
-		const destructureContent = destructureMatch[0];
-		const destructureStart = destructureMatch.index!;
-
-		if (new RegExp(`\\b${escaped}\\b`).test(destructureContent)) {
-			let updated = destructureContent;
-			const propPattern = new RegExp(`\\b${escaped}\\b\\s*,?`);
-			updated = updated.replace(propPattern, (match) => {
-				if (match.endsWith(",")) {
-					return "";
-				}
-				return "";
-			});
-			updated = updated.replace(/,\s*\},/, "}");
-			updated = updated.replace(/\{,\s*/, "{");
-			updated = updated.replace(/\s*,\s*\}/, "}");
-
-			if (updated !== destructureContent) {
-				return (
-					line.slice(0, destructureStart) +
-					updated +
-					line.slice(destructureStart + destructureContent.length)
-				);
+		const { 0: content, index: start } = destructureMatch;
+		if (new RegExp(`\\b${escaped}\\b`).test(content)) {
+			let updated = content.replace(new RegExp(`\\b${escaped}\\b\\s*,?`), "");
+			updated = updated
+				.replace(/,\s*\},/, "}")
+				.replace(/\{,\s*/, "{")
+				.replace(/\s*,\s*\}/, "}");
+			if (updated !== content) {
+				return line.slice(0, start!) + updated + line.slice(start! + content.length);
 			}
 		}
 	}
