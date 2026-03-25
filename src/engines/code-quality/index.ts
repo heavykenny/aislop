@@ -1,6 +1,5 @@
 import type { Diagnostic, Engine, EngineContext, EngineResult } from "../types.js";
 import { checkComplexity } from "./complexity.js";
-import { checkDuplication } from "./duplication.js";
 import { runKnip } from "./knip.js";
 
 export const codeQualityEngine: Engine = {
@@ -18,9 +17,6 @@ export const codeQualityEngine: Engine = {
 
 		// Complexity checks for all files
 		promises.push(checkComplexity(context));
-
-		// Duplication checks
-		promises.push(checkDuplication(context));
 
 		const results = await Promise.allSettled(promises);
 		for (const result of results) {

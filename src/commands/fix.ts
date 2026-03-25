@@ -6,7 +6,12 @@ import { detectDeadPatterns } from "../engines/ai-slop/dead-patterns.js";
 import { fixDeadPatterns } from "../engines/ai-slop/dead-patterns-fix.js";
 import { detectUnusedImports } from "../engines/ai-slop/unused-imports.js";
 import { fixUnusedImports } from "../engines/ai-slop/unused-imports-fix.js";
-import { fixUnusedDependencies, runKnipDependencyCheck } from "../engines/code-quality/knip.js";
+import {
+	fixUnusedDependencies,
+	fixUnusedFiles,
+	runKnipDependencyCheck,
+	runKnipUnusedFiles,
+} from "../engines/code-quality/knip.js";
 import { fixBiomeFormat, runBiomeFormat } from "../engines/format/biome.js";
 import { fixGofmt, runGofmt } from "../engines/format/gofmt.js";
 import { fixRuffFormat, runRuffFormat } from "../engines/format/ruff-format.js";
@@ -107,6 +112,14 @@ export const fixCommand = async (
 		}
 	}
 	if (options.force) {
+		if (config.engines["code-quality"]) {
+			if (
+				projectInfo.languages.includes("typescript") ||
+				projectInfo.languages.includes("javascript")
+			) {
+				stepNames.push("Remove unused files");
+			}
+		}
 		if (config.engines.security) stepNames.push("Dependency audit fixes");
 		if (projectInfo.frameworks.includes("expo")) stepNames.push("Expo dependency alignment");
 	}
@@ -240,6 +253,21 @@ export const fixCommand = async (
 	}
 
 	if (options.force) {
+		if (
+			config.engines["code-quality"] &&
+			(projectInfo.languages.includes("typescript") || projectInfo.languages.includes("javascript"))
+		) {
+			steps.push(
+				await runFixStep(
+					"Remove unused files",
+					() => runKnipUnusedFiles(resolvedDir),
+					() => fixUnusedFiles(resolvedDir),
+					options,
+					progress,
+				),
+			);
+		}
+
 		if (config.engines.security) {
 			steps.push(
 				await runFixStep(
@@ -349,5 +377,31 @@ export const fixCommand = async (
 		logger.log(`  Manual effort: ${highlighter.dim(String(manual))}`);
 	}
 	logger.log(highlighter.dim("------------------------------------------------------------"));
+
+	// Next steps guidance
+	const nextSteps: string[] = [];
+	if (!options.force && errors + warnings > 0) {
+		nextSteps.push(
+			`Run ${highlighter.info("fix -f")} to try aggressive fixes (dependency audit, unsafe lint rewrites)`,
+		);
+	}
+	if (errors + warnings > 0) {
+		nextSteps.push(`Run ${highlighter.info("scan")} to see remaining issues with full details`);
+		nextSteps.push(
+			`${highlighter.warn(String(errors + warnings))} issue${errors + warnings === 1 ? " requires" : "s require"} manual review`,
+		);
+	}
+	if (errors + warnings === 0) {
+		nextSteps.push(`${highlighter.success("All clear!")} No remaining issues found.`);
+	}
+
+	if (nextSteps.length > 0) {
+		logger.break();
+		logger.log(highlighter.bold("Next steps"));
+		for (let i = 0; i < nextSteps.length; i++) {
+			logger.log(`  ${i + 1}. ${nextSteps[i]}`);
+		}
+	}
+
 	logger.break();
 };

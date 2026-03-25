@@ -101,7 +101,7 @@ const collectIssues = (
 };
 
 const findMonorepoRoot = (directory: string): string | null => {
-	let current = path.dirname(directory);
+	let current = directory;
 	while (current !== path.dirname(current)) {
 		if (
 			fs.existsSync(path.join(current, "pnpm-workspace.yaml")) ||
@@ -189,6 +189,21 @@ export const fixUnusedDependencies = async (rootDirectory: string): Promise<void
 	}
 };
 
+export const runKnipUnusedFiles = async (rootDirectory: string): Promise<Diagnostic[]> => {
+	const all = await runKnip(rootDirectory);
+	return all.filter((d) => d.rule === "knip/files");
+};
+
+export const fixUnusedFiles = async (rootDirectory: string): Promise<void> => {
+	const diagnostics = await runKnipUnusedFiles(rootDirectory);
+	for (const d of diagnostics) {
+		const absolutePath = path.resolve(rootDirectory, d.filePath);
+		if (fs.existsSync(absolutePath)) {
+			fs.unlinkSync(absolutePath);
+		}
+	}
+};
+
 export const runKnip = async (rootDirectory: string): Promise<Diagnostic[]> => {
 	const monorepoRoot = findMonorepoRoot(rootDirectory);
 	const knipRuntime = findKnipBin(rootDirectory, monorepoRoot);
@@ -198,7 +213,7 @@ export const runKnip = async (rootDirectory: string): Promise<Diagnostic[]> => {
 		const args = [knipRuntime.binPath, "--no-progress", "--reporter", "json", "--no-exit-code"];
 		const result = await runSubprocess(process.execPath, args, {
 			cwd: knipRuntime.cwd,
-			timeout: 20000,
+			timeout: 60000,
 			env: { FORCE_COLOR: "0" },
 		});
 		if (!result.stdout) return [];

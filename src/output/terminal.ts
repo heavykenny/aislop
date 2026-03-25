@@ -114,6 +114,19 @@ export const renderSummary = (
 		highlighter.dim("------------------------------------------------------------"),
 	];
 
+	if (errorCount + warningCount > 0) {
+		lines.push("");
+		lines.push(highlighter.bold("Next steps"));
+		if (fixableCount > 0) {
+			lines.push(
+				`  ${highlighter.info("→")} Run ${highlighter.info("fix")} to auto-fix ${fixableCount} issue${fixableCount === 1 ? "" : "s"}`,
+			);
+		}
+		lines.push(
+			`  ${highlighter.info("→")} Run ${highlighter.info("fix -f")} to apply all available fixes (includes dependency audit)`,
+		);
+	}
+
 	return `${lines.join("\n")}\n`;
 };
 

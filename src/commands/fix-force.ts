@@ -32,6 +32,21 @@ export const fixDependencyAudit = async (context: EngineContext): Promise<void> 
 	if (result.exitCode !== 0) {
 		throw new Error(result.stderr || result.stdout || `${auditFix.command} audit fix failed`);
 	}
+
+	// pnpm audit --fix adds overrides to package.json but requires `pnpm install` to apply them.
+	// npm audit fix modifies package-lock.json and may also need install.
+	const installResult = await runSubprocess(auditFix.command, ["install"], {
+		cwd: context.rootDirectory,
+		timeout: 180000,
+	});
+
+	if (installResult.exitCode !== 0) {
+		throw new Error(
+			installResult.stderr ||
+				installResult.stdout ||
+				`${auditFix.command} install failed after audit fix`,
+		);
+	}
 };
 
 export const fixExpoDependencies = async (context: EngineContext): Promise<void> => {

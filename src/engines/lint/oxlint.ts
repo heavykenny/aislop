@@ -31,10 +31,13 @@ const resolveOxlintBinary = (): string => {
 	}
 };
 
-const parseRuleCode = (code: string | undefined): { plugin: string; rule: string } => {
-	if (!code) return { plugin: "unknown", rule: "unknown" };
+const parseRuleCode = (code: string | null | undefined): { plugin: string; rule: string } => {
+	if (!code) return { plugin: "eslint", rule: "syntax-error" };
 	const match = code.match(/^(.+)\((.+)\)$/);
-	if (!match) return { plugin: "unknown", rule: code };
+	if (!match) {
+		// Plain code without parentheses (e.g. compile errors) — use "eslint" as default plugin
+		return { plugin: "eslint", rule: code };
+	}
 	return { plugin: match[1].replace(/^eslint-plugin-/, ""), rule: match[2] };
 };
 
@@ -89,14 +92,6 @@ const extractUnusedVarName = (
 
 	return null;
 };
-
-interface UnusedVarCandidate {
-	filePath: string;
-	line: number;
-	column: number;
-	name: string;
-	type: "variable" | "parameter";
-}
 
 const collectUnusedVarCandidates = (diagnostics: Diagnostic[]): UnusedVarCandidate[] =>
 	diagnostics
@@ -310,23 +305,31 @@ export const runOxlint = async (context: EngineContext): Promise<Diagnostic[]> =
 			return [];
 		}
 
-		return output.diagnostics.map((d) => {
-			const { plugin, rule } = parseRuleCode(d.code);
-			const label = d.labels[0];
+		const seen = new Set<string>();
+		return output.diagnostics
+			.map((d) => {
+				const { plugin, rule } = parseRuleCode(d.code);
+				const label = d.labels[0];
 
-			return {
-				filePath: d.filename,
-				engine: "lint" as const,
-				rule: `${plugin}/${rule}`,
-				severity: d.severity,
-				message: d.message.replace(/\S+\.\w+:\d+:\d+[\s\S]*$/, "").trim() || d.message,
-				help: d.help || "",
-				line: label?.span.line ?? 0,
-				column: label?.span.column ?? 0,
-				category: plugin === "react" ? "React" : plugin === "import" ? "Imports" : "Lint",
-				fixable: false,
-			};
-		});
+				return {
+					filePath: d.filename,
+					engine: "lint" as const,
+					rule: `${plugin}/${rule}`,
+					severity: d.severity,
+					message: d.message.replace(/\S+\.\w+:\d+:\d+[\s\S]*$/, "").trim() || d.message,
+					help: d.help || "",
+					line: label?.span.line ?? 0,
+					column: label?.span.column ?? 0,
+					category: plugin === "react" ? "React" : plugin === "import" ? "Imports" : "Lint",
+					fixable: false,
+				};
+			})
+			.filter((d) => {
+				const key = `${d.filePath}:${d.line}:${d.rule}:${d.message}`;
+				if (seen.has(key)) return false;
+				seen.add(key);
+				return true;
+			});
 	} finally {
 		if (fs.existsSync(configPath)) {
 			fs.unlinkSync(configPath);
