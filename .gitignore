@@ -5,3 +5,4 @@ assets/release-fix-scan.*
 *.tgz
 .DS_Store
 .claude
+CHANGELOG-review.md

@@ -125,6 +125,9 @@ export const renderSummary = (
 		lines.push(
 			`  ${highlighter.info("→")} Run ${highlighter.info("fix -f")} to apply all available fixes (includes dependency audit)`,
 		);
+		lines.push(
+			`  ${highlighter.dim("→")} Run ${highlighter.dim("fix --<agent>")} to hand off to a coding agent (see ${highlighter.dim("fix --help")} for supported agents)`,
+		);
 	}
 
 	return `${lines.join("\n")}\n`;

@@ -38,7 +38,7 @@ npx aislop ci
 Sample output:
 
 ```text
-aislop scan v0.2.1
+aislop scan v0.4.0
 
   ✓ Project my-app (typescript)
   Source files: 142
@@ -70,7 +70,7 @@ AI-generated changes often pass review because problems are spread across many f
 - **Score-based quality gate**: use a single 0-100 score in CI and PR checks
 - **AI-slop-first scoring**: defaults weight AI-pattern findings more than generic style noise
 - **Auto-fix support**: remove unused imports, apply lint suggestions, and format in one pass
-- **Duplication visibility**: flag repeated blocks and encourage extraction into shared modules
+- **Agent handoff**: hand remaining issues to Claude Code, Cursor, Codex, or 10+ other agents
 - **Software engineering best practices**: enforce function/file size limits, nesting limits, dead code cleanup, and safer patterns
 - **Works across stacks**: TypeScript, JavaScript, Python, Go, Rust, Ruby, PHP, Expo/React Native
 - **Zero-config start**: run `npx aislop scan` and get useful output immediately
@@ -83,7 +83,7 @@ Six engines run in parallel: **Formatting**, **Linting**, **Code Quality**, **AI
 |---|---|
 | Formatting | Biome, ruff, gofmt, cargo fmt, rubocop, php-cs-fixer |
 | Linting | oxlint, ruff, golangci-lint, clippy, expo-doctor |
-| Code Quality | Function/file size limits, deep nesting, duplication, dead code, unused dependencies (knip) |
+| Code Quality | Function/file size limits, deep nesting, dead code, unused files, unused dependencies (knip) |
 | AI Slop | Trivial comments, swallowed exceptions, unused imports, console leftovers, type assertion abuse, TODO stubs |
 | Security | Hardcoded secrets, eval, innerHTML, SQL/shell injection, dependency audits |
 | Architecture | Custom import bans, layering rules, required patterns |
@@ -131,7 +131,10 @@ aislop scan --json         # output JSON
 
 ```bash
 aislop fix                 # auto-fix unused imports, formatting, and lint fixes
-aislop fix --force         # aggressive mode: dependency audit + Expo alignment
+aislop fix -f              # aggressive: dependency audit, unused file removal, Expo alignment
+aislop fix --claude        # hand off remaining issues to Claude Code
+aislop fix --cursor        # open Cursor + copy prompt to clipboard
+aislop fix -p              # print prompt to paste into any coding agent
 ```
 
 ### Use in CI pipelines

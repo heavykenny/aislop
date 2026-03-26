@@ -76,7 +76,10 @@ ${highlighter.dim("Examples:")}
   aislop scan --changes  Scan only changed files
   aislop scan --staged   Scan only staged files (for hooks)
   aislop fix             Auto-fix ai slop in codebase
-  aislop fix --force     Run aggressive fixes (includes audit and dependency alignment)
+  aislop fix -f          Run aggressive fixes (includes audit and dependency alignment)
+  aislop fix --claude    Open Claude Code to fix remaining issues
+  aislop fix --cursor    Open Cursor + copy prompt to clipboard
+  aislop fix -p          Print a prompt to paste into any coding agent
   aislop ci              JSON output for CI pipelines
 `,
 	);
@@ -114,12 +117,49 @@ program
 	.description("Auto-fix ai slop in codebase")
 	.option("-d, --verbose", "show detailed fix progress")
 	.option("-f, --force", "run aggressive fixes (audit and framework dependency alignment)")
+	.option("-p, --prompt", "print a prompt for your coding agent to fix remaining issues")
+	.option("--claude", "open Claude Code to fix remaining issues")
+	.option("--codex", "open Codex to fix remaining issues")
+	.option("--cursor", "open Cursor and copy prompt to clipboard")
+	.option("--windsurf", "open Windsurf and copy prompt to clipboard")
+	.option("--vscode", "open VS Code and copy prompt to clipboard")
+	.option("--amp", "open Amp to fix remaining issues")
+	.option("--antigravity", "open Antigravity to fix remaining issues")
+	.option("--deep-agents", "open Deep Agents to fix remaining issues")
+	.option("--gemini", "open Gemini CLI to fix remaining issues")
+	.option("--kimi", "open Kimi Code CLI to fix remaining issues")
+	.option("--opencode", "open OpenCode to fix remaining issues")
+	.option("--warp", "open Warp to fix remaining issues")
+	.option("--aider", "open Aider to fix remaining issues")
+	.option("--goose", "open Goose to fix remaining issues")
 	.action(async (directory = ".", _flags, command) => {
-		const flags = command.optsWithGlobals() as { verbose?: boolean; force?: boolean };
+		const flags = command.optsWithGlobals() as Record<string, boolean | undefined>;
 		const config = loadConfig(directory);
+		const agentNames = [
+			"claude",
+			"codex",
+			"cursor",
+			"windsurf",
+			"vscode",
+			"amp",
+			"antigravity",
+			"deepAgents",
+			"gemini",
+			"kimi",
+			"opencode",
+			"warp",
+			"aider",
+			"goose",
+		] as const;
+		// Commander camelCases --deep-agents to deepAgents
+		const flagToAgent: Record<string, string> = { deepAgents: "deep-agents" };
+		const matched = agentNames.find((name) => flags[name]);
+		const agent = matched ? (flagToAgent[matched] ?? matched) : undefined;
 		await fixCommand(directory, config, {
 			verbose: Boolean(flags.verbose),
 			force: Boolean(flags.force),
+			prompt: Boolean(flags.prompt),
+			agent,
 		});
 	});
 
