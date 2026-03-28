@@ -156,7 +156,7 @@ export const summarizeFixRun = (steps: FixStepResult[]): void => {
 
 	if (totals.failedSteps === 0 && totals.beforeIssues > 0 && totals.resolvedIssues === 0) {
 		logger.dim(
-			"  No auto-fixable changes were applied. Current findings are likely manual-fix categories.",
+			"  Remaining issues require manual fixes or agent assistance. Run `scan` for details.",
 		);
 	}
 };

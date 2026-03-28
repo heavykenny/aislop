@@ -57,9 +57,9 @@ const detectConsoleLeftovers = (
 
 // Build the pattern with concatenation to avoid self-detection
 const todoKeywords = ["TO" + "DO", "FIX" + "ME", "HA" + "CK", "XX" + "X"];
+// TEMP, PLACEHOLDER, STUB only match in uppercase (intentional markers), not in prose
 const TODO_PATTERN = new RegExp(
-	`\\b(?:${todoKeywords.join("|")}|TEMP|PLACEHOLDER|STUB)\\b[:\\s]`,
-	"i",
+	`\\b(?:${todoKeywords.join("|")})\\b[:\\s]|\\b(?:TEMP|PLACEHOLDER|STUB)[:\\s]`,
 );
 
 const detectTodoStubs = (content: string, relativePath: string): Diagnostic[] => {
@@ -244,18 +244,25 @@ const detectUnsafeTypePatterns = (
 		}
 
 		if (doubleAssertPattern.test(trimmed)) {
-			diagnostics.push({
-				filePath: relativePath,
-				engine: "ai-slop",
-				rule: "ai-slop/double-type-assertion",
-				severity: "warning",
-				message: `Double type assertion (${"as" + " unknown as"} X) bypasses type checking`,
-				help: "Refactor to avoid needing a double assertion — it usually indicates a design issue",
-				line: i + 1,
-				column: 0,
-				category: "AI Slop",
-				fixable: false,
-			});
+			// Suppress for known ORM patterns (Sequelize, Knex, TypeORM query returns)
+			const isOrmReturn =
+				/\.query[(<]/.test(trimmed) ||
+				/result\[0\]/.test(trimmed) ||
+				/rows\s/.test(trimmed);
+			if (!isOrmReturn) {
+				diagnostics.push({
+					filePath: relativePath,
+					engine: "ai-slop",
+					rule: "ai-slop/double-type-assertion",
+					severity: "warning",
+					message: `Double type assertion (${"as" + " unknown as"} X) bypasses type checking`,
+					help: "Refactor to avoid needing a double assertion. If this is an ORM query return, consider a typed wrapper function",
+					line: i + 1,
+					column: 0,
+					category: "AI Slop",
+					fixable: false,
+				});
+			}
 		}
 	}
 

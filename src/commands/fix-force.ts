@@ -24,17 +24,19 @@ export const fixDependencyAudit = async (context: EngineContext): Promise<void> 
 	const auditFix = getJsAuditFixCommand(context.rootDirectory);
 	if (!auditFix) return;
 
+	// Step 1: Run standard audit fix
 	const result = await runSubprocess(auditFix.command, auditFix.args, {
 		cwd: context.rootDirectory,
 		timeout: 180000,
 	});
 
-	if (result.exitCode !== 0) {
-		throw new Error(result.stderr || result.stdout || `${auditFix.command} audit fix failed`);
+	// npm audit fix exits non-zero when vulns remain — that's expected
+	// Only throw on actual command failures (not just unresolved vulns)
+	if (result.exitCode !== 0 && !result.stdout && !result.stderr) {
+		throw new Error(`${auditFix.command} audit fix failed`);
 	}
 
-	// pnpm audit --fix adds overrides to package.json but requires `pnpm install` to apply them.
-	// npm audit fix modifies package-lock.json and may also need install.
+	// Step 2: Install to apply changes
 	const installResult = await runSubprocess(auditFix.command, ["install"], {
 		cwd: context.rootDirectory,
 		timeout: 180000,
@@ -46,6 +48,73 @@ export const fixDependencyAudit = async (context: EngineContext): Promise<void> 
 				installResult.stdout ||
 				`${auditFix.command} install failed after audit fix`,
 		);
+	}
+
+	// Step 3: Check if vulns remain — try overrides for npm
+	if (auditFix.command === "npm") {
+		await tryNpmOverrides(context.rootDirectory);
+	}
+};
+
+/**
+ * For unresolvable transitive vulnerabilities, attempt to add npm overrides
+ * in package.json. This forces a newer version of the vulnerable transitive dep.
+ */
+const tryNpmOverrides = async (rootDir: string): Promise<void> => {
+	try {
+		const auditResult = await runSubprocess("npm", ["audit", "--json"], {
+			cwd: rootDir,
+			timeout: 30000,
+		});
+		if (!auditResult.stdout) return;
+
+		const parsed = JSON.parse(auditResult.stdout) as Record<string, unknown>;
+		const vulnerabilities = parsed.vulnerabilities as
+			| Record<string, Record<string, unknown>>
+			| undefined;
+		if (!vulnerabilities) return;
+
+		const overrides: Record<string, string> = {};
+		for (const [pkgName, vuln] of Object.entries(vulnerabilities)) {
+			const fixAvailable = vuln.fixAvailable;
+			if (fixAvailable === false) {
+				// Check if there's a patched range we can override to
+				const range = vuln.range as string | undefined;
+				if (range) {
+					// Try to find the latest non-vulnerable version
+					const latestResult = await runSubprocess(
+						"npm",
+						["view", pkgName, "version", "--json"],
+						{ cwd: rootDir, timeout: 10000 },
+					);
+					if (latestResult.stdout) {
+						try {
+							const latest = JSON.parse(latestResult.stdout) as string;
+							overrides[pkgName] = latest;
+						} catch {
+							// skip if we can't parse
+						}
+					}
+				}
+			}
+		}
+
+		if (Object.keys(overrides).length === 0) return;
+
+		// Add overrides to package.json
+		const pkgPath = path.join(rootDir, "package.json");
+		const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8")) as Record<string, unknown>;
+		const existingOverrides = (pkg.overrides as Record<string, string>) || {};
+		pkg.overrides = { ...existingOverrides, ...overrides };
+		fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + "\n");
+
+		// Reinstall with overrides
+		await runSubprocess("npm", ["install"], {
+			cwd: rootDir,
+			timeout: 180000,
+		});
+	} catch {
+		// Override attempt is best-effort — don't fail the step
 	}
 };
 

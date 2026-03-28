@@ -123,9 +123,14 @@ const parseModernVulnerabilities = (
 		const severity = ((vulnerability.severity as string) ?? "moderate").toLowerCase();
 
 		const fixAvailable = vulnerability.fixAvailable;
+		const isDirect = vulnerability.isDirect === true;
 		let recommendation = `Run \`${defaultAuditFixCommand(source)}\` to resolve`;
 		if (fixAvailable === false) {
-			recommendation = "No automatic fix available.";
+			recommendation = isDirect
+				? "No automatic fix available — check for a newer major version or an alternative package."
+				: "Transitive vulnerability with no fix. Add an override in package.json or upgrade the parent dependency.";
+		} else if (!isDirect && fixAvailable === true) {
+			recommendation = `Transitive dep — \`${defaultAuditFixCommand(source)}\` may not resolve this. If it persists, add an override in package.json or upgrade the parent package that depends on ${packageName}.`;
 		} else if (
 			fixAvailable &&
 			typeof fixAvailable === "object" &&
