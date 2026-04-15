@@ -39,7 +39,7 @@ const getStepSummary = (result: FixStepResult): string => {
 	if (result.resolvedIssues > 0) {
 		return `${result.resolvedIssues} resolved, ${result.afterIssues} remaining, ${formatElapsed(result.elapsedMs)}`;
 	}
-	return `no changes, ${result.afterIssues} issue${result.afterIssues === 1 ? "" : "s"}, ${formatElapsed(result.elapsedMs)}`;
+	return `no changes, ${result.afterIssues} issue${result.afterIssues === 1 ? "" : "s"} remain, ${formatElapsed(result.elapsedMs)}`;
 };
 
 const getStatusParts = (

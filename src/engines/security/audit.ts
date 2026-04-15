@@ -12,7 +12,7 @@ export const runDependencyAudit = async (context: EngineContext): Promise<Diagno
 	// npm/pnpm audit
 	if (context.languages.includes("typescript") || context.languages.includes("javascript")) {
 		if (fs.existsSync(path.join(context.rootDirectory, "pnpm-lock.yaml"))) {
-			promises.push(runPnpmAudit(context.rootDirectory, timeout));
+			promises.push(runPnpmAuditWithFallback(context.rootDirectory, timeout));
 		} else if (
 			fs.existsSync(path.join(context.rootDirectory, "package-lock.json")) ||
 			fs.existsSync(path.join(context.rootDirectory, "package.json"))
@@ -58,14 +58,31 @@ const runNpmAudit = async (rootDir: string, timeout: number): Promise<Diagnostic
 	}
 };
 
-const runPnpmAudit = async (rootDir: string, timeout: number): Promise<Diagnostic[]> => {
+const runPnpmAuditWithFallback = async (
+	rootDir: string,
+	timeout: number,
+): Promise<Diagnostic[]> => {
+	const canFallbackToNpm = fs.existsSync(path.join(rootDir, "package-lock.json"));
+
 	try {
 		const result = await runSubprocess("pnpm", ["audit", "--json"], {
 			cwd: rootDir,
 			timeout,
 		});
-		return parseJsAudit(result.stdout, "pnpm audit");
+		const diagnostics = parseJsAudit(result.stdout, "pnpm audit");
+		const hasAuditFailure = diagnostics.some((d) => d.rule === "security/dependency-audit-skipped");
+		if (hasAuditFailure) {
+			if (canFallbackToNpm) {
+				return runNpmAudit(rootDir, timeout);
+			}
+			// pnpm audit failed due to an infrastructure/tooling issue, not a project problem — suppress.
+			return [];
+		}
+		return diagnostics;
 	} catch {
+		if (canFallbackToNpm) {
+			return runNpmAudit(rootDir, timeout);
+		}
 		return [];
 	}
 };
@@ -123,9 +140,14 @@ const parseModernVulnerabilities = (
 		const severity = ((vulnerability.severity as string) ?? "moderate").toLowerCase();
 
 		const fixAvailable = vulnerability.fixAvailable;
+		const isDirect = vulnerability.isDirect === true;
 		let recommendation = `Run \`${defaultAuditFixCommand(source)}\` to resolve`;
 		if (fixAvailable === false) {
-			recommendation = "No automatic fix available.";
+			recommendation = isDirect
+				? "No automatic fix available — check for a newer major version or an alternative package."
+				: "Transitive vulnerability with no fix. Add an override in package.json or upgrade the parent dependency.";
+		} else if (!isDirect && fixAvailable === true) {
+			recommendation = `Transitive dep — \`${defaultAuditFixCommand(source)}\` may not resolve this. If it persists, add an override in package.json or upgrade the parent package that depends on ${packageName}.`;
 		} else if (
 			fixAvailable &&
 			typeof fixAvailable === "object" &&

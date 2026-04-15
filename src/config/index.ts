@@ -33,7 +33,11 @@ export const loadConfig = (directory: string): AislopConfig => {
 		const raw = fs.readFileSync(configPath, "utf-8");
 		const parsed = YAML.parse(raw);
 		return parseConfig(parsed);
-	} catch {
+	} catch (error) {
+		const msg = error instanceof Error ? error.message : String(error);
+		process.stderr.write(
+			`  ⚠ Failed to parse ${configPath}: ${msg}\n  ⚠ Using default configuration.\n`,
+		);
 		return DEFAULT_CONFIG;
 	}
 };

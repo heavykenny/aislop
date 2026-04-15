@@ -37,6 +37,27 @@ const runBiome = async (
 
 const BIOME_EXTENSIONS = new Set([".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"]);
 
+const projectHasBiomeConfig = (rootDir: string): boolean => {
+	try {
+		const biomePath = path.join(rootDir, "biome.json");
+		return fs.existsSync(biomePath);
+	} catch {
+		return false;
+	}
+};
+
+const getBiomeLineWidth = (rootDir: string): number => {
+	try {
+		const biomePath = path.join(rootDir, "biome.json");
+		if (!fs.existsSync(biomePath)) return 120;
+		const content = fs.readFileSync(biomePath, "utf-8");
+		const config = JSON.parse(content);
+		return config.formatter?.lineWidth ?? 120;
+	} catch {
+		return 120;
+	}
+};
+
 const getBiomeTargets = (context: EngineContext): string[] =>
 	getSourceFiles(context)
 		.filter((filePath) => BIOME_EXTENSIONS.has(path.extname(filePath)))
@@ -56,7 +77,9 @@ const projectUsesDecorators = (rootDir: string): boolean => {
 export const runBiomeFormat = async (context: EngineContext): Promise<Diagnostic[]> => {
 	const targets = getBiomeTargets(context);
 	if (targets.length === 0) return [];
-	const args = ["format", "--reporter=json", ...targets];
+	if (!projectHasBiomeConfig(context.rootDirectory)) return [];
+	const lineWidth = getBiomeLineWidth(context.rootDirectory);
+	const args = ["format", "--reporter=json", `--line-width=${lineWidth}`, ...targets];
 
 	try {
 		const result = await runBiome(args, context.rootDirectory, 60000);
@@ -112,7 +135,8 @@ const parseBiomeJsonOutput = (output: string, rootDir: string): Diagnostic[] => 
 		for (const entry of parsed.diagnostics) {
 			const rawPath = entry.location?.path;
 			if (!rawPath) continue;
-			const severity = entry.severity === "error" ? "error" : "warning";
+			// Formatting issues are always warnings — they're auto-fixable style issues, not bugs
+			const severity = "warning" as const;
 			const rawMessage = entry.message ?? "";
 			const message =
 				!rawMessage || rawMessage.toLowerCase().includes("would have printed")
@@ -138,6 +162,11 @@ const parseBiomeJsonOutput = (output: string, rootDir: string): Diagnostic[] => 
 export const fixBiomeFormat = async (context: EngineContext): Promise<void> => {
 	const targets = getBiomeTargets(context);
 	if (targets.length === 0) return;
+	const lineWidth = getBiomeLineWidth(context.rootDirectory);
 
-	await runBiome(["format", "--write", ...targets], context.rootDirectory, 60000);
+	await runBiome(
+		["format", "--write", `--line-width=${lineWidth}`, ...targets],
+		context.rootDirectory,
+		60000,
+	);
 };

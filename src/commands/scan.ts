@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
 import type { AislopConfig } from "../config/index.js";
@@ -44,6 +45,26 @@ export const scanCommand = async (
 ): Promise<{ exitCode: number }> => {
 	const startTime = performance.now();
 	const resolvedDir = path.resolve(directory);
+
+	if (!fs.existsSync(resolvedDir)) {
+		const msg = `Path does not exist: ${resolvedDir}`;
+		if (options.json) {
+			console.log(JSON.stringify({ error: msg }, null, 2));
+		} else {
+			logger.error(`  ${msg}`);
+		}
+		return { exitCode: 1 };
+	}
+	if (!fs.statSync(resolvedDir).isDirectory()) {
+		const msg = `Not a directory: ${resolvedDir}`;
+		if (options.json) {
+			console.log(JSON.stringify({ error: msg }, null, 2));
+		} else {
+			logger.error(`  ${msg}`);
+		}
+		return { exitCode: 1 };
+	}
+
 	const showHeader = options.showHeader !== false;
 	const useLiveProgress = !options.json && shouldUseSpinner();
 

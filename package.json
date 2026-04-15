@@ -1,6 +1,6 @@
 {
 	"name": "aislop",
-"version": "0.3.2",
+	"version": "0.4.0",
 	"description": "Stop AI slop from shipping. A unified code quality CLI that catches the lazy patterns AI coding tools leave behind.",
 	"type": "module",
 	"bin": {
@@ -73,7 +73,7 @@
 		"zod": "^4.3.6"
 	},
 	"devDependencies": {
-		"@types/node": "^25.3.3",
+		"@types/node": "^25.6.0",
 		"tsdown": "^0.20.3",
 		"typescript": "^5.9.3",
 		"vitest": "^4.0.18"

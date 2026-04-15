@@ -10,7 +10,9 @@
 
 `aislop` is a unified code-quality CLI that catches the lazy patterns AI coding tools leave behind. One command, one score out of 100.
 
-`aislop` helps teams review AI-assisted code faster by combining formatting, linting, maintainability, AI-pattern detection, architecture checks, and security checks into a single report.
+Every check is deterministic — regex patterns, AST analysis, and standard tooling (Biome, oxlint, knip, ruff). It runs the same way every time, with no API calls, no LLMs, and no network requests (except dependency audits). The name refers to what it *catches*.
+
+`aislop` helps teams review AI-assisted code faster by combining formatting, linting, maintainability, pattern detection, architecture checks, and security checks into a single report.
 
 ## See it in action
 
@@ -38,7 +40,7 @@ npx aislop ci
 Sample output:
 
 ```text
-aislop scan v0.2.1
+aislop scan v0.4.0
 
   ✓ Project my-app (typescript)
   Source files: 142
@@ -63,30 +65,32 @@ Summary
 
 ## Why aislop
 
-AI-generated changes often pass review because problems are spread across many files and many categories.
-`aislop` gives you one view and one score.
+AI coding tools generate code that compiles and passes tests but ships with patterns no engineer would write: trivial comments, swallowed exceptions, unused imports, `as any` casts, oversized functions, and leftover `console.log` calls. These problems are spread across many files and slip through review.
 
-- **One command, full picture**: formatting + lint + maintainability + AI slop + security (+ architecture)
+`aislop` gives you one view and one score — fully deterministic, no AI involved.
+
+- **One command, full picture**: formatting + lint + maintainability + pattern detection + security (+ architecture)
+- **Deterministic and fast**: regex, AST analysis, and standard tooling — no LLMs, no API keys, no network dependency
 - **Score-based quality gate**: use a single 0-100 score in CI and PR checks
-- **AI-slop-first scoring**: defaults weight AI-pattern findings more than generic style noise
-- **Auto-fix support**: remove unused imports, apply lint suggestions, and format in one pass
-- **Duplication visibility**: flag repeated blocks and encourage extraction into shared modules
-- **Software engineering best practices**: enforce function/file size limits, nesting limits, dead code cleanup, and safer patterns
+- **Weighted scoring**: defaults weight sloppy patterns (dead code, type abuse, swallowed errors) more than style noise
+- **Auto-fix support**: remove unused imports, apply lint suggestions, fix deps, and format in one pass
+- **Agent handoff**: when auto-fix can't solve it, one flag hands remaining issues to Claude Code, Codex, Cursor, Gemini, Windsurf, Amp, Aider, Goose, and more (14 agents supported)
+- **Software engineering standards**: enforce function/file size limits, nesting limits, dead code cleanup, and safer patterns
 - **Works across stacks**: TypeScript, JavaScript, Python, Go, Rust, Ruby, PHP, Expo/React Native
 - **Zero-config start**: run `npx aislop scan` and get useful output immediately
 
 ## What it catches
 
-Six engines run in parallel: **Formatting**, **Linting**, **Code Quality**, **AI Slop Detection**, **Security**, and **Architecture** (opt-in).
+Six deterministic engines run in parallel:
 
-| Engine | Examples |
-|---|---|
-| Formatting | Biome, ruff, gofmt, cargo fmt, rubocop, php-cs-fixer |
-| Linting | oxlint, ruff, golangci-lint, clippy, expo-doctor |
-| Code Quality | Function/file size limits, deep nesting, duplication, dead code, unused dependencies (knip) |
-| AI Slop | Trivial comments, swallowed exceptions, unused imports, console leftovers, type assertion abuse, TODO stubs |
-| Security | Hardcoded secrets, eval, innerHTML, SQL/shell injection, dependency audits |
-| Architecture | Custom import bans, layering rules, required patterns |
+| Engine | What it checks | How |
+|---|---|---|
+| **Formatting** | Code style consistency | Biome, ruff, gofmt, cargo fmt, rubocop, php-cs-fixer |
+| **Linting** | Language-specific issues | oxlint, ruff, golangci-lint, clippy, expo-doctor |
+| **Code Quality** | Complexity and dead code | Function/file size limits, deep nesting, unused files/deps (knip) |
+| **Pattern Detection** | Sloppy code patterns | Trivial comments, swallowed exceptions, unused imports, console leftovers, type assertion abuse, TODO stubs |
+| **Security** | Vulnerabilities and risky code | eval, innerHTML, SQL/shell injection, dependency audits (npm/pip/cargo/govulncheck) |
+| **Architecture** | Structural rules (opt-in) | Custom import bans, layering rules, required patterns |
 
 See the full [rules reference](docs/rules.md).
 
@@ -131,7 +135,32 @@ aislop scan --json         # output JSON
 
 ```bash
 aislop fix                 # auto-fix unused imports, formatting, and lint fixes
-aislop fix --force         # aggressive mode: dependency audit + Expo alignment
+aislop fix -f              # aggressive: dependency audit, unused file removal, Expo alignment
+aislop fix --claude        # hand off remaining issues to Claude Code
+aislop fix --cursor        # open Cursor + copy prompt to clipboard
+aislop fix -p              # print prompt to paste into any coding agent
+```
+
+### Hand off to your coding agent
+
+When auto-fix can't solve it, aislop generates a prompt with full context and opens your agent:
+
+```bash
+aislop fix --claude        # Claude Code
+aislop fix --codex         # Codex CLI
+aislop fix --cursor        # Cursor (copies prompt to clipboard)
+aislop fix --windsurf      # Windsurf (copies prompt to clipboard)
+aislop fix --gemini        # Gemini CLI
+aislop fix --amp           # Amp
+aislop fix --vscode        # VS Code (copies prompt to clipboard)
+aislop fix --aider         # Aider
+aislop fix --goose         # Goose
+aislop fix --opencode      # OpenCode
+aislop fix --warp          # Warp
+aislop fix --kimi          # Kimi Code CLI
+aislop fix --antigravity   # Antigravity
+aislop fix --deep-agents   # Deep Agents
+aislop fix --prompt        # print prompt to paste into any agent
 ```
 
 ### Use in CI pipelines

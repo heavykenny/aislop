@@ -46,7 +46,7 @@ Both `aislop ci` and `aislop scan --json` produce structured JSON output suitabl
 
 ```json
 {
-  "version": "0.1.3",
+  "version": "0.4.0",
   "score": 85,
   "label": "Healthy",
   "engines": { ... },

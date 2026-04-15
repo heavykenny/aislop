@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import path from "node:path";
 import type { AislopConfig } from "../config/index.js";
 import { findConfigDir, RULES_FILE } from "../config/index.js";
@@ -6,7 +7,12 @@ import { detectDeadPatterns } from "../engines/ai-slop/dead-patterns.js";
 import { fixDeadPatterns } from "../engines/ai-slop/dead-patterns-fix.js";
 import { detectUnusedImports } from "../engines/ai-slop/unused-imports.js";
 import { fixUnusedImports } from "../engines/ai-slop/unused-imports-fix.js";
-import { fixUnusedDependencies, runKnipDependencyCheck } from "../engines/code-quality/knip.js";
+import {
+	fixUnusedDependencies,
+	fixUnusedFiles,
+	runKnipDependencyCheck,
+	runKnipUnusedFiles,
+} from "../engines/code-quality/knip.js";
 import { fixBiomeFormat, runBiomeFormat } from "../engines/format/biome.js";
 import { fixGofmt, runGofmt } from "../engines/format/gofmt.js";
 import { fixRuffFormat, runRuffFormat } from "../engines/format/ruff-format.js";
@@ -26,13 +32,20 @@ import { calculateScore } from "../scoring/index.js";
 import { discoverProject } from "../utils/discover.js";
 import { highlighter } from "../utils/highlighter.js";
 import { logger } from "../utils/logger.js";
+import { spinner } from "../utils/spinner.js";
 import { isTelemetryDisabled, trackEvent } from "../utils/telemetry.js";
+import { launchAgent, printPrompt } from "./fix-code.js";
 import { fixDependencyAudit, fixExpoDependencies } from "./fix-force.js";
+import { buildFixStepNames } from "./fix-plan.js";
 import { runFixStep, summarizeFixRun } from "./fix-step.js";
 
 interface FixOptions {
 	verbose: boolean;
 	force?: boolean;
+	/** Agent CLI to launch with remaining issues (e.g. "claude", "codex") */
+	agent?: string;
+	/** Print the prompt to stdout instead of launching an agent */
+	prompt?: boolean;
 	showHeader?: boolean;
 }
 
@@ -58,6 +71,14 @@ export const fixCommand = async (
 ): Promise<void> => {
 	const resolvedDir = path.resolve(directory);
 
+	if (!fs.existsSync(resolvedDir) || !fs.statSync(resolvedDir).isDirectory()) {
+		const msg = !fs.existsSync(resolvedDir)
+			? `Path does not exist: ${resolvedDir}`
+			: `Not a directory: ${resolvedDir}`;
+		logger.error(`  ${msg}`);
+		return;
+	}
+
 	if (options.showHeader !== false) {
 		printCommandHeader("Fix");
 	}
@@ -67,49 +88,7 @@ export const fixCommand = async (
 	printProjectMetadata(projectInfo);
 	const context = createEngineContext(resolvedDir, projectInfo, config);
 	const steps: FixStepResult[] = [];
-
-	const stepNames: string[] = [];
-	if (config.engines["ai-slop"]) {
-		stepNames.push("Unused imports");
-		stepNames.push("Dead code & comments");
-	}
-	if (config.engines.lint) {
-		if (
-			projectInfo.languages.includes("typescript") ||
-			projectInfo.languages.includes("javascript")
-		) {
-			stepNames.push("JS/TS lint fixes");
-		}
-		if (projectInfo.languages.includes("python") && projectInfo.installedTools.ruff) {
-			stepNames.push("Python lint fixes");
-		}
-	}
-	if (config.engines["code-quality"]) {
-		if (
-			projectInfo.languages.includes("typescript") ||
-			projectInfo.languages.includes("javascript")
-		) {
-			stepNames.push("Unused dependencies");
-		}
-	}
-	if (config.engines.format) {
-		if (
-			projectInfo.languages.includes("typescript") ||
-			projectInfo.languages.includes("javascript")
-		) {
-			stepNames.push("JS/TS formatting");
-		}
-		if (projectInfo.languages.includes("python") && projectInfo.installedTools.ruff) {
-			stepNames.push("Python formatting");
-		}
-		if (projectInfo.languages.includes("go") && projectInfo.installedTools.gofmt) {
-			stepNames.push("Go formatting");
-		}
-	}
-	if (options.force) {
-		if (config.engines.security) stepNames.push("Dependency audit fixes");
-		if (projectInfo.frameworks.includes("expo")) stepNames.push("Expo dependency alignment");
-	}
+	const stepNames = buildFixStepNames(projectInfo, config, options);
 
 	const progress = new FixProgressRenderer(stepNames);
 	progress.start();
@@ -240,6 +219,21 @@ export const fixCommand = async (
 	}
 
 	if (options.force) {
+		if (
+			config.engines["code-quality"] &&
+			(projectInfo.languages.includes("typescript") || projectInfo.languages.includes("javascript"))
+		) {
+			steps.push(
+				await runFixStep(
+					"Remove unused files",
+					() => runKnipUnusedFiles(resolvedDir),
+					() => fixUnusedFiles(resolvedDir),
+					options,
+					progress,
+				),
+			);
+		}
+
 		if (config.engines.security) {
 			steps.push(
 				await runFixStep(
@@ -288,7 +282,8 @@ export const fixCommand = async (
 
 	logger.break();
 
-	// Silent post-fix scan: run engines quietly, then print compact summary
+	// Post-fix scan: re-run engines to calculate final score
+	const verifySpinner = spinner("  Verifying results...").start();
 	const configDir = findConfigDir(resolvedDir);
 	const rulesPath = configDir ? path.join(configDir, RULES_FILE) : undefined;
 	const engineConfig: EngineConfig = {
@@ -309,6 +304,8 @@ export const fixCommand = async (
 		() => {},
 		() => {},
 	);
+
+	verifySpinner.stop();
 
 	const allDiagnostics = scanResults.flatMap((r) => r.diagnostics);
 	const scoreResult = calculateScore(
@@ -349,5 +346,44 @@ export const fixCommand = async (
 		logger.log(`  Manual effort: ${highlighter.dim(String(manual))}`);
 	}
 	logger.log(highlighter.dim("------------------------------------------------------------"));
+
+	// --prompt: print the prompt, --claude/--codex: launch agent directly
+	if (options.agent) {
+		launchAgent(options.agent, resolvedDir, allDiagnostics, scoreResult.score);
+		return;
+	}
+	if (options.prompt) {
+		printPrompt(resolvedDir, allDiagnostics, scoreResult.score);
+		return;
+	}
+
+	// Next steps guidance
+	const nextSteps: string[] = [];
+	if (!options.force && errors + warnings > 0) {
+		nextSteps.push(
+			`Run ${highlighter.info("fix -f")} to try aggressive fixes (dependency audit, unused files, unsafe lint)`,
+		);
+	}
+	if (errors + warnings > 0 && !options.agent && !options.prompt) {
+		nextSteps.push(
+			`Run ${highlighter.info("fix --<agent>")} to hand off to a coding agent, or ${highlighter.info("fix --prompt")} to copy the prompt`,
+		);
+		nextSteps.push(
+			highlighter.dim(
+				"Agents: --claude, --codex, --gemini, --opencode, --cursor, --amp, --aider, --goose and more",
+			),
+		);
+	}
+	if (errors + warnings > 0) {
+		nextSteps.push(`Run ${highlighter.info("scan")} to see remaining issues with full details`);
+	}
+	if (nextSteps.length > 0) {
+		logger.break();
+		logger.log(highlighter.bold("Next steps"));
+		for (let i = 0; i < nextSteps.length; i++) {
+			logger.log(`  ${i + 1}. ${nextSteps[i]}`);
+		}
+	}
+
 	logger.break();
 };

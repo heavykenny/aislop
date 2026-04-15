@@ -54,7 +54,7 @@ Each engine can be enabled or disabled individually:
 engines:
   format: true        # formatting checks
   lint: true          # linting checks
-  code-quality: true  # complexity, duplication, dead code
+  code-quality: true  # complexity, dead code, unused deps
   ai-slop: true       # AI pattern detection
   architecture: false  # custom import/path rules (requires rules.yml)
   security: true       # secrets, risky constructs, dependency audits

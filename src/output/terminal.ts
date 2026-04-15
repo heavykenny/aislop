@@ -114,6 +114,22 @@ export const renderSummary = (
 		highlighter.dim("------------------------------------------------------------"),
 	];
 
+	if (errorCount + warningCount > 0) {
+		lines.push("");
+		lines.push(highlighter.bold("Next steps"));
+		if (fixableCount > 0) {
+			lines.push(
+				`  ${highlighter.info("→")} Run ${highlighter.info("fix")} to auto-fix ${fixableCount} issue${fixableCount === 1 ? "" : "s"}`,
+			);
+		}
+		lines.push(
+			`  ${highlighter.info("→")} Run ${highlighter.info("fix -f")} to apply all available fixes (includes dependency audit)`,
+		);
+		lines.push(
+			`  ${highlighter.dim("→")} Run ${highlighter.dim("fix --<agent>")} to hand off to a coding agent (see ${highlighter.dim("fix --help")} for supported agents)`,
+		);
+	}
+
 	return `${lines.join("\n")}\n`;
 };
 

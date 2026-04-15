@@ -81,13 +81,16 @@ export const runFixStep = async (
 	const before = await detect();
 	let applyError: unknown = null;
 
-	try {
-		await applyFix();
-	} catch (error) {
-		applyError = error;
+	// Only run the fix if there are issues to fix
+	if (before.length > 0) {
+		try {
+			await applyFix();
+		} catch (error) {
+			applyError = error;
+		}
 	}
 
-	const after = await detect();
+	const after = before.length > 0 ? await detect() : before;
 	const elapsedMs = performance.now() - stepStart;
 	const result: FixStepResult = {
 		name,
@@ -156,7 +159,7 @@ export const summarizeFixRun = (steps: FixStepResult[]): void => {
 
 	if (totals.failedSteps === 0 && totals.beforeIssues > 0 && totals.resolvedIssues === 0) {
 		logger.dim(
-			"  No auto-fixable changes were applied. Current findings are likely manual-fix categories.",
+			"  Remaining issues require manual fixes or agent assistance. Run `scan` for details.",
 		);
 	}
 };
