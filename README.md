@@ -74,7 +74,7 @@ AI coding tools generate code that compiles and passes tests but ships with patt
 - **Score-based quality gate**: use a single 0-100 score in CI and PR checks
 - **Weighted scoring**: defaults weight sloppy patterns (dead code, type abuse, swallowed errors) more than style noise
 - **Auto-fix support**: remove unused imports, apply lint suggestions, fix deps, and format in one pass
-- **Agent handoff**: when auto-fix can't solve it, hand off to Claude Code, Cursor, Codex, or 10+ other agents
+- **Agent handoff**: when auto-fix can't solve it, one flag hands remaining issues to Claude Code, Codex, Cursor, Gemini, Windsurf, Amp, Aider, Goose, and more (14 agents supported)
 - **Software engineering standards**: enforce function/file size limits, nesting limits, dead code cleanup, and safer patterns
 - **Works across stacks**: TypeScript, JavaScript, Python, Go, Rust, Ruby, PHP, Expo/React Native
 - **Zero-config start**: run `npx aislop scan` and get useful output immediately
@@ -139,6 +139,28 @@ aislop fix -f              # aggressive: dependency audit, unused file removal, 
 aislop fix --claude        # hand off remaining issues to Claude Code
 aislop fix --cursor        # open Cursor + copy prompt to clipboard
 aislop fix -p              # print prompt to paste into any coding agent
+```
+
+### Hand off to your coding agent
+
+When auto-fix can't solve it, aislop generates a prompt with full context and opens your agent:
+
+```bash
+aislop fix --claude        # Claude Code
+aislop fix --codex         # Codex CLI
+aislop fix --cursor        # Cursor (copies prompt to clipboard)
+aislop fix --windsurf      # Windsurf (copies prompt to clipboard)
+aislop fix --gemini        # Gemini CLI
+aislop fix --amp           # Amp
+aislop fix --vscode        # VS Code (copies prompt to clipboard)
+aislop fix --aider         # Aider
+aislop fix --goose         # Goose
+aislop fix --opencode      # OpenCode
+aislop fix --warp          # Warp
+aislop fix --kimi          # Kimi Code CLI
+aislop fix --antigravity   # Antigravity
+aislop fix --deep-agents   # Deep Agents
+aislop fix --prompt        # print prompt to paste into any agent
 ```
 
 ### Use in CI pipelines

@@ -377,10 +377,6 @@ export const fixCommand = async (
 	if (errors + warnings > 0) {
 		nextSteps.push(`Run ${highlighter.info("scan")} to see remaining issues with full details`);
 	}
-	if (errors + warnings === 0) {
-		nextSteps.push(`${highlighter.success("All clear!")} No remaining issues found.`);
-	}
-
 	if (nextSteps.length > 0) {
 		logger.break();
 		logger.log(highlighter.bold("Next steps"));

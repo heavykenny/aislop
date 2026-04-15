@@ -81,13 +81,16 @@ export const runFixStep = async (
 	const before = await detect();
 	let applyError: unknown = null;
 
-	try {
-		await applyFix();
-	} catch (error) {
-		applyError = error;
+	// Only run the fix if there are issues to fix
+	if (before.length > 0) {
+		try {
+			await applyFix();
+		} catch (error) {
+			applyError = error;
+		}
 	}
 
-	const after = await detect();
+	const after = before.length > 0 ? await detect() : before;
 	const elapsedMs = performance.now() - stepStart;
 	const result: FixStepResult = {
 		name,
