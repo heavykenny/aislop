@@ -91,65 +91,64 @@ export const fixDeadPatterns = async (context: EngineContext): Promise<void> => 
 	}
 
 	for (const [filePath, entries] of byFile) {
-		if (!fs.existsSync(filePath)) continue;
-
-		const content = fs.readFileSync(filePath, "utf-8");
-		const lines = content.split("\n");
-		const linesToRemove = new Set<number>();
-		// Map from 1-based line number to replacement line content
-		const lineReplacements = new Map<number, string>();
-
-		for (const entry of entries) {
-			const index = entry.line - 1;
-			if (index < 0 || index >= lines.length) continue;
-
-			if (entry.rule === "ai-slop/console-leftover") {
-				const span = findStatementSpan(lines, index);
-				const statementText = getStatementText(lines, index, span);
-
-				if (shouldUpgradeToError(statementText)) {
-					// Replace console.log/debug/info with console.error on the first line only
-					const replaced = lines[index].replace(
-						/console\.(?:log|debug|info|trace|dir|table)\s*\(/,
-						"console.error(",
-					);
-					lineReplacements.set(entry.line, replaced);
-					// Don't remove any lines — keep the full statement
-				} else {
-					// Remove the entire multi-line statement
-					for (const lineNo of span) {
-						linesToRemove.add(lineNo);
-					}
-				}
-			} else {
-				linesToRemove.add(entry.line);
-			}
-		}
-
-		const result: string[] = [];
-		for (let i = 0; i < lines.length; i++) {
-			const lineNo = i + 1;
-			if (linesToRemove.has(lineNo)) continue;
-			if (lineReplacements.has(lineNo)) {
-				result.push(lineReplacements.get(lineNo)!);
-			} else {
-				result.push(lines[i]);
-			}
-		}
-
-		// Collapse consecutive blank lines left by removals
-		const collapsed: string[] = [];
-		for (const line of result) {
-			if (
-				line.trim() === "" &&
-				collapsed.length > 0 &&
-				collapsed[collapsed.length - 1].trim() === ""
-			) {
-				continue;
-			}
-			collapsed.push(line);
-		}
-
-		fs.writeFileSync(filePath, collapsed.join("\n"));
+		fixFileDeadPatterns(filePath, entries);
 	}
+};
+
+const fixFileDeadPatterns = (filePath: string, entries: { line: number; rule: string }[]): void => {
+	if (!fs.existsSync(filePath)) return;
+
+	const content = fs.readFileSync(filePath, "utf-8");
+	const lines = content.split("\n");
+	const linesToRemove = new Set<number>();
+	const lineReplacements = new Map<number, string>();
+
+	for (const entry of entries) {
+		const index = entry.line - 1;
+		if (index < 0 || index >= lines.length) continue;
+
+		if (entry.rule === "ai-slop/console-leftover") {
+			const span = findStatementSpan(lines, index);
+			const statementText = getStatementText(lines, index, span);
+
+			if (shouldUpgradeToError(statementText)) {
+				const replaced = lines[index].replace(
+					/console\.(?:log|debug|info|trace|dir|table)\s*\(/,
+					"console.error(",
+				);
+				lineReplacements.set(entry.line, replaced);
+			} else {
+				for (const lineNo of span) {
+					linesToRemove.add(lineNo);
+				}
+			}
+		} else {
+			linesToRemove.add(entry.line);
+		}
+	}
+
+	const result = applyEditsAndCollapse(lines, linesToRemove, lineReplacements);
+	fs.writeFileSync(filePath, result);
+};
+
+const applyEditsAndCollapse = (
+	lines: string[],
+	linesToRemove: Set<number>,
+	lineReplacements: Map<number, string>,
+): string => {
+	const result: string[] = [];
+	for (let i = 0; i < lines.length; i++) {
+		const lineNo = i + 1;
+		if (linesToRemove.has(lineNo)) continue;
+		result.push(lineReplacements.get(lineNo) ?? lines[i]);
+	}
+
+	const collapsed: string[] = [];
+	for (const line of result) {
+		const prevEmpty = collapsed.length > 0 && collapsed[collapsed.length - 1].trim() === "";
+		if (line.trim() === "" && prevEmpty) continue;
+		collapsed.push(line);
+	}
+
+	return collapsed.join("\n");
 };

@@ -12,7 +12,8 @@
 		"sourceMap": true,
 		"resolveJsonModule": true,
 		"isolatedModules": true,
-		"verbatimModuleSyntax": true
+		"verbatimModuleSyntax": true,
+		"types": ["node"]
 	},
 	"include": ["src"],
 	"exclude": ["node_modules", "dist", "tests"]

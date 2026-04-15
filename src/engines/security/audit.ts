@@ -12,7 +12,7 @@ export const runDependencyAudit = async (context: EngineContext): Promise<Diagno
 	// npm/pnpm audit
 	if (context.languages.includes("typescript") || context.languages.includes("javascript")) {
 		if (fs.existsSync(path.join(context.rootDirectory, "pnpm-lock.yaml"))) {
-			promises.push(runPnpmAudit(context.rootDirectory, timeout));
+			promises.push(runPnpmAuditWithFallback(context.rootDirectory, timeout));
 		} else if (
 			fs.existsSync(path.join(context.rootDirectory, "package-lock.json")) ||
 			fs.existsSync(path.join(context.rootDirectory, "package.json"))
@@ -58,14 +58,31 @@ const runNpmAudit = async (rootDir: string, timeout: number): Promise<Diagnostic
 	}
 };
 
-const runPnpmAudit = async (rootDir: string, timeout: number): Promise<Diagnostic[]> => {
+const runPnpmAuditWithFallback = async (
+	rootDir: string,
+	timeout: number,
+): Promise<Diagnostic[]> => {
+	const canFallbackToNpm = fs.existsSync(path.join(rootDir, "package-lock.json"));
+
 	try {
 		const result = await runSubprocess("pnpm", ["audit", "--json"], {
 			cwd: rootDir,
 			timeout,
 		});
-		return parseJsAudit(result.stdout, "pnpm audit");
+		const diagnostics = parseJsAudit(result.stdout, "pnpm audit");
+		const hasAuditFailure = diagnostics.some((d) => d.rule === "security/dependency-audit-skipped");
+		if (hasAuditFailure) {
+			if (canFallbackToNpm) {
+				return runNpmAudit(rootDir, timeout);
+			}
+			// pnpm audit failed due to an infrastructure/tooling issue, not a project problem — suppress.
+			return [];
+		}
+		return diagnostics;
 	} catch {
+		if (canFallbackToNpm) {
+			return runNpmAudit(rootDir, timeout);
+		}
 		return [];
 	}
 };

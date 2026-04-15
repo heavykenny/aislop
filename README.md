@@ -10,7 +10,9 @@
 
 `aislop` is a unified code-quality CLI that catches the lazy patterns AI coding tools leave behind. One command, one score out of 100.
 
-`aislop` helps teams review AI-assisted code faster by combining formatting, linting, maintainability, AI-pattern detection, architecture checks, and security checks into a single report.
+Every check is deterministic — regex patterns, AST analysis, and standard tooling (Biome, oxlint, knip, ruff). It runs the same way every time, with no API calls, no LLMs, and no network requests (except dependency audits). The name refers to what it *catches*.
+
+`aislop` helps teams review AI-assisted code faster by combining formatting, linting, maintainability, pattern detection, architecture checks, and security checks into a single report.
 
 ## See it in action
 
@@ -63,30 +65,32 @@ Summary
 
 ## Why aislop
 
-AI-generated changes often pass review because problems are spread across many files and many categories.
-`aislop` gives you one view and one score.
+AI coding tools generate code that compiles and passes tests but ships with patterns no engineer would write: trivial comments, swallowed exceptions, unused imports, `as any` casts, oversized functions, and leftover `console.log` calls. These problems are spread across many files and slip through review.
 
-- **One command, full picture**: formatting + lint + maintainability + AI slop + security (+ architecture)
+`aislop` gives you one view and one score — fully deterministic, no AI involved.
+
+- **One command, full picture**: formatting + lint + maintainability + pattern detection + security (+ architecture)
+- **Deterministic and fast**: regex, AST analysis, and standard tooling — no LLMs, no API keys, no network dependency
 - **Score-based quality gate**: use a single 0-100 score in CI and PR checks
-- **AI-slop-first scoring**: defaults weight AI-pattern findings more than generic style noise
-- **Auto-fix support**: remove unused imports, apply lint suggestions, and format in one pass
-- **Agent handoff**: hand remaining issues to Claude Code, Cursor, Codex, or 10+ other agents
-- **Software engineering best practices**: enforce function/file size limits, nesting limits, dead code cleanup, and safer patterns
+- **Weighted scoring**: defaults weight sloppy patterns (dead code, type abuse, swallowed errors) more than style noise
+- **Auto-fix support**: remove unused imports, apply lint suggestions, fix deps, and format in one pass
+- **Agent handoff**: when auto-fix can't solve it, hand off to Claude Code, Cursor, Codex, or 10+ other agents
+- **Software engineering standards**: enforce function/file size limits, nesting limits, dead code cleanup, and safer patterns
 - **Works across stacks**: TypeScript, JavaScript, Python, Go, Rust, Ruby, PHP, Expo/React Native
 - **Zero-config start**: run `npx aislop scan` and get useful output immediately
 
 ## What it catches
 
-Six engines run in parallel: **Formatting**, **Linting**, **Code Quality**, **AI Slop Detection**, **Security**, and **Architecture** (opt-in).
+Six deterministic engines run in parallel:
 
-| Engine | Examples |
-|---|---|
-| Formatting | Biome, ruff, gofmt, cargo fmt, rubocop, php-cs-fixer |
-| Linting | oxlint, ruff, golangci-lint, clippy, expo-doctor |
-| Code Quality | Function/file size limits, deep nesting, dead code, unused files, unused dependencies (knip) |
-| AI Slop | Trivial comments, swallowed exceptions, unused imports, console leftovers, type assertion abuse, TODO stubs |
-| Security | Hardcoded secrets, eval, innerHTML, SQL/shell injection, dependency audits |
-| Architecture | Custom import bans, layering rules, required patterns |
+| Engine | What it checks | How |
+|---|---|---|
+| **Formatting** | Code style consistency | Biome, ruff, gofmt, cargo fmt, rubocop, php-cs-fixer |
+| **Linting** | Language-specific issues | oxlint, ruff, golangci-lint, clippy, expo-doctor |
+| **Code Quality** | Complexity and dead code | Function/file size limits, deep nesting, unused files/deps (knip) |
+| **Pattern Detection** | Sloppy code patterns | Trivial comments, swallowed exceptions, unused imports, console leftovers, type assertion abuse, TODO stubs |
+| **Security** | Vulnerabilities and risky code | eval, innerHTML, SQL/shell injection, dependency audits (npm/pip/cargo/govulncheck) |
+| **Architecture** | Structural rules (opt-in) | Custom import bans, layering rules, required patterns |
 
 See the full [rules reference](docs/rules.md).
 
