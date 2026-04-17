@@ -5,7 +5,8 @@ import { fileURLToPath } from "node:url";
 import { isToolInstalled } from "./subprocess.js";
 
 const THIS_FILE = fileURLToPath(import.meta.url);
-const esmRequire = createRequire(import.meta.url);
+const _esmRequire = createRequire(import.meta.url);
+
 const resolvePackageRoot = (startFile: string): string => {
 	let current = path.dirname(startFile);
 	while (true) {
@@ -48,18 +49,9 @@ const getBundledToolPath = (toolName: string): string | null => {
 export const resolveToolBinary = (toolName: string): string =>
 	getBundledToolPath(toolName) ?? toolName;
 
-export const isBundledTool = (toolName: string): boolean => getBundledToolPath(toolName) !== null;
+const isBundledTool = (toolName: string): boolean => getBundledToolPath(toolName) !== null;
 
 export const isToolAvailable = async (toolName: string): Promise<boolean> => {
 	if (isBundledTool(toolName)) return true;
 	return isToolInstalled(toolName);
-};
-
-export const isNodePackageAvailable = (packageName: string): boolean => {
-	try {
-		esmRequire.resolve(`${packageName}/package.json`);
-		return true;
-	} catch {
-		return false;
-	}
 };

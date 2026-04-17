@@ -77,4 +77,13 @@ describe("source file selection", () => {
 		const project = await discoverProject(tmpDir);
 		expect(project.sourceFileCount).toBe(2);
 	});
+
+	it("filters out files that no longer exist on disk", () => {
+		createFile(tmpDir, "src/a.ts", "export const a = 1;\n");
+		const result = filterProjectFiles(tmpDir, [
+			path.join(tmpDir, "src/a.ts"),
+			path.join(tmpDir, "src/deleted.ts"),
+		]);
+		expect(result).toEqual([path.join(tmpDir, "src/a.ts")]);
+	});
 });

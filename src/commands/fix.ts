@@ -2,42 +2,30 @@ import fs from "node:fs";
 import path from "node:path";
 import type { AislopConfig } from "../config/index.js";
 import { findConfigDir, RULES_FILE } from "../config/index.js";
-import { detectTrivialComments } from "../engines/ai-slop/comments.js";
-import { detectDeadPatterns } from "../engines/ai-slop/dead-patterns.js";
-import { fixDeadPatterns } from "../engines/ai-slop/dead-patterns-fix.js";
-import { detectUnusedImports } from "../engines/ai-slop/unused-imports.js";
-import { fixUnusedImports } from "../engines/ai-slop/unused-imports-fix.js";
-import {
-	fixUnusedDependencies,
-	fixUnusedFiles,
-	runKnipDependencyCheck,
-	runKnipUnusedFiles,
-} from "../engines/code-quality/knip.js";
-import { fixBiomeFormat, runBiomeFormat } from "../engines/format/biome.js";
-import { fixGofmt, runGofmt } from "../engines/format/gofmt.js";
-import { fixRuffFormat, runRuffFormat } from "../engines/format/ruff-format.js";
-import { runExpoDoctor } from "../engines/lint/expo-doctor.js";
-import { fixOxlint, fixOxlintForce, runOxlint } from "../engines/lint/oxlint.js";
-import { fixRuffLint, fixRuffLintForce, runRuffLint } from "../engines/lint/ruff.js";
 import { runEngines } from "../engines/orchestrator.js";
-import { runDependencyAudit } from "../engines/security/audit.js";
-import type { EngineConfig, EngineContext } from "../engines/types.js";
-import { FixProgressRenderer, type FixStepResult } from "../output/fix-progress.js";
-import {
-	formatProjectSummary,
-	printCommandHeader,
-	printProjectMetadata,
-} from "../output/layout.js";
+import type { Diagnostic, EngineConfig, EngineContext } from "../engines/types.js";
 import { calculateScore } from "../scoring/index.js";
+import { renderHeader } from "../ui/header.js";
+import { detectInvocation } from "../ui/invocation.js";
+import { LiveRail } from "../ui/live-rail.js";
+import { log, renderHintLine } from "../ui/logger.js";
 import { discoverProject } from "../utils/discover.js";
-import { highlighter } from "../utils/highlighter.js";
-import { logger } from "../utils/logger.js";
-import { spinner } from "../utils/spinner.js";
 import { isTelemetryDisabled, trackEvent } from "../utils/telemetry.js";
+import { APP_VERSION } from "../version.js";
 import { launchAgent, printPrompt } from "./fix-code.js";
-import { fixDependencyAudit, fixExpoDependencies } from "./fix-force.js";
-import { buildFixStepNames } from "./fix-plan.js";
-import { runFixStep, summarizeFixRun } from "./fix-step.js";
+import {
+	type PipelineDeps,
+	type ProjectInfo,
+	runAiSlopSteps,
+	runDeclarationStep,
+	runDependencyStep,
+	runForceSteps,
+	runFormattingStep,
+	runLintSteps,
+} from "./fix-pipeline.js";
+import { describeStep, type FixStepResult, runOneFixStep, statusFor } from "./fix-steps.js";
+
+export { buildFixRender } from "./fix-render.js";
 
 interface FixOptions {
 	verbose: boolean;
@@ -47,21 +35,19 @@ interface FixOptions {
 	/** Print the prompt to stdout instead of launching an agent */
 	prompt?: boolean;
 	showHeader?: boolean;
+	printBrand?: boolean;
 }
 
 const createEngineContext = (
 	rootDirectory: string,
-	projectInfo: Awaited<ReturnType<typeof discoverProject>>,
+	projectInfo: ProjectInfo,
 	config: AislopConfig,
 ): EngineContext => ({
 	rootDirectory,
 	languages: projectInfo.languages,
 	frameworks: projectInfo.frameworks,
 	installedTools: projectInfo.installedTools,
-	config: {
-		quality: config.quality,
-		security: config.security,
-	},
+	config: { quality: config.quality, security: config.security },
 });
 
 export const fixCommand = async (
@@ -75,200 +61,68 @@ export const fixCommand = async (
 		const msg = !fs.existsSync(resolvedDir)
 			? `Path does not exist: ${resolvedDir}`
 			: `Not a directory: ${resolvedDir}`;
-		logger.error(`  ${msg}`);
+		log.error(msg);
 		return;
 	}
 
-	if (options.showHeader !== false) {
-		printCommandHeader("Fix");
-	}
+	const showHeader = options.showHeader !== false;
 
 	const projectInfo = await discoverProject(resolvedDir);
-	logger.success(`  ✓ ${formatProjectSummary(projectInfo)}`);
-	printProjectMetadata(projectInfo);
+	const projectName = projectInfo.projectName ?? "project";
+
+	// Emit the header up front so it always appears above any progress output
+	// (including the verification spinner, if present). buildFixRender will
+	// then be called with includeHeader: false so the header isn't duplicated.
+	if (showHeader) {
+		process.stdout.write(
+			renderHeader({
+				version: APP_VERSION,
+				command: "fix",
+				context: [projectName],
+				brand: options.printBrand !== false,
+			}),
+		);
+	}
+
 	const context = createEngineContext(resolvedDir, projectInfo, config);
 	const steps: FixStepResult[] = [];
-	const stepNames = buildFixStepNames(projectInfo, config, options);
+	const rail = new LiveRail();
 
-	const progress = new FixProgressRenderer(stepNames);
-	progress.start();
+	const runStep = async (
+		name: string,
+		detect: () => Promise<Diagnostic[]>,
+		applyFix: () => Promise<void>,
+	) => {
+		rail.start(name);
+		const result = await runOneFixStep(name, detect, applyFix);
+		steps.push(result);
+		rail.complete({ status: statusFor(result), label: describeStep(result) });
+		return result;
+	};
+
+	const pipelineDeps: PipelineDeps = {
+		rail,
+		context,
+		config,
+		resolvedDir,
+		projectInfo,
+		force: Boolean(options.force),
+		runStep,
+	};
 
 	// Phase 1: Code changes (imports, lint, dependencies)
-	if (config.engines["ai-slop"]) {
-		steps.push(
-			await runFixStep(
-				"Unused imports",
-				() => detectUnusedImports(context),
-				() => fixUnusedImports(context),
-				options,
-				progress,
-			),
-		);
-
-		const detectFixableSlop = async () => {
-			const [comments, dead] = await Promise.all([
-				detectTrivialComments(context),
-				detectDeadPatterns(context),
-			]);
-			return [...comments, ...dead].filter((d) => d.fixable);
-		};
-
-		steps.push(
-			await runFixStep(
-				"Dead code & comments",
-				detectFixableSlop,
-				() => fixDeadPatterns(context),
-				options,
-				progress,
-			),
-		);
-	}
-
-	if (config.engines.lint) {
-		if (
-			projectInfo.languages.includes("typescript") ||
-			projectInfo.languages.includes("javascript")
-		) {
-			steps.push(
-				await runFixStep(
-					"JS/TS lint fixes",
-					() => runOxlint(context),
-					() => (options.force ? fixOxlintForce(context) : fixOxlint(context)),
-					options,
-					progress,
-				),
-			);
-		}
-
-		if (projectInfo.languages.includes("python") && projectInfo.installedTools.ruff) {
-			steps.push(
-				await runFixStep(
-					"Python lint fixes",
-					() => runRuffLint(context),
-					() => (options.force ? fixRuffLintForce(resolvedDir) : fixRuffLint(resolvedDir)),
-					options,
-					progress,
-				),
-			);
-		} else if (projectInfo.languages.includes("python")) {
-			logger.warn("  Python detected but ruff is not installed; skipping Python lint fixes.");
-		}
-	}
-
-	if (config.engines["code-quality"]) {
-		if (
-			projectInfo.languages.includes("typescript") ||
-			projectInfo.languages.includes("javascript")
-		) {
-			steps.push(
-				await runFixStep(
-					"Unused dependencies",
-					() => runKnipDependencyCheck(resolvedDir),
-					() => fixUnusedDependencies(resolvedDir),
-					options,
-					progress,
-				),
-			);
-		}
-	}
+	await runAiSlopSteps(pipelineDeps);
+	await runDeclarationStep(pipelineDeps);
+	await runLintSteps(pipelineDeps);
+	await runDependencyStep(pipelineDeps);
 
 	// Phase 2: Formatting (runs last to clean up after all code changes)
-	if (config.engines.format) {
-		if (
-			projectInfo.languages.includes("typescript") ||
-			projectInfo.languages.includes("javascript")
-		) {
-			steps.push(
-				await runFixStep(
-					"JS/TS formatting",
-					() => runBiomeFormat(context),
-					() => fixBiomeFormat(context),
-					options,
-					progress,
-				),
-			);
-		}
+	await runFormattingStep(pipelineDeps);
 
-		if (projectInfo.languages.includes("python") && projectInfo.installedTools.ruff) {
-			steps.push(
-				await runFixStep(
-					"Python formatting",
-					() => runRuffFormat(context),
-					() => fixRuffFormat(resolvedDir),
-					options,
-					progress,
-				),
-			);
-		} else if (projectInfo.languages.includes("python")) {
-			logger.warn("  Python detected but ruff is not installed; skipping Python formatting fixes.");
-		}
-
-		if (projectInfo.languages.includes("go") && projectInfo.installedTools.gofmt) {
-			steps.push(
-				await runFixStep(
-					"Go formatting",
-					() => runGofmt(context),
-					() => fixGofmt(resolvedDir),
-					options,
-					progress,
-				),
-			);
-		} else if (projectInfo.languages.includes("go")) {
-			logger.warn("  Go detected but gofmt is not installed; skipping Go formatting fixes.");
-		}
-	}
-
-	if (options.force) {
-		if (
-			config.engines["code-quality"] &&
-			(projectInfo.languages.includes("typescript") || projectInfo.languages.includes("javascript"))
-		) {
-			steps.push(
-				await runFixStep(
-					"Remove unused files",
-					() => runKnipUnusedFiles(resolvedDir),
-					() => fixUnusedFiles(resolvedDir),
-					options,
-					progress,
-				),
-			);
-		}
-
-		if (config.engines.security) {
-			steps.push(
-				await runFixStep(
-					"Dependency audit fixes",
-					() => runDependencyAudit(context),
-					() => fixDependencyAudit(context),
-					options,
-					progress,
-				),
-			);
-		}
-
-		if (projectInfo.frameworks.includes("expo")) {
-			steps.push(
-				await runFixStep(
-					"Expo dependency alignment",
-					() => runExpoDoctor(context),
-					() => fixExpoDependencies(context),
-					options,
-					progress,
-				),
-			);
-		}
-	}
-
-	progress.stop();
+	// Phase 3: Optional --force-only heavy fixes
+	await runForceSteps(pipelineDeps);
 
 	const totalResolved = steps.reduce((sum, s) => sum + s.resolvedIssues, 0);
-
-	if (steps.length === 0) {
-		logger.dim("  No applicable auto-fixers found for this project.");
-	} else {
-		logger.break();
-		summarizeFixRun(steps);
-	}
 
 	// Fire-and-forget anonymous telemetry
 	if (!isTelemetryDisabled(config.telemetry?.enabled)) {
@@ -280,10 +134,6 @@ export const fixCommand = async (
 		});
 	}
 
-	logger.break();
-
-	// Post-fix scan: re-run engines to calculate final score
-	const verifySpinner = spinner("  Verifying results...").start();
 	const configDir = findConfigDir(resolvedDir);
 	const rulesPath = configDir ? path.join(configDir, RULES_FILE) : undefined;
 	const engineConfig: EngineConfig = {
@@ -292,6 +142,7 @@ export const fixCommand = async (
 		architectureRulesPath: config.engines.architecture ? rulesPath : undefined,
 	};
 
+	rail.start("Verifying results");
 	const scanResults = await runEngines(
 		{
 			rootDirectory: resolvedDir,
@@ -304,8 +155,7 @@ export const fixCommand = async (
 		() => {},
 		() => {},
 	);
-
-	verifySpinner.stop();
+	rail.complete({ status: "done", label: "Verification complete" });
 
 	const allDiagnostics = scanResults.flatMap((r) => r.diagnostics);
 	const scoreResult = calculateScore(
@@ -318,34 +168,34 @@ export const fixCommand = async (
 
 	const errors = allDiagnostics.filter((d) => d.severity === "error").length;
 	const warnings = allDiagnostics.filter((d) => d.severity === "warning").length;
-	const fixable = allDiagnostics.filter((d) => d.fixable).length;
-	const manual = errors + warnings - fixable;
+	const remaining = errors + warnings;
 
-	const scoreColor =
-		scoreResult.score >= config.scoring.thresholds.good
-			? highlighter.success
-			: scoreResult.score >= config.scoring.thresholds.ok
-				? highlighter.warn
-				: highlighter.error;
+	// If no fix steps ran at all, emit a single "skipped" rail line so the
+	// footer has context. Otherwise the step lines were already emitted live.
+	if (steps.length === 0) {
+		rail.complete({ status: "skipped", label: "No applicable auto-fixers found" });
+	}
 
-	logger.log(highlighter.dim("------------------------------------------------------------"));
-	logger.log(highlighter.bold("Result"));
-	logger.log(
-		`  Score: ${scoreColor(`${scoreResult.score}/100`)} ${scoreColor(`(${scoreResult.label})`)}`,
-	);
-	logger.log(
-		`  Resolved: ${highlighter.success(String(totalResolved))} issue${totalResolved === 1 ? "" : "s"}`,
-	);
-	logger.log(
-		`  Remaining: ${errors + warnings > 0 ? highlighter.warn(String(errors + warnings)) : highlighter.success("0")} (${errors} error${errors === 1 ? "" : "s"}, ${warnings} warning${warnings === 1 ? "" : "s"})`,
-	);
-	if (fixable > 0) {
-		logger.log(`  Auto-fixable: ${highlighter.info(String(fixable))}`);
+	rail.finish({ footer: `Done · ${totalResolved} fixed · ${remaining} remain` });
+
+	const invocation = detectInvocation();
+	const hints: string[] = [];
+	if (remaining > 0 && !options.force) {
+		hints.push(
+			`Run ${invocation} fix -f (or --force) to apply aggressive fixes (dependency audit, unused files, framework alignment)`,
+		);
 	}
-	if (manual > 0) {
-		logger.log(`  Manual effort: ${highlighter.dim(String(manual))}`);
+	if (remaining > 0 && !options.agent && !options.prompt) {
+		hints.push(
+			`Run ${invocation} fix --claude (or --codex, --cursor, --gemini, etc.) to hand off to agent`,
+		);
 	}
-	logger.log(highlighter.dim("------------------------------------------------------------"));
+	if (hints.length > 0) {
+		process.stdout.write("\n");
+		for (const hint of hints) {
+			process.stdout.write(renderHintLine(hint));
+		}
+	}
 
 	// --prompt: print the prompt, --claude/--codex: launch agent directly
 	if (options.agent) {
@@ -356,34 +206,4 @@ export const fixCommand = async (
 		printPrompt(resolvedDir, allDiagnostics, scoreResult.score);
 		return;
 	}
-
-	// Next steps guidance
-	const nextSteps: string[] = [];
-	if (!options.force && errors + warnings > 0) {
-		nextSteps.push(
-			`Run ${highlighter.info("fix -f")} to try aggressive fixes (dependency audit, unused files, unsafe lint)`,
-		);
-	}
-	if (errors + warnings > 0 && !options.agent && !options.prompt) {
-		nextSteps.push(
-			`Run ${highlighter.info("fix --<agent>")} to hand off to a coding agent, or ${highlighter.info("fix --prompt")} to copy the prompt`,
-		);
-		nextSteps.push(
-			highlighter.dim(
-				"Agents: --claude, --codex, --gemini, --opencode, --cursor, --amp, --aider, --goose and more",
-			),
-		);
-	}
-	if (errors + warnings > 0) {
-		nextSteps.push(`Run ${highlighter.info("scan")} to see remaining issues with full details`);
-	}
-	if (nextSteps.length > 0) {
-		logger.break();
-		logger.log(highlighter.bold("Next steps"));
-		for (let i = 0; i < nextSteps.length; i++) {
-			logger.log(`  ${i + 1}. ${nextSteps[i]}`);
-		}
-	}
-
-	logger.break();
 };

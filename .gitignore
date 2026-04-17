@@ -6,3 +6,4 @@ assets/release-fix-scan.*
 .DS_Store
 .claude
 CHANGELOG-review.md
+docs/superpowers/

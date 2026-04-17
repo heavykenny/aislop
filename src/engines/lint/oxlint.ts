@@ -133,16 +133,14 @@ const prefixIdentifierOnLine = (
 		return paramPattern.test(line) ? line.replace(paramPattern, `_${name}`) : line;
 	}
 
-	const assignPattern = new RegExp(`(\\s*)(const|let|var)\\s+${escaped}\\s*=\\s*(.+)$`);
-	const assignMatch = line.match(assignPattern);
-	if (assignMatch) {
-		const [, indent, , expression] = assignMatch;
-		if (/await\s/.test(expression) || /\w+\s*\(/.test(expression)) {
-			return `${indent}${expression}`;
-		}
-		return "";
-	}
-
+	// For top-level `const|let|var name = ...` declarations we deliberately do
+	// NOT rewrite: either strip the line or rewrite the initializer as a bare
+	// expression. Both are destructive and can produce an illegal statement
+	// (e.g. leaving `return x * 2;` in module scope). That category is now
+	// owned by `removeUnusedDeclarations` (code-quality engine), which parses
+	// with the TypeScript compiler, runs a side-effect guard, and verifies the
+	// file still parses before writing. Fall through to identifier-prefix logic
+	// so the declaration becomes `const _name = ...` — safe and reversible.
 	const destructureMatch = line.match(/\{[^}]*\}/);
 	if (destructureMatch) {
 		const { 0: content, index: start } = destructureMatch;
@@ -337,17 +335,28 @@ export const runOxlint = async (context: EngineContext): Promise<Diagnostic[]> =
 	}
 };
 
-export const fixOxlint = async (context: EngineContext): Promise<void> => {
+export const fixOxlint = async (
+	context: EngineContext,
+	options: { force?: boolean } = {},
+): Promise<void> => {
+	const dangerous = options.force ?? false;
 	const configPath = path.join(os.tmpdir(), `aislop-oxlintrc-fix-${process.pid}.json`);
 	const framework = context.frameworks.find((f) => f !== "none");
 	const testFramework = detectTestFramework(context.rootDirectory);
-	const config = createOxlintConfig({ framework, testFramework });
+	const config = createOxlintConfig({ framework, testFramework, mode: "fix" });
 
 	try {
 		fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
 
 		const binary = resolveOxlintBinary();
-		const args = [binary, "-c", configPath, "--fix", "--fix-suggestions", "--fix-dangerously", "."];
+		// Safe mode: only apply fixes oxlint considers non-breaking.
+		// Dangerous mode (fix -f / --force): also apply suggestion-level and
+		// dangerous fixes — e.g. deleting unused arrow-function declarations,
+		// which can leave files syntactically broken if the body outlives the
+		// signature.
+		const args = dangerous
+			? [binary, "-c", configPath, "--fix", "--fix-suggestions", "--fix-dangerously", "."]
+			: [binary, "-c", configPath, "--fix", "."];
 
 		const result = await runSubprocess(process.execPath, args, {
 			cwd: context.rootDirectory,
@@ -375,8 +384,4 @@ export const fixOxlint = async (context: EngineContext): Promise<void> => {
 			fs.unlinkSync(configPath);
 		}
 	}
-};
-
-export const fixOxlintForce = async (context: EngineContext): Promise<void> => {
-	return fixOxlint(context);
 };

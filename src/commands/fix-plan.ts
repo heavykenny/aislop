@@ -21,10 +21,10 @@ export const buildFixStepNames = (
 
 	if (config.engines.lint) {
 		if (hasJsTs(projectInfo)) {
-			stepNames.push("JS/TS lint fixes");
+			stepNames.push("Lint fixes (js/ts)");
 		}
 		if (projectInfo.languages.includes("python") && projectInfo.installedTools.ruff) {
-			stepNames.push("Python lint fixes");
+			stepNames.push("Lint fixes (python)");
 		}
 	}
 
@@ -34,13 +34,13 @@ export const buildFixStepNames = (
 
 	if (config.engines.format) {
 		if (hasJsTs(projectInfo)) {
-			stepNames.push("JS/TS formatting");
+			stepNames.push("Formatting (js/ts)");
 		}
 		if (projectInfo.languages.includes("python") && projectInfo.installedTools.ruff) {
-			stepNames.push("Python formatting");
+			stepNames.push("Formatting (python)");
 		}
 		if (projectInfo.languages.includes("go") && projectInfo.installedTools.gofmt) {
-			stepNames.push("Go formatting");
+			stepNames.push("Formatting (go)");
 		}
 	}
 

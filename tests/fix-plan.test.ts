@@ -18,9 +18,9 @@ describe("buildFixStepNames", () => {
 		const steps = buildFixStepNames(makeProjectInfo(), DEFAULT_CONFIG, {});
 		expect(steps).toContain("Unused imports");
 		expect(steps).toContain("Dead code & comments");
-		expect(steps).toContain("JS/TS lint fixes");
+		expect(steps).toContain("Lint fixes (js/ts)");
 		expect(steps).toContain("Unused dependencies");
-		expect(steps).toContain("JS/TS formatting");
+		expect(steps).toContain("Formatting (js/ts)");
 	});
 
 	it("includes Python steps when ruff is installed", () => {
@@ -29,9 +29,9 @@ describe("buildFixStepNames", () => {
 			DEFAULT_CONFIG,
 			{},
 		);
-		expect(steps).toContain("Python lint fixes");
-		expect(steps).toContain("Python formatting");
-		expect(steps).not.toContain("JS/TS lint fixes");
+		expect(steps).toContain("Lint fixes (python)");
+		expect(steps).toContain("Formatting (python)");
+		expect(steps).not.toContain("Lint fixes (js/ts)");
 	});
 
 	it("skips Python lint/format when ruff is not installed", () => {
@@ -40,8 +40,8 @@ describe("buildFixStepNames", () => {
 			DEFAULT_CONFIG,
 			{},
 		);
-		expect(steps).not.toContain("Python lint fixes");
-		expect(steps).not.toContain("Python formatting");
+		expect(steps).not.toContain("Lint fixes (python)");
+		expect(steps).not.toContain("Formatting (python)");
 	});
 
 	it("includes Go formatting when gofmt is installed", () => {
@@ -50,7 +50,7 @@ describe("buildFixStepNames", () => {
 			DEFAULT_CONFIG,
 			{},
 		);
-		expect(steps).toContain("Go formatting");
+		expect(steps).toContain("Formatting (go)");
 	});
 
 	it("does not include force steps without force flag", () => {
@@ -80,8 +80,8 @@ describe("buildFixStepNames", () => {
 			engines: { ...DEFAULT_CONFIG.engines, lint: false, format: false },
 		};
 		const steps = buildFixStepNames(makeProjectInfo(), config, {});
-		expect(steps).not.toContain("JS/TS lint fixes");
-		expect(steps).not.toContain("JS/TS formatting");
+		expect(steps).not.toContain("Lint fixes (js/ts)");
+		expect(steps).not.toContain("Formatting (js/ts)");
 		// ai-slop steps should still be there
 		expect(steps).toContain("Unused imports");
 	});

@@ -14,8 +14,28 @@
 		"rules": {
 			"recommended": true,
 			"style": {
-				"noNonNullAssertion": "off"
+				"noNonNullAssertion": "off",
+				"noRestrictedImports": {
+					"level": "error",
+					"options": {
+						"paths": {
+							"picocolors": "Import through src/ui/theme.js instead."
+						}
+					}
+				}
 			}
 		}
-	}
+	},
+	"overrides": [
+		{
+			"includes": ["src/ui/**"],
+			"linter": {
+				"rules": {
+					"style": {
+						"noRestrictedImports": "off"
+					}
+				}
+			}
+		}
+	]
 }

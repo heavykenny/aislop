@@ -2,8 +2,8 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import type { Diagnostic } from "../engines/types.js";
-import { highlighter } from "../utils/highlighter.js";
-import { logger } from "../utils/logger.js";
+import { log } from "../ui/logger.js";
+import { style, theme } from "../ui/theme.js";
 
 const CONTEXT_LINES = 3;
 const MAX_DIAGNOSTICS_PER_FILE = 10;
@@ -188,21 +188,21 @@ export const launchAgent = (
 	score: number,
 ): void => {
 	if (diagnostics.length === 0) {
-		logger.success("  No remaining issues — nothing to hand off.");
+		log.success("No remaining issues — nothing to hand off.");
 		return;
 	}
 
 	const config = AGENT_CONFIGS[agent];
 	if (!config) {
-		logger.error(`  Unknown agent: ${agent}`);
-		logger.dim(`  Supported: ${SUPPORTED_AGENT_NAMES.join(", ")}`);
+		log.error(`Unknown agent: ${agent}`);
+		log.muted(`Supported: ${SUPPORTED_AGENT_NAMES.join(", ")}`);
 		return;
 	}
 
 	if (!isInstalled(config.bin)) {
-		logger.error(`  ${agent} is not installed or not in PATH.`);
-		logger.dim(
-			`  Install it first, or use ${highlighter.info("fix -p")} to print the prompt manually.`,
+		log.error(`${agent} is not installed or not in PATH.`);
+		log.muted(
+			`Install it first, or use ${style(theme, "info", "fix -p")} to print the prompt manually.`,
 		);
 		return;
 	}
@@ -211,18 +211,18 @@ export const launchAgent = (
 
 	if (config.type === "editor") {
 		const copied = copyToClipboard(prompt);
-		logger.break();
+		log.break();
 		if (copied) {
-			logger.log(
-				`  ${highlighter.success("✓")} Prompt copied to clipboard (${diagnostics.length} issue${diagnostics.length === 1 ? "" : "s"})`,
+			log.raw(
+				`  ${style(theme, "success", "✓")} Prompt copied to clipboard (${diagnostics.length} issue${diagnostics.length === 1 ? "" : "s"})`,
 			);
 		} else {
-			logger.warn("  Could not copy to clipboard. Use fix --prompt to print it instead.");
+			log.warn("Could not copy to clipboard. Use fix --prompt to print it instead.");
 		}
-		logger.log(
-			`  ${highlighter.info("→")} Opening ${highlighter.bold(agent)}... paste the prompt into the agent chat.`,
+		log.raw(
+			`  ${style(theme, "info", "→")} Opening ${style(theme, "bold", agent)}... paste the prompt into the agent chat.`,
 		);
-		logger.break();
+		log.break();
 
 		spawnSync(config.bin, ["."], {
 			cwd: rootDirectory,
@@ -232,11 +232,11 @@ export const launchAgent = (
 	}
 
 	// CLI agent — launch with prompt directly
-	logger.break();
-	logger.log(
-		`  ${highlighter.info("→")} Opening ${highlighter.bold(agent)} with ${diagnostics.length} issue${diagnostics.length === 1 ? "" : "s"}...`,
+	log.break();
+	log.raw(
+		`  ${style(theme, "info", "→")} Opening ${style(theme, "bold", agent)} with ${diagnostics.length} issue${diagnostics.length === 1 ? "" : "s"}...`,
 	);
-	logger.break();
+	log.break();
 
 	spawnSync(config.bin, config.args(prompt), {
 		cwd: rootDirectory,
@@ -250,7 +250,7 @@ export const printPrompt = (
 	score: number,
 ): void => {
 	if (diagnostics.length === 0) {
-		logger.success("  No remaining issues — nothing to generate.");
+		log.success("No remaining issues — nothing to generate.");
 		return;
 	}
 
@@ -263,20 +263,20 @@ export const printPrompt = (
 	}
 
 	// TTY: print with framing
-	logger.break();
-	logger.log(highlighter.bold("Agent prompt"));
-	logger.log(highlighter.dim("  Copy the prompt below, or pipe it: fix -p | pbcopy"));
-	logger.log(
-		highlighter.dim("  Or launch directly: fix --claude, fix --cursor, fix --codex, etc."),
+	log.break();
+	log.raw(style(theme, "bold", "Agent prompt"));
+	log.raw(style(theme, "dim", "  Copy the prompt below, or pipe it: fix -p | pbcopy"));
+	log.raw(
+		style(theme, "dim", "  Or launch directly: fix --claude, fix --cursor, fix --codex, etc."),
 	);
-	logger.log(
-		highlighter.dim("  Editor agents (--cursor, --windsurf, --vscode) auto-copy to clipboard."),
+	log.raw(
+		style(theme, "dim", "  Editor agents (--cursor, --windsurf, --vscode) auto-copy to clipboard."),
 	);
-	logger.break();
-	logger.log(highlighter.dim("╭─────────────────────────────────────────────────────────╮"));
+	log.break();
+	log.raw(style(theme, "dim", "╭─────────────────────────────────────────────────────────╮"));
 	for (const line of prompt.split("\n")) {
-		logger.log(`  ${line}`);
+		log.raw(`  ${line}`);
 	}
-	logger.log(highlighter.dim("╰─────────────────────────────────────────────────────────╯"));
-	logger.break();
+	log.raw(style(theme, "dim", "╰─────────────────────────────────────────────────────────╯"));
+	log.break();
 };

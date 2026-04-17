@@ -1,11 +1,75 @@
 import path from "node:path";
 import { findConfigDir, RULES_FILE } from "../config/index.js";
 import { loadArchitectureRules } from "../engines/architecture/rule-loader.js";
-import { printCommandHeader } from "../output/layout.js";
+import { renderHeader } from "../ui/header.js";
+import { detectInvocation } from "../ui/invocation.js";
+import { renderHintLine } from "../ui/logger.js";
+import { style, theme } from "../ui/theme.js";
+import { padEnd } from "../ui/width.js";
+import { APP_VERSION } from "../version.js";
 
-import { highlighter } from "../utils/highlighter.js";
+interface RuleEntry {
+	id: string;
+	engine: string;
+	severity: "error" | "warning" | "info";
+	fixable: boolean;
+}
 
-const BUILTIN_RULES = [
+interface BuildRulesRenderInput {
+	rules: RuleEntry[];
+	invocation?: string;
+	printBrand?: boolean;
+}
+
+export const buildRulesRender = (input: BuildRulesRenderInput): string => {
+	const header = renderHeader({
+		version: APP_VERSION,
+		command: "rules",
+		context: [],
+		brand: input.printBrand !== false,
+	});
+	const byEngine = new Map<string, RuleEntry[]>();
+	for (const r of input.rules) {
+		const list = byEngine.get(r.engine) ?? [];
+		list.push(r);
+		byEngine.set(r.engine, list);
+	}
+
+	const engines = [...byEngine.keys()].sort();
+	const idWidth = Math.max(20, ...input.rules.map((r) => r.id.length));
+
+	const lines: string[] = [];
+	for (const engine of engines) {
+		lines.push(` ${style(theme, "accent", engine)}`);
+		const rules = (byEngine.get(engine) ?? []).sort((a, b) => a.id.localeCompare(b.id));
+		for (const r of rules) {
+			const severity = style(
+				theme,
+				r.severity === "error" ? "danger" : "warn",
+				padEnd(r.severity, 8),
+			);
+			const fixable = r.fixable
+				? style(theme, "accent", "fixable")
+				: style(theme, "muted", "manual");
+			lines.push(`   ${padEnd(r.id, idWidth)}  ${severity}  ${fixable}`);
+		}
+		lines.push("");
+	}
+
+	const invocation = input.invocation ?? detectInvocation();
+	const tail =
+		renderHintLine(`Run ${invocation} scan to apply these rules`) +
+		renderHintLine(`Run ${invocation} init to customize which engines are enabled`);
+
+	return `${header}${lines.join("\n")}\n${tail}`;
+};
+
+// Fixable rule ids for the ai-slop engine. Matches the `fixable: true`
+// diagnostics emitted by src/engines/ai-slop/* (currently just
+// trivial-comment and unused-import via their respective detectors).
+const AI_SLOP_FIXABLE = new Set<string>(["ai-slop/trivial-comment", "ai-slop/unused-import"]);
+
+const BUILTIN_RULES: { engine: string; rules: string[] }[] = [
 	{
 		engine: "format",
 		rules: ["formatting", "import-order", "python-formatting", "go-formatting", "rust-formatting"],
@@ -62,33 +126,61 @@ const BUILTIN_RULES = [
 	},
 ];
 
-export const rulesCommand = async (directory: string): Promise<void> => {
+const toRuleEntry = (engine: string, ruleId: string): RuleEntry => {
+	if (engine === "format") {
+		return { id: ruleId, engine, severity: "warning", fixable: true };
+	}
+	if (engine === "security") {
+		return { id: ruleId, engine, severity: "error", fixable: false };
+	}
+	if (engine === "ai-slop") {
+		return {
+			id: ruleId,
+			engine,
+			severity: "warning",
+			fixable: AI_SLOP_FIXABLE.has(ruleId),
+		};
+	}
+	// lint, code-quality
+	return { id: ruleId, engine, severity: "warning", fixable: false };
+};
+
+interface RulesOptions {
+	printBrand?: boolean;
+}
+
+export const rulesCommand = async (
+	directory: string,
+	options: RulesOptions = {},
+): Promise<void> => {
 	const resolvedDir = path.resolve(directory);
 
-	printCommandHeader("Rules");
-	const lines = ["  Rule sets", ""];
-
+	const entries: RuleEntry[] = [];
 	for (const { engine, rules } of BUILTIN_RULES) {
-		lines.push(`  ${highlighter.bold(engine)}`);
 		for (const rule of rules) {
-			lines.push(highlighter.dim(`    ${rule}`));
+			entries.push(toRuleEntry(engine, rule));
 		}
-		lines.push("");
 	}
 
-	// Architecture rules
 	const configDir = findConfigDir(resolvedDir);
 	if (configDir) {
 		const rulesPath = path.join(configDir, RULES_FILE);
 		const archRules = loadArchitectureRules(rulesPath);
-		if (archRules.length > 0) {
-			lines.push(`  ${highlighter.bold("architecture")} (from .aislop/rules.yml)`);
-			for (const rule of archRules) {
-				lines.push(highlighter.dim(`    arch/${rule.name} (${rule.severity})`));
-			}
-			lines.push("");
+		for (const rule of archRules) {
+			entries.push({
+				id: `arch/${rule.name}`,
+				engine: "architecture",
+				severity: rule.severity,
+				fixable: false,
+			});
 		}
 	}
 
-	process.stdout.write(`${lines.join("\n")}\n`);
+	process.stdout.write(
+		`${buildRulesRender({
+			rules: entries,
+			invocation: detectInvocation(),
+			printBrand: options.printBrand,
+		})}\n`,
+	);
 };

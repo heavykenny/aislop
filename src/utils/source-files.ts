@@ -119,7 +119,10 @@ const listProjectFiles = (rootDirectory: string): string[] => {
 	});
 
 	if (!result.error && result.status === 0) {
-		return result.stdout.split("\n").filter((file) => file.length > 0);
+		return result.stdout
+			.split("\n")
+			.filter((file) => file.length > 0)
+			.filter((file) => fs.existsSync(path.resolve(rootDirectory, file)));
 	}
 
 	const findArgs = [
@@ -170,11 +173,12 @@ export const filterProjectFiles = (
 
 	return normalizedFiles
 		.filter(
-			({ relativePath }) =>
+			({ absolutePath, relativePath }) =>
 				hasAllowedExtension(relativePath, extraSet) &&
 				!isExcludedPath(relativePath) &&
 				!isTestFile(relativePath) &&
-				!ignoredPaths.has(relativePath),
+				!ignoredPaths.has(relativePath) &&
+				fs.existsSync(absolutePath),
 		)
 		.map(({ absolutePath }) => absolutePath);
 };

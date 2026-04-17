@@ -148,7 +148,7 @@ export const runExpoDoctor = async (context: EngineContext): Promise<Diagnostic[
 				rule: "expo-doctor/config-error",
 				severity: "warning",
 				message: configError,
-				help: "Install project dependencies, then re-run `aislop scan`.",
+				help: "Install project dependencies, then re-run `npx aislop scan`.",
 				line: 0,
 				column: 0,
 				category: "Expo",
