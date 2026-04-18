@@ -151,10 +151,10 @@ const parseModernVulnerabilities = (
 		let recommendation = `Run \`${defaultAuditFixCommand(source)}\` to resolve`;
 		if (fixAvailable === false) {
 			recommendation = isDirect
-				? "No automatic fix available — check for a newer major version or an alternative package."
-				: "Transitive vulnerability with no fix. Add an override in package.json or upgrade the parent dependency.";
+				? "No automatic fix — check for a newer major version"
+				: "Transitive with no fix — add an override or upgrade the parent";
 		} else if (!isDirect && fixAvailable === true) {
-			recommendation = `Transitive dep — \`${defaultAuditFixCommand(source)}\` may not resolve this. If it persists, add an override in package.json or upgrade the parent package that depends on ${packageName}.`;
+			recommendation = "Transitive dep — may need an override or parent upgrade";
 		} else if (
 			fixAvailable &&
 			typeof fixAvailable === "object" &&

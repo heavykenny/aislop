@@ -16,20 +16,6 @@ import type { RemovalResult, UnusedDeclaration } from "./unused-removal-types.js
 export type { UnusedDeclaration };
 export { detectUnusedDeclarations, diagnosticsToDeclarations } from "./unused-removal-detect.js";
 
-/**
- * Remove the given unused top-level declarations from their files.
- *
- * Safety guarantees:
- *  - Parses with the TypeScript compiler API
- *  - Locates each declaration node by position + name
- *  - Skips removal if the initializer could have side effects
- *  - Removes the full statement including leading trivia and trailing newline
- *  - Re-parses the modified file; if parsing produces NEW syntax diagnostics,
- *    the entire file's changes are reverted and every pending declaration in
- *    that file is recorded as skipped with reason
- *    "removal would break file syntax".
- *  - Never writes a file unless the content actually changed AND parses cleanly.
- */
 export const removeUnusedDeclarations = (
 	rootDirectory: string,
 	declarations: UnusedDeclaration[],

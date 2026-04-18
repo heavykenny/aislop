@@ -2,6 +2,7 @@ import fs from "node:fs";
 import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
+import { prefixUnusedVars, type UnusedVarTarget } from "../code-quality/unused-var-rename.js";
 import { runSubprocess } from "../../utils/subprocess.js";
 import type { Diagnostic, EngineContext } from "../types.js";
 import { createOxlintConfig, type TestFramework } from "./oxlint-config.js";
@@ -108,125 +109,6 @@ const collectUnusedVarCandidates = (diagnostics: Diagnostic[]): UnusedVarCandida
 			};
 		})
 		.filter((candidate): candidate is UnusedVarCandidate => candidate !== null);
-
-const prefixIdentifierOnLine = (
-	line: string,
-	name: string,
-	column: number,
-	type: "variable" | "parameter",
-): string => {
-	const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
-	if (type === "parameter") {
-		const destructureMatch = line.match(/\{[^}]*\}/);
-		if (destructureMatch) {
-			const { 0: content, index: start } = destructureMatch;
-			const propPattern = new RegExp(`(?<!:\\s*)\\b${escaped}\\b(?!\\s*:)`);
-			if (propPattern.test(content)) {
-				const updated = content.replace(propPattern, `${name}: _${name}`);
-				if (updated !== content) {
-					return line.slice(0, start!) + updated + line.slice(start! + content.length);
-				}
-			}
-		}
-		const paramPattern = new RegExp(`\\b${escaped}\\b`);
-		return paramPattern.test(line) ? line.replace(paramPattern, `_${name}`) : line;
-	}
-
-	// For top-level `const|let|var name = ...` declarations we deliberately do
-	// NOT rewrite: either strip the line or rewrite the initializer as a bare
-	// expression. Both are destructive and can produce an illegal statement
-	// (e.g. leaving `return x * 2;` in module scope). That category is now
-	// owned by `removeUnusedDeclarations` (code-quality engine), which parses
-	// with the TypeScript compiler, runs a side-effect guard, and verifies the
-	// file still parses before writing. Fall through to identifier-prefix logic
-	// so the declaration becomes `const _name = ...` — safe and reversible.
-	const destructureMatch = line.match(/\{[^}]*\}/);
-	if (destructureMatch) {
-		const { 0: content, index: start } = destructureMatch;
-		if (new RegExp(`\\b${escaped}\\b`).test(content)) {
-			let updated = content.replace(new RegExp(`\\b${escaped}\\b\\s*,?`), "");
-			updated = updated
-				.replace(/,\s*\},/, "}")
-				.replace(/\{,\s*/, "{")
-				.replace(/\s*,\s*\}/, "}");
-			if (updated !== content) {
-				return line.slice(0, start!) + updated + line.slice(start! + content.length);
-			}
-		}
-	}
-
-	let bestStart = -1;
-	let bestEnd = -1;
-	let bestDistance = Number.POSITIVE_INFINITY;
-	const target = Math.max(0, column - 1);
-
-	for (const match of line.matchAll(new RegExp(`\\b${escaped}\\b`, "g"))) {
-		if (match.index === undefined) continue;
-		const start = match.index;
-		const end = start + name.length;
-		if (start > 0 && line[start - 1] === "_") continue;
-
-		const distance = target >= start && target <= end ? 0 : Math.abs(start - target);
-		if (distance < bestDistance) {
-			bestDistance = distance;
-			bestStart = start;
-			bestEnd = end;
-		}
-	}
-
-	if (bestStart < 0 || bestEnd < 0) return line;
-
-	return `${line.slice(0, bestStart)}_${name}${line.slice(bestEnd)}`;
-};
-
-const applyUnusedVarPrefixFixes = (
-	rootDirectory: string,
-	candidates: UnusedVarCandidate[],
-): void => {
-	const byFile = new Map<string, UnusedVarCandidate[]>();
-
-	for (const candidate of candidates) {
-		const absolute = path.isAbsolute(candidate.filePath)
-			? candidate.filePath
-			: path.join(rootDirectory, candidate.filePath);
-		const entries = byFile.get(absolute) ?? [];
-		entries.push(candidate);
-		byFile.set(absolute, entries);
-	}
-
-	for (const [filePath, fileCandidates] of byFile.entries()) {
-		if (!fs.existsSync(filePath)) continue;
-		const content = fs.readFileSync(filePath, "utf-8");
-		const lines = content.split("\n");
-
-		const ordered = [...fileCandidates].sort((a, b) => {
-			if (a.line !== b.line) return a.line - b.line;
-			return a.column - b.column;
-		});
-
-		let changed = false;
-		for (const candidate of ordered) {
-			const lineIndex = candidate.line - 1;
-			if (lineIndex < 0 || lineIndex >= lines.length) continue;
-			const current = lines[lineIndex];
-			const updated = prefixIdentifierOnLine(
-				current,
-				candidate.name,
-				candidate.column,
-				candidate.type,
-			);
-			if (updated !== current) {
-				lines[lineIndex] = updated;
-				changed = true;
-			}
-		}
-
-		if (changed) {
-			fs.writeFileSync(filePath, lines.join("\n"));
-		}
-	}
-};
 
 const removeDuplicateKeyLines = (rootDirectory: string, diagnostics: Diagnostic[]): void => {
 	const byFile = new Map<string, { key: string; line: number }[]>();
@@ -349,11 +231,6 @@ export const fixOxlint = async (
 		fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
 
 		const binary = resolveOxlintBinary();
-		// Safe mode: only apply fixes oxlint considers non-breaking.
-		// Dangerous mode (fix -f / --force): also apply suggestion-level and
-		// dangerous fixes — e.g. deleting unused arrow-function declarations,
-		// which can leave files syntactically broken if the body outlives the
-		// signature.
 		const args = dangerous
 			? [binary, "-c", configPath, "--fix", "--fix-suggestions", "--fix-dangerously", "."]
 			: [binary, "-c", configPath, "--fix", "."];
@@ -372,7 +249,16 @@ export const fixOxlint = async (
 		const remaining = await runOxlint(context);
 		const candidates = collectUnusedVarCandidates(remaining);
 		if (candidates.length > 0) {
-			applyUnusedVarPrefixFixes(context.rootDirectory, candidates);
+			const targets: UnusedVarTarget[] = candidates.map((c) => ({
+				filePath: path.isAbsolute(c.filePath)
+					? c.filePath
+					: path.join(context.rootDirectory, c.filePath),
+				line: c.line,
+				column: c.column,
+				name: c.name,
+				type: c.type,
+			}));
+			prefixUnusedVars(context.rootDirectory, targets);
 		}
 
 		const duplicateKeys = remaining.filter((d) => d.message.startsWith("Duplicate key"));

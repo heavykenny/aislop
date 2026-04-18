@@ -70,9 +70,6 @@ export const fixCommand = async (
 	const projectInfo = await discoverProject(resolvedDir);
 	const projectName = projectInfo.projectName ?? "project";
 
-	// Emit the header up front so it always appears above any progress output
-	// (including the verification spinner, if present). buildFixRender will
-	// then be called with includeHeader: false so the header isn't duplicated.
 	if (showHeader) {
 		process.stdout.write(
 			renderHeader({
@@ -110,16 +107,13 @@ export const fixCommand = async (
 		runStep,
 	};
 
-	// Phase 1: Code changes (imports, lint, dependencies)
 	await runAiSlopSteps(pipelineDeps);
 	await runDeclarationStep(pipelineDeps);
 	await runLintSteps(pipelineDeps);
 	await runDependencyStep(pipelineDeps);
 
-	// Phase 2: Formatting (runs last to clean up after all code changes)
 	await runFormattingStep(pipelineDeps);
 
-	// Phase 3: Optional --force-only heavy fixes
 	await runForceSteps(pipelineDeps);
 
 	const totalResolved = steps.reduce((sum, s) => sum + s.resolvedIssues, 0);

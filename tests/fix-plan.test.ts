@@ -53,6 +53,34 @@ describe("buildFixStepNames", () => {
 		expect(steps).toContain("Formatting (go)");
 	});
 
+	it("includes Ruby lint and formatting when rubocop is installed", () => {
+		const steps = buildFixStepNames(
+			makeProjectInfo({ languages: ["ruby"], installedTools: { rubocop: true } }),
+			DEFAULT_CONFIG,
+			{},
+		);
+		expect(steps).toContain("Lint fixes (ruby)");
+		expect(steps).toContain("Formatting (ruby)");
+	});
+
+	it("includes Rust formatting when rustfmt is installed", () => {
+		const steps = buildFixStepNames(
+			makeProjectInfo({ languages: ["rust"], installedTools: { rustfmt: true } }),
+			DEFAULT_CONFIG,
+			{},
+		);
+		expect(steps).toContain("Formatting (rust)");
+	});
+
+	it("includes PHP formatting when php-cs-fixer is installed", () => {
+		const steps = buildFixStepNames(
+			makeProjectInfo({ languages: ["php"], installedTools: { "php-cs-fixer": true } }),
+			DEFAULT_CONFIG,
+			{},
+		);
+		expect(steps).toContain("Formatting (php)");
+	});
+
 	it("does not include force steps without force flag", () => {
 		const steps = buildFixStepNames(makeProjectInfo(), DEFAULT_CONFIG, {});
 		expect(steps).not.toContain("Remove unused files");

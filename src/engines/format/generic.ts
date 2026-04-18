@@ -117,3 +117,22 @@ export const runGenericFormatter = async (
 		return [];
 	}
 };
+
+export const fixGenericFormatter = async (
+	rootDirectory: string,
+	language: Language,
+): Promise<void> => {
+	const config = FORMATTERS[language];
+	if (!config) return;
+
+	const result = await runSubprocess(config.command, config.fixArgs, {
+		cwd: rootDirectory,
+		timeout: 60000,
+	});
+
+	if (result.exitCode !== 0) {
+		throw new Error(
+			result.stderr || result.stdout || `${config.command} exited with code ${result.exitCode}`,
+		);
+	}
+};

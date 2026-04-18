@@ -82,7 +82,10 @@ export const buildScanRender = (input: BuildScanRenderInput): string => {
 	);
 
 	if (input.diagnostics.length === 0 && input.score.score === 100) {
-		return `${header}${renderCleanRun({ elapsedMs: input.elapsedMs }, deps)}`;
+		return `${header}${renderCleanRun(
+			{ score: input.score.score, label: input.score.label, elapsedMs: input.elapsedMs },
+			deps,
+		)}`;
 	}
 
 	const diagBlock =

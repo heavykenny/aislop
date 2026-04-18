@@ -36,26 +36,9 @@ const extractNameAndKindFromOxlint = (
 	return null;
 };
 
-/**
- * oxlint may emit no-unused-vars under several rule codes depending on which
- * plugin catches it (eslint, typescript-eslint, unicorn in some configs, etc.).
- * Any rule whose local name is `no-unused-vars` applies.
- */
 const isUnusedVarRule = (rule: string): boolean =>
 	rule === "no-unused-vars" || rule.endsWith("/no-unused-vars");
 
-/**
- * Merge oxlint + knip detection output into a single list of unused
- * top-level declarations that our remover can process.
- *
- * oxlint contributes `no-unused-vars` diagnostics (local top-level decls)
- * under whichever plugin caught them (`eslint/no-unused-vars`,
- * `typescript/no-unused-vars`, …). knip contributes `knip/exports`,
- * `knip/types`, `knip/duplicates` — symbols that were exported but are
- * unused by any importer. The removal engine strips the whole declaration
- * (including the `export` keyword) in one pass; knip's `--fix` is no longer
- * invoked, so the engine owns the complete operation.
- */
 export const detectUnusedDeclarations = async (context: EngineContext): Promise<Diagnostic[]> => {
 	const [oxlintDiagnostics, knipDiagnostics] = await Promise.all([
 		runOxlint(context).catch(() => [] as Diagnostic[]),

@@ -34,12 +34,6 @@ const glyphFor = (status: RailStepStatus, s: Symbols): { glyph: string; token: T
 	}
 };
 
-/**
- * Render a single rail step line (the glyph + label). Notes, if any, are
- * rendered on subsequent lines prefixed with the rail connector + hint glyph.
- * Does NOT include the trailing rail connector line between steps — use
- * renderRailConnector for that.
- */
 export const renderRailStep = (step: RailStep, deps: RailDeps = {}): string => {
 	const t = deps.theme ?? defaultTheme;
 	const s = deps.symbols ?? defaultSymbols;

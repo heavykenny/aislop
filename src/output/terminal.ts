@@ -33,6 +33,47 @@ const toLocationLabel = (diagnostic: Diagnostic): string => {
 	return `${diagnostic.filePath}${line}${column}`;
 };
 
+const wrapText = (
+	text: string,
+	maxWidth: number,
+	firstIndentWidth: number,
+	contIndent: string,
+): string[] => {
+	const firstWidth = Math.max(20, maxWidth - firstIndentWidth);
+	const contWidth = Math.max(20, maxWidth - contIndent.length);
+	const words = text.split(/\s+/).filter((w) => w.length > 0);
+	const lines: string[] = [];
+	let current = "";
+	for (const word of words) {
+		const budget = lines.length === 0 ? firstWidth : contWidth;
+		if (current.length === 0) {
+			current = word;
+		} else if (current.length + 1 + word.length <= budget) {
+			current = `${current} ${word}`;
+		} else {
+			lines.push(current);
+			current = word;
+		}
+	}
+	if (current.length > 0) lines.push(current);
+	// Prepend the continuation indent to every line after the first. The
+	// first line is returned without a prefix so the caller can add its own
+	// (e.g. the `[WARN] ` badge including its ANSI color).
+	return lines.map((line, i) => (i === 0 ? line : `${contIndent}${line}`));
+};
+
+const wrapHelpText = (text: string, maxWidth: number, indent: string): string[] => {
+	const segments = wrapText(text, maxWidth, indent.length, indent);
+	// The first segment has no prefix; help lines always start at the indent.
+	return segments.map((seg, i) => (i === 0 ? `${indent}${seg}` : seg));
+};
+
+const terminalWidth = (): number => {
+	const raw = process.stdout.columns;
+	if (typeof raw !== "number" || raw <= 0) return 100;
+	return Math.min(raw, 100);
+};
+
 export const renderDiagnostics = (diagnostics: Diagnostic[], verbose: boolean): string => {
 	const lines: string[] = [];
 	const byEngine = groupBy(diagnostics, (d) => d.engine);
@@ -53,8 +94,17 @@ export const renderDiagnostics = (diagnostics: Diagnostic[], verbose: boolean): 
 			const level = toSeverityLabel(first.severity);
 			const count = ruleDiags.length > 1 ? ` (${ruleDiags.length})` : "";
 			const status = colorBySeverity(level, first.severity);
+			const fixableTag = first.fixable ? ` ${style(theme, "muted", "[auto]")}` : "";
+			const fixableWidth = first.fixable ? " [auto]".length : 0;
 
-			lines.push(`    [${status}] ${first.message}${count}`);
+			const badgePrefix = `    [${status}]${fixableTag} `;
+			const badgePrefixWidth = 4 + 1 + level.length + 1 + fixableWidth + 1;
+			const messageText = `${first.message}${count}`;
+			const wrappedMsg = wrapText(messageText, terminalWidth(), badgePrefixWidth, "      ");
+			lines.push(`${badgePrefix}${wrappedMsg[0]}`);
+			for (let i = 1; i < wrappedMsg.length; i++) {
+				lines.push(wrappedMsg[i]);
+			}
 
 			const locations = verbose ? ruleDiags : ruleDiags.slice(0, 3);
 			for (const diagnostic of locations) {
@@ -71,7 +121,10 @@ export const renderDiagnostics = (diagnostics: Diagnostic[], verbose: boolean): 
 			}
 
 			if (first.help) {
-				lines.push(style(theme, "muted", `      ${first.help}`));
+				const wrapped = wrapHelpText(first.help, terminalWidth(), "      ");
+				for (const line of wrapped) {
+					lines.push(style(theme, "muted", line));
+				}
 			}
 
 			lines.push("");

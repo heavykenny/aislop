@@ -1,8 +1,6 @@
 import ts from "typescript";
 import type { UnusedDeclaration, UnusedKind } from "./unused-removal-types.js";
 
-// ─── Node matching ───────────────────────────────────────────────────────────
-
 export interface PendingRemoval {
 	start: number;
 	end: number;
@@ -22,26 +20,6 @@ const nodeContainsLine = (
 	return startLine <= targetLine && targetLine <= endLine;
 };
 
-/**
- * Heuristic side-effect detection. Walks an expression subtree and flags
- * anything that could invoke code when the declaration initializes.
- *
- * SAFE (returns false):
- *  - literals (string/number/boolean/null/undefined/bigint/regex)
- *  - identifiers (not being called)
- *  - arrow / function expressions (body never runs until called)
- *  - object / array literals composed of safe expressions
- *  - template literals with no tag, built from safe expressions
- *  - parenthesized / as / satisfies / non-null wrappers around safe expressions
- *
- * UNSAFE (returns true):
- *  - CallExpression
- *  - NewExpression
- *  - TaggedTemplateExpression
- *  - AwaitExpression
- *  - YieldExpression
- *  - PropertyAccess / ElementAccess when parent is a call (handled via CallExpression)
- */
 const initializerHasSideEffects = (node: ts.Expression | undefined): boolean => {
 	if (!node) return false;
 
@@ -79,18 +57,6 @@ const initializerHasSideEffects = (node: ts.Expression | undefined): boolean => 
 	return unsafe;
 };
 
-// ─── Range calculation ────────────────────────────────────────────────────────
-
-/**
- * Compute the start/end range for a node including:
- *  - any leading JSDoc / block comments *directly attached* to the node
- *    (no blank line between the comment and the node)
- *  - leading whitespace on the same line as the statement's actual start
- *  - the trailing newline
- *
- * We deliberately do NOT consume blank lines above: doing so chain-deletes
- * content when multiple adjacent statements are being removed.
- */
 const computeRemovalRange = (
 	sourceFile: ts.SourceFile,
 	node: ts.Node,
@@ -104,9 +70,6 @@ const computeRemovalRange = (
 	let start = nodeStart;
 	while (start > 0 && content[start - 1] !== "\n") start--;
 
-	// Include any block/JSDoc comments immediately preceding the node with no
-	// blank line between them. Walk upward line-by-line while the previous line
-	// is a comment line (// …) OR the current block we're in is a /* … */.
 	const ranges = ts.getLeadingCommentRanges(content, node.getFullStart()) ?? [];
 	if (ranges.length > 0) {
 		// Keep any comment whose end is on the line directly above `start`
@@ -136,8 +99,6 @@ const computeRemovalRange = (
 
 	return { start, end: finalEnd };
 };
-
-// ─── Statement matching ──────────────────────────────────────────────────────
 
 const kindOfStatement = (node: ts.Statement): UnusedKind | null => {
 	if (ts.isVariableStatement(node)) return "variable";

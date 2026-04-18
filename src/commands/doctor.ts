@@ -90,10 +90,6 @@ export const buildDoctorRender = (input: BuildDoctorRenderInput): string => {
 	return `${header}${rail}${tail}`;
 };
 
-// ---------------------------------------------------------------------------
-// Per-engine planning — building the rows from a discovered project
-// ---------------------------------------------------------------------------
-
 interface PlanContext {
 	rootDirectory: string;
 	projectInfo: ProjectInfo;
@@ -217,6 +213,15 @@ const planLint = (ctx: PlanContext): ToolDecision => {
 					tool: "clippy not found",
 					status: "missing",
 					remediation: "Install: rustup component add clippy",
+				};
+	}
+	if (languages.includes("ruby")) {
+		return installedTools["rubocop"]
+			? { tool: "rubocop (system)", status: "ok" }
+			: {
+					tool: "rubocop not found",
+					status: "missing",
+					remediation: "Install: gem install rubocop",
 				};
 	}
 	return { tool: "no linter", status: "skipped", skipReason: "no supported language" };

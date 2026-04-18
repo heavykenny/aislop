@@ -15,10 +15,6 @@ interface RiskyPattern {
 const ev = "ev" + "al";
 const Fn = "Func" + "tion";
 
-// DB-like receivers that trigger the SQL-injection pattern. We only flag when
-// the query/execute/raw call is invoked on an identifier that looks like a
-// database handle — otherwise `log.raw(...)`, `console.log(...)` etc. all
-// match, which is a noisy false positive.
 const DB_RECEIVER =
 	"(?:db|database|knex|client|connection|conn|pool|sql|prisma|trx|tx|sequelize|mongoose|typeorm|postgres|pg|mysql|sqlite|model|orm|datasource)";
 const DB_METHOD =

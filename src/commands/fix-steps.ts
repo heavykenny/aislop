@@ -15,11 +15,6 @@ export interface FixStepResult {
 const uniqueFileCount = (diagnostics: Diagnostic[]): number =>
 	new Set(diagnostics.map((d) => d.filePath)).size;
 
-/**
- * Internal fix-step runner used by fixCommand. Unlike runFixStep in
- * fix-step.ts, this one does not emit any progress or fallback output — the
- * final rail rendered by buildFixRender replaces both.
- */
 export const runOneFixStep = async (
 	name: string,
 	detect: () => Promise<Diagnostic[]>,

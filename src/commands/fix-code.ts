@@ -9,8 +9,6 @@ const CONTEXT_LINES = 3;
 const MAX_DIAGNOSTICS_PER_FILE = 10;
 const MAX_FILES = 20;
 
-// ─── Agent configs ───────────────────────────────────────────────────────────
-
 interface CliAgent {
 	type: "cli";
 	bin: string;
@@ -43,8 +41,6 @@ const AGENT_CONFIGS: Record<string, AgentConfig> = {
 	windsurf: { type: "editor", bin: "windsurf" },
 	vscode: { type: "editor", bin: "code" },
 };
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 const getCodeSnippet = (rootDirectory: string, diagnostic: Diagnostic): string | null => {
 	if (diagnostic.line <= 0) return null;
@@ -111,8 +107,6 @@ const copyToClipboard = (text: string): boolean => {
 	return result.status === 0;
 };
 
-// ─── Prompt builder ──────────────────────────────────────────────────────────
-
 const buildAgentPrompt = (
 	rootDirectory: string,
 	diagnostics: Diagnostic[],
@@ -176,8 +170,6 @@ const buildAgentPrompt = (
 
 	return lines.join("\n");
 };
-
-// ─── Public API ──────────────────────────────────────────────────────────────
 
 const SUPPORTED_AGENT_NAMES = Object.keys(AGENT_CONFIGS);
 

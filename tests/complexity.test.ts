@@ -175,6 +175,45 @@ describe("checkComplexity — function too long", () => {
 		expect(fnDiags.length).toBeGreaterThanOrEqual(1);
 		expect(fnDiags[0].message).toContain("asyncFn");
 	});
+
+	it("does not flag a function dominated by a single template literal (e.g. llms.txt.ts GET)", async () => {
+		const templateLines = Array(100).fill("some template line").join("\n");
+		const content = [
+			"export const GET = async () => {",
+			"  const body = `",
+			templateLines,
+			"  `;",
+			"  return new Response(body);",
+			"};",
+		].join("\n");
+		const filePath = writeFile("llms.ts", content);
+		const diagnostics = await checkComplexity(
+			makeContext([filePath], { maxFunctionLoc: 80 }),
+		);
+		const fnDiags = diagnostics.filter(
+			(d) => d.rule === "complexity/function-too-long",
+		);
+		expect(fnDiags).toHaveLength(0);
+	});
+
+	it("still flags a function with real logic even if it contains a small template literal", async () => {
+		const logic = Array(90).fill("  const x = 1;").join("\n");
+		const content = [
+			"function realLogic() {",
+			'  const tag = `tag-${id}`;',
+			logic,
+			"  return tag;",
+			"}",
+		].join("\n");
+		const filePath = writeFile("logic.ts", content);
+		const diagnostics = await checkComplexity(
+			makeContext([filePath], { maxFunctionLoc: 80 }),
+		);
+		const fnDiags = diagnostics.filter(
+			(d) => d.rule === "complexity/function-too-long",
+		);
+		expect(fnDiags.length).toBeGreaterThanOrEqual(1);
+	});
 });
 
 describe("checkComplexity — too many parameters", () => {

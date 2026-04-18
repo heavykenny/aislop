@@ -11,17 +11,6 @@ interface LiveRailDeps {
 	symbols?: Symbols;
 }
 
-/**
- * Live, one-active-step-at-a-time rail renderer.
- *
- *   rail.start("Unused imports")
- *   // ...work...
- *   rail.complete({ status: "done", label: "Unused imports — 0 issues" })
- *   rail.start("Lint fixes (js/ts)")
- *   // ...work...
- *   rail.complete({ status: "warn", label: "Lint fixes (js/ts) — 4 remain" })
- *   rail.finish({ footer: "Done · 0 fixed · 16 remain" })
- */
 export class LiveRail {
 	private frame = 0;
 	private activeLabel: string | null = null;
@@ -90,6 +79,18 @@ export class LiveRail {
 		// Connector between the last step (or empty opening) and the └ footer.
 		this.write(renderRailConnector({ theme: this.theme, symbols: this.symbols }));
 		this.write(renderRailFooter(opts.footer, { theme: this.theme, symbols: this.symbols }));
+	}
+
+	/**
+	 * Update the label of the currently active step in place. Use this to
+	 * announce long sub-operations (e.g. "Dependency audit fixes · running
+	 * pnpm install — can take a minute") so the user knows what aislop is
+	 * doing. No-op if there is no active step.
+	 */
+	setActiveLabel(label: string): void {
+		if (this.activeLabel === null) return;
+		this.activeLabel = label;
+		if (this.tty) this.drawActive(true);
 	}
 
 	/** Abort the active step without emitting a final row. Rare — use if a fatal error happens mid-step. */

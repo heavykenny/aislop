@@ -64,15 +64,24 @@ export const buildRulesRender = (input: BuildRulesRenderInput): string => {
 	return `${header}${lines.join("\n")}\n${tail}`;
 };
 
-// Fixable rule ids for the ai-slop engine. Matches the `fixable: true`
-// diagnostics emitted by src/engines/ai-slop/* (currently just
-// trivial-comment and unused-import via their respective detectors).
-const AI_SLOP_FIXABLE = new Set<string>(["ai-slop/trivial-comment", "ai-slop/unused-import"]);
+const AI_SLOP_FIXABLE = new Set<string>([
+	"ai-slop/trivial-comment",
+	"ai-slop/unused-import",
+	"ai-slop/narrative-comment",
+]);
 
 const BUILTIN_RULES: { engine: string; rules: string[] }[] = [
 	{
 		engine: "format",
-		rules: ["formatting", "import-order", "python-formatting", "go-formatting", "rust-formatting"],
+		rules: [
+			"formatting",
+			"import-order",
+			"python-formatting",
+			"go-formatting",
+			"rust-formatting",
+			"ruby-formatting",
+			"php-formatting",
+		],
 	},
 	{
 		engine: "lint",
@@ -111,6 +120,7 @@ const BUILTIN_RULES: { engine: string; rules: string[] }[] = [
 			"ai-slop/unsafe-type-assertion",
 			"ai-slop/double-type-assertion",
 			"ai-slop/ts-directive",
+			"ai-slop/narrative-comment",
 		],
 	},
 	{

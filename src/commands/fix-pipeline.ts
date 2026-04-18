@@ -2,6 +2,10 @@ import type { AislopConfig } from "../config/index.js";
 import { detectTrivialComments } from "../engines/ai-slop/comments.js";
 import { detectDeadPatterns } from "../engines/ai-slop/dead-patterns.js";
 import { fixDeadPatterns } from "../engines/ai-slop/dead-patterns-fix.js";
+import {
+	detectNarrativeComments,
+	fixNarrativeComments,
+} from "../engines/ai-slop/narrative-comments.js";
 import { detectUnusedImports } from "../engines/ai-slop/unused-imports.js";
 import { fixUnusedImports } from "../engines/ai-slop/unused-imports-fix.js";
 import {
@@ -16,10 +20,12 @@ import {
 	removeUnusedDeclarations,
 } from "../engines/code-quality/unused-removal.js";
 import { fixBiomeFormat, runBiomeFormat } from "../engines/format/biome.js";
+import { fixGenericFormatter, runGenericFormatter } from "../engines/format/generic.js";
 import { fixGofmt, runGofmt } from "../engines/format/gofmt.js";
 import { fixRuffFormat, runRuffFormat } from "../engines/format/ruff-format.js";
 import { runExpoDoctor } from "../engines/lint/expo-doctor.js";
 import { fixOxlint, runOxlint } from "../engines/lint/oxlint.js";
+import { fixRubyLint } from "../engines/lint/generic.js";
 import { fixRuffLint, fixRuffLintForce, runRuffLint } from "../engines/lint/ruff.js";
 import { runDependencyAudit } from "../engines/security/audit.js";
 import type { Diagnostic, EngineContext } from "../engines/types.js";
@@ -37,7 +43,10 @@ export type RunStepFn = (
 ) => Promise<FixStepResult>;
 
 export interface PipelineDeps {
-	rail: { start: (name: string) => void };
+	rail: {
+		start: (name: string) => void;
+		setActiveLabel: (label: string) => void;
+	};
 	context: EngineContext;
 	config: AislopConfig;
 	resolvedDir: string;
@@ -59,26 +68,20 @@ export const runAiSlopSteps = async (deps: PipelineDeps): Promise<void> => {
 	);
 
 	const detectFixableSlop = async () => {
-		const [comments, dead] = await Promise.all([
+		const [comments, dead, narrative] = await Promise.all([
 			detectTrivialComments(deps.context),
 			detectDeadPatterns(deps.context),
+			detectNarrativeComments(deps.context),
 		]);
-		return [...comments, ...dead].filter((d) => d.fixable);
+		return [...comments, ...dead, ...narrative].filter((d) => d.fixable);
 	};
 
-	await deps.runStep("Dead code & comments", detectFixableSlop, () =>
-		fixDeadPatterns(deps.context),
-	);
+	await deps.runStep("Dead code & comments", detectFixableSlop, async () => {
+		await fixDeadPatterns(deps.context);
+		await fixNarrativeComments(deps.context);
+	});
 };
 
-// Consolidated dead-declaration cleanup: oxlint's unused-vars diagnostics
-// (local top-level decls) plus knip's exports/types/duplicates (exported
-// but unimported symbols) feed into our own engine. The engine parses
-// each file with the TypeScript compiler, applies a side-effect guard on
-// initializers, and verifies the file still parses before writing —
-// removing the full statement including any `export` keyword. Neither
-// oxlint's nor knip's built-in `--fix` can do this without damaging files,
-// so this step owns the whole operation.
 export const runDeclarationStep = async (deps: PipelineDeps): Promise<void> => {
 	if (!deps.config.engines["code-quality"]) return;
 	if (!hasJsOrTs(deps.projectInfo)) return;
@@ -114,6 +117,19 @@ export const runLintSteps = async (deps: PipelineDeps): Promise<void> => {
 	} else if (deps.projectInfo.languages.includes("python")) {
 		log.warn("Python detected but ruff is not installed; skipping Python lint fixes.");
 	}
+
+	if (deps.projectInfo.languages.includes("ruby") && deps.projectInfo.installedTools.rubocop) {
+		await deps.runStep(
+			"Lint fixes (ruby)",
+			() =>
+				import("../engines/lint/generic.js").then((mod) =>
+					mod.runGenericLinter(deps.context, "ruby"),
+				),
+			() => fixRubyLint(deps.resolvedDir),
+		);
+	} else if (deps.projectInfo.languages.includes("ruby")) {
+		log.warn("Ruby detected but rubocop is not installed; skipping Ruby lint fixes.");
+	}
 };
 
 export const runDependencyStep = async (deps: PipelineDeps): Promise<void> => {
@@ -127,7 +143,6 @@ export const runDependencyStep = async (deps: PipelineDeps): Promise<void> => {
 	);
 };
 
-// Phase 2: Formatting (runs last to clean up after all code changes)
 export const runFormattingStep = async (deps: PipelineDeps): Promise<void> => {
 	if (!deps.config.engines.format) return;
 
@@ -158,6 +173,39 @@ export const runFormattingStep = async (deps: PipelineDeps): Promise<void> => {
 	} else if (deps.projectInfo.languages.includes("go")) {
 		log.warn("Go detected but gofmt is not installed; skipping Go formatting fixes.");
 	}
+
+	if (deps.projectInfo.languages.includes("rust") && deps.projectInfo.installedTools.rustfmt) {
+		await deps.runStep(
+			"Formatting (rust)",
+			() => runGenericFormatter(deps.context, "rust"),
+			() => fixGenericFormatter(deps.resolvedDir, "rust"),
+		);
+	} else if (deps.projectInfo.languages.includes("rust")) {
+		log.warn("Rust detected but rustfmt is not installed; skipping Rust formatting fixes.");
+	}
+
+	if (deps.projectInfo.languages.includes("ruby") && deps.projectInfo.installedTools.rubocop) {
+		await deps.runStep(
+			"Formatting (ruby)",
+			() => runGenericFormatter(deps.context, "ruby"),
+			() => fixGenericFormatter(deps.resolvedDir, "ruby"),
+		);
+	} else if (deps.projectInfo.languages.includes("ruby")) {
+		log.warn("Ruby detected but rubocop is not installed; skipping Ruby formatting fixes.");
+	}
+
+	if (
+		deps.projectInfo.languages.includes("php") &&
+		deps.projectInfo.installedTools["php-cs-fixer"]
+	) {
+		await deps.runStep(
+			"Formatting (php)",
+			() => runGenericFormatter(deps.context, "php"),
+			() => fixGenericFormatter(deps.resolvedDir, "php"),
+		);
+	} else if (deps.projectInfo.languages.includes("php")) {
+		log.warn("PHP detected but php-cs-fixer is not installed; skipping PHP formatting fixes.");
+	}
 };
 
 export const runForceSteps = async (deps: PipelineDeps): Promise<void> => {
@@ -175,7 +223,7 @@ export const runForceSteps = async (deps: PipelineDeps): Promise<void> => {
 		await deps.runStep(
 			"Dependency audit fixes",
 			() => runDependencyAudit(deps.context),
-			() => fixDependencyAudit(deps.context),
+			() => fixDependencyAudit(deps.context, deps.rail.setActiveLabel),
 		);
 	}
 
@@ -183,7 +231,7 @@ export const runForceSteps = async (deps: PipelineDeps): Promise<void> => {
 		await deps.runStep(
 			"Expo dependency alignment",
 			() => runExpoDoctor(deps.context),
-			() => fixExpoDependencies(deps.context),
+			() => fixExpoDependencies(deps.context, deps.rail.setActiveLabel),
 		);
 	}
 };

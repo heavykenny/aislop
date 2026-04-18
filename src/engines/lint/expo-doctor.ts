@@ -103,7 +103,23 @@ const toDiagnostics = (issues: ExpoDoctorIssue[]): Diagnostic[] =>
 		};
 	});
 
+const hasExpoInstalled = (rootDirectory: string): boolean => {
+	try {
+		const projectRequire = createRequire(path.join(rootDirectory, "package.json"));
+		projectRequire.resolve("expo/package.json");
+		return true;
+	} catch {
+		return false;
+	}
+};
+
 export const runExpoDoctor = async (context: EngineContext): Promise<Diagnostic[]> => {
+	// expo-doctor requires the project's own `expo` package to read the SDK
+	// version. If it's not installed (e.g. fresh clone, missing node_modules),
+	// skip gracefully rather than emitting a ConfigError. User can `pnpm
+	// install` and re-scan to get full Expo coverage.
+	if (!hasExpoInstalled(context.rootDirectory)) return [];
+
 	const scriptPath = resolveExpoDoctorScript();
 	let stdout = "";
 	let stderr = "";

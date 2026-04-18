@@ -19,4 +19,16 @@ describe("createOxlintConfig", () => {
 		const rules = config.rules as Record<string, string>;
 		expect(rules["no-unused-vars"]).toBe("warn");
 	});
+
+	it("disables react-hooks/exhaustive-deps autofix in fix mode (oxlint's autofix can produce TDZ errors when the missing dep is a hoisted const)", () => {
+		const config = createOxlintConfig({ framework: "react", mode: "fix" });
+		const rules = config.rules as Record<string, string>;
+		expect(rules["react-hooks/exhaustive-deps"]).toBe("off");
+	});
+
+	it("keeps react-hooks/exhaustive-deps at 'warn' in detect mode so the detector still reports missing deps", () => {
+		const config = createOxlintConfig({ framework: "react", mode: "detect" });
+		const rules = config.rules as Record<string, string>;
+		expect(rules["react-hooks/exhaustive-deps"]).toBe("warn");
+	});
 });

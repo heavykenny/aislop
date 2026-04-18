@@ -69,9 +69,21 @@ export const renderSummary = (input: SummaryInput, deps: SummaryDeps = {}): stri
 	return lines.join("\n");
 };
 
-export const renderCleanRun = (input: { elapsedMs: number }, deps: SummaryDeps = {}): string => {
+export const renderCleanRun = (
+	input: { score?: number; label?: string; elapsedMs: number },
+	deps: SummaryDeps = {},
+): string => {
 	const t = deps.theme ?? defaultTheme;
 	const s = deps.symbols ?? defaultSymbols;
 	const sep = style(t, "accent", "·");
-	return `\n ${style(t, "success", s.pass)} Clean run  ${sep}  no issues  ${sep}  ${elapsed(input.elapsedMs)}\n`;
+	const parts = [style(t, "success", `${s.pass} Clean run`)];
+	if (input.score !== undefined) {
+		parts.push(style(t, "success", `${input.score} / 100`));
+	}
+	if (input.label) {
+		parts.push(style(t, "success", input.label));
+	}
+	parts.push(style(t, "muted", "no issues"));
+	parts.push(style(t, "muted", elapsed(input.elapsedMs)));
+	return `\n ${parts.join(`  ${sep}  `)}\n`;
 };
