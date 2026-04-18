@@ -1,17 +1,19 @@
 import fs from "node:fs";
 import path from "node:path";
+import { performance } from "node:perf_hooks";
 import type { AislopConfig } from "../config/index.js";
 import { findConfigDir, RULES_FILE } from "../config/index.js";
 import { runEngines } from "../engines/orchestrator.js";
 import type { Diagnostic, EngineConfig, EngineContext } from "../engines/types.js";
 import { calculateScore } from "../scoring/index.js";
+import { style, theme as defaultTheme } from "../ui/theme.js";
 import { renderHeader } from "../ui/header.js";
-import { detectInvocation } from "../ui/invocation.js";
 import { LiveRail } from "../ui/live-rail.js";
-import { log, renderHintLine } from "../ui/logger.js";
+import { log } from "../ui/logger.js";
 import { discoverProject } from "../utils/discover.js";
 import { isTelemetryDisabled, trackEvent } from "../utils/telemetry.js";
 import { APP_VERSION } from "../version.js";
+import { buildScanRender } from "./scan.js";
 import { launchAgent, printPrompt } from "./fix-code.js";
 import {
 	type PipelineDeps,
@@ -55,6 +57,7 @@ export const fixCommand = async (
 	config: AislopConfig,
 	options: FixOptions = { verbose: false, showHeader: true },
 ): Promise<void> => {
+	const startTime = performance.now();
 	const resolvedDir = path.resolve(directory);
 
 	if (!fs.existsSync(resolvedDir) || !fs.statSync(resolvedDir).isDirectory()) {
@@ -172,26 +175,32 @@ export const fixCommand = async (
 
 	rail.finish({ footer: `Done · ${totalResolved} fixed · ${remaining} remain` });
 
-	const invocation = detectInvocation();
-	const hints: string[] = [];
-	if (remaining > 0 && !options.force) {
-		hints.push(
-			`Run ${invocation} fix -f (or --force) to apply aggressive fixes (dependency audit, unused files, framework alignment)`,
-		);
-	}
-	if (remaining > 0 && !options.agent && !options.prompt) {
-		hints.push(
-			`Run ${invocation} fix --claude (or --codex, --cursor, --gemini, etc.) to hand off to agent`,
-		);
-	}
-	if (hints.length > 0) {
-		process.stdout.write("\n");
-		for (const hint of hints) {
-			process.stdout.write(renderHintLine(hint));
+	if (!options.agent && !options.prompt) {
+		if (totalResolved > 0) {
+			const t = defaultTheme;
+			const arrow = style(t, "muted", "→");
+			process.stdout.write(
+				`\n ${style(t, "success", `Resolved ${totalResolved} issue${totalResolved === 1 ? "" : "s"}`)} ${arrow} ${style(t, "success", `${scoreResult.score} / 100 ${scoreResult.label}`)}\n`,
+			);
 		}
+		const language = projectInfo.languages[0] ?? "unknown";
+		process.stdout.write(
+			buildScanRender({
+				projectName,
+				language,
+				fileCount: projectInfo.sourceFileCount,
+				results: scanResults,
+				diagnostics: allDiagnostics,
+				score: scoreResult,
+				elapsedMs: performance.now() - startTime,
+				thresholds: config.scoring.thresholds,
+				verbose: options.verbose,
+				includeHeader: false,
+				printBrand: false,
+			}),
+		);
 	}
 
-	// --prompt: print the prompt, --claude/--codex: launch agent directly
 	if (options.agent) {
 		launchAgent(options.agent, resolvedDir, allDiagnostics, scoreResult.score);
 		return;
