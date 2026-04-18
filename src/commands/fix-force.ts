@@ -20,14 +20,21 @@ const getJsAuditFixCommand = (
 	return null;
 };
 
-export const fixDependencyAudit = async (context: EngineContext): Promise<void> => {
+const INSTALL_TIMEOUT = 30 * 60 * 1000;
+
+export const fixDependencyAudit = async (
+	context: EngineContext,
+	onProgress?: (label: string) => void,
+): Promise<void> => {
 	const auditFix = getJsAuditFixCommand(context.rootDirectory);
 	if (!auditFix) return;
 
-	// Step 1: Run standard audit fix
+	onProgress?.(
+		`Dependency audit fixes · running ${auditFix.command} audit fix (can take a few minutes)`,
+	);
 	const result = await runSubprocess(auditFix.command, auditFix.args, {
 		cwd: context.rootDirectory,
-		timeout: 180000,
+		timeout: INSTALL_TIMEOUT,
 	});
 
 	// npm audit fix exits non-zero when vulns remain — that's expected
@@ -36,10 +43,10 @@ export const fixDependencyAudit = async (context: EngineContext): Promise<void> 
 		throw new Error(`${auditFix.command} audit fix failed`);
 	}
 
-	// Step 2: Install to apply changes
+	onProgress?.(`Dependency audit fixes · running ${auditFix.command} install`);
 	const installResult = await runSubprocess(auditFix.command, ["install"], {
 		cwd: context.rootDirectory,
-		timeout: 180000,
+		timeout: INSTALL_TIMEOUT,
 	});
 
 	if (installResult.exitCode !== 0) {
@@ -50,9 +57,8 @@ export const fixDependencyAudit = async (context: EngineContext): Promise<void> 
 		);
 	}
 
-	// Step 3: Check if vulns remain — try overrides for npm
 	if (auditFix.command === "npm") {
-		await tryNpmOverrides(context.rootDirectory);
+		await tryNpmOverrides(context.rootDirectory, onProgress);
 	}
 };
 
@@ -85,7 +91,10 @@ const collectOverrides = async (
 	return overrides;
 };
 
-const tryNpmOverrides = async (rootDir: string): Promise<void> => {
+const tryNpmOverrides = async (
+	rootDir: string,
+	onProgress?: (label: string) => void,
+): Promise<void> => {
 	try {
 		const auditResult = await runSubprocess("npm", ["audit", "--json"], {
 			cwd: rootDir,
@@ -108,27 +117,31 @@ const tryNpmOverrides = async (rootDir: string): Promise<void> => {
 		pkg.overrides = { ...existing, ...overrides };
 		fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + "\n");
 
-		await runSubprocess("npm", ["install"], { cwd: rootDir, timeout: 180000 });
+		onProgress?.("Dependency audit fixes · applying npm overrides (npm install)");
+		await runSubprocess("npm", ["install"], { cwd: rootDir, timeout: INSTALL_TIMEOUT });
 	} catch {
 		// best-effort
 	}
 };
 
-export const fixExpoDependencies = async (context: EngineContext): Promise<void> => {
-	// Step 1: Remove packages that should not be installed directly
-	await removeDisallowedExpoPackages(context.rootDirectory);
+export const fixExpoDependencies = async (
+	context: EngineContext,
+	onProgress?: (label: string) => void,
+): Promise<void> => {
+	await removeDisallowedExpoPackages(context.rootDirectory, onProgress);
 
-	// Step 2: Fix version alignment
+	onProgress?.("Expo dependency alignment · running expo install --fix (can take a few minutes)");
 	const fixResult = await runSubprocess("npx", ["--yes", "expo", "install", "--fix"], {
 		cwd: context.rootDirectory,
-		timeout: 180000,
+		timeout: INSTALL_TIMEOUT,
 	});
 
 	if (fixResult.exitCode === 0) return;
 
+	onProgress?.("Expo dependency alignment · checking remaining issues");
 	const checkResult = await runSubprocess("npx", ["--yes", "expo", "install", "--check"], {
 		cwd: context.rootDirectory,
-		timeout: 180000,
+		timeout: INSTALL_TIMEOUT,
 	});
 
 	if (checkResult.exitCode !== 0) {
@@ -140,12 +153,16 @@ export const fixExpoDependencies = async (context: EngineContext): Promise<void>
  * Run expo-doctor to detect packages that should not be installed directly,
  * then uninstall them. No hardcoded list — expo-doctor is the source of truth.
  */
-const removeDisallowedExpoPackages = async (rootDir: string): Promise<void> => {
+const removeDisallowedExpoPackages = async (
+	rootDir: string,
+	onProgress?: (label: string) => void,
+): Promise<void> => {
 	try {
 		// Run expo-doctor and parse its output for disallowed packages
+		onProgress?.("Expo dependency alignment · running expo-doctor");
 		const result = await runSubprocess("npx", ["--yes", "expo-doctor", rootDir], {
 			cwd: rootDir,
-			timeout: 120000,
+			timeout: INSTALL_TIMEOUT,
 		});
 		const output = [result.stdout, result.stderr].filter(Boolean).join("\n");
 
@@ -159,9 +176,10 @@ const removeDisallowedExpoPackages = async (rootDir: string): Promise<void> => {
 
 		if (toRemove.length === 0) return;
 
+		onProgress?.(`Expo dependency alignment · uninstalling ${toRemove.length} package(s)`);
 		await runSubprocess("npm", ["uninstall", ...toRemove], {
 			cwd: rootDir,
-			timeout: 60000,
+			timeout: INSTALL_TIMEOUT,
 		});
 	} catch {
 		// Best-effort — don't fail the step

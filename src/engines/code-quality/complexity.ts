@@ -9,6 +9,7 @@ interface FunctionInfo {
 	lineCount: number;
 	maxNesting: number;
 	paramCount: number;
+	templateLines: number;
 }
 interface FunctionPattern {
 	regex: RegExp;
@@ -221,6 +222,28 @@ const isBlockArrow = (lines: string[], startIndex: number): boolean => {
 	return false;
 };
 
+const countTemplateLines = (bodyLines: string[]): number => {
+	let insideTemplate = false;
+	let templateLineCount = 0;
+	for (const line of bodyLines) {
+		const startedInside = insideTemplate;
+		let escape = false;
+		for (const ch of line) {
+			if (escape) {
+				escape = false;
+				continue;
+			}
+			if (ch === "\\") {
+				escape = true;
+				continue;
+			}
+			if (ch === "`") insideTemplate = !insideTemplate;
+		}
+		if (startedInside) templateLineCount++;
+	}
+	return templateLineCount;
+};
+
 const analyzeFunctions = (content: string, ext: string): FunctionInfo[] => {
 	const lines = content.split("\n");
 	const functions: FunctionInfo[] = [];
@@ -231,12 +254,13 @@ const analyzeFunctions = (content: string, ext: string): FunctionInfo[] => {
 
 		const isPython = fnMatch.patternIndex === 2;
 
-		// For arrow functions, skip single-expression (braceless) arrows
 		if (fnMatch.patternIndex === 1 && !isBlockArrow(lines, i)) {
 			continue;
 		}
 
 		const { endLine, maxNesting } = findFunctionEnd(lines, i, isPython);
+		const bodyLines = lines.slice(i + 1, endLine);
+		const templateLines = isPython ? 0 : countTemplateLines(bodyLines);
 
 		functions.push({
 			name: fnMatch.name,
@@ -244,6 +268,7 @@ const analyzeFunctions = (content: string, ext: string): FunctionInfo[] => {
 			lineCount: endLine - i + 1,
 			maxNesting,
 			paramCount: countParams(fnMatch.params),
+			templateLines,
 		});
 	}
 
@@ -273,7 +298,10 @@ const checkFileDiagnostics = (
 	const isJsx = ext === ".jsx" || ext === ".tsx";
 	const effectiveMax = isJsx ? limits.maxFileLoc * 2 : limits.maxFileLoc;
 
-	if (lineCount > effectiveMax) {
+	// 10% soft tolerance: don't flag files that are marginally over the max.
+	// A file at 81 lines with max 80 is fine; one at 450 with max 400 is fine.
+	// Only flag when meaningfully over (> 10%).
+	if (lineCount > Math.ceil(effectiveMax * 1.1)) {
 		results.push({
 			filePath: relativePath,
 			engine: "code-quality",
@@ -298,7 +326,8 @@ const checkFunctionDiagnostics = (
 ): Diagnostic[] => {
 	const results: Diagnostic[] = [];
 
-	if (fn.lineCount > limits.maxFunctionLoc) {
+	const effectiveLineCount = fn.lineCount - fn.templateLines;
+	if (effectiveLineCount > Math.ceil(limits.maxFunctionLoc * 1.1)) {
 		results.push({
 			filePath: relativePath,
 			engine: "code-quality",

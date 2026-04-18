@@ -19,6 +19,7 @@ export type Framework =
 	| "vite"
 	| "remix"
 	| "expo"
+	| "astro"
 	| "django"
 	| "flask"
 	| "fastapi"
@@ -58,7 +59,15 @@ const FRAMEWORK_PACKAGES: Record<string, Framework> = {
 	vite: "vite",
 	"@remix-run/react": "remix",
 	expo: "expo",
+	astro: "astro",
 };
+
+const ASTRO_CONFIG_FILENAMES = [
+	"astro.config.mjs",
+	"astro.config.js",
+	"astro.config.ts",
+	"astro.config.cjs",
+];
 
 const PYTHON_FRAMEWORKS: Record<string, Framework> = {
 	django: "django",
@@ -152,6 +161,13 @@ const detectFrameworks = (directory: string): Framework[] => {
 		}
 	}
 
+	for (const configFile of ASTRO_CONFIG_FILENAMES) {
+		if (fs.existsSync(path.join(directory, configFile))) {
+			frameworks.add("astro");
+			break;
+		}
+	}
+
 	// Python frameworks via requirements or pyproject
 	const requirementsPath = path.join(directory, "requirements.txt");
 	if (fs.existsSync(requirementsPath)) {
@@ -180,6 +196,7 @@ const TOOLS_TO_CHECK = [
 	"gofmt",
 	"pip-audit",
 	"cargo",
+	"cargo-audit",
 	"clippy-driver",
 	"rustfmt",
 	"rubocop",

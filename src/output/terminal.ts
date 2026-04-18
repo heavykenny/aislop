@@ -1,11 +1,8 @@
 import type { Diagnostic, EngineResult } from "../engines/types.js";
-import type { ScoreResult } from "../scoring/index.js";
-import { getScoreColor } from "../scoring/index.js";
-import { highlighter } from "../utils/highlighter.js";
-import { logger } from "../utils/logger.js";
+import { log } from "../ui/logger.js";
+import { symbols } from "../ui/symbols.js";
+import { style, theme } from "../ui/theme.js";
 import { getEngineLabel } from "./engine-info.js";
-
-const PERFECT_SCORE = 100;
 
 const groupBy = <T>(items: T[], key: (item: T) => string): Map<string, T[]> => {
 	const map = new Map<string, T[]>();
@@ -19,16 +16,7 @@ const groupBy = <T>(items: T[], key: (item: T) => string): Map<string, T[]> => {
 };
 
 const colorBySeverity = (text: string, severity: string): string =>
-	severity === "error" ? highlighter.error(text) : highlighter.warn(text);
-
-const colorByScore = (
-	text: string,
-	score: number,
-	thresholds: { good: number; ok: number },
-): string => {
-	const color = getScoreColor(score, thresholds);
-	return highlighter[color](text);
-};
+	severity === "error" ? style(theme, "danger", text) : style(theme, "warn", text);
 
 const toElapsedLabel = (elapsedMs: number): string =>
 	elapsedMs < 1000 ? `${Math.round(elapsedMs)}ms` : `${(elapsedMs / 1000).toFixed(1)}s`;
@@ -45,13 +33,54 @@ const toLocationLabel = (diagnostic: Diagnostic): string => {
 	return `${diagnostic.filePath}${line}${column}`;
 };
 
+const wrapText = (
+	text: string,
+	maxWidth: number,
+	firstIndentWidth: number,
+	contIndent: string,
+): string[] => {
+	const firstWidth = Math.max(20, maxWidth - firstIndentWidth);
+	const contWidth = Math.max(20, maxWidth - contIndent.length);
+	const words = text.split(/\s+/).filter((w) => w.length > 0);
+	const lines: string[] = [];
+	let current = "";
+	for (const word of words) {
+		const budget = lines.length === 0 ? firstWidth : contWidth;
+		if (current.length === 0) {
+			current = word;
+		} else if (current.length + 1 + word.length <= budget) {
+			current = `${current} ${word}`;
+		} else {
+			lines.push(current);
+			current = word;
+		}
+	}
+	if (current.length > 0) lines.push(current);
+	// Prepend the continuation indent to every line after the first. The
+	// first line is returned without a prefix so the caller can add its own
+	// (e.g. the `[WARN] ` badge including its ANSI color).
+	return lines.map((line, i) => (i === 0 ? line : `${contIndent}${line}`));
+};
+
+const wrapHelpText = (text: string, maxWidth: number, indent: string): string[] => {
+	const segments = wrapText(text, maxWidth, indent.length, indent);
+	// The first segment has no prefix; help lines always start at the indent.
+	return segments.map((seg, i) => (i === 0 ? `${indent}${seg}` : seg));
+};
+
+const terminalWidth = (): number => {
+	const raw = process.stdout.columns;
+	if (typeof raw !== "number" || raw <= 0) return 100;
+	return Math.min(raw, 100);
+};
+
 export const renderDiagnostics = (diagnostics: Diagnostic[], verbose: boolean): string => {
 	const lines: string[] = [];
 	const byEngine = groupBy(diagnostics, (d) => d.engine);
 
 	for (const [engine, engineDiags] of byEngine) {
 		const label = getEngineLabel(engine as Diagnostic["engine"]);
-		lines.push(`  ${highlighter.bold(`➤ ${label}`)}`);
+		lines.push(`  ${style(theme, "bold", `${symbols.engineActive} ${label}`)}`);
 
 		const byRule = groupBy(engineDiags, (d) => `${d.rule}:${d.message}`);
 		const sorted = [...byRule.entries()].sort(([, a], [, b]) => {
@@ -65,69 +94,41 @@ export const renderDiagnostics = (diagnostics: Diagnostic[], verbose: boolean): 
 			const level = toSeverityLabel(first.severity);
 			const count = ruleDiags.length > 1 ? ` (${ruleDiags.length})` : "";
 			const status = colorBySeverity(level, first.severity);
+			const fixableTag = first.fixable ? ` ${style(theme, "muted", "[auto]")}` : "";
+			const fixableWidth = first.fixable ? " [auto]".length : 0;
 
-			lines.push(`    [${status}] ${first.message}${count}`);
+			const badgePrefix = `    [${status}]${fixableTag} `;
+			const badgePrefixWidth = 4 + 1 + level.length + 1 + fixableWidth + 1;
+			const messageText = `${first.message}${count}`;
+			const wrappedMsg = wrapText(messageText, terminalWidth(), badgePrefixWidth, "      ");
+			lines.push(`${badgePrefix}${wrappedMsg[0]}`);
+			for (let i = 1; i < wrappedMsg.length; i++) {
+				lines.push(wrappedMsg[i]);
+			}
 
 			const locations = verbose ? ruleDiags : ruleDiags.slice(0, 3);
 			for (const diagnostic of locations) {
-				lines.push(highlighter.dim(`      ${toLocationLabel(diagnostic)}`));
+				lines.push(style(theme, "muted", `      ${toLocationLabel(diagnostic)}`));
 			}
 			if (!verbose && ruleDiags.length > locations.length) {
 				lines.push(
-					highlighter.dim(
+					style(
+						theme,
+						"muted",
 						`      +${ruleDiags.length - locations.length} more location(s), use -d for full list`,
 					),
 				);
 			}
 
 			if (first.help) {
-				lines.push(highlighter.dim(`      ${first.help}`));
+				const wrapped = wrapHelpText(first.help, terminalWidth(), "      ");
+				for (const line of wrapped) {
+					lines.push(style(theme, "muted", line));
+				}
 			}
 
 			lines.push("");
 		}
-	}
-
-	return `${lines.join("\n")}\n`;
-};
-
-export const renderSummary = (
-	diagnostics: Diagnostic[],
-	scoreResult: ScoreResult,
-	elapsedMs: number,
-	fileCount: number,
-	thresholds: { good: number; ok: number },
-): string => {
-	const errorCount = diagnostics.filter((d) => d.severity === "error").length;
-	const warningCount = diagnostics.filter((d) => d.severity === "warning").length;
-	const fixableCount = diagnostics.filter((d) => d.fixable).length;
-	const elapsed = toElapsedLabel(elapsedMs);
-
-	const lines = [
-		highlighter.dim("------------------------------------------------------------"),
-		highlighter.bold("Summary"),
-		`  Score: ${colorByScore(`${scoreResult.score}/${PERFECT_SCORE}`, scoreResult.score, thresholds)} ${colorByScore(`(${scoreResult.label})`, scoreResult.score, thresholds)}`,
-		`  Issues: ${highlighter.error(`${errorCount} error${errorCount === 1 ? "" : "s"}`)}, ${highlighter.warn(`${warningCount} warning${warningCount === 1 ? "" : "s"}`)}`,
-		`  Auto-fixable: ${highlighter.info(String(fixableCount))}`,
-		`  Files: ${highlighter.info(String(fileCount))}`,
-		`  Time: ${highlighter.info(elapsed)}`,
-		highlighter.dim("------------------------------------------------------------"),
-	];
-
-	if (errorCount + warningCount > 0) {
-		lines.push("");
-		lines.push(highlighter.bold("Next steps"));
-		if (fixableCount > 0) {
-			lines.push(
-				`  ${highlighter.info("→")} Run ${highlighter.info("fix")} to auto-fix ${fixableCount} issue${fixableCount === 1 ? "" : "s"}`,
-			);
-		}
-		lines.push(
-			`  ${highlighter.info("→")} Run ${highlighter.info("fix -f")} to apply all available fixes (includes dependency audit)`,
-		);
-		lines.push(
-			`  ${highlighter.dim("→")} Run ${highlighter.dim("fix --<agent>")} to hand off to a coding agent (see ${highlighter.dim("fix --help")} for supported agents)`,
-		);
 	}
 
 	return `${lines.join("\n")}\n`;
@@ -138,9 +139,9 @@ export const printEngineStatus = (result: EngineResult): void => {
 	const elapsed = toElapsedLabel(result.elapsed);
 
 	if (result.skipped) {
-		logger.warn(`  ! ${label}: skipped${result.skipReason ? ` (${result.skipReason})` : ""}`);
+		log.warn(`${label}: skipped${result.skipReason ? ` (${result.skipReason})` : ""}`);
 	} else if (result.diagnostics.length === 0) {
-		logger.success(`  ✓ ${label}: done (0 issues, ${elapsed})`);
+		log.success(`${label}: done (0 issues, ${elapsed})`);
 	} else {
 		const errors = result.diagnostics.filter((d) => d.severity === "error").length;
 		const warnings = result.diagnostics.filter((d) => d.severity === "warning").length;
@@ -150,9 +151,9 @@ export const printEngineStatus = (result: EngineResult): void => {
 		const statusText = `${parts.join(", ")}, ${elapsed}`;
 
 		if (errors > 0) {
-			logger.error(`  ✗ ${label}: done (${statusText})`);
+			log.error(`${label}: done (${statusText})`);
 		} else {
-			logger.warn(`  ! ${label}: done (${statusText})`);
+			log.warn(`${label}: done (${statusText})`);
 		}
 	}
 };

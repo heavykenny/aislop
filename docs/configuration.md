@@ -102,6 +102,6 @@ See [examples/architecture-rules.yml](../examples/architecture-rules.yml) for a 
 
 See the [examples/](../examples/) directory for pre-built configs:
 
-- [`typescript-strict.yml`](../examples/typescript-strict.yml) — tight thresholds for zero-slop teams
-- [`monorepo-relaxed.yml`](../examples/monorepo-relaxed.yml) — loose thresholds for incremental adoption
-- [`python-go.yml`](../examples/python-go.yml) — backend-focused with higher security weight
+- [`typescript-strict.yml`](../examples/typescript-strict.yml): tight thresholds for zero-slop teams
+- [`monorepo-relaxed.yml`](../examples/monorepo-relaxed.yml): loose thresholds for incremental adoption
+- [`python-go.yml`](../examples/python-go.yml): backend-focused with higher security weight

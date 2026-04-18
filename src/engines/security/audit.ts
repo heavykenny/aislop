@@ -1,7 +1,14 @@
 import fs from "node:fs";
 import path from "node:path";
+import { detectInvocation } from "../../ui/invocation.js";
 import { runSubprocess } from "../../utils/subprocess.js";
 import type { Diagnostic, EngineContext } from "../types.js";
+
+const withFixHint = (rest: string): string => {
+	const invocation = detectInvocation();
+	const suffix = rest ? ` — ${rest}` : "";
+	return `Run \`${invocation} fix -f\` to apply this fix${suffix}`;
+};
 
 export const runDependencyAudit = async (context: EngineContext): Promise<Diagnostic[]> => {
 	const diagnostics: Diagnostic[] = [];
@@ -119,7 +126,7 @@ const parseLegacyAdvisories = (
 			rule: "security/vulnerable-dependency",
 			severity: toSeverity(severity),
 			message: `Vulnerable dependency (${source}): ${packageName} (${severity})`,
-			help: recommendation,
+			help: withFixHint(recommendation),
 			line: 0,
 			column: 0,
 			category: "Security",
@@ -144,10 +151,10 @@ const parseModernVulnerabilities = (
 		let recommendation = `Run \`${defaultAuditFixCommand(source)}\` to resolve`;
 		if (fixAvailable === false) {
 			recommendation = isDirect
-				? "No automatic fix available — check for a newer major version or an alternative package."
-				: "Transitive vulnerability with no fix. Add an override in package.json or upgrade the parent dependency.";
+				? "No automatic fix — check for a newer major version"
+				: "Transitive with no fix — add an override or upgrade the parent";
 		} else if (!isDirect && fixAvailable === true) {
-			recommendation = `Transitive dep — \`${defaultAuditFixCommand(source)}\` may not resolve this. If it persists, add an override in package.json or upgrade the parent package that depends on ${packageName}.`;
+			recommendation = "Transitive dep — may need an override or parent upgrade";
 		} else if (
 			fixAvailable &&
 			typeof fixAvailable === "object" &&
@@ -166,7 +173,7 @@ const parseModernVulnerabilities = (
 			rule: "security/vulnerable-dependency",
 			severity: toSeverity(severity),
 			message: `Vulnerable dependency (${source}): ${packageName} (${severity})`,
-			help: recommendation,
+			help: withFixHint(recommendation),
 			line: 0,
 			column: 0,
 			category: "Security",
@@ -193,7 +200,7 @@ const parseJsAudit = (output: string, source: JsAuditSource): Diagnostic[] => {
 					message: `Dependency audit skipped (${source}): lockfile is missing`,
 					help:
 						error.detail ??
-						"Generate a lockfile, then re-run `aislop scan` for dependency vulnerability checks.",
+						"Generate a lockfile, then re-run `npx aislop scan` for dependency vulnerability checks.",
 					line: 0,
 					column: 0,
 					category: "Security",
@@ -258,7 +265,7 @@ const runPipAudit = async (rootDir: string, timeout: number): Promise<Diagnostic
 				rule: "security/vulnerable-dependency",
 				severity: "error" as const,
 				message: `Vulnerable Python dependency: ${d.name}`,
-				help: `Upgrade ${d.name} to fix known vulnerabilities`,
+				help: withFixHint(`Upgrade ${d.name} to fix known vulnerabilities`),
 				line: 0,
 				column: 0,
 				category: "Security",
@@ -297,7 +304,7 @@ const toGovulnDiagnostic = (entry: GovulncheckEntry): Diagnostic | null => {
 		rule: "security/vulnerable-dependency",
 		severity: "error",
 		message: `Go vulnerability: ${entry.vulnerability.id ?? "unknown"}`,
-		help: entry.vulnerability.details ?? "",
+		help: withFixHint(entry.vulnerability.details ?? ""),
 		line: 0,
 		column: 0,
 		category: "Security",
@@ -338,7 +345,9 @@ const runCargoAudit = async (rootDir: string, timeout: number): Promise<Diagnost
 			rule: "security/vulnerable-dependency",
 			severity: "error" as const,
 			message: `Rust vulnerability: ${(v.advisory as Record<string, unknown>)?.id ?? "unknown"}`,
-			help: (v.advisory as Record<string, unknown>)?.title ?? "",
+			help: withFixHint(
+				((v.advisory as Record<string, unknown>)?.title as string | undefined) ?? "",
+			),
 			line: 0,
 			column: 0,
 			category: "Security",

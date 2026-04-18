@@ -44,45 +44,27 @@ export const DEFAULT_CONFIG: AislopConfig = {
 	},
 };
 
-export const DEFAULT_CONFIG_YAML = `version: 1
+export const GITHUB_WORKFLOW_DIR = ".github/workflows";
+export const GITHUB_WORKFLOW_FILE = "aislop.yml";
 
-engines:
-  format: true
-  lint: true
-  code-quality: true
-  ai-slop: true
-  architecture: false
-  security: true
+export const DEFAULT_GITHUB_WORKFLOW_YAML = `name: aislop
 
-quality:
-  maxFunctionLoc: 80
-  maxFileLoc: 400
-  maxNesting: 5
-  maxParams: 6
+on:
+  push:
+    branches: [main]
+  pull_request:
 
-security:
-  audit: true
-  auditTimeout: 25000
-
-scoring:
-  weights:
-    format: 0.3
-    lint: 0.6
-    code-quality: 0.8
-    ai-slop: 2.5
-    architecture: 1.0
-    security: 1.5
-  thresholds:
-    good: 75
-    ok: 50
-  smoothing: 20
-
-ci:
-  failBelow: 0
-  format: json
-
-# telemetry:
-#   enabled: true        # set to false to disable anonymous usage analytics
+jobs:
+  quality-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      # Quality gate: exits 1 when score < ci.failBelow in .aislop/config.yml
+      # or when any error-severity diagnostic is present.
+      - run: npx aislop@latest ci .
 `;
 
 export const DEFAULT_RULES_YAML = `# Architecture rules (BYO)

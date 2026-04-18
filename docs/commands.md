@@ -30,7 +30,7 @@
 | `-f, --force` | Run aggressive fixes (dependency audit, unused file removal, unsafe lint rewrites) |
 | `-p, --prompt` | Print an agent-ready prompt for remaining issues (pipe-friendly) |
 
-#### Agent flags — CLI agents (launch with prompt directly)
+#### Agent flags: CLI agents (launch with prompt directly)
 
 | Flag | Agent |
 |---|---|
@@ -46,7 +46,7 @@
 | `--aider` | Aider |
 | `--goose` | Goose |
 
-#### Agent flags — Editor agents (open editor + copy prompt to clipboard)
+#### Agent flags: editor agents (open editor + copy prompt to clipboard)
 
 | Flag | Editor |
 |---|---|

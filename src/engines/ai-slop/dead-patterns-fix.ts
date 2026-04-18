@@ -65,12 +65,6 @@ const shouldUpgradeToError = (statementText: string): boolean => {
 	return ERROR_MESSAGE_PATTERNS.some((pattern) => pattern.test(statementText));
 };
 
-/**
- * Removes lines flagged as fixable by the trivial-comment and dead-pattern detectors.
- *   - ai-slop/trivial-comment  → remove the line
- *   - ai-slop/console-leftover → remove the entire statement (multi-line safe),
- *     OR replace with console.error if the message indicates an error/failure
- */
 export const fixDeadPatterns = async (context: EngineContext): Promise<void> => {
 	const diagnostics = [
 		...(await detectTrivialComments(context)),

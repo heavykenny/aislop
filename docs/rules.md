@@ -46,13 +46,14 @@ Measures structural complexity, finds dead code, and detects unused dependencies
 | `knip/unresolved` | Imports that cannot be resolved |
 | `knip/binaries` | Binaries used but not declared in package.json |
 
-## AI Slop Detection (Maintainability)
+## AI Slop
 
 The rules that make aislop unique. These catch the patterns AI assistants leave behind.
 
 | Rule | Severity | What it catches |
 |---|---|---|
 | `ai-slop/trivial-comment` | warning | Comments restating the code (`// Import React`, `// Return the value`) |
+| `ai-slop/narrative-comment` | warning | Decorative separators, phase/section headers, JSDoc preambles without meaningful tags (caught on top-level *and* interface/type members), cross-reference commentary, 5+ line prose blocks anywhere |
 | `ai-slop/swallowed-exception` | error | Empty catch blocks, catch blocks that only log (JS/TS/Python/Go/Ruby/Java) |
 | `ai-slop/thin-wrapper` | warning | Functions that only delegate to another function |
 | `ai-slop/generic-naming` | info | AI-generated names: `helper_1`, `data2`, `temp1` |

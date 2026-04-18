@@ -10,7 +10,7 @@ export default defineConfig([
 		entry: {
 			cli: "./src/cli.ts",
 		},
-		external: ["oxlint", "knip", "knip/session", "@biomejs/biome"],
+		external: ["oxlint", "knip", "knip/session", "@biomejs/biome", "typescript"],
 		dts: true,
 		target: "node18",
 		platform: "node",
@@ -24,7 +24,7 @@ export default defineConfig([
 		entry: {
 			index: "./src/index.ts",
 		},
-		external: ["oxlint", "knip", "knip/session", "@biomejs/biome"],
+		external: ["oxlint", "knip", "knip/session", "@biomejs/biome", "typescript"],
 		dts: true,
 		target: "node18",
 		platform: "node",

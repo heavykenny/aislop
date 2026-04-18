@@ -19,8 +19,8 @@ export const ENGINE_INFO: Record<EngineName, EngineInfo> = {
 		description: "Complexity limits, dead code detection, and duplication checks",
 	},
 	"ai-slop": {
-		label: "Maintainability",
-		description: "Over-abstraction, swallowed errors, and low-signal code patterns",
+		label: "AI Slop",
+		description: "Narrative comments, dead patterns, unsafe type casts, TODO stubs, generic names",
 	},
 	architecture: {
 		label: "Architecture",

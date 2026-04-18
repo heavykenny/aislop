@@ -61,6 +61,7 @@ const getBiomeLineWidth = (rootDir: string): number => {
 const getBiomeTargets = (context: EngineContext): string[] =>
 	getSourceFiles(context)
 		.filter((filePath) => BIOME_EXTENSIONS.has(path.extname(filePath)))
+		.filter((filePath) => fs.existsSync(filePath))
 		.map((filePath) => path.relative(context.rootDirectory, filePath));
 
 const projectUsesDecorators = (rootDir: string): boolean => {
@@ -148,7 +149,7 @@ const parseBiomeJsonOutput = (output: string, rootDir: string): Diagnostic[] => 
 				rule: "formatting",
 				severity,
 				message,
-				help: "Run `aislop fix` to auto-format",
+				help: "Run `npx aislop fix` to auto-format",
 				line: entry.location?.start?.line ?? 0,
 				column: entry.location?.start?.column ?? 0,
 				category: "Format",

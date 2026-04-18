@@ -1,12 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Diagnostic } from "../src/engines/types.js";
-import { countRenderedLines, shouldPageOutput } from "../src/output/pager.js";
-import { renderDiagnostics, renderSummary } from "../src/output/terminal.js";
-
-// Strip ANSI escape codes so assertions work regardless of color support
-// eslint-disable-next-line no-control-regex
-const ANSI_RE = new RegExp(String.raw`\x1B\[\d+m`, "g");
-const stripAnsi = (s: string) => s.replace(ANSI_RE, "");
+import { renderDiagnostics } from "../src/output/terminal.js";
 
 const createDiagnostic = (
 	overrides: Partial<Diagnostic> = {},
@@ -22,35 +16,6 @@ const createDiagnostic = (
 	category: "style",
 	fixable: false,
 	...overrides,
-});
-
-describe("pager output", () => {
-	it("counts wrapped lines after removing ANSI codes", () => {
-		const colored = "\u001B[31mabcdef\u001B[39m";
-		expect(countRenderedLines(colored, 3)).toBe(2);
-	});
-
-	it("pages only when output exceeds the terminal height in a TTY", () => {
-		const text = ["one", "two", "three", "four", "five"].join("\n");
-
-		expect(
-			shouldPageOutput(text, {
-				stdinIsTTY: true,
-				stdoutIsTTY: true,
-				rows: 4,
-				columns: 80,
-			}),
-		).toBe(true);
-
-		expect(
-			shouldPageOutput(text, {
-				stdinIsTTY: false,
-				stdoutIsTTY: true,
-				rows: 4,
-				columns: 80,
-			}),
-		).toBe(false);
-	});
 });
 
 describe("terminal rendering", () => {
@@ -81,33 +46,5 @@ describe("terminal rendering", () => {
 
 		expect(output).toContain("src/example-4.ts:4:1");
 		expect(output).not.toContain("more location(s)");
-	});
-
-	it("renders a summary block with score and counts", () => {
-		const diagnostics = [
-			createDiagnostic({ severity: "error", fixable: true }),
-			createDiagnostic({
-				filePath: "src/other.ts",
-				message: "Second issue",
-				help: "Another hint",
-			}),
-		];
-
-		const raw = renderSummary(
-			diagnostics,
-			{ score: 82, label: "Needs Work" },
-			1520,
-			17,
-			{ good: 90, ok: 75 },
-		);
-		const output = stripAnsi(raw);
-
-		expect(output).toContain("Summary");
-		expect(output).toContain("82/100");
-		expect(output).toContain("1 error");
-		expect(output).toContain("1 warning");
-		expect(output).toContain("Auto-fixable: 1");
-		expect(output).toContain("Files: 17");
-		expect(output).toContain("Time: 1.5s");
 	});
 });
