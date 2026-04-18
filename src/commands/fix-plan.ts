@@ -21,10 +21,13 @@ export const buildFixStepNames = (
 
 	if (config.engines.lint) {
 		if (hasJsTs(projectInfo)) {
-			stepNames.push("JS/TS lint fixes");
+			stepNames.push("Lint fixes (js/ts)");
 		}
 		if (projectInfo.languages.includes("python") && projectInfo.installedTools.ruff) {
-			stepNames.push("Python lint fixes");
+			stepNames.push("Lint fixes (python)");
+		}
+		if (projectInfo.languages.includes("ruby") && projectInfo.installedTools.rubocop) {
+			stepNames.push("Lint fixes (ruby)");
 		}
 	}
 
@@ -34,13 +37,22 @@ export const buildFixStepNames = (
 
 	if (config.engines.format) {
 		if (hasJsTs(projectInfo)) {
-			stepNames.push("JS/TS formatting");
+			stepNames.push("Formatting (js/ts)");
 		}
 		if (projectInfo.languages.includes("python") && projectInfo.installedTools.ruff) {
-			stepNames.push("Python formatting");
+			stepNames.push("Formatting (python)");
 		}
 		if (projectInfo.languages.includes("go") && projectInfo.installedTools.gofmt) {
-			stepNames.push("Go formatting");
+			stepNames.push("Formatting (go)");
+		}
+		if (projectInfo.languages.includes("rust") && projectInfo.installedTools.rustfmt) {
+			stepNames.push("Formatting (rust)");
+		}
+		if (projectInfo.languages.includes("ruby") && projectInfo.installedTools.rubocop) {
+			stepNames.push("Formatting (ruby)");
+		}
+		if (projectInfo.languages.includes("php") && projectInfo.installedTools["php-cs-fixer"]) {
+			stepNames.push("Formatting (php)");
 		}
 	}
 

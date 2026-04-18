@@ -1,153 +1,367 @@
 import fs from "node:fs";
 import path from "node:path";
-import {
-	formatProjectSummary,
-	printCommandHeader,
-	printProjectMetadata,
-} from "../output/layout.js";
+import { type AislopConfig, CONFIG_DIR, loadConfig, RULES_FILE } from "../config/index.js";
+import { loadArchitectureRules } from "../engines/architecture/rule-loader.js";
+import type { EngineName } from "../engines/types.js";
+import { getEngineLabel } from "../output/engine-info.js";
+import { renderHeader } from "../ui/header.js";
+import { detectInvocation } from "../ui/invocation.js";
+import { renderHintLine } from "../ui/logger.js";
+import { type RailStep, renderRail } from "../ui/rail.js";
+import { createSymbols } from "../ui/symbols.js";
+import { createTheme, style, type Theme } from "../ui/theme.js";
+import { padEnd } from "../ui/width.js";
 import { discoverProject, type Language, type ProjectInfo } from "../utils/discover.js";
-import { logger } from "../utils/logger.js";
-import { isBundledTool, isNodePackageAvailable } from "../utils/tooling.js";
+import { APP_VERSION } from "../version.js";
 
-const LANGUAGE_TOOLS: Record<Language, Array<{ name: string; purpose: string }>> = {
-	typescript: [
-		{ name: "oxlint", purpose: "Lint (JS/TS)" },
-		{ name: "biome", purpose: "Format (JS/TS)" },
-	],
-	javascript: [
-		{ name: "oxlint", purpose: "Lint (JS)" },
-		{ name: "biome", purpose: "Format (JS)" },
-	],
-	python: [
-		{ name: "ruff", purpose: "Lint + Format (Python)" },
-		{ name: "pip-audit", purpose: "Dependency vulnerability scan (Python)" },
-	],
-	go: [
-		{ name: "golangci-lint", purpose: "Lint (Go)" },
-		{ name: "gofmt", purpose: "Format (Go)" },
-		{ name: "govulncheck", purpose: "Dependency vulnerability scan (Go)" },
-	],
-	rust: [{ name: "cargo", purpose: "Lint + Format (Rust)" }],
-	java: [],
-	ruby: [{ name: "rubocop", purpose: "Lint + Format (Ruby)" }],
-	php: [
-		{ name: "phpcs", purpose: "Lint (PHP)" },
-		{ name: "php-cs-fixer", purpose: "Format (PHP)" },
-	],
+export interface DoctorEngineRow {
+	engine: string;
+	tool: string;
+	status: "ok" | "missing" | "skipped";
+	remediation?: string;
+	skipReason?: string;
+}
+
+interface BuildDoctorRenderInput {
+	projectName: string;
+	languageLabel: string;
+	rows: DoctorEngineRow[];
+	invocation: string;
+	printBrand?: boolean;
+}
+
+const renderToolCell = (theme: Theme, row: DoctorEngineRow): string => {
+	if (row.status === "missing") {
+		return style(theme, "danger", row.tool);
+	}
+	if (row.status === "skipped") {
+		const combined = row.skipReason ? `${row.tool} · ${row.skipReason}` : row.tool;
+		return style(theme, "muted", combined);
+	}
+	return style(theme, "muted", row.tool);
 };
 
-type ReportTool = (
-	name: string,
-	purpose: string,
-	options?: { installed: boolean; bundled?: boolean },
-) => void;
+export const buildDoctorRender = (input: BuildDoctorRenderInput): string => {
+	const theme = createTheme();
+	const symbols = createSymbols({ plain: false });
+	const deps = { theme, symbols };
 
-const printProjectDetails = (projectInfo: ProjectInfo): void => {
-	logger.success(`  ✓ ${formatProjectSummary(projectInfo)}`);
-	printProjectMetadata(projectInfo);
-	logger.log("  Checks");
-	logger.break();
-};
+	const header = renderHeader(
+		{
+			version: APP_VERSION,
+			command: "doctor",
+			context: [input.projectName, input.languageLabel].filter((s) => s.length > 0),
+			brand: input.printBrand !== false,
+		},
+		deps,
+	);
 
-const createToolReporter = (): {
-	reportTool: ReportTool;
-	isAllGood: () => boolean;
-} => {
-	let allGood = true;
-	const seenTools = new Set<string>();
+	const labelWidth = Math.max(12, ...input.rows.map((r) => r.engine.length)) + 2;
+	const enginesRunning = input.rows.filter((r) => r.status === "ok").length;
+	const missing = input.rows.filter((r) => r.status === "missing").length;
 
-	const reportTool: ReportTool = (name, purpose, options = { installed: false }): void => {
-		if (seenTools.has(name)) return;
-		seenTools.add(name);
+	const steps: RailStep[] = input.rows.map((row) => {
+		const engineCol = padEnd(row.engine, labelWidth);
+		const toolCell = renderToolCell(theme, row);
+		const label = `${engineCol}${toolCell}`;
 
-		if (options.installed) {
-			const sourceLabel = options.bundled ? " (bundled)" : "";
-			logger.success(`  ✓ ${name}${sourceLabel} — ${purpose}`);
-			return;
+		if (row.status === "missing") {
+			return {
+				status: "failed",
+				label,
+				notes: row.remediation ? [row.remediation] : undefined,
+			};
 		}
-
-		logger.warn(`  ✗ ${name} — ${purpose} (not installed)`);
-		allGood = false;
-	};
-
-	return { reportTool, isAllGood: () => allGood };
-};
-
-const reportBundledTools = (): void => {
-	logger.success("  ✓ oxlint (bundled)");
-	logger.success("  ✓ biome (bundled)");
-	logger.success("  ✓ knip (bundled)");
-};
-
-const reportLanguageTools = (projectInfo: ProjectInfo, reportTool: ReportTool): void => {
-	for (const lang of projectInfo.languages) {
-		for (const tool of LANGUAGE_TOOLS[lang] ?? []) {
-			if (tool.name === "oxlint" || tool.name === "biome") continue;
-			reportTool(tool.name, tool.purpose, {
-				installed: projectInfo.installedTools[tool.name] === true,
-				bundled: isBundledTool(tool.name),
-			});
+		if (row.status === "skipped") {
+			return { status: "skipped", label };
 		}
-	}
-};
-
-const reportJsAuditTool = (
-	resolvedDir: string,
-	projectInfo: ProjectInfo,
-	reportTool: ReportTool,
-): void => {
-	const hasJsLanguage =
-		projectInfo.languages.includes("typescript") || projectInfo.languages.includes("javascript");
-	if (!hasJsLanguage) return;
-
-	const hasPnpmLock = fs.existsSync(path.join(resolvedDir, "pnpm-lock.yaml"));
-	const hasNpmLock = fs.existsSync(path.join(resolvedDir, "package-lock.json"));
-	if (hasPnpmLock) {
-		reportTool("pnpm", "Dependency vulnerability scan (JS/TS via pnpm audit)", {
-			installed: projectInfo.installedTools["pnpm"] === true,
-		});
-		return;
-	}
-
-	if (hasNpmLock || fs.existsSync(path.join(resolvedDir, "package.json"))) {
-		reportTool("npm", "Dependency vulnerability scan (JS/TS via npm audit)", {
-			installed: projectInfo.installedTools["npm"] === true,
-		});
-	}
-};
-
-const reportFrameworkTools = (projectInfo: ProjectInfo, reportTool: ReportTool): void => {
-	if (!projectInfo.frameworks.includes("expo")) return;
-	const hasExpoDoctor = isNodePackageAvailable("expo-doctor");
-	reportTool("expo-doctor", "Expo project health checks", {
-		installed: hasExpoDoctor,
-		bundled: hasExpoDoctor,
+		return { status: "done", label };
 	});
+
+	const footer = `Ready · ${enginesRunning} engines · ${missing} missing`;
+
+	const rail = renderRail({ steps, footer }, deps);
+
+	const hintText =
+		missing > 0
+			? `Install the missing tools, then run ${input.invocation} scan`
+			: `Run ${input.invocation} scan to check this project`;
+	const tail = `\n${renderHintLine(hintText, deps)}`;
+	return `${header}${rail}${tail}`;
 };
 
-const printDoctorConclusion = (allGood: boolean): void => {
-	logger.break();
-	if (allGood) {
-		logger.success("  All tools are available. You're good to go!");
-	} else {
-		logger.warn("  Some tools are missing. Install them for full coverage.");
-		logger.dim("  Missing tools will be skipped during scans.");
+interface PlanContext {
+	rootDirectory: string;
+	projectInfo: ProjectInfo;
+	config: AislopConfig;
+}
+
+interface ToolDecision {
+	tool: string;
+	status: "ok" | "missing" | "skipped";
+	remediation?: string;
+	skipReason?: string;
+}
+
+const hasAnyLanguage = (langs: Language[], wanted: Language[]): boolean =>
+	wanted.some((l) => langs.includes(l));
+
+const hasJsLike = (langs: Language[]): boolean =>
+	hasAnyLanguage(langs, ["typescript", "javascript"]);
+
+const primaryLanguage = (langs: Language[]): Language | null => {
+	// Prefer explicit ordering: JS/TS -> Python -> Go -> Rust -> Ruby -> PHP -> Java
+	const order: Language[] = [
+		"typescript",
+		"javascript",
+		"python",
+		"go",
+		"rust",
+		"ruby",
+		"php",
+		"java",
+	];
+	for (const lang of order) {
+		if (langs.includes(lang)) return lang;
 	}
-	logger.break();
+	return null;
 };
 
-export const doctorCommand = async (directory: string): Promise<void> => {
+const planFormat = (ctx: PlanContext): ToolDecision => {
+	const { languages, installedTools } = ctx.projectInfo;
+	if (hasJsLike(languages)) {
+		return { tool: "biome (bundled)", status: "ok" };
+	}
+	if (languages.includes("python")) {
+		return installedTools["ruff"]
+			? { tool: "ruff (system)", status: "ok" }
+			: {
+					tool: "ruff not found",
+					status: "missing",
+					remediation: "Install: pipx install ruff",
+				};
+	}
+	if (languages.includes("go")) {
+		return installedTools["gofmt"]
+			? { tool: "gofmt (system)", status: "ok" }
+			: {
+					tool: "gofmt not found",
+					status: "missing",
+					remediation: "Install: via go toolchain — https://go.dev/dl/",
+				};
+	}
+	if (languages.includes("rust")) {
+		return installedTools["cargo"]
+			? { tool: "cargo fmt (system)", status: "ok" }
+			: {
+					tool: "cargo fmt not found",
+					status: "missing",
+					remediation: "Install: rustup component add rustfmt",
+				};
+	}
+	if (languages.includes("ruby")) {
+		return installedTools["rubocop"]
+			? { tool: "rubocop (system)", status: "ok" }
+			: {
+					tool: "rubocop not found",
+					status: "missing",
+					remediation: "Install: gem install rubocop",
+				};
+	}
+	if (languages.includes("php")) {
+		return installedTools["php-cs-fixer"]
+			? { tool: "php-cs-fixer (system)", status: "ok" }
+			: {
+					tool: "php-cs-fixer not found",
+					status: "missing",
+					remediation: "Install: composer global require friendsofphp/php-cs-fixer",
+				};
+	}
+	return { tool: "no formatter", status: "skipped", skipReason: "no supported language" };
+};
+
+const planLint = (ctx: PlanContext): ToolDecision => {
+	const { languages, frameworks, installedTools } = ctx.projectInfo;
+	if (frameworks.includes("expo")) {
+		return { tool: "expo-doctor + oxlint (bundled)", status: "ok" };
+	}
+	if (hasJsLike(languages)) {
+		return { tool: "oxlint (bundled)", status: "ok" };
+	}
+	if (languages.includes("python")) {
+		return installedTools["ruff"]
+			? { tool: "ruff (system)", status: "ok" }
+			: {
+					tool: "ruff not found",
+					status: "missing",
+					remediation: "Install: pipx install ruff",
+				};
+	}
+	if (languages.includes("go")) {
+		return installedTools["golangci-lint"]
+			? { tool: "golangci-lint (system)", status: "ok" }
+			: {
+					tool: "golangci-lint not found",
+					status: "missing",
+					remediation: "Install: brew install golangci-lint",
+				};
+	}
+	if (languages.includes("rust")) {
+		return installedTools["clippy-driver"]
+			? { tool: "clippy (system)", status: "ok" }
+			: {
+					tool: "clippy not found",
+					status: "missing",
+					remediation: "Install: rustup component add clippy",
+				};
+	}
+	if (languages.includes("ruby")) {
+		return installedTools["rubocop"]
+			? { tool: "rubocop (system)", status: "ok" }
+			: {
+					tool: "rubocop not found",
+					status: "missing",
+					remediation: "Install: gem install rubocop",
+				};
+	}
+	return { tool: "no linter", status: "skipped", skipReason: "no supported language" };
+};
+
+const planCodeQuality = (ctx: PlanContext): ToolDecision => {
+	if (hasJsLike(ctx.projectInfo.languages)) {
+		return { tool: "knip (bundled)", status: "ok" };
+	}
+	return { tool: "built-in", status: "ok" };
+};
+
+const planAiSlop = (_ctx: PlanContext): ToolDecision => ({
+	tool: "built-in",
+	status: "ok",
+});
+
+const planSecurity = (ctx: PlanContext): ToolDecision => {
+	const { rootDirectory, projectInfo } = ctx;
+	const { installedTools } = projectInfo;
+
+	const hasFile = (rel: string): boolean => fs.existsSync(path.join(rootDirectory, rel));
+
+	if (hasFile("pnpm-lock.yaml")) {
+		return { tool: "pnpm audit", status: "ok" };
+	}
+	if (hasFile("package-lock.json")) {
+		return { tool: "npm audit", status: "ok" };
+	}
+	if (hasFile("requirements.txt") || hasFile("poetry.lock") || hasFile("Pipfile.lock")) {
+		return installedTools["pip-audit"]
+			? { tool: "pip-audit (system)", status: "ok" }
+			: {
+					tool: "pip-audit not found",
+					status: "missing",
+					remediation: "Install: pipx install pip-audit",
+				};
+	}
+	if (hasFile("Cargo.toml")) {
+		return installedTools["cargo"] && installedTools["cargo-audit"]
+			? { tool: "cargo audit (system)", status: "ok" }
+			: {
+					tool: "cargo audit not found",
+					status: "missing",
+					remediation: "Install: cargo install cargo-audit",
+				};
+	}
+	if (hasFile("go.mod")) {
+		return installedTools["govulncheck"]
+			? { tool: "govulncheck (system)", status: "ok" }
+			: {
+					tool: "govulncheck not found",
+					status: "missing",
+					remediation: "Install: go install golang.org/x/vuln/cmd/govulncheck@latest",
+				};
+	}
+	return { tool: "no auditor", status: "skipped", skipReason: "no lockfile" };
+};
+
+const planArchitecture = (ctx: PlanContext): ToolDecision => {
+	if (!ctx.config.engines.architecture) {
+		return { tool: "opt-in", status: "skipped", skipReason: "not configured" };
+	}
+	const rulesPath = path.join(ctx.rootDirectory, CONFIG_DIR, RULES_FILE);
+	if (!fs.existsSync(rulesPath)) {
+		return { tool: "opt-in", status: "skipped", skipReason: "no rules file" };
+	}
+	const rules = loadArchitectureRules(rulesPath);
+	if (rules.length === 0) {
+		return { tool: "opt-in", status: "skipped", skipReason: "rules file empty" };
+	}
+	return { tool: `custom rules (${rules.length} defined)`, status: "ok" };
+};
+
+const ENGINE_PLANNERS: Record<EngineName, (ctx: PlanContext) => ToolDecision> = {
+	format: planFormat,
+	lint: planLint,
+	"code-quality": planCodeQuality,
+	"ai-slop": planAiSlop,
+	architecture: planArchitecture,
+	security: planSecurity,
+};
+
+const ENGINE_ORDER: EngineName[] = [
+	"format",
+	"lint",
+	"code-quality",
+	"ai-slop",
+	"security",
+	"architecture",
+];
+
+const languageLabelFor = (info: ProjectInfo): string => {
+	const langs = info.languages.filter((l) => l !== "java"); // java is a signal-only placeholder
+	if (langs.length === 0) return info.languages[0] ?? "unknown";
+	if (langs.length === 1) return langs[0];
+	const primary = primaryLanguage(langs);
+	return primary ? `${primary} (mixed)` : "mixed";
+};
+
+const buildRows = (ctx: PlanContext): DoctorEngineRow[] => {
+	const rows: DoctorEngineRow[] = [];
+	for (const engine of ENGINE_ORDER) {
+		// Respect the user's engine config — if they disabled it, skip entirely
+		// except for architecture, which we always show (so users know it's available).
+		if (engine !== "architecture" && ctx.config.engines[engine] === false) continue;
+
+		const decision = ENGINE_PLANNERS[engine](ctx);
+		rows.push({
+			engine: getEngineLabel(engine),
+			tool: decision.tool,
+			status: decision.status,
+			remediation: decision.remediation,
+			skipReason: decision.skipReason,
+		});
+	}
+	return rows;
+};
+
+interface DoctorOptions {
+	printBrand?: boolean;
+}
+
+export const doctorCommand = async (
+	directory: string,
+	options: DoctorOptions = {},
+): Promise<void> => {
 	const resolvedDir = path.resolve(directory);
-
-	printCommandHeader("Doctor");
-
 	const projectInfo = await discoverProject(resolvedDir);
-	printProjectDetails(projectInfo);
+	const config = loadConfig(resolvedDir);
 
-	const { reportTool, isAllGood } = createToolReporter();
-	reportBundledTools();
-	reportLanguageTools(projectInfo, reportTool);
-	reportJsAuditTool(resolvedDir, projectInfo, reportTool);
-	reportFrameworkTools(projectInfo, reportTool);
-	printDoctorConclusion(isAllGood());
+	const rows = buildRows({ rootDirectory: resolvedDir, projectInfo, config });
+
+	process.stdout.write(
+		buildDoctorRender({
+			projectName: projectInfo.projectName,
+			languageLabel: languageLabelFor(projectInfo),
+			rows,
+			invocation: detectInvocation(),
+			printBrand: options.printBrand,
+		}),
+	);
 };

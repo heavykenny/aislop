@@ -4,24 +4,22 @@ import { performance } from "node:perf_hooks";
 import type { AislopConfig } from "../config/index.js";
 import { findConfigDir, RULES_FILE } from "../config/index.js";
 import { runEngines } from "../engines/orchestrator.js";
-import type { EngineConfig, EngineName } from "../engines/types.js";
-import { ENGINE_INFO } from "../output/engine-info.js";
-import {
-	formatProjectSummary,
-	printCommandHeader,
-	printProjectMetadata,
-} from "../output/layout.js";
-
-import { ScanProgressRenderer } from "../output/scan-progress.js";
-import { printEngineStatus, renderDiagnostics, renderSummary } from "../output/terminal.js";
+import type { Diagnostic, EngineConfig, EngineName, EngineResult } from "../engines/types.js";
+import { ENGINE_INFO, getEngineLabel } from "../output/engine-info.js";
+import { printEngineStatus, renderDiagnostics } from "../output/terminal.js";
 import { calculateScore } from "../scoring/index.js";
+import { renderHeader } from "../ui/header.js";
+import { detectInvocation } from "../ui/invocation.js";
+import { type GridRow, type GridRowOutcome, LiveGrid } from "../ui/live-grid.js";
+import { log } from "../ui/logger.js";
+import { renderCleanRun, renderSummary, type NextStep } from "../ui/summary.js";
+import { createSymbols } from "../ui/symbols.js";
+import { createTheme } from "../ui/theme.js";
 import { discoverProject } from "../utils/discover.js";
 import { getChangedFiles, getStagedFiles } from "../utils/git.js";
-import { highlighter } from "../utils/highlighter.js";
-import { logger } from "../utils/logger.js";
 import { filterProjectFiles } from "../utils/source-files.js";
-import { spinner } from "../utils/spinner.js";
 import { getScoreBucket, isTelemetryDisabled, trackEvent } from "../utils/telemetry.js";
+import { APP_VERSION } from "../version.js";
 
 interface ScanOptions {
 	changes: boolean;
@@ -29,6 +27,7 @@ interface ScanOptions {
 	verbose: boolean;
 	json: boolean;
 	showHeader?: boolean;
+	printBrand?: boolean;
 	/** Used for telemetry to distinguish scan vs ci invocation */
 	command?: "scan" | "ci";
 }
@@ -37,6 +36,99 @@ const shouldUseSpinner = (): boolean =>
 	Boolean(process.stderr.isTTY) && process.env.CI !== "true" && process.env.CI !== "1";
 
 const ALL_ENGINE_NAMES = Object.keys(ENGINE_INFO) as EngineName[];
+
+interface BuildScanRenderInput {
+	projectName: string;
+	language: string;
+	fileCount: number;
+	results: EngineResult[];
+	diagnostics: Diagnostic[];
+	score: { score: number; label: string };
+	elapsedMs: number;
+	thresholds: { good: number; ok: number };
+	verbose: boolean;
+	includeHeader?: boolean;
+	printBrand?: boolean;
+}
+
+export const buildScanRender = (input: BuildScanRenderInput): string => {
+	// Render with TTY symbols + auto-detected theme so snapshots are deterministic.
+	// Colors still reflect the terminal (they strip cleanly with ANSI_RE in tests).
+	const deps = {
+		theme: createTheme(),
+		symbols: createSymbols({ plain: false }),
+	};
+
+	const invocation = detectInvocation();
+
+	const header =
+		input.includeHeader === false
+			? ""
+			: renderHeader(
+					{
+						version: APP_VERSION,
+						command: "scan",
+						context: [input.projectName, input.language, `${input.fileCount} files`],
+						brand: input.printBrand !== false,
+					},
+					deps,
+				);
+
+	const errors = input.diagnostics.filter((d) => d.severity === "error").length;
+	const warnings = input.diagnostics.filter((d) => d.severity === "warning").length;
+	const fixable = input.diagnostics.filter((d) => d.fixable).length;
+	const hasVulnerableDeps = input.diagnostics.some(
+		(d) => d.rule === "security/vulnerable-dependency",
+	);
+
+	if (input.diagnostics.length === 0 && input.score.score === 100) {
+		return `${header}${renderCleanRun(
+			{ score: input.score.score, label: input.score.label, elapsedMs: input.elapsedMs },
+			deps,
+		)}`;
+	}
+
+	const diagBlock =
+		input.diagnostics.length === 0 ? "" : renderDiagnostics(input.diagnostics, input.verbose);
+
+	const nextSteps: NextStep[] = [];
+	if (fixable > 0) {
+		nextSteps.push({
+			emphasis: "primary",
+			text: `Run ${invocation} fix to auto-fix ${fixable} issue${fixable === 1 ? "" : "s"}`,
+		});
+	}
+	if (hasVulnerableDeps) {
+		nextSteps.push({
+			emphasis: "primary",
+			text: `Run ${invocation} fix -f (or --force) to apply aggressive fixes (dependency audit, unused files, framework alignment)`,
+		});
+	}
+	if (errors + warnings > 0) {
+		nextSteps.push({
+			emphasis: "primary",
+			text: `Run ${invocation} fix --claude (or --codex, --cursor, --gemini, etc.) to hand off to agent`,
+		});
+	}
+
+	const summary = renderSummary(
+		{
+			score: input.score.score,
+			label: input.score.label,
+			errors,
+			warnings,
+			fixable,
+			files: input.fileCount,
+			engines: input.results.length,
+			elapsedMs: input.elapsedMs,
+			nextSteps,
+			thresholds: input.thresholds,
+		},
+		deps,
+	);
+
+	return `${header}${diagBlock}${summary}`;
+};
 
 export const scanCommand = async (
 	directory: string,
@@ -51,7 +143,7 @@ export const scanCommand = async (
 		if (options.json) {
 			console.log(JSON.stringify({ error: msg }, null, 2));
 		} else {
-			logger.error(`  ${msg}`);
+			log.error(msg);
 		}
 		return { exitCode: 1 };
 	}
@@ -60,7 +152,7 @@ export const scanCommand = async (
 		if (options.json) {
 			console.log(JSON.stringify({ error: msg }, null, 2));
 		} else {
-			logger.error(`  ${msg}`);
+			log.error(msg);
 		}
 		return { exitCode: 1 };
 	}
@@ -68,38 +160,18 @@ export const scanCommand = async (
 	const showHeader = options.showHeader !== false;
 	const useLiveProgress = !options.json && shouldUseSpinner();
 
-	if (!options.json && showHeader) {
-		printCommandHeader("Scan");
-	}
-
-	const discoverSpinner =
-		options.json || !shouldUseSpinner() || !showHeader
-			? null
-			: spinner("Discovering project...").start();
 	const projectInfo = await discoverProject(resolvedDir);
-	const projectSummary = formatProjectSummary(projectInfo);
-	if (discoverSpinner) {
-		discoverSpinner.succeed(projectSummary);
-	} else if (!options.json) {
-		logger.success(`  ✓ ${projectSummary}`);
-	}
-
-	if (!options.json) {
-		printProjectMetadata(projectInfo);
-	}
 
 	let files: string[] | undefined;
 	if (options.staged) {
 		files = filterProjectFiles(resolvedDir, getStagedFiles(resolvedDir));
 		if (!options.json) {
-			logger.dim(`  Scope: ${files.length} staged file(s)`);
-			logger.break();
+			log.muted(`Scope: ${files.length} staged file(s)`);
 		}
 	} else if (options.changes) {
 		files = filterProjectFiles(resolvedDir, getChangedFiles(resolvedDir));
 		if (!options.json) {
-			logger.dim(`  Scope: ${files.length} changed file(s)`);
-			logger.break();
+			log.muted(`Scope: ${files.length} changed file(s)`);
 		}
 	}
 
@@ -111,11 +183,14 @@ export const scanCommand = async (
 		security: config.security,
 		architectureRulesPath: config.engines.architecture ? rulesPath : undefined,
 	};
-	const progressRenderer = useLiveProgress
-		? new ScanProgressRenderer(
-				ALL_ENGINE_NAMES.filter((engine) => config.engines[engine] !== false),
-			)
-		: null;
+
+	const enabledEngines = ALL_ENGINE_NAMES.filter((engine) => config.engines[engine] !== false);
+	const gridRows: GridRow[] = enabledEngines.map((engine) => ({
+		label: getEngineLabel(engine),
+		status: "queued",
+		key: engine,
+	}));
+	const progressRenderer = useLiveProgress ? new LiveGrid(gridRows) : null;
 
 	progressRenderer?.start();
 
@@ -130,10 +205,30 @@ export const scanCommand = async (
 		},
 		config.engines,
 		(engine) => {
-			progressRenderer?.markStarted(engine);
+			progressRenderer?.update(engine, { status: "running" });
 		},
 		(result) => {
-			progressRenderer?.markComplete(result);
+			if (result.skipped) {
+				progressRenderer?.update(result.engine, { status: "skipped", summary: "skipped" });
+			} else {
+				const errors = result.diagnostics.filter((d) => d.severity === "error").length;
+				const warnings = result.diagnostics.filter((d) => d.severity === "warning").length;
+				let outcome: GridRowOutcome = "ok";
+				let summary = "0 issues";
+				if (errors > 0) {
+					outcome = "fail";
+					summary = `${errors} error${errors === 1 ? "" : "s"}`;
+				} else if (warnings > 0) {
+					outcome = "warn";
+					summary = `${warnings} warning${warnings === 1 ? "" : "s"}`;
+				}
+				progressRenderer?.update(result.engine, {
+					status: "done",
+					outcome,
+					summary,
+					elapsedMs: result.elapsed,
+				});
+			}
 			if (!options.json && !progressRenderer) {
 				printEngineStatus(result);
 			}
@@ -180,22 +275,23 @@ export const scanCommand = async (
 		return { exitCode };
 	}
 
-	const output = [
-		"",
-		allDiagnostics.length === 0
-			? `${highlighter.success("  ✓ No issues found.")}\n`
-			: renderDiagnostics(allDiagnostics, options.verbose),
-		renderSummary(
-			allDiagnostics,
-			scoreResult,
+	const projectName = projectInfo.projectName ?? "project";
+	const language = projectInfo.languages[0] ?? "unknown";
+	process.stdout.write(
+		buildScanRender({
+			projectName,
+			language,
+			fileCount: projectInfo.sourceFileCount,
+			results,
+			diagnostics: allDiagnostics,
+			score: scoreResult,
 			elapsedMs,
-			projectInfo.sourceFileCount,
-			config.scoring.thresholds,
-		),
-		"",
-	].join("\n");
-
-	process.stdout.write(output);
+			thresholds: config.scoring.thresholds,
+			verbose: options.verbose,
+			includeHeader: showHeader,
+			printBrand: options.printBrand,
+		}),
+	);
 
 	return { exitCode };
 };

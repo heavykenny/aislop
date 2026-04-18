@@ -26,7 +26,7 @@ const FORMATTERS: Partial<Record<Language, FormatterConfig>> = {
 						rule: "rust-formatting",
 						severity: "warning",
 						message: "Rust file is not formatted correctly",
-						help: "Run `aislop fix` to auto-format with rustfmt",
+						help: "Run `npx aislop fix` to auto-format with rustfmt",
 						line: parseInt(match[2], 10),
 						column: 0,
 						category: "Format",
@@ -53,7 +53,7 @@ const FORMATTERS: Partial<Record<Language, FormatterConfig>> = {
 							rule: offense.cop_name ?? "ruby-formatting",
 							severity: "warning",
 							message: offense.message ?? "Ruby formatting issue",
-							help: "Run `aislop fix` to auto-format",
+							help: "Run `npx aislop fix` to auto-format",
 							line: offense.location?.start_line ?? 0,
 							column: offense.location?.start_column ?? 0,
 							category: "Format",
@@ -82,7 +82,7 @@ const FORMATTERS: Partial<Record<Language, FormatterConfig>> = {
 						rule: "php-formatting",
 						severity: "warning",
 						message: "PHP file is not formatted correctly",
-						help: "Run `aislop fix` to auto-format",
+						help: "Run `npx aislop fix` to auto-format",
 						line: 0,
 						column: 0,
 						category: "Format",
@@ -115,5 +115,24 @@ export const runGenericFormatter = async (
 		return config.parseOutput(output, context.rootDirectory);
 	} catch {
 		return [];
+	}
+};
+
+export const fixGenericFormatter = async (
+	rootDirectory: string,
+	language: Language,
+): Promise<void> => {
+	const config = FORMATTERS[language];
+	if (!config) return;
+
+	const result = await runSubprocess(config.command, config.fixArgs, {
+		cwd: rootDirectory,
+		timeout: 60000,
+	});
+
+	if (result.exitCode !== 0) {
+		throw new Error(
+			result.stderr || result.stdout || `${config.command} exited with code ${result.exitCode}`,
+		);
 	}
 };

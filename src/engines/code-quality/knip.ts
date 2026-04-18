@@ -57,9 +57,9 @@ const getIssueItems = (fileIssue: KnipFileIssue, issueType: string): KnipIssueIt
 
 const DEPENDENCY_HELP: Record<string, string> = {
 	dependencies:
-		"This package is listed in package.json but not imported anywhere. Remove it with `npm uninstall` or `aislop fix`.",
+		"This package is listed in package.json but not imported anywhere. Remove it with `npm uninstall` or `npx aislop fix`.",
 	devDependencies:
-		"This package is listed in package.json but not imported anywhere. Remove it with `npm uninstall` or `aislop fix`.",
+		"This package is listed in package.json but not imported anywhere. Remove it with `npm uninstall` or `npx aislop fix`.",
 	unlisted:
 		"This package is imported in code but not declared in package.json. Run `npm install` to add it.",
 	unresolved: "This import cannot be resolved. Check for typos or missing packages.",
@@ -77,7 +77,12 @@ const collectIssues = (
 	const isDepType = isDependencyType(issueType);
 	const category = isDepType ? "Dependencies" : "Dead Code";
 	const severity = issueType === "unlisted" || issueType === "unresolved" ? "error" : "warning";
-	const fixable = issueType === "dependencies" || issueType === "devDependencies";
+	const fixable =
+		issueType === "dependencies" ||
+		issueType === "devDependencies" ||
+		issueType === "exports" ||
+		issueType === "types" ||
+		issueType === "duplicates";
 	const help = DEPENDENCY_HELP[issueType] ?? "";
 
 	for (const issue of issues) {

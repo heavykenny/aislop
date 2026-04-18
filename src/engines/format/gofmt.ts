@@ -18,7 +18,7 @@ export const runGofmt = async (context: EngineContext): Promise<Diagnostic[]> =>
 			rule: "go-formatting",
 			severity: "warning" as const,
 			message: "Go file is not formatted correctly",
-			help: "Run `aislop fix` to auto-format with gofmt",
+			help: "Run `npx aislop fix` to auto-format with gofmt",
 			line: 0,
 			column: 0,
 			category: "Format",

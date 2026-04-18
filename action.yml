@@ -1,0 +1,45 @@
+name: aislop
+description: Run the aislop quality gate on AI-assisted code (scan + fail CI below threshold from .aislop/config.yml).
+author: Kenny Olawuwo
+branding:
+  icon: shield
+  color: green
+
+inputs:
+  directory:
+    description: Directory to scan.
+    required: false
+    default: "."
+  node-version:
+    description: Node.js version to install before running aislop.
+    required: false
+    default: "20"
+  format:
+    description: Output format — "json" (default, CI-friendly) or "human".
+    required: false
+    default: "json"
+  version:
+    description: aislop version to run (e.g. "0.5.0"). Defaults to the latest published.
+    required: false
+    default: "latest"
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+
+    - name: Run aislop ci
+      shell: bash
+      env:
+        AISLOP_FORMAT: ${{ inputs.format }}
+        AISLOP_VERSION: ${{ inputs.version }}
+        AISLOP_DIR: ${{ inputs.directory }}
+      run: |
+        args=("ci" "$AISLOP_DIR")
+        if [ "$AISLOP_FORMAT" = "human" ]; then
+          args+=("--human")
+        fi
+        npx --yes "aislop@${AISLOP_VERSION}" "${args[@]}"

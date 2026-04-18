@@ -1,32 +1,6 @@
 import os from "node:os";
 import { APP_VERSION } from "../version.js";
 
-/**
- * Anonymous, opt-out telemetry for aislop.
- *
- * What we collect:
- *   - Command run (scan, fix, ci)
- *   - Languages detected in the project
- *   - Score bucket (0-25, 25-50, 50-75, 75-100)
- *   - Issue counts per engine (not file paths or code)
- *   - Engine timing (milliseconds)
- *   - OS, architecture, and Node version
- *   - aislop version
- *
- * What we never collect:
- *   - File paths, file contents, or code snippets
- *   - Project names or directory paths
- *   - Git remotes, branch names, or commit hashes
- *   - Environment variables or secrets
- *   - IP addresses are not stored (PostHog configured to discard)
- *
- * How to opt out (any one of these):
- *   - Set AISLOP_NO_TELEMETRY=1
- *   - Set DO_NOT_TRACK=1 (https://consoledonottrack.com)
- *   - Set CI=true (telemetry is off in CI by default)
- *   - Set telemetry.enabled: false in .aislop/config.yml
- */
-
 const POSTHOG_HOST = "https://eu.i.posthog.com";
 const POSTHOG_KEY = "phc_eY2cOMFva9q24GrWeOuvuVIOhCIdjOALxeAR3ItrqbJ";
 
@@ -72,11 +46,6 @@ const getScoreBucket = (score: number): string => {
 	return "0-25";
 };
 
-/**
- * Returns a stable anonymous device ID derived from hostname + OS.
- * This is NOT personally identifiable — it's a hash used only to
- * count unique devices, not to identify users.
- */
 const getAnonymousId = (): string => {
 	const raw = `${os.hostname()}-${os.platform()}-${os.arch()}`;
 	// Simple djb2 hash — no crypto needed for anonymous bucketing
@@ -90,12 +59,6 @@ const getAnonymousId = (): string => {
 /** Pending telemetry request — kept alive so Node doesn't exit before it completes. */
 let pendingRequest: Promise<void> | null = null;
 
-/**
- * Fire-and-forget telemetry event to PostHog.
- * Never throws, never blocks CLI output.
- * The request is kept alive via `flushTelemetry()` so Node doesn't
- * exit before it completes.
- */
 export const trackEvent = (event: TelemetryEvent): void => {
 	// Validate that we have an API key configured
 	if (!POSTHOG_KEY) {
@@ -135,11 +98,6 @@ export const trackEvent = (event: TelemetryEvent): void => {
 		});
 };
 
-/**
- * Wait for any pending telemetry request to complete.
- * Call this before `process.exit()` to ensure the event is delivered.
- * Times out after 3 seconds so it never hangs the CLI.
- */
 export const flushTelemetry = async (): Promise<void> => {
 	if (pendingRequest) {
 		await pendingRequest;

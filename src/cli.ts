@@ -7,7 +7,9 @@ import { interactiveCommand } from "./commands/interactive.js";
 import { rulesCommand } from "./commands/rules.js";
 import { scanCommand } from "./commands/scan.js";
 import { loadConfig } from "./config/index.js";
-import { highlighter } from "./utils/highlighter.js";
+import { renderHeader } from "./ui/header.js";
+import { renderHintLine } from "./ui/logger.js";
+import { style, theme } from "./ui/theme.js";
 import { flushTelemetry } from "./utils/telemetry.js";
 import { APP_VERSION } from "./version.js";
 
@@ -58,29 +60,32 @@ const program = new Command()
 			}
 		},
 	)
+	.addHelpText("beforeAll", renderHeader({ version: APP_VERSION, command: "--bare", context: [] }))
 	.addHelpText(
 		"after",
 		`
-${highlighter.dim("Commands:")}
-  aislop scan [dir]      Full code quality scan
-  aislop fix [dir]       Auto-fix ai slop in codebase
-  aislop init [dir]      Initialize aislop config
-  aislop doctor [dir]    Check installed tools
-  aislop ci [dir]        CI-friendly JSON output
-  aislop rules [dir]     List all rules
+${style(theme, "dim", "Commands:")}
+  npx aislop scan [dir]      Full code quality scan
+  npx aislop fix [dir]       Auto-fix ai slop in codebase
+  npx aislop init [dir]      Initialize aislop config
+  npx aislop doctor [dir]    Check installed tools
+  npx aislop ci [dir]        CI-friendly JSON output
+  npx aislop rules [dir]     List all rules
 
-${highlighter.dim("Examples:")}
-  aislop                 Interactive menu
-  aislop scan            Scan entire project
-  aislop scan -d         Scan with file/line details
-  aislop scan --changes  Scan only changed files
-  aislop scan --staged   Scan only staged files (for hooks)
-  aislop fix             Auto-fix ai slop in codebase
-  aislop fix -f          Run aggressive fixes (includes audit and dependency alignment)
-  aislop fix --claude    Open Claude Code to fix remaining issues
-  aislop fix --cursor    Open Cursor + copy prompt to clipboard
-  aislop fix -p          Print a prompt to paste into any coding agent
-  aislop ci              JSON output for CI pipelines
+${style(theme, "dim", "Examples:")}
+  npx aislop                 Interactive menu
+  npx aislop scan            Scan entire project
+  npx aislop scan -d         Scan with file/line details
+  npx aislop scan --changes  Scan only changed files
+  npx aislop scan --staged   Scan only staged files (for hooks)
+  npx aislop fix             Auto-fix ai slop in codebase
+  npx aislop fix -f          Run aggressive fixes (includes audit and dependency alignment)
+  npx aislop fix --claude    Open Claude Code to fix remaining issues
+  npx aislop fix --cursor    Open Cursor + copy prompt to clipboard
+  npx aislop fix -p          Print a prompt to paste into any coding agent
+  npx aislop ci              JSON output for CI pipelines
+
+${renderHintLine("Run npx aislop scan to scan your project").trimEnd()}
 `,
 	);
 
@@ -180,9 +185,13 @@ program
 program
 	.command("ci [directory]")
 	.description("CI-friendly JSON output with exit codes")
-	.action(async (directory = ".") => {
+	.option("--human", "render the human-friendly scan design instead of JSON")
+	.action(async (directory = ".", _flags, command) => {
+		const flags = command.optsWithGlobals() as { human?: boolean };
 		const config = loadConfig(directory);
-		const { exitCode } = await ciCommand(directory, config);
+		const { exitCode } = await ciCommand(directory, config, {
+			human: Boolean(flags.human),
+		});
 		if (exitCode !== 0) {
 			await flushTelemetry();
 			process.exit(exitCode);

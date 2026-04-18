@@ -15,6 +15,11 @@ interface RiskyPattern {
 const ev = "ev" + "al";
 const Fn = "Func" + "tion";
 
+const DB_RECEIVER =
+	"(?:db|database|knex|client|connection|conn|pool|sql|prisma|trx|tx|sequelize|mongoose|typeorm|postgres|pg|mysql|sqlite|model|orm|datasource)";
+const DB_METHOD =
+	"(?:query|execute|exec|raw|\\$queryRaw|\\$queryRawUnsafe|\\$executeRaw|\\$executeRawUnsafe)";
+
 const RISKY_PATTERNS: RiskyPattern[] = [
 	{
 		pattern: new RegExp(`\\b${ev}\\s*\\(`, "g"),
@@ -66,14 +71,22 @@ const RISKY_PATTERNS: RiskyPattern[] = [
 		help: "Use parameterized commands or a safe shell execution library",
 	},
 	{
-		pattern: /(?:query|execute|raw)\s*\(\s*`[^`]*\$\{/g,
+		// Flags db-handle template-literal queries with interpolation (tagged or called).
+		pattern: new RegExp(
+			`\\b${DB_RECEIVER}(?:\\.\\w+)*\\.${DB_METHOD}\\s*\\(?\\s*\`[^\`]*\\$\\{`,
+			"g",
+		),
 		extensions: [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"],
 		name: "sql-injection",
 		message: "Possible SQL injection — template literal in query",
 		help: "Use parameterized queries or an ORM instead of string interpolation",
 	},
 	{
-		pattern: /(?:query|execute|raw)\s*\(\s*["'][^"']*["']\s*\+/g,
+		// Flags db-handle string-concatenated queries.
+		pattern: new RegExp(
+			`\\b${DB_RECEIVER}(?:\\.\\w+)*\\.${DB_METHOD}\\s*\\(\\s*["'][^"']*["']\\s*\\+`,
+			"g",
+		),
 		extensions: [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"],
 		name: "sql-injection",
 		message: "Possible SQL injection — string concatenation in query",
@@ -119,18 +132,6 @@ export const detectRiskyConstructs = async (context: EngineContext): Promise<Dia
 						/(?:template|tmpl|tpl)$/i.test(beforeMatch.trimEnd()) ||
 						/createElement\s*\(\s*['"]template['"]\s*\)$/.test(beforeMatch.trimEnd())
 					) {
-						continue;
-					}
-				}
-
-				// For SQL injection: skip if interpolation is clearly safe
-				if (name === "sql-injection") {
-					const afterMatch = content.slice(
-						match.index + match[0].length,
-						match.index + match[0].length + 100,
-					);
-					// Skip if interpolation is .join(), a constant-like name, or array method
-					if (/^(?:\w+\.join\s*\(|[A-Z_]+\}|tableName\}|table\})/.test(afterMatch)) {
 						continue;
 					}
 				}

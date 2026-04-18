@@ -57,4 +57,15 @@ describe("knip dependency diagnostic shape", () => {
 		expect(mod.runKnipDependencyCheck).toBeDefined();
 		expect(mod.fixUnusedDependencies).toBeDefined();
 	});
+
+	it("no longer exports the retired runKnipUnusedExports/fixKnipUnusedExports helpers", async () => {
+		// The declaration-removal engine (src/engines/code-quality/unused-removal.ts)
+		// now owns the full operation — detection and removal — using the
+		// TypeScript compiler API. knip's `--fix` is no longer invoked, because
+		// stripping `export` and leaving dead bodies behind created more work than
+		// it saved.
+		const mod = await import("../src/engines/code-quality/knip.js") as Record<string, unknown>;
+		expect(mod.runKnipUnusedExports).toBeUndefined();
+		expect(mod.fixKnipUnusedExports).toBeUndefined();
+	});
 });

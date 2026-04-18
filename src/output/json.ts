@@ -5,6 +5,8 @@ import type { EngineInfo } from "./engine-info.js";
 import { ENGINE_INFO } from "./engine-info.js";
 
 interface JsonOutput {
+	schemaVersion: string;
+	cliVersion: string;
 	version: string;
 	score: number;
 	label: string;
@@ -38,6 +40,8 @@ export const buildJsonOutput = (
 	}
 
 	return {
+		schemaVersion: "1",
+		cliVersion: APP_VERSION,
 		version: APP_VERSION,
 		score: scoreResult.score,
 		label: scoreResult.label,

@@ -398,4 +398,48 @@ describe("detectRiskyConstructs", () => {
 		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));
 		expect(diagnostics.length).toBeGreaterThanOrEqual(2);
 	});
+
+	it("detects SQL injection via knex.raw template literal", async () => {
+		const filePath = writeFile(
+			"knex.ts",
+			"const rows = await knex.raw(`SELECT * FROM users WHERE id = ${userId}`);",
+		);
+		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));
+		const sqlDiags = diagnostics.filter((d) => d.rule === "security/sql-injection");
+		expect(sqlDiags.length).toBeGreaterThanOrEqual(1);
+	});
+
+	it("detects SQL injection via chained DB member (client.pool.query)", async () => {
+		const filePath = writeFile(
+			"chained.ts",
+			"const rows = await client.pool.query(`SELECT * FROM users WHERE id = ${userId}`);",
+		);
+		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));
+		const sqlDiags = diagnostics.filter((d) => d.rule === "security/sql-injection");
+		expect(sqlDiags.length).toBeGreaterThanOrEqual(1);
+	});
+
+	it("does NOT flag log.raw(`...${x}`) as SQL injection", async () => {
+		const filePath = writeFile("log.ts", "log.raw(`rendered ${count} lines`);");
+		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));
+		const sqlDiags = diagnostics.filter((d) => d.rule === "security/sql-injection");
+		expect(sqlDiags).toHaveLength(0);
+	});
+
+	it("does NOT flag console.log(`...${x}`) as SQL injection", async () => {
+		const filePath = writeFile("console.ts", "console.log(`hello ${name}`);");
+		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));
+		const sqlDiags = diagnostics.filter((d) => d.rule === "security/sql-injection");
+		expect(sqlDiags).toHaveLength(0);
+	});
+
+	it("does NOT flag bare query(`...${x}`) as SQL injection (no DB receiver)", async () => {
+		const filePath = writeFile(
+			"bare.ts",
+			"query(`SELECT * FROM users WHERE id = ${userId}`);",
+		);
+		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));
+		const sqlDiags = diagnostics.filter((d) => d.rule === "security/sql-injection");
+		expect(sqlDiags).toHaveLength(0);
+	});
 });

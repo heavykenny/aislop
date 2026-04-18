@@ -16,6 +16,19 @@ export const runGenericLinter = async (
 	}
 };
 
+export const fixRubyLint = async (rootDirectory: string): Promise<void> => {
+	const result = await runSubprocess("rubocop", ["-a", "--except", "Layout"], {
+		cwd: rootDirectory,
+		timeout: 60000,
+	});
+
+	if (result.exitCode !== null && result.exitCode > 1) {
+		throw new Error(
+			result.stderr || result.stdout || `rubocop exited with code ${result.exitCode}`,
+		);
+	}
+};
+
 const runClippy = async (context: EngineContext): Promise<Diagnostic[]> => {
 	try {
 		const result = await runSubprocess("cargo", ["clippy", "--message-format=json", "--quiet"], {
