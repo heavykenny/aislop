@@ -26,12 +26,12 @@ node dist/cli.js scan . # Run after building manually
 ## Key architecture decisions
 
 - **TypeScript strict mode**, ES2022 target, bundler module resolution
-- **Zod v4** for config validation — import from `"zod/v4"`, not `"zod"`
-- **tsdown** (rolldown-based) for bundling — two entry points: `cli.ts` and `index.ts`
+- **Zod v4** for config validation. Import from `"zod/v4"`, not `"zod"`
+- **tsdown** (rolldown-based) for bundling. Two entry points: `cli.ts` and `index.ts`
 - **Version injection**: `tsdown.config.ts` reads `package.json` version and injects it via `env.VERSION`. Access it in source via `process.env.VERSION`.
 - **vitest** for testing with a 30-second timeout
 - **pnpm** as the package manager (pnpm-workspace.yaml, pnpm-lock.yaml)
-- **Node >= 20 required** — `tsdown`/`rolldown` uses `node:util.styleText` which requires Node 20.12+
+- **Node >= 20 required**. `tsdown`/`rolldown` uses `node:util.styleText` which requires Node 20.12+
 
 ## Project structure
 
@@ -73,10 +73,10 @@ scripts/                    # Postinstall tool downloads (ruff, golangci-lint)
 aislop scans itself. Detector source code must NOT contain the literal patterns being detected. Use string concatenation to break patterns:
 
 ```typescript
-// WRONG — aislop will flag its own source
+// WRONG. aislop will flag its own source
 const pattern = /as any/;
 
-// CORRECT — breaks the literal so it won't self-match
+// CORRECT. Breaks the literal so it won't self-match
 const pattern = new RegExp(`${"a" + "s"}\\s+${"an" + "y"}`);
 ```
 
@@ -84,9 +84,9 @@ This applies to regex patterns, string literals, and diagnostic messages in all 
 
 ## Naming conventions
 
-- **`aislop`** — the npm package name, CLI binary name, and config directory (`.aislop/`)
-- **`ai-slop`** — the engine name and rule prefix (e.g., `ai-slop/trivial-comment`). Do NOT rename these — they are internal identifiers, not user-facing branding.
-- **`"AI Slop"`** — the category label in diagnostics. Do NOT change this.
+- **`aislop`** is the npm package name, CLI binary name, and config directory (`.aislop/`)
+- **`ai-slop`** is the engine name and rule prefix (e.g., `ai-slop/trivial-comment`). Do NOT rename these. They are internal identifiers, not user-facing branding.
+- **`"AI Slop"`** is the category label in diagnostics. Do NOT change this.
 
 ## Workflow
 
@@ -107,6 +107,6 @@ This applies to regex patterns, string literals, and diagnostic messages in all 
 ## Important constraints
 
 - `complexity.ts` must stay <= 400 lines (it checks itself for file-too-large)
-- The `files` field in `package.json` controls what ships to npm — only `dist` and `scripts`
+- The `files` field in `package.json` controls what ships to npm. Only `dist` and `scripts`
 - PostHog telemetry key is a public client-side key (safe to hardcode)
 - Telemetry is opt-out and off in CI by default

@@ -1,6 +1,6 @@
 # CI / CD
 
-## Fastest path — `aislop init`
+## Fastest path: `aislop init`
 
 Run `npx aislop init` and answer "yes" to the GitHub Actions workflow prompt. It writes `.aislop/config.yml` and `.github/workflows/aislop.yml` for you. Commit both and your quality gate is live.
 

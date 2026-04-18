@@ -1,6 +1,6 @@
 # aislop
 
-**Stop AI slop from shipping.**
+**The quality gate for agentic coding.**
 
 [![npm version](https://img.shields.io/npm/v/aislop.svg)](https://www.npmjs.com/package/aislop)
 [![npm downloads](https://img.shields.io/npm/dm/aislop.svg)](https://www.npmjs.com/package/aislop)
@@ -8,11 +8,9 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Node >= 20](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](https://nodejs.org)
 
-`aislop` is a unified code-quality CLI that catches the lazy patterns AI coding tools leave behind. One command, one score out of 100.
+`aislop` scans the code your agent wrote and gives you one score, 0–100. It rolls formatters, linters, complexity limits, dependency audits, and an AI-slop detector into a single command. It auto-fixes what's safely fixable and hands the rest to your coding agent with full context.
 
-Every check is deterministic — regex patterns, AST analysis, and standard tooling (Biome, oxlint, knip, ruff). It runs the same way every time, with no API calls, no LLMs, and no network requests (except dependency audits). The name refers to what it *catches*.
-
-`aislop` helps teams review AI-assisted code faster by combining formatting, linting, code quality, AI-slop detection, architecture checks, and security checks into a single report.
+Every check is deterministic. Regex patterns, AST analysis, and standard tooling (Biome, oxlint, knip, ruff). Same code in, same score out. No API calls, no LLMs, no network dependency (except optional dependency audits). The name refers to what it *catches*.
 
 ## See it in action
 
@@ -73,17 +71,13 @@ Sample output:
 
 AI coding tools generate code that compiles and passes tests but ships with patterns no engineer would write: trivial comments, swallowed exceptions, unused imports, `as any` casts, oversized functions, and leftover `console.log` calls. These problems are spread across many files and slip through review.
 
-`aislop` gives you one view and one score — fully deterministic, no AI involved.
+`aislop` gives you one view and one score. Fully deterministic, no AI in the loop.
 
-- **One command, full picture**: formatting + lint + code quality + AI-slop detection + security (+ architecture)
-- **Deterministic and fast**: regex, AST analysis, and standard tooling — no LLMs, no API keys, no network dependency
-- **Score-based quality gate**: use a single 0-100 score in CI and PR checks
-- **Weighted scoring**: defaults weight sloppy patterns (dead code, type abuse, swallowed errors) more than style noise
-- **Auto-fix support**: remove unused imports, apply lint suggestions, fix deps, and format in one pass
-- **Agent handoff**: when auto-fix can't solve it, one flag hands remaining issues to Claude Code, Codex, Cursor, Gemini, Windsurf, Amp, Aider, Goose, and more (14 agents supported)
-- **Software engineering standards**: enforce function/file size limits, nesting limits, dead code cleanup, and safer patterns
-- **Works across stacks**: TypeScript, JavaScript, Python, Go, Rust, Ruby, PHP, Expo/React Native
-- **Zero-config start**: run `npx aislop scan` and get useful output immediately
+- **One score, one gate**: a 0-100 number you can enforce in CI with `aislop ci`. Weighted so sloppy patterns (dead code, `as any`, swallowed errors) hit harder than style noise.
+- **Auto-fix first, agent second**: `aislop fix` clears what's mechanically safe (formatters, unused imports, trivial comments, dead patterns). For the rest, one flag hands off to Claude Code, Codex, Cursor, Gemini, Windsurf, Amp, Aider, Goose, and 7 more, with full diagnostic context pre-filled.
+- **Deterministic**: regex, AST, and standard tooling. No LLMs, no API keys, no network dependency. Same repo in, same score out.
+- **Zero-config start**: `npx aislop scan` works on any repo. Add `.aislop/config.yml` when you want to tune thresholds or enable the architecture engine.
+- **Works across stacks**: TypeScript, JavaScript, Python, Go, Rust, Ruby, PHP, Expo / React Native.
 
 ## What it catches
 
@@ -140,25 +134,21 @@ aislop scan --json         # output JSON
 ### Fix issues automatically
 
 ```bash
-aislop fix                 # auto-fix unused imports, formatting, and lint fixes
-aislop fix -f              # aggressive: dependency audit, unused file removal, Expo alignment
-aislop fix --claude        # hand off remaining issues to Claude Code
-aislop fix --cursor        # open Cursor + copy prompt to clipboard
-aislop fix -p              # print prompt to paste into any coding agent
+aislop fix                 # safe auto-fixes: unused imports, formatting, lint
+aislop fix -f              # aggressive: dependency audit, unused files, Expo alignment
 ```
 
 ### Hand off to your coding agent
 
-When auto-fix can't solve it, aislop generates a prompt with full context and opens your agent:
+When auto-fix can't solve it, aislop generates a prompt with full context and opens your agent. 14 supported:
 
 ```bash
 aislop fix --claude        # Claude Code
 aislop fix --codex         # Codex CLI
 aislop fix --cursor        # Cursor (copies prompt to clipboard)
-aislop fix --windsurf      # Windsurf (copies prompt to clipboard)
 aislop fix --gemini        # Gemini CLI
+aislop fix --windsurf      # Windsurf (copies prompt to clipboard)
 aislop fix --amp           # Amp
-aislop fix --vscode        # VS Code (copies prompt to clipboard)
 aislop fix --aider         # Aider
 aislop fix --goose         # Goose
 aislop fix --opencode      # OpenCode
@@ -166,7 +156,8 @@ aislop fix --warp          # Warp
 aislop fix --kimi          # Kimi Code CLI
 aislop fix --antigravity   # Antigravity
 aislop fix --deep-agents   # Deep Agents
-aislop fix --prompt        # print prompt to paste into any agent
+aislop fix --vscode        # VS Code Copilot (copies prompt to clipboard)
+aislop fix --prompt        # print the prompt (agent-agnostic)
 ```
 
 ### Use in CI pipelines
@@ -211,7 +202,7 @@ npx aislop scan --staged
 
 ### GitHub Actions
 
-Fastest path: run `npx aislop init` and say yes to "Add a GitHub Actions workflow?" — it drops a working `.github/workflows/aislop.yml` for you.
+Fastest path: run `npx aislop init` and say yes to "Add a GitHub Actions workflow?". It drops a working `.github/workflows/aislop.yml` for you.
 
 Manual form:
 
@@ -257,6 +248,18 @@ ci:
 
 ---
 
+## For engineering teams
+
+`aislop` runs locally and in your CI. [scanaislop](https://scanaislop.com) is the hosted platform built on top of it for teams that want enforcement without wiring every workflow themselves.
+
+- **PR gates on every repo** with a score threshold and block-to-merge
+- **Standards hierarchy**: org baseline, team overrides, project config
+- **Per-team dashboards** and agent attribution over time
+- **Visual rules manager** so engineering leads set standards without editing YAML
+- **Same engines, same rule IDs, same score**. The CLI remains the source of truth.
+
+The CLI is MIT-licensed and always will be. [Learn more about the platform →](https://scanaislop.com)
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and how to add new rules. AI coding assistants can find project context in [AGENTS.md](AGENTS.md).
@@ -265,12 +268,12 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and how to add new 
 
 `aislop` is built on top of excellent open-source projects:
 
-- [Biome](https://biomejs.dev/) — formatting and linting for JS/TS
-- [oxlint](https://oxc.rs/) — fast JavaScript/TypeScript linter
-- [knip](https://knip.dev/) — unused files, exports, and dependencies
-- [ruff](https://docs.astral.sh/ruff/) — Python linting and formatting
-- [golangci-lint](https://golangci-lint.run/) — Go linting
-- [expo-doctor](https://docs.expo.dev/) — Expo/React Native project health
+- [Biome](https://biomejs.dev/) for formatting and linting JS/TS
+- [oxlint](https://oxc.rs/) for fast JS/TS linting
+- [knip](https://knip.dev/) for unused files, exports, and dependencies
+- [ruff](https://docs.astral.sh/ruff/) for Python linting and formatting
+- [golangci-lint](https://golangci-lint.run/) for Go linting
+- [expo-doctor](https://docs.expo.dev/) for Expo/React Native project health
 
 ## Contributors
 
