@@ -12,7 +12,7 @@
 
 Every check is deterministic — regex patterns, AST analysis, and standard tooling (Biome, oxlint, knip, ruff). It runs the same way every time, with no API calls, no LLMs, and no network requests (except dependency audits). The name refers to what it *catches*.
 
-`aislop` helps teams review AI-assisted code faster by combining formatting, linting, maintainability, pattern detection, architecture checks, and security checks into a single report.
+`aislop` helps teams review AI-assisted code faster by combining formatting, linting, code quality, AI-slop detection, architecture checks, and security checks into a single report.
 
 ## See it in action
 
@@ -40,25 +40,31 @@ npx aislop ci
 Sample output:
 
 ```text
-aislop scan v0.4.0
+ [ok] Formatting: done (0 issues, 426ms)
+ [ok] Linting: done (0 issues, 396ms)
+ [!]  Code Quality: done (2 warnings, 812ms)
+ [!]  AI Slop: done (4 warnings, 455ms)
+ [ok] Security: done (0 issues, 1.3s)
+ aislop 0.5.0  ·  the quality gate for agentic coding
 
-  ✓ Project my-app (typescript)
-  Source files: 142
+ scan  ·  my-app  ·  typescript  ·  142 files
 
-  ✓ Formatting: done (0 issues)
-  ! Linting: done (2 warnings)
-  ! Code Quality: done (1 warning)
-  ✓ Maintainability: done (0 issues)
-  ✓ Security: done (0 issues)
+  > Code Quality
+    [WARN] [auto] Unused export (2)
+      src/lib/format-bytes.ts:12
+      src/utils/retry.ts:8
 
-------------------------------------------------------------
-Summary
-  Score: 89/100 (Healthy)
-  Issues: 0 errors, 3 warnings
-  Auto-fixable: 2
-  Files: 142
-  Time: 2.3s
-------------------------------------------------------------
+  > AI Slop
+    [WARN] [auto] Narrative comment block (2)
+      src/lib/auth.ts:86
+    [WARN] 'as any' bypasses type safety
+      src/api/normalize.ts:47
+
+   87 / 100  Healthy       0 errors  ·  6 warnings  ·  4 fixable
+   142 files  ·  5 engines  ·  1.9s
+
+ → Run npx aislop fix to auto-fix 4 issues
+ → Run npx aislop fix --claude to hand off the rest to an agent
 ```
 
 ---
@@ -69,7 +75,7 @@ AI coding tools generate code that compiles and passes tests but ships with patt
 
 `aislop` gives you one view and one score — fully deterministic, no AI involved.
 
-- **One command, full picture**: formatting + lint + maintainability + pattern detection + security (+ architecture)
+- **One command, full picture**: formatting + lint + code quality + AI-slop detection + security (+ architecture)
 - **Deterministic and fast**: regex, AST analysis, and standard tooling — no LLMs, no API keys, no network dependency
 - **Score-based quality gate**: use a single 0-100 score in CI and PR checks
 - **Weighted scoring**: defaults weight sloppy patterns (dead code, type abuse, swallowed errors) more than style noise
@@ -87,8 +93,8 @@ Six deterministic engines run in parallel:
 |---|---|---|
 | **Formatting** | Code style consistency | Biome, ruff, gofmt, cargo fmt, rubocop, php-cs-fixer |
 | **Linting** | Language-specific issues | oxlint, ruff, golangci-lint, clippy, expo-doctor |
-| **Code Quality** | Complexity and dead code | Function/file size limits, deep nesting, unused files/deps (knip) |
-| **Pattern Detection** | Sloppy code patterns | Trivial comments, swallowed exceptions, unused imports, console leftovers, type assertion abuse, TODO stubs |
+| **Code Quality** | Complexity and dead code | Function/file size limits, deep nesting, unused files/deps (knip), AST-based unused-declaration removal |
+| **AI Slop** | AI-authored code patterns | Narrative comments, trivial comments, dead patterns, unused imports, `as any`, `console.log` leftovers, TODO stubs, generic names |
 | **Security** | Vulnerabilities and risky code | eval, innerHTML, SQL/shell injection, dependency audits (npm/pip/cargo/govulncheck) |
 | **Architecture** | Structural rules (opt-in) | Custom import bans, layering rules, required patterns |
 
@@ -205,12 +211,23 @@ npx aislop scan --staged
 
 ### GitHub Actions
 
+Fastest path: run `npx aislop init` and say yes to "Add a GitHub Actions workflow?" — it drops a working `.github/workflows/aislop.yml` for you.
+
+Manual form:
+
 ```yaml
-- uses: actions/setup-node@v6
+- uses: actions/checkout@v4
+- uses: actions/setup-node@v4
   with:
     node-version: 20
-- run: npm ci
-- run: npx aislop ci
+- run: npx aislop@latest ci .
+```
+
+Or use the composite action (one-liner):
+
+```yaml
+- uses: actions/checkout@v4
+- uses: heavykenny/aislop@v0.5
 ```
 
 ### Quality gate
