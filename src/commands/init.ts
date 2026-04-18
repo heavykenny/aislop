@@ -1,7 +1,13 @@
 import fs from "node:fs";
 import path from "node:path";
 import YAML from "yaml";
-import { DEFAULT_CONFIG, DEFAULT_RULES_YAML } from "../config/defaults.js";
+import {
+	DEFAULT_CONFIG,
+	DEFAULT_GITHUB_WORKFLOW_YAML,
+	DEFAULT_RULES_YAML,
+	GITHUB_WORKFLOW_DIR,
+	GITHUB_WORKFLOW_FILE,
+} from "../config/defaults.js";
 import { CONFIG_DIR, CONFIG_FILE, RULES_FILE } from "../config/index.js";
 import { renderHeader } from "../ui/header.js";
 import { detectInvocation } from "../ui/invocation.js";
@@ -13,9 +19,8 @@ import { createTheme } from "../ui/theme.js";
 import { APP_VERSION } from "../version.js";
 
 interface BuildInitRenderInput {
-	configPath: string;
+	steps: RailStep[];
 	nextCommand: string;
-	extraSteps?: RailStep[];
 	includeHeader?: boolean;
 	printBrand?: boolean;
 }
@@ -37,17 +42,12 @@ export const buildInitSuccessRender = (input: BuildInitRenderInput): string => {
 					},
 					deps,
 				);
-	const steps: RailStep[] = [
-		...(input.extraSteps ?? []),
-		{ status: "done", label: `Wrote ${input.configPath}` },
-	];
-	const rail = renderRail(
-		{
-			steps,
-			footer: `Wrote ${input.configPath}`,
-		},
-		deps,
-	);
+	const writtenCount = input.steps.filter((s) => s.status === "done").length;
+	const footer =
+		writtenCount === 0
+			? "Nothing to write"
+			: `Done · wrote ${writtenCount} file${writtenCount === 1 ? "" : "s"}`;
+	const rail = renderRail({ steps: input.steps, footer }, deps);
 	return `${header}${rail}\n${renderHintLine(`Try ${input.nextCommand}`, deps)}`;
 };
 
@@ -70,7 +70,32 @@ interface InitChoices {
 	engines: EngineKey[];
 	failBelow: number;
 	telemetryEnabled: boolean;
+	writeGithubWorkflow: boolean;
 }
+
+type WorkflowWriteResult =
+	| { status: "written"; relativePath: string }
+	| { status: "skipped-exists"; relativePath: string }
+	| { status: "declined" };
+
+export const writeGithubWorkflow = (
+	rootDirectory: string,
+	enabled: boolean,
+): WorkflowWriteResult => {
+	const relativePath = `${GITHUB_WORKFLOW_DIR}/${GITHUB_WORKFLOW_FILE}`;
+	if (!enabled) return { status: "declined" };
+
+	const workflowDir = path.join(rootDirectory, GITHUB_WORKFLOW_DIR);
+	const workflowPath = path.join(workflowDir, GITHUB_WORKFLOW_FILE);
+
+	if (fs.existsSync(workflowPath)) {
+		return { status: "skipped-exists", relativePath };
+	}
+
+	fs.mkdirSync(workflowDir, { recursive: true });
+	fs.writeFileSync(workflowPath, DEFAULT_GITHUB_WORKFLOW_YAML);
+	return { status: "written", relativePath };
+};
 
 const promptForConfigChoices = async (): Promise<InitChoices | null> => {
 	const enginesSelection = await multiselect<EngineKey>({
@@ -82,8 +107,8 @@ const promptForConfigChoices = async (): Promise<InitChoices | null> => {
 	if (isCancel(enginesSelection)) return null;
 
 	const failBelowRaw = await text({
-		message: "Fail CI below this score? (0-100)",
-		initialValue: String(DEFAULT_CONFIG.ci.failBelow),
+		message: "CI quality gate — fail the build when the score drops below (0-100)",
+		initialValue: "70",
 		validate: (v) => {
 			const n = Number(v);
 			if (!Number.isInteger(n) || n < 0 || n > 100) return "Enter a whole number 0-100";
@@ -93,19 +118,30 @@ const promptForConfigChoices = async (): Promise<InitChoices | null> => {
 	if (isCancel(failBelowRaw)) return null;
 
 	const telemetryChoice = await select<"enabled" | "disabled">({
-		message: "Send anonymous usage analytics?",
+		message: "Share anonymous usage stats so aislop can improve?",
 		options: [
-			{ value: "enabled", label: "Yes (helps aislop get better)" },
+			{ value: "enabled", label: "Yes" },
 			{ value: "disabled", label: "No" },
 		],
 		initialValue: DEFAULT_CONFIG.telemetry.enabled ? "enabled" : "disabled",
 	});
 	if (isCancel(telemetryChoice)) return null;
 
+	const workflowChoice = await select<"yes" | "no">({
+		message: "Add a GitHub Actions workflow to run aislop on every push and PR?",
+		options: [
+			{ value: "yes", label: "Yes — writes .github/workflows/aislop.yml" },
+			{ value: "no", label: "No, I'll wire CI myself" },
+		],
+		initialValue: "yes",
+	});
+	if (isCancel(workflowChoice)) return null;
+
 	return {
 		engines: enginesSelection,
 		failBelow: Number(failBelowRaw),
 		telemetryEnabled: telemetryChoice === "enabled",
+		writeGithubWorkflow: workflowChoice === "yes",
 	};
 };
 
@@ -175,7 +211,12 @@ export const initCommand = async (directory: string, options: InitOptions = {}):
 		if (isCancel(overwrite) || overwrite === "keep") {
 			process.stdout.write(
 				buildInitSuccessRender({
-					configPath: `${CONFIG_DIR}/${CONFIG_FILE}`,
+					steps: [
+						{
+							status: "skipped",
+							label: `Kept existing ${CONFIG_DIR}/${CONFIG_FILE}`,
+						},
+					],
 					nextCommand: `${invocation} scan`,
 					includeHeader: false,
 				}),
@@ -189,19 +230,34 @@ export const initCommand = async (directory: string, options: InitOptions = {}):
 
 	writeAislopConfig(configDir, configPath, choices);
 
-	const extraSteps: RailStep[] = [];
-	if (!fs.existsSync(rulesPath)) {
-		fs.writeFileSync(rulesPath, DEFAULT_RULES_YAML);
-		extraSteps.push({ status: "done", label: `Wrote ${CONFIG_DIR}/${RULES_FILE}` });
-	} else {
-		extraSteps.push({ status: "skipped", label: `${CONFIG_DIR}/${RULES_FILE} already exists` });
+	const steps: RailStep[] = [{ status: "done", label: `Wrote ${CONFIG_DIR}/${CONFIG_FILE}` }];
+
+	if (choices.engines.includes("architecture")) {
+		if (!fs.existsSync(rulesPath)) {
+			fs.writeFileSync(rulesPath, DEFAULT_RULES_YAML);
+			steps.push({ status: "done", label: `Wrote ${CONFIG_DIR}/${RULES_FILE}` });
+		} else {
+			steps.push({
+				status: "skipped",
+				label: `${CONFIG_DIR}/${RULES_FILE} already exists`,
+			});
+		}
+	}
+
+	const workflowResult = writeGithubWorkflow(resolvedDir, choices.writeGithubWorkflow);
+	if (workflowResult.status === "written") {
+		steps.push({ status: "done", label: `Wrote ${workflowResult.relativePath}` });
+	} else if (workflowResult.status === "skipped-exists") {
+		steps.push({
+			status: "skipped",
+			label: `${workflowResult.relativePath} already exists`,
+		});
 	}
 
 	process.stdout.write(
 		buildInitSuccessRender({
-			configPath: `${CONFIG_DIR}/${CONFIG_FILE}`,
+			steps,
 			nextCommand: `${invocation} scan`,
-			extraSteps,
 			includeHeader: false,
 		}),
 	);
