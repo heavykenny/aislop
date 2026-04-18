@@ -199,6 +199,8 @@ const collectBlocks = (sourceLines: string[], syntax: CommentSyntax): CommentBlo
 const DECL_START =
 	/^(\s*)(export\s+)?(async\s+)?(const|let|var|function|class|type|interface|enum|abstract\s+class)\s+/;
 const EXPORT_DEFAULT = /^\s*export\s+default\b/;
+const TS_MEMBER_DECL_START =
+	/^\s*(?:readonly\s+|static\s+|public\s+|private\s+|protected\s+|abstract\s+|override\s+)*[\w$]+\??\s*:/;
 const PY_DECL_START = /^\s*(async\s+def|def|class)\s+/;
 const GO_DECL_START = /^\s*(func|type|var|const)\s+/;
 const RUST_DECL_START =
@@ -227,6 +229,13 @@ const looksLikeDeclarationPreamble = (nextLine: string | null, ext: string): boo
 			return JAVA_DECL_START.test(nextLine) || JAVA_DECL_START_FALLBACK.test(nextLine);
 		case ".php":
 			return PHP_DECL_START.test(nextLine);
+		case ".ts":
+		case ".tsx":
+		case ".js":
+		case ".jsx":
+		case ".mjs":
+		case ".cjs":
+			return TS_MEMBER_DECL_START.test(nextLine);
 		default:
 			return false;
 	}
@@ -298,6 +307,13 @@ const detectNarrativeInBlock = (
 		looksLikeDeclarationPreamble(block.nextNonBlankLine, ext)
 	) {
 		return { matched: true, reason: "explanatory preamble" };
+	}
+
+	// 5+ prose lines is almost always narrative regardless of what follows —
+	// catches in-function essays, multi-paragraph explanations, and JSDoc/line
+	// blocks that aren't tied to a declaration.
+	if (block.prose.filter((l) => l.length > 0).length >= 5) {
+		return { matched: true, reason: "long narrative block" };
 	}
 
 	return { matched: false, reason: "" };

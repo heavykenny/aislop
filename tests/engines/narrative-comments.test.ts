@@ -270,6 +270,57 @@ export const DECORATIVE_SECTION_HEADER = /^$/;
 		expect(diags).toHaveLength(0);
 	});
 
+	it("flags a JSDoc preamble block on an interface member (not only top-level declarations)", async () => {
+		writeFile(
+			"iface.ts",
+			`export interface Options {
+	/**
+	 * Explains when to use mode.
+	 * It does X in mode A and Y in mode B.
+	 * Defaults to mode A.
+	 */
+	mode?: "a" | "b";
+}
+`,
+		);
+		const diags = await detectNarrativeComments(ctx(tmpDir));
+		expect(diags).toHaveLength(1);
+		expect(diags[0].message).toContain("JSDoc preamble");
+	});
+
+	it("flags a long (5+ line) prose block inside a function body", async () => {
+		writeFile(
+			"long.ts",
+			`function run() {
+	// First paragraph describing what we do.
+	// There are several reasons for this shape.
+	// It interacts with the caller's assumptions.
+	// After the earlier refactor we kept the shape.
+	// The downstream tests depend on this order.
+	return 1;
+}
+`,
+		);
+		const diags = await detectNarrativeComments(ctx(tmpDir));
+		expect(diags).toHaveLength(1);
+		expect(diags[0].message).toContain("long narrative block");
+	});
+
+	it("does NOT flag a short 2-3 line WHY comment inside a function", async () => {
+		writeFile(
+			"short.ts",
+			`function run() {
+	// wcwidth returns -1 for unmapped codepoints;
+	// treat those as width 1 to keep alignment stable.
+	const width = 1;
+	return width;
+}
+`,
+		);
+		const diags = await detectNarrativeComments(ctx(tmpDir));
+		expect(diags).toHaveLength(0);
+	});
+
 	it("removes preceding blank line to avoid orphan whitespace", async () => {
 		writeFile(
 			"h.ts",
