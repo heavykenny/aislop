@@ -104,7 +104,7 @@ export const Foo = ({ durationInFrames }: Props): number => {
 		assertParsesClean(file);
 	});
 
-	it("removes the whole { key: alias } pair when alias is unused (never leaves a dangling colon, never collapses to shorthand)", () => {
+	it("renames an unused alias in-place: { key: alias } -> { key: _alias } (preserves property read + any getter side effects)", () => {
 		const source = `declare function useLanguages(): { languages: string[]; isLoading: boolean };
 export const run = (): void => {
 \tconst { languages, isLoading: languagesLoading } = useLanguages();
@@ -127,16 +127,13 @@ export const run = (): void => {
 
 		expect(result.renamed).toBe(1);
 		const updated = fs.readFileSync(file, "utf-8");
-		expect(updated).toContain("{ languages }");
-		// Never leave a dangling colon
+		expect(updated).toContain("isLoading: _languagesLoading");
+		expect(updated).not.toMatch(/\blanguagesLoading\b/);
 		expect(updated).not.toMatch(/isLoading:\s*\}/);
-		// Never collapse to shorthand (would create redeclarations in real code)
-		expect(updated).not.toContain("isLoading }");
-		expect(updated).not.toContain("languagesLoading");
 		assertParsesClean(file);
 	});
 
-	it("removes an unused aliased destructure that would collide with another destructure in the same scope (zingo-web repro)", () => {
+	it("renames unused aliases in multiple destructures without colliding (zingo-web repro)", () => {
 		const source = `declare function useLanguages(): { languages: string[]; isLoading: boolean };
 declare function useVoices(): { voices: string[]; isLoading: boolean };
 export const run = (): void => {
@@ -156,18 +153,14 @@ export const run = (): void => {
 		const result = prefixUnusedVars(tmpDir, targets);
 		expect(result.renamed).toBe(2);
 		const updated = fs.readFileSync(file, "utf-8");
-		// No redeclaration: only ONE bare `isLoading` at most should exist, and here
-		// we expect ZERO since both aliases were unused and the whole pair is dropped.
-		const bareIsLoadingCount = (updated.match(/isLoading[^:]/g) ?? []).filter(
-			(m) => !/isLoading:/.test(m),
-		).length;
-		expect(bareIsLoadingCount).toBe(0);
-		expect(updated).toContain("const { languages } = useLanguages()");
-		expect(updated).toContain("const { voices } = useVoices()");
+		expect(updated).toContain("isLoading: _languagesLoading");
+		expect(updated).toContain("isLoading: _voicesLoading");
+		expect(updated).not.toMatch(/\blanguagesLoading\b/);
+		expect(updated).not.toMatch(/\bvoicesLoading\b/);
 		assertParsesClean(file);
 	});
 
-	it("removes an unused alias in the middle of a destructure (moovie-backend repro)", () => {
+	it("renames an unused alias in the middle of a destructure (moovie-backend repro)", () => {
 		const source = `declare function query(): { data: unknown; error: unknown };
 export const run = (): void => {
 \tconst { data: existingMember, error: memberError } = query();
@@ -183,15 +176,14 @@ export const run = (): void => {
 		const result = prefixUnusedVars(tmpDir, targets);
 		expect(result.renamed).toBe(1);
 		const updated = fs.readFileSync(file, "utf-8");
-		// First destructure collapses to just `{ error: memberError }` — NO `data` key,
-		// so the later `const { data, error }` doesn't collide.
-		expect(updated).toContain("const { error: memberError } = query()");
+		expect(updated).toContain("data: _existingMember");
+		expect(updated).toContain("error: memberError");
 		expect(updated).toContain("const { data, error } = query()");
-		expect(updated).not.toContain("existingMember");
+		expect(updated).not.toMatch(/\bexistingMember\b/);
 		assertParsesClean(file);
 	});
 
-	it("skips the only element of a destructure (would leave '{}') — side effects preserved, user decides", () => {
+	it("renames the only element of a destructure: { data: unused } -> { data: _unused } (preserves property read)", () => {
 		const source = `declare function run(): { data: unknown };
 export const main = (): void => {
 \tconst { data: unused } = run();
@@ -204,11 +196,31 @@ export const main = (): void => {
 			{ filePath: file, line: pos.line, column: pos.column, name: "unused", type: "variable" },
 		];
 		const result = prefixUnusedVars(tmpDir, targets);
-		expect(result.renamed).toBe(0);
-		expect(result.skipped).toHaveLength(1);
-		expect(result.skipped[0].reason).toContain("only element");
-		// File unchanged
-		expect(fs.readFileSync(file, "utf-8")).toBe(source);
+		expect(result.renamed).toBe(1);
+		const updated = fs.readFileSync(file, "utf-8");
+		expect(updated).toContain("data: _unused");
+		assertParsesClean(file);
+	});
+
+	it("preserves rest-spread semantics: { key: alias, ...rest } keeps 'key' out of 'rest' after rename", () => {
+		const source = `type Obj = { secret: string; other: number };
+declare function load(): Obj;
+export const run = (): void => {
+\tconst { secret: unusedSecret, ...rest } = load();
+\tconsole.log(rest);
+};
+`;
+		const file = writeFixture("rest-spread.ts", source);
+		const pos = locate(source, "unusedSecret");
+		const targets: UnusedVarTarget[] = [
+			{ filePath: file, line: pos.line, column: pos.column, name: "unusedSecret", type: "variable" },
+		];
+		const result = prefixUnusedVars(tmpDir, targets);
+		expect(result.renamed).toBe(1);
+		const updated = fs.readFileSync(file, "utf-8");
+		expect(updated).toContain("secret: _unusedSecret");
+		expect(updated).toContain("...rest");
+		assertParsesClean(file);
 	});
 
 	it("renames rest element in place: { ...props } -> { ..._props } (never emits key: alias form)", () => {

@@ -7,7 +7,7 @@ import ts from "typescript";
 type BindingShape =
 	| { kind: "positionalParameter"; identifier: ts.Identifier }
 	| { kind: "shorthandDestructure"; identifier: ts.Identifier }
-	| { kind: "aliasedDestructure"; bindingElement: ts.BindingElement; identifier: ts.Identifier }
+	| { kind: "aliasedDestructure"; identifier: ts.Identifier }
 	| { kind: "restElement"; identifier: ts.Identifier }
 	| { kind: "catchParameter"; identifier: ts.Identifier }
 	| { kind: "arrayBindingElement"; identifier: ts.Identifier }
@@ -60,7 +60,7 @@ const classifyBindingElement = (
 	if (ts.isObjectBindingPattern(pattern)) {
 		// Aliased destructure: `{ propertyName: localName }` where identifier is local name
 		if (bindingElement.propertyName !== undefined && bindingElement.name === identifier) {
-			return { kind: "aliasedDestructure", bindingElement, identifier };
+			return { kind: "aliasedDestructure", identifier };
 		}
 		// Shorthand destructure: `{ foo }` — propertyName is undefined
 		if (bindingElement.propertyName === undefined && bindingElement.name === identifier) {
@@ -134,59 +134,6 @@ const shorthandToAliased = (
 	};
 };
 
-const dropAlias = (
-	sourceFile: ts.SourceFile,
-	bindingElement: ts.BindingElement,
-): { edit: PendingEdit | null; skipReason?: string } => {
-	const propertyName = bindingElement.propertyName;
-	if (!propertyName) {
-		return { edit: null, skipReason: "aliased destructure missing propertyName" };
-	}
-	if (!ts.isIdentifier(propertyName)) {
-		return { edit: null, skipReason: "aliased destructure with non-identifier property name" };
-	}
-	// Dropping the alias would drop a default initializer too — that changes
-	// semantics. Skip.
-	if (bindingElement.initializer) {
-		return { edit: null, skipReason: "aliased destructure has default initializer" };
-	}
-	const parent = bindingElement.parent;
-	if (!ts.isObjectBindingPattern(parent)) {
-		return { edit: null, skipReason: "aliased destructure parent is not ObjectBindingPattern" };
-	}
-	const elements = parent.elements;
-	const index = elements.indexOf(bindingElement);
-	if (index < 0) {
-		return { edit: null, skipReason: "aliased destructure not found in parent" };
-	}
-	// If this is the only element, removing it would leave `{ }` — the call's
-	// side effects may still be desired, but the empty destructure is
-	// pointless. Skip and let the user decide.
-	if (elements.length === 1) {
-		return { edit: null, skipReason: "aliased destructure is the only element" };
-	}
-	if (index === elements.length - 1) {
-		// Last element: remove from end of previous element through end of this
-		// one. That absorbs the separating comma + whitespace.
-		return {
-			edit: {
-				start: elements[index - 1].getEnd(),
-				end: bindingElement.getEnd(),
-				replacement: "",
-			},
-		};
-	}
-	// Not last: remove from start of this element to start of next element.
-	// That absorbs the trailing comma + whitespace.
-	return {
-		edit: {
-			start: bindingElement.getStart(sourceFile),
-			end: elements[index + 1].getStart(sourceFile),
-			replacement: "",
-		},
-	};
-};
-
 export const computeEdit = (
 	sourceFile: ts.SourceFile,
 	shape: BindingShape,
@@ -202,7 +149,7 @@ export const computeEdit = (
 		case "shorthandDestructure":
 			return shorthandToAliased(sourceFile, shape.identifier);
 		case "aliasedDestructure":
-			return dropAlias(sourceFile, shape.bindingElement);
+			return renameIdentifierInPlace(sourceFile, shape.identifier);
 		case "variableDeclaration":
 			return {
 				edit: null,

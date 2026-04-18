@@ -32,7 +32,26 @@ const initializerHasSideEffects = (node: ts.Expression | undefined): boolean => 
 			ts.isNewExpression(n) ||
 			ts.isTaggedTemplateExpression(n) ||
 			ts.isAwaitExpression(n) ||
-			ts.isYieldExpression(n)
+			ts.isYieldExpression(n) ||
+			ts.isDeleteExpression(n) ||
+			ts.isPostfixUnaryExpression(n)
+		) {
+			unsafe = true;
+			return;
+		}
+
+		if (
+			ts.isBinaryExpression(n) &&
+			n.operatorToken.kind >= ts.SyntaxKind.FirstAssignment &&
+			n.operatorToken.kind <= ts.SyntaxKind.LastAssignment
+		) {
+			unsafe = true;
+			return;
+		}
+
+		if (
+			ts.isPrefixUnaryExpression(n) &&
+			(n.operator === ts.SyntaxKind.PlusPlusToken || n.operator === ts.SyntaxKind.MinusMinusToken)
 		) {
 			unsafe = true;
 			return;

@@ -226,6 +226,27 @@ export const other = 1;
 		expect(after).toBe(source);
 	});
 
+	it.each([
+		["assignment expression", "let counter = 0; const unused = (counter = 1);"],
+		["compound assignment", "let counter = 0; const unused = (counter += 1);"],
+		["postfix increment", "let counter = 0; const unused = counter++;"],
+		["prefix decrement", "let counter = 0; const unused = --counter;"],
+		["delete expression", "const obj: { k?: number } = { k: 1 }; const unused = delete obj.k;"],
+	])("skips a const whose initializer mutates via %s", (_label, source) => {
+		const file = writeFixture(`mutates-${Math.random().toString(36).slice(2)}.ts`, `${source}\nexport const other = 1;\n`);
+		const decl: UnusedDeclaration = {
+			filePath: file,
+			line: findLine(fs.readFileSync(file, "utf-8"), "unused"),
+			column: 0,
+			name: "unused",
+			kind: "variable",
+		};
+		const result = removeUnusedDeclarations(tmpDir, [decl]);
+		expect(result.removed).toBe(0);
+		expect(result.skipped).toHaveLength(1);
+		expect(result.skipped[0].reason).toBe("initializer may have side effects");
+	});
+
 	it("skips a multi-declarator variable statement", () => {
 		const source = `const kept = 1, alsoUnused = 2;
 export const used = kept;
