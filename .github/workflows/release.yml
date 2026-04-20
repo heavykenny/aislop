@@ -74,7 +74,7 @@ jobs:
         run: pnpm build
 
       - name: Set scoped package name
-        run: npm pkg set name="@heavykenny/aislop"
+        run: npm pkg set name="@scanaislop/aislop"
 
       - name: Publish to GitHub Packages
         run: npm publish --access public

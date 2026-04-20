@@ -191,13 +191,6 @@ const isPnpmAuditRetired = (stdout: string, stderr: string): boolean => {
 	);
 };
 
-/**
- * Attempts to write surgical pnpm.overrides entries based on `pnpm audit --json`.
- * Returns true if the operation completed (even with zero advisories — pnpm audit
- * reached the registry and returned a clean report). Returns false when pnpm
- * audit is unreachable (e.g. the retired 410 endpoint) so the caller can fall
- * back to npm.
- */
 const tryPnpmOverrides = async (
 	rootDir: string,
 	onProgress?: (label: string) => void,

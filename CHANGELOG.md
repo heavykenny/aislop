@@ -4,6 +4,35 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.6.0 (2026-04-20)
+
+Agent integration hooks. `aislop` now plugs into Claude Code, Cursor, and Gemini CLI natively so you get machine-readable findings on the turn the agent wrote the code, not after.
+
+### Added
+- **Agent hooks for 9 agents** via `aislop hook install --agent <name>` (or `aislop hook claude`, `cursor`, `gemini` shortcuts):
+  - **Runtime adapters (3)** that scan and feed findings back to the agent every edit:
+    - Claude Code (`PostToolUse` on `Edit|Write|MultiEdit`)
+    - Cursor (`afterFileEdit`)
+    - Gemini CLI (`AfterTool`)
+  - **Rules-only installers (6)** for agents without a hook lifecycle (install writes an `AISLOP.md` rules file the agent reads): Codex, Windsurf, Cline + Roo, Kilo Code, Antigravity, Copilot.
+- **`aislop hook` command** with `install / uninstall / status / baseline / claude / cursor / gemini` subcommands. Every install is sentinel-guarded (SHA-256 hash fence) for idempotent re-runs and exact uninstall.
+- **Structured feedback contract (`aislop.hook.v1`)** the agent receives: score, counts, top-20 findings, `nextSteps`, and a `regressed` flag vs baseline.
+- **Quality-gate mode (opt-in, `--quality-gate`)**: `.aislop/baseline.json` captures the score when installed; the Claude Stop hook blocks the session if the score regresses below baseline.
+- **`.aislop/hook.lock` recursion guard** (30 s stale window) prevents aislop from scanning itself via its own hook.
+- `git diff` fallback for cases where stdin doesn't carry a file path.
+- **Swagger / OpenAPI / apidoc JSDoc now recognised as meaningful.** The narrative-comment rule no longer flags `@swagger`, `@openapi`, `@route`, `@group`, `@summary`, `@operationId`, `@response[s]`, `@requestBody`, `@security`, `@tag[s]`, `@path`, `@body`, `@query`, `@header[s]`, `@produces`, `@accept`, `@middleware`, `@api*` (apidoc family), and other legitimate API-doc tags. Existing projects that had `@swagger` blocks auto-deleted on earlier versions can regenerate them safely.
+
+### Changed
+- Narrative-comment detection widened (inherited from develop) with better declaration-preamble recognition across TS / JS / Python / Go / Rust / Ruby / Java / PHP.
+
+### Fixed
+- `pnpm audit` retired-endpoint (410) now falls back to `npm audit fix` when a `package-lock.json` exists, layered on top of 0.5.1's `pnpm.overrides` writer.
+
+### Notes
+- 583 tests passing (519 baseline + 64 new). Full coverage across: registry, scan-lock, baseline, adapters (Claude / Cursor / Gemini), install for every supported agent, rules-only uninstall reversibility, and API-doc JSDoc preservation.
+- Self-scan: 100 / 100 Healthy.
+- Packaged size: 132 kB (15 files).
+
 ## 0.5.1 (2026-04-20)
 
 Two bug fixes. One unblocks `aislop fix -f` on pnpm projects, the other makes the file-too-large rule actually honour `maxFileLoc` for JSX/TSX. No new features, no breaking API changes; agent-integration hooks land in 0.6.0 separately.
@@ -92,7 +121,7 @@ Two big threads landed together:
   - `knip/unresolved`: imports that cannot be resolved
   - `knip/binaries`: binaries used but not declared
 - **`aislop fix` removes unused dependencies**: detects and removes unused deps/devDeps from package.json automatically
-- **GitHub Packages publishing**: each release now also publishes `@heavykenny/aislop` to npm.pkg.github.com
+- **GitHub Packages publishing**: each release now also publishes `@scanaislop/aislop` to npm.pkg.github.com
 - **Documentation site**: detailed docs moved to `docs/` directory (installation, commands, rules, configuration, scoring, CI/CD, telemetry)
 - **Example configs**: `examples/` directory with 4 preset configurations (typescript-strict, monorepo-relaxed, python-go, architecture-rules)
 - **Project infrastructure**: `.editorconfig`, `.nvmrc`, `.gitattributes`, `biome.json`, `AGENTS.md`, `knip.json`
