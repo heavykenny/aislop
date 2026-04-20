@@ -66,6 +66,7 @@ jobs:
           node-version: 22
           cache: pnpm
           registry-url: https://npm.pkg.github.com
+          scope: '@scanaislop'
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -77,6 +78,6 @@ jobs:
         run: npm pkg set name="@scanaislop/aislop"
 
       - name: Publish to GitHub Packages
-        run: npm publish --access public
+        run: npm publish --access public --registry=https://npm.pkg.github.com
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

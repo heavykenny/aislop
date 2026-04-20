@@ -27,6 +27,8 @@ Agent integration hooks. `aislop` now plugs into Claude Code, Cursor, and Gemini
 
 ### Fixed
 - `pnpm audit` retired-endpoint (410) now falls back to `npm audit fix` when a `package-lock.json` exists, layered on top of 0.5.1's `pnpm.overrides` writer.
+- **`npx aislop scan --json` clean stdout under `npx`.** `scripts/postinstall-tools.mjs` previously wrote `[aislop] Downloading …` progress to stdout. In CI (where npx always re-downloads because there's no cache) this prefix corrupted the JSON envelope, so any consumer parsing `aislop scan --json` got invalid JSON and defaulted to `score: 0`. Fixed by routing all install progress to stderr.
+- **Release workflow's GitHub Packages publish.** `setup-node@v6` with only `registry-url` doesn't emit a scope mapping, so scoped package publishes silently fell back to `registry.npmjs.org` and hit `ENEEDAUTH`. Added `scope: '@scanaislop'` and an explicit `--registry` on the publish command so `@scanaislop/aislop` reaches `npm.pkg.github.com`.
 
 ### Notes
 - 583 tests passing (519 baseline + 64 new). Full coverage across: registry, scan-lock, baseline, adapters (Claude / Cursor / Gemini), install for every supported agent, rules-only uninstall reversibility, and API-doc JSDoc preservation.
