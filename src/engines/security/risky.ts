@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { getSourceFiles } from "../../utils/source-files.js";
+import { maskStringsAndComments } from "../../utils/source-masker.js";
 import type { Diagnostic, EngineContext } from "../types.js";
 
 interface RiskyPattern {
@@ -111,6 +112,7 @@ export const detectRiskyConstructs = async (context: EngineContext): Promise<Dia
 		const relativePath = path.relative(context.rootDirectory, filePath);
 		const normalizedPath = relativePath.split(path.sep).join("/");
 		const isMigrationOrSeeder = /(?:^|\/)(migrations|seeders|seeds|migrate)\//.test(normalizedPath);
+		const masked = maskStringsAndComments(content, ext);
 
 		for (const { pattern, extensions, name, message, help } of RISKY_PATTERNS) {
 			if (!extensions.includes(ext)) continue;
@@ -119,7 +121,7 @@ export const detectRiskyConstructs = async (context: EngineContext): Promise<Dia
 			const regex = new RegExp(pattern.source, pattern.flags);
 			let match: RegExpExecArray | null;
 
-			while ((match = regex.exec(content)) !== null) {
+			while ((match = regex.exec(masked)) !== null) {
 				const line = content.slice(0, match.index).split("\n").length;
 
 				// For innerHTML: skip if target is a <template> element (safe by design)

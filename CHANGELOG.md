@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.5.1 (2026-04-20)
+
+Two bug fixes. One unblocks `aislop fix -f` on pnpm projects, the other makes the file-too-large rule actually honour `maxFileLoc` for JSX/TSX. No new features, no breaking API changes; agent-integration hooks land in 0.6.0 separately.
+
+### Fixed
+- **`complexity/file-too-large` now respects config on JSX/TSX**. Previous behaviour silently applied a **2x** multiplier for `.jsx` / `.tsx` files plus a **10% soft buffer**, so `maxFileLoc: 400` actually fired at **881** lines on TSX. The rule is documented as "default max 400 LOC; JSX/TSX 2x" in the skill, but the combined 2x + 10% was neither documented nor configurable, and it meant big React pages sailed past 400 unflagged. New behaviour:
+  - `.jsx` / `.tsx` use a **1.5x tolerance** (400 → 600) with **no soft buffer**.
+  - Every other extension (`.ts`, `.js`, `.py`, `.go`, `.rs`, `.rb`, `.java`, `.php`, `.mjs`, `.cjs`) hits the exact configured value.
+  - This is a tightening for TSX: a `.tsx` file that was fine at 800 lines under 0.5.0 will now flag at 601 lines. If that's a step too far for your repo, bump `.aislop/config.yml` → `maxFileLoc` explicitly.
+- **`aislop fix -f` pnpm dep-audit fix**. Previously tried to run `pnpm audit --fix`, which doesn't exist. Now parses `pnpm audit --json` and writes surgical `pnpm.overrides` entries keyed on `<pkg>@<vulnerable_versions>` into the root `package.json`.
+
+### Changed
+- Internal refactor: `src/engines/ai-slop/narrative-comments.ts` (416 → 358 lines) splits its pattern regexes into `narrative-comments-patterns.ts`. `src/engines/code-quality/complexity.ts` (416 → 241 lines) splits its function-boundary detection into `function-boundaries.ts`. No behaviour change.
+
+### Tests
+- 3 new complexity tests covering the 1.5x JSX tolerance: `.tsx` at 1.5x, `.jsx` at 1.5x, `.ts` at exact limit. Total suite: 516 → 519 passing.
+
 ## 0.5.0 (2026-04-16)
 
 Two big threads landed together:

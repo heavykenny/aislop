@@ -341,6 +341,91 @@ describe("detectRiskyConstructs", () => {
 		expect(pickleDiags).toHaveLength(0);
 	});
 
+	it("does NOT flag eval() inside a double-quoted string literal", async () => {
+		const filePath = writeFile(
+			"label.ts",
+			'const labels = { "security/eval-usage": "eval() call" };',
+		);
+		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));
+		const evalDiags = diagnostics.filter((d) => d.rule === "security/eval");
+		expect(evalDiags).toHaveLength(0);
+	});
+
+	it("does NOT flag eval() inside a single-quoted string literal", async () => {
+		const filePath = writeFile(
+			"single.ts",
+			"const msg = 'eval() is dangerous';",
+		);
+		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));
+		const evalDiags = diagnostics.filter((d) => d.rule === "security/eval");
+		expect(evalDiags).toHaveLength(0);
+	});
+
+	it("does NOT flag eval() inside a line comment", async () => {
+		const filePath = writeFile(
+			"comment.ts",
+			"// never call eval() on user input\nconst x = 1;",
+		);
+		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));
+		const evalDiags = diagnostics.filter((d) => d.rule === "security/eval");
+		expect(evalDiags).toHaveLength(0);
+	});
+
+	it("does NOT flag eval() inside a block comment", async () => {
+		const filePath = writeFile(
+			"block.ts",
+			"/* warning: eval() is unsafe */\nconst x = 1;",
+		);
+		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));
+		const evalDiags = diagnostics.filter((d) => d.rule === "security/eval");
+		expect(evalDiags).toHaveLength(0);
+	});
+
+	it("DOES flag eval() inside a template literal interpolation", async () => {
+		const filePath = writeFile(
+			"interp.ts",
+			"const result = `Hello ${eval(userInput)}`;",
+		);
+		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));
+		const evalDiags = diagnostics.filter((d) => d.rule === "security/eval");
+		expect(evalDiags.length).toBeGreaterThanOrEqual(1);
+	});
+
+	it("does NOT flag SQL-injection-looking template literal inside a string", async () => {
+		const filePath = writeFile(
+			"fake-sql.ts",
+			"const doc = \"db.query(`SELECT * FROM u WHERE id = ${id}`)\";",
+		);
+		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));
+		const sqlDiags = diagnostics.filter(
+			(d) => d.rule === "security/sql-injection",
+		);
+		expect(sqlDiags).toHaveLength(0);
+	});
+
+	it("does NOT flag innerHTML = inside a comment", async () => {
+		const filePath = writeFile(
+			"inner-comment.ts",
+			"// element.innerHTML = userInput;\nconst x = 1;",
+		);
+		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));
+		const innerHtmlDiags = diagnostics.filter(
+			(d) => d.rule === "security/innerhtml",
+		);
+		expect(innerHtmlDiags).toHaveLength(0);
+	});
+
+	it("preserves correct line numbers after masking (eval on line 4)", async () => {
+		const filePath = writeFile(
+			"lines-masked.ts",
+			'const a = "eval() mention";\n// eval() here too\nconst b = 2;\neval(bad);',
+		);
+		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));
+		const evalDiags = diagnostics.filter((d) => d.rule === "security/eval");
+		expect(evalDiags).toHaveLength(1);
+		expect(evalDiags[0].line).toBe(4);
+	});
+
 	it("marks diagnostics as not fixable", async () => {
 		const filePath = writeFile("fix.ts", "eval('risky');");
 		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));

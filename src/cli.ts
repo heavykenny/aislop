@@ -2,6 +2,7 @@ import { Command } from "commander";
 import { ciCommand } from "./commands/ci.js";
 import { doctorCommand } from "./commands/doctor.js";
 import { fixCommand } from "./commands/fix.js";
+import { hookInstall, hookRun, type SupportedAgent } from "./commands/hook.js";
 import { initCommand } from "./commands/init.js";
 import { interactiveCommand } from "./commands/interactive.js";
 import { rulesCommand } from "./commands/rules.js";
@@ -203,6 +204,27 @@ program
 	.description("List all available rules")
 	.action(async (directory = ".") => {
 		await rulesCommand(directory);
+	});
+
+const hook = program.command("hook").description("Install or invoke AI-agent integration hooks");
+
+hook
+	.command("install")
+	.description("Install an agent-integration hook (Claude Code supported)")
+	.option("--agent <name>", "target agent (claude)", "claude")
+	.option("-g, --global", "install to the user-scope config", true)
+	.action(async (opts: { agent: string; global: boolean }) => {
+		await hookInstall({
+			agent: opts.agent as SupportedAgent,
+			global: Boolean(opts.global),
+		});
+	});
+
+hook
+	.command("claude")
+	.description("Internal: Claude Code PostToolUse callback (reads stdin)")
+	.action(async () => {
+		await hookRun("claude");
 	});
 
 const main = async () => {

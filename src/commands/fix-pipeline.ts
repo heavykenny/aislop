@@ -219,11 +219,13 @@ export const runForceSteps = async (deps: PipelineDeps): Promise<void> => {
 		);
 	}
 
+	const railUpdate = (label: string) => deps.rail.setActiveLabel(label);
+
 	if (deps.config.engines.security) {
 		await deps.runStep(
 			"Dependency audit fixes",
 			() => runDependencyAudit(deps.context),
-			() => fixDependencyAudit(deps.context, deps.rail.setActiveLabel),
+			() => fixDependencyAudit(deps.context, railUpdate),
 		);
 	}
 
@@ -231,7 +233,7 @@ export const runForceSteps = async (deps: PipelineDeps): Promise<void> => {
 		await deps.runStep(
 			"Expo dependency alignment",
 			() => runExpoDoctor(deps.context),
-			() => fixExpoDependencies(deps.context, deps.rail.setActiveLabel),
+			() => fixExpoDependencies(deps.context, railUpdate),
 		);
 	}
 };
