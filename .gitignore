@@ -1,5 +1,5 @@
 node_modules/
-.idea
+.idea/
 dist/
 tools/
 assets/release-fix-scan.*
