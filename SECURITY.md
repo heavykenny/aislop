@@ -14,7 +14,7 @@ If you discover a security vulnerability in aislop, please report it responsibly
 
 Instead, email **security concerns** by opening a private advisory on GitHub:
 
-1. Go to https://github.com/heavykenny/aislop/security/advisories
+1. Go to https://github.com/scanaislop/aislop/security/advisories
 2. Click "New draft security advisory"
 3. Fill in the details
 

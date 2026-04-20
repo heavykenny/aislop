@@ -339,4 +339,73 @@ export const second = 2;
 export const second = 2;
 `);
 	});
+
+	it("preserves @swagger OpenAPI blocks", async () => {
+		writeFile(
+			"routes.js",
+			`/**
+ * @swagger
+ * /users:
+ *   get:
+ *     summary: List users
+ *     tags: [Users]
+ *     responses:
+ *       200:
+ *         description: ok
+ */
+router.get('/users', handler);
+`,
+		);
+		const diags = await detectNarrativeComments(ctx(tmpDir));
+		expect(diags).toHaveLength(0);
+	});
+
+	it("preserves @openapi blocks", async () => {
+		writeFile(
+			"openapi.js",
+			`/**
+ * @openapi
+ * /health:
+ *   get:
+ *     summary: health check
+ */
+router.get('/health', handler);
+`,
+		);
+		const diags = await detectNarrativeComments(ctx(tmpDir));
+		expect(diags).toHaveLength(0);
+	});
+
+	it("preserves apidoc blocks (@api, @apiName, @apiGroup, @apiParam, @apiSuccess)", async () => {
+		writeFile(
+			"apidoc.js",
+			`/**
+ * @api {get} /user/:id Request User information
+ * @apiName GetUser
+ * @apiGroup User
+ * @apiParam {Number} id Users unique ID.
+ * @apiSuccess {String} firstname Firstname of the User.
+ */
+function getUser() {}
+`,
+		);
+		const diags = await detectNarrativeComments(ctx(tmpDir));
+		expect(diags).toHaveLength(0);
+	});
+
+	it("preserves @route express-routes blocks", async () => {
+		writeFile(
+			"route.js",
+			`/**
+ * @route GET /api/auth/me
+ * @group Auth
+ * @security JWT
+ * @returns {object} 200 user
+ */
+router.get('/api/auth/me', handler);
+`,
+		);
+		const diags = await detectNarrativeComments(ctx(tmpDir));
+		expect(diags).toHaveLength(0);
+	});
 });

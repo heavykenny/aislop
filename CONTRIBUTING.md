@@ -18,7 +18,7 @@ This project follows the [Contributor Covenant](CODE_OF_CONDUCT.md). By particip
 ### Setup
 
 ```bash
-git clone https://github.com/heavykenny/aislop.git
+git clone https://github.com/scanaislop/aislop.git
 cd aislop
 pnpm install
 ```
@@ -97,7 +97,7 @@ scripts/                    # Postinstall tool downloads
 
 ### Reporting bugs
 
-Open a [bug report](https://github.com/heavykenny/aislop/issues/new?template=bug_report.yml). Include:
+Open a [bug report](https://github.com/scanaislop/aislop/issues/new?template=bug_report.yml). Include:
 
 - What you ran
 - What happened vs. what you expected
@@ -106,7 +106,7 @@ Open a [bug report](https://github.com/heavykenny/aislop/issues/new?template=bug
 
 ### Suggesting features
 
-Open a [feature request](https://github.com/heavykenny/aislop/issues/new?template=feature_request.yml). Describe the problem it solves and give an example of the pattern you want detected.
+Open a [feature request](https://github.com/scanaislop/aislop/issues/new?template=feature_request.yml). Describe the problem it solves and give an example of the pattern you want detected.
 
 ### Submitting a pull request
 

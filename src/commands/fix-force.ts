@@ -34,7 +34,19 @@ export const fixDependencyAudit = async (
 
 	// pnpm has no `audit --fix` subcommand. Transitive vulns are fixed via
 	// `pnpm.overrides` in the root package.json.
-	await tryPnpmOverrides(context.rootDirectory, onProgress);
+	const pnpmOk = await tryPnpmOverrides(context.rootDirectory, onProgress);
+	if (pnpmOk) return;
+
+	// pnpm audit is unreachable (e.g. 410 retired endpoint). Fall back to npm.
+	if (fs.existsSync(path.join(context.rootDirectory, "package-lock.json"))) {
+		await runNpmAuditFix(context.rootDirectory, onProgress);
+		await tryNpmOverrides(context.rootDirectory, onProgress);
+		return;
+	}
+
+	onProgress?.(
+		"Dependency audit fixes · skipping (pnpm audit unavailable and no package-lock.json for npm fallback)",
+	);
 };
 
 const runNpmAuditFix = async (
@@ -81,14 +93,15 @@ const fetchLatestVersion = async (
 	}
 };
 
-const collectNpmOverrides = async (
+const collectOverrides = async (
 	rootDir: string,
 	vulnerabilities: Record<string, Record<string, unknown>>,
+	pm: PackageManager,
 ): Promise<Record<string, string>> => {
 	const overrides: Record<string, string> = {};
 	for (const [pkgName, vuln] of Object.entries(vulnerabilities)) {
 		if (vuln.fixAvailable !== false || !vuln.range) continue;
-		const latest = await fetchLatestVersion(rootDir, pkgName, "npm");
+		const latest = await fetchLatestVersion(rootDir, pkgName, pm);
 		if (latest) overrides[pkgName] = latest;
 	}
 	return overrides;
@@ -111,7 +124,7 @@ const tryNpmOverrides = async (
 			| undefined;
 		if (!vulnerabilities) return;
 
-		const overrides = await collectNpmOverrides(rootDir, vulnerabilities);
+		const overrides = await collectOverrides(rootDir, vulnerabilities, "npm");
 		if (Object.keys(overrides).length === 0) return;
 
 		const pkgPath = path.join(rootDir, "package.json");
@@ -164,29 +177,58 @@ export const collectPnpmOverrides = (
 	return overrides;
 };
 
+// Detects the retired pnpm audit endpoint (HTTP 410) or other signals that
+// pnpm's audit registry call failed, so callers can fall back to npm.
+const isPnpmAuditRetired = (stdout: string, stderr: string): boolean => {
+	const haystack = `${stdout}\n${stderr}`.toLowerCase();
+	return (
+		haystack.includes("410") ||
+		haystack.includes("gone") ||
+		haystack.includes("retired") ||
+		haystack.includes("endpoint") ||
+		haystack.includes("err_pnpm_audit") ||
+		haystack.includes("audit endpoint")
+	);
+};
+
 const tryPnpmOverrides = async (
 	rootDir: string,
 	onProgress?: (label: string) => void,
-): Promise<void> => {
+): Promise<boolean> => {
 	onProgress?.("Dependency audit fixes · running pnpm audit");
 	const auditResult = await runSubprocess("pnpm", ["audit", "--json"], {
 		cwd: rootDir,
 		timeout: AUDIT_TIMEOUT,
 	});
-	if (!auditResult.stdout) return;
+
+	if (!auditResult.stdout) {
+		if (isPnpmAuditRetired(auditResult.stdout ?? "", auditResult.stderr ?? "")) {
+			return false;
+		}
+		// No output and no identifiable retirement signal — treat as a clean run.
+		return auditResult.exitCode === 0;
+	}
 
 	let parsed: Record<string, unknown>;
 	try {
 		parsed = JSON.parse(auditResult.stdout) as Record<string, unknown>;
 	} catch {
-		return;
+		// Unparseable output from a non-zero exit usually means the endpoint is
+		// unreachable (registry error pages, etc.). Signal fallback.
+		if (
+			auditResult.exitCode !== 0 ||
+			isPnpmAuditRetired(auditResult.stdout, auditResult.stderr ?? "")
+		) {
+			return false;
+		}
+		return true;
 	}
 
 	const advisories = parsed.advisories as Record<string, PnpmAdvisory> | undefined;
-	if (!advisories || Object.keys(advisories).length === 0) return;
+	if (!advisories || Object.keys(advisories).length === 0) return true;
 
 	const overrides = collectPnpmOverrides(advisories);
-	if (Object.keys(overrides).length === 0) return;
+	if (Object.keys(overrides).length === 0) return true;
 
 	const pkgPath = path.join(rootDir, "package.json");
 	const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8")) as Record<string, unknown>;
@@ -200,6 +242,7 @@ const tryPnpmOverrides = async (
 		cwd: rootDir,
 		timeout: INSTALL_TIMEOUT,
 	});
+	return true;
 };
 
 export const fixExpoDependencies = async (
@@ -227,6 +270,10 @@ export const fixExpoDependencies = async (
 	}
 };
 
+/**
+ * Run expo-doctor to detect packages that should not be installed directly,
+ * then uninstall them. No hardcoded list — expo-doctor is the source of truth.
+ */
 const removeDisallowedExpoPackages = async (
 	rootDir: string,
 	onProgress?: (label: string) => void,

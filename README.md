@@ -4,7 +4,7 @@
 
 [![npm version](https://img.shields.io/npm/v/aislop.svg)](https://www.npmjs.com/package/aislop)
 [![npm downloads](https://img.shields.io/npm/dm/aislop.svg)](https://www.npmjs.com/package/aislop)
-[![CI](https://github.com/heavykenny/aislop/actions/workflows/ci.yml/badge.svg)](https://github.com/heavykenny/aislop/actions/workflows/ci.yml)
+[![CI](https://github.com/scanaislop/aislop/actions/workflows/ci.yml/badge.svg)](https://github.com/scanaislop/aislop/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Node >= 20](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](https://nodejs.org)
 
@@ -115,7 +115,7 @@ pnpm add -D aislop
 npm install -g aislop
 ```
 
-Also available as [`@heavykenny/aislop`](docs/installation.md) on GitHub Packages.
+Also available as [`@scanaislop/aislop`](docs/installation.md) on GitHub Packages.
 
 ---
 
@@ -218,7 +218,7 @@ Or use the composite action (one-liner):
 
 ```yaml
 - uses: actions/checkout@v4
-- uses: heavykenny/aislop@v0.5
+- uses: scanaislop/aislop@v0.5
 ```
 
 ### Quality gate
@@ -277,7 +277,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and how to add new 
 
 ## Contributors
 
-[![Contributors](https://contrib.rocks/image?repo=heavykenny/aislop)](https://github.com/heavykenny/aislop/graphs/contributors)
+[![Contributors](https://contrib.rocks/image?repo=scanaislop/aislop)](https://github.com/scanaislop/aislop/graphs/contributors)
 
 ## License
 
