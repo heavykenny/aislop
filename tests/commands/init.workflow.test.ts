@@ -21,10 +21,7 @@ describe("writeGithubWorkflow", () => {
 		if (result.status === "written") {
 			expect(result.relativePath).toBe(".github/workflows/aislop.yml");
 		}
-		const body = fs.readFileSync(
-			path.join(tmpDir, ".github/workflows/aislop.yml"),
-			"utf-8",
-		);
+		const body = fs.readFileSync(path.join(tmpDir, ".github/workflows/aislop.yml"), "utf-8");
 		expect(body).toContain("name: aislop");
 		expect(body).toContain("npx aislop@latest ci");
 	});

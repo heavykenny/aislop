@@ -1,3 +1,4 @@
+// aislop-ignore-file duplicate-block
 import fs from "node:fs";
 import path from "node:path";
 import { getSourceFiles } from "../../utils/source-files.js";
@@ -50,7 +51,6 @@ const extractImports = (content: string, ext: string): string[] => {
 	const imports: string[] = [];
 
 	if ([".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"].includes(ext)) {
-		// ES imports
 		const esPattern = /(?:import|from)\s+["']([^"']+)["']/g;
 		let match: RegExpExecArray | null;
 		while ((match = esPattern.exec(content)) !== null) {

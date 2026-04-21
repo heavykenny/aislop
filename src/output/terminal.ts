@@ -56,9 +56,6 @@ const wrapText = (
 		}
 	}
 	if (current.length > 0) lines.push(current);
-	// Prepend the continuation indent to every line after the first. The
-	// first line is returned without a prefix so the caller can add its own
-	// (e.g. the `[WARN] ` badge including its ANSI color).
 	return lines.map((line, i) => (i === 0 ? line : `${contIndent}${line}`));
 };
 

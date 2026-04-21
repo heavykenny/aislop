@@ -48,15 +48,10 @@ describe("unused imports", () => {
 	it("detects an unused named import", async () => {
 		const filePath = writeFile(
 			"unused.ts",
-			[
-				'import { foo, bar } from "./module";',
-				"const x = foo();",
-			].join("\n"),
+			['import { foo, bar } from "./module";', "const x = foo();"].join("\n"),
 		);
 		const diagnostics = await detectUnusedImports(makeContext([filePath]));
-		const unused = diagnostics.filter(
-			(d) => d.rule === "ai-slop/unused-import",
-		);
+		const unused = diagnostics.filter((d) => d.rule === "ai-slop/unused-import");
 		expect(unused.length).toBe(1);
 		expect(unused[0].message).toContain("bar");
 	});
@@ -70,51 +65,34 @@ describe("unused imports", () => {
 			].join("\n"),
 		);
 		const diagnostics = await detectUnusedImports(makeContext([filePath]));
-		const unused = diagnostics.filter(
-			(d) => d.rule === "ai-slop/unused-import",
-		);
+		const unused = diagnostics.filter((d) => d.rule === "ai-slop/unused-import");
 		expect(unused).toHaveLength(0);
 	});
 
 	it("does not flag side-effect imports", async () => {
-		const filePath = writeFile(
-			"sideeffect.ts",
-			'import "./polyfill";',
-		);
+		const filePath = writeFile("sideeffect.ts", 'import "./polyfill";');
 		const diagnostics = await detectUnusedImports(makeContext([filePath]));
-		const unused = diagnostics.filter(
-			(d) => d.rule === "ai-slop/unused-import",
-		);
+		const unused = diagnostics.filter((d) => d.rule === "ai-slop/unused-import");
 		expect(unused).toHaveLength(0);
 	});
 
 	it("does not flag type-only imports", async () => {
 		const filePath = writeFile(
 			"typeonly.ts",
-			[
-				'import type { SomeType } from "./types";',
-				"const x = 1;",
-			].join("\n"),
+			['import type { SomeType } from "./types";', "const x = 1;"].join("\n"),
 		);
 		const diagnostics = await detectUnusedImports(makeContext([filePath]));
-		const unused = diagnostics.filter(
-			(d) => d.rule === "ai-slop/unused-import",
-		);
+		const unused = diagnostics.filter((d) => d.rule === "ai-slop/unused-import");
 		expect(unused).toHaveLength(0);
 	});
 
 	it("detects unused default import", async () => {
 		const filePath = writeFile(
 			"default.ts",
-			[
-				'import React from "react";',
-				"const x = 1;",
-			].join("\n"),
+			['import React from "react";', "const x = 1;"].join("\n"),
 		);
 		const diagnostics = await detectUnusedImports(makeContext([filePath]));
-		const unused = diagnostics.filter(
-			(d) => d.rule === "ai-slop/unused-import",
-		);
+		const unused = diagnostics.filter((d) => d.rule === "ai-slop/unused-import");
 		expect(unused.length).toBe(1);
 		expect(unused[0].message).toContain("React");
 	});
@@ -122,15 +100,10 @@ describe("unused imports", () => {
 	it("detects unused namespace import", async () => {
 		const filePath = writeFile(
 			"namespace.ts",
-			[
-				'import * as utils from "./utils";',
-				"const x = 1;",
-			].join("\n"),
+			['import * as utils from "./utils";', "const x = 1;"].join("\n"),
 		);
 		const diagnostics = await detectUnusedImports(makeContext([filePath]));
-		const unused = diagnostics.filter(
-			(d) => d.rule === "ai-slop/unused-import",
-		);
+		const unused = diagnostics.filter((d) => d.rule === "ai-slop/unused-import");
 		expect(unused.length).toBe(1);
 		expect(unused[0].message).toContain("utils");
 	});
@@ -138,15 +111,10 @@ describe("unused imports", () => {
 	it("detects unused Python imports", async () => {
 		const filePath = writeFile(
 			"unused.py",
-			[
-				"from os import path, getcwd",
-				"print(path.join('a', 'b'))",
-			].join("\n"),
+			["from os import path, getcwd", "print(path.join('a', 'b'))"].join("\n"),
 		);
 		const diagnostics = await detectUnusedImports(makeContext([filePath]));
-		const unused = diagnostics.filter(
-			(d) => d.rule === "ai-slop/unused-import",
-		);
+		const unused = diagnostics.filter((d) => d.rule === "ai-slop/unused-import");
 		expect(unused.length).toBe(1);
 		expect(unused[0].message).toContain("getcwd");
 	});
@@ -154,15 +122,10 @@ describe("unused imports", () => {
 	it("marks unused import diagnostics as fixable", async () => {
 		const filePath = writeFile(
 			"fixable.ts",
-			[
-				'import { unused } from "./mod";',
-				"const x = 1;",
-			].join("\n"),
+			['import { unused } from "./mod";', "const x = 1;"].join("\n"),
 		);
 		const diagnostics = await detectUnusedImports(makeContext([filePath]));
-		const unused = diagnostics.filter(
-			(d) => d.rule === "ai-slop/unused-import",
-		);
+		const unused = diagnostics.filter((d) => d.rule === "ai-slop/unused-import");
 		expect(unused.length).toBe(1);
 		expect(unused[0].fixable).toBe(true);
 	});
@@ -182,9 +145,7 @@ describe("console leftovers", () => {
 			].join("\n"),
 		);
 		const diagnostics = await detectDeadPatterns(makeContext([filePath]));
-		const consoleD = diagnostics.filter(
-			(d) => d.rule === "ai-slop/console-leftover",
-		);
+		const consoleD = diagnostics.filter((d) => d.rule === "ai-slop/console-leftover");
 		expect(consoleD.length).toBe(1);
 		expect(consoleD[0].line).toBe(2);
 	});
@@ -192,54 +153,34 @@ describe("console leftovers", () => {
 	it("detects console.debug and console.info", async () => {
 		const filePath = writeFile(
 			"debug2.ts",
-			[
-				"console.debug('debugging');",
-				"console.info('info message');",
-			].join("\n"),
+			["console.debug('debugging');", "console.info('info message');"].join("\n"),
 		);
 		const diagnostics = await detectDeadPatterns(makeContext([filePath]));
-		const consoleD = diagnostics.filter(
-			(d) => d.rule === "ai-slop/console-leftover",
-		);
+		const consoleD = diagnostics.filter((d) => d.rule === "ai-slop/console-leftover");
 		expect(consoleD.length).toBe(2);
 	});
 
 	it("does not flag console.error and console.warn", async () => {
 		const filePath = writeFile(
 			"errors.ts",
-			[
-				"console.error('critical');",
-				"console.warn('warning');",
-			].join("\n"),
+			["console.error('critical');", "console.warn('warning');"].join("\n"),
 		);
 		const diagnostics = await detectDeadPatterns(makeContext([filePath]));
-		const consoleD = diagnostics.filter(
-			(d) => d.rule === "ai-slop/console-leftover",
-		);
+		const consoleD = diagnostics.filter((d) => d.rule === "ai-slop/console-leftover");
 		expect(consoleD).toHaveLength(0);
 	});
 
 	it("does not flag commented console.log", async () => {
-		const filePath = writeFile(
-			"commented.ts",
-			"// console.log('disabled');",
-		);
+		const filePath = writeFile("commented.ts", "// console.log('disabled');");
 		const diagnostics = await detectDeadPatterns(makeContext([filePath]));
-		const consoleD = diagnostics.filter(
-			(d) => d.rule === "ai-slop/console-leftover",
-		);
+		const consoleD = diagnostics.filter((d) => d.rule === "ai-slop/console-leftover");
 		expect(consoleD).toHaveLength(0);
 	});
 
 	it("does not flag console in .py files", async () => {
-		const filePath = writeFile(
-			"notjs.py",
-			"console.log('not real');",
-		);
+		const filePath = writeFile("notjs.py", "console.log('not real');");
 		const diagnostics = await detectDeadPatterns(makeContext([filePath]));
-		const consoleD = diagnostics.filter(
-			(d) => d.rule === "ai-slop/console-leftover",
-		);
+		const consoleD = diagnostics.filter((d) => d.rule === "ai-slop/console-leftover");
 		expect(consoleD).toHaveLength(0);
 	});
 });
@@ -250,10 +191,7 @@ describe("todo stubs", () => {
 	it("detects TODO comments", async () => {
 		const filePath = writeFile(
 			"todos.ts",
-			[
-				"// TODO: implement this properly",
-				"function placeholder() { return null; }",
-			].join("\n"),
+			["// TODO: implement this properly", "function placeholder() { return null; }"].join("\n"),
 		);
 		const diagnostics = await detectDeadPatterns(makeContext([filePath]));
 		const todos = diagnostics.filter((d) => d.rule === "ai-slop/todo-stub");
@@ -262,40 +200,28 @@ describe("todo stubs", () => {
 	});
 
 	it("detects FIXME comments", async () => {
-		const filePath = writeFile(
-			"fixme.ts",
-			"// FIXME: this is broken",
-		);
+		const filePath = writeFile("fixme.ts", "// FIXME: this is broken");
 		const diagnostics = await detectDeadPatterns(makeContext([filePath]));
 		const todos = diagnostics.filter((d) => d.rule === "ai-slop/todo-stub");
 		expect(todos.length).toBe(1);
 	});
 
 	it("detects HACK comments", async () => {
-		const filePath = writeFile(
-			"hack.ts",
-			"// HACK: temporary workaround",
-		);
+		const filePath = writeFile("hack.ts", "// HACK: temporary workaround");
 		const diagnostics = await detectDeadPatterns(makeContext([filePath]));
 		const todos = diagnostics.filter((d) => d.rule === "ai-slop/todo-stub");
 		expect(todos.length).toBe(1);
 	});
 
 	it("detects Python TODO comments", async () => {
-		const filePath = writeFile(
-			"todos.py",
-			"# TODO: add validation",
-		);
+		const filePath = writeFile("todos.py", "# TODO: add validation");
 		const diagnostics = await detectDeadPatterns(makeContext([filePath]));
 		const todos = diagnostics.filter((d) => d.rule === "ai-slop/todo-stub");
 		expect(todos.length).toBe(1);
 	});
 
 	it("does not flag non-comment TODO mentions", async () => {
-		const filePath = writeFile(
-			"notcomment.ts",
-			'const message = "TODO: fix this";',
-		);
+		const filePath = writeFile("notcomment.ts", 'const message = "TODO: fix this";');
 		const diagnostics = await detectDeadPatterns(makeContext([filePath]));
 		const todos = diagnostics.filter((d) => d.rule === "ai-slop/todo-stub");
 		expect(todos).toHaveLength(0);
@@ -308,17 +234,10 @@ describe("dead code patterns", () => {
 	it("detects code after return statement", async () => {
 		const filePath = writeFile(
 			"unreachable.ts",
-			[
-				"function test() {",
-				"  return 42;",
-				"  const x = 1;",
-				"}",
-			].join("\n"),
+			["function test() {", "  return 42;", "  const x = 1;", "}"].join("\n"),
 		);
 		const diagnostics = await detectDeadPatterns(makeContext([filePath]));
-		const unreachable = diagnostics.filter(
-			(d) => d.rule === "ai-slop/unreachable-code",
-		);
+		const unreachable = diagnostics.filter((d) => d.rule === "ai-slop/unreachable-code");
 		expect(unreachable.length).toBe(1);
 		expect(unreachable[0].line).toBe(3);
 	});
@@ -326,44 +245,24 @@ describe("dead code patterns", () => {
 	it("does not flag closing brace after return", async () => {
 		const filePath = writeFile(
 			"ok-return.ts",
-			[
-				"function test() {",
-				"  return 42;",
-				"}",
-			].join("\n"),
+			["function test() {", "  return 42;", "}"].join("\n"),
 		);
 		const diagnostics = await detectDeadPatterns(makeContext([filePath]));
-		const unreachable = diagnostics.filter(
-			(d) => d.rule === "ai-slop/unreachable-code",
-		);
+		const unreachable = diagnostics.filter((d) => d.rule === "ai-slop/unreachable-code");
 		expect(unreachable).toHaveLength(0);
 	});
 
 	it("detects constant condition if (false)", async () => {
-		const filePath = writeFile(
-			"constant.ts",
-			[
-				"if (false) {",
-				"  doSomething();",
-				"}",
-			].join("\n"),
-		);
+		const filePath = writeFile("constant.ts", ["if (false) {", "  doSomething();", "}"].join("\n"));
 		const diagnostics = await detectDeadPatterns(makeContext([filePath]));
-		const constant = diagnostics.filter(
-			(d) => d.rule === "ai-slop/constant-condition",
-		);
+		const constant = diagnostics.filter((d) => d.rule === "ai-slop/constant-condition");
 		expect(constant.length).toBe(1);
 	});
 
 	it("detects constant condition if (true)", async () => {
-		const filePath = writeFile(
-			"alwaystrue.ts",
-			"if (true) { run(); }",
-		);
+		const filePath = writeFile("alwaystrue.ts", "if (true) { run(); }");
 		const diagnostics = await detectDeadPatterns(makeContext([filePath]));
-		const constant = diagnostics.filter(
-			(d) => d.rule === "ai-slop/constant-condition",
-		);
+		const constant = diagnostics.filter((d) => d.rule === "ai-slop/constant-condition");
 		expect(constant.length).toBe(1);
 	});
 });
@@ -372,80 +271,50 @@ describe("dead code patterns", () => {
 
 describe("unsafe type assertions", () => {
 	it("detects 'as any' in TypeScript", async () => {
-		const filePath = writeFile(
-			"unsafe.ts",
-			"const data = response.body as any;",
-		);
+		const filePath = writeFile("unsafe.ts", "const data = response.body as any;");
 		const diagnostics = await detectDeadPatterns(makeContext([filePath]));
-		const asAny = diagnostics.filter(
-			(d) => d.rule === "ai-slop/unsafe-type-assertion",
-		);
+		const asAny = diagnostics.filter((d) => d.rule === "ai-slop/unsafe-type-assertion");
 		expect(asAny.length).toBe(1);
 	});
 
 	it("detects double assertion 'as unknown as'", async () => {
-		const filePath = writeFile(
-			"double.ts",
-			"const x = value as unknown as SpecificType;",
-		);
+		const filePath = writeFile("double.ts", "const x = value as unknown as SpecificType;");
 		const diagnostics = await detectDeadPatterns(makeContext([filePath]));
-		const doubleAssert = diagnostics.filter(
-			(d) => d.rule === "ai-slop/double-type-assertion",
-		);
+		const doubleAssert = diagnostics.filter((d) => d.rule === "ai-slop/double-type-assertion");
 		expect(doubleAssert.length).toBe(1);
 	});
 
 	it("detects @ts-ignore directive", async () => {
 		const filePath = writeFile(
 			"ignore.ts",
-			[
-				"// @ts-ignore",
-				"const x: number = 'not a number';",
-			].join("\n"),
+			["// @ts-ignore", "const x: number = 'not a number';"].join("\n"),
 		);
 		const diagnostics = await detectDeadPatterns(makeContext([filePath]));
-		const directives = diagnostics.filter(
-			(d) => d.rule === "ai-slop/ts-directive",
-		);
+		const directives = diagnostics.filter((d) => d.rule === "ai-slop/ts-directive");
 		expect(directives.length).toBe(1);
 	});
 
 	it("detects @ts-expect-error directive", async () => {
 		const filePath = writeFile(
 			"expect-error.ts",
-			[
-				"// @ts-expect-error",
-				"const x: number = 'not a number';",
-			].join("\n"),
+			["// @ts-expect-error", "const x: number = 'not a number';"].join("\n"),
 		);
 		const diagnostics = await detectDeadPatterns(makeContext([filePath]));
-		const directives = diagnostics.filter(
-			(d) => d.rule === "ai-slop/ts-directive",
-		);
+		const directives = diagnostics.filter((d) => d.rule === "ai-slop/ts-directive");
 		expect(directives.length).toBe(1);
 	});
 
 	it("does not flag 'as any' in .js files", async () => {
-		const filePath = writeFile(
-			"nocheck.js",
-			"const data = response.body as any;",
-		);
+		const filePath = writeFile("nocheck.js", "const data = response.body as any;");
 		const diagnostics = await detectDeadPatterns(makeContext([filePath]));
-		const asAny = diagnostics.filter(
-			(d) => d.rule === "ai-slop/unsafe-type-assertion",
-		);
+		const asAny = diagnostics.filter((d) => d.rule === "ai-slop/unsafe-type-assertion");
 		expect(asAny).toHaveLength(0);
 	});
 
 	it("does not flag commented 'as any'", async () => {
-		const filePath = writeFile(
-			"commented.ts",
-			"// const data = response.body as any;",
-		);
+		const filePath = writeFile("commented.ts", "// const data = response.body as any;");
 		const diagnostics = await detectDeadPatterns(makeContext([filePath]));
-		const asAny = diagnostics.filter(
-			(d) => d.rule === "ai-slop/unsafe-type-assertion",
-		);
+		const asAny = diagnostics.filter((d) => d.rule === "ai-slop/unsafe-type-assertion");
 		expect(asAny).toHaveLength(0);
 	});
 });
@@ -469,10 +338,7 @@ describe("general", () => {
 			].join("\n"),
 		);
 		const ctx = makeContext([filePath]);
-		const diagnostics = [
-			...(await detectDeadPatterns(ctx)),
-			...(await detectUnusedImports(ctx)),
-		];
+		const diagnostics = [...(await detectDeadPatterns(ctx)), ...(await detectUnusedImports(ctx))];
 		for (const d of diagnostics) {
 			expect(d.engine).toBe("ai-slop");
 		}
@@ -481,32 +347,19 @@ describe("general", () => {
 	it("all diagnostics have category AI Slop", async () => {
 		const filePath = writeFile(
 			"mixed2.ts",
-			[
-				'import { unused } from "./mod";',
-				"// FIXME: broken",
-				"console.log('test');",
-			].join("\n"),
+			['import { unused } from "./mod";', "// FIXME: broken", "console.log('test');"].join("\n"),
 		);
 		const ctx = makeContext([filePath]);
-		const diagnostics = [
-			...(await detectDeadPatterns(ctx)),
-			...(await detectUnusedImports(ctx)),
-		];
+		const diagnostics = [...(await detectDeadPatterns(ctx)), ...(await detectUnusedImports(ctx))];
 		for (const d of diagnostics) {
 			expect(d.category).toBe("AI Slop");
 		}
 	});
 
 	it("reports relative file paths", async () => {
-		const filePath = writeFile(
-			"subdir/test.ts",
-			'import { unused } from "./mod";',
-		);
+		const filePath = writeFile("subdir/test.ts", 'import { unused } from "./mod";');
 		const ctx = makeContext([filePath]);
-		const diagnostics = [
-			...(await detectDeadPatterns(ctx)),
-			...(await detectUnusedImports(ctx)),
-		];
+		const diagnostics = [...(await detectDeadPatterns(ctx)), ...(await detectUnusedImports(ctx))];
 		for (const d of diagnostics) {
 			expect(path.isAbsolute(d.filePath)).toBe(false);
 		}

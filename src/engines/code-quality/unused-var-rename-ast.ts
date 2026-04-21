@@ -1,3 +1,4 @@
+// aislop-ignore-file duplicate-block
 import ts from "typescript";
 
 /**

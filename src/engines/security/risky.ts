@@ -127,9 +127,6 @@ export const detectRiskyConstructs = async (context: EngineContext): Promise<Dia
 				// For innerHTML: skip if target is a <template> element (safe by design)
 				if (name === "innerhtml") {
 					const beforeMatch = content.slice(Math.max(0, match.index - 200), match.index);
-					// Skip template element targets (e.g. template/tmpl/tpl variables,
-					// or createElement('template') calls) — they are safe by design.
-					// beforeMatch ends right before the matched pattern, so check variable name
 					if (
 						/(?:template|tmpl|tpl)$/i.test(beforeMatch.trimEnd()) ||
 						/createElement\s*\(\s*['"]template['"]\s*\)$/.test(beforeMatch.trimEnd())

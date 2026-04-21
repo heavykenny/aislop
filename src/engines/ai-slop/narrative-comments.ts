@@ -8,6 +8,7 @@ import {
 	DECORATIVE_SECTION_HEADER,
 	DECORATIVE_SEPARATOR,
 	EXPLANATORY_OPENERS,
+	EXPLANATORY_WHY_MARKERS,
 	EXPORT_DEFAULT,
 	GO_DECL_START,
 	JAVA_DECL_START,
@@ -190,6 +191,33 @@ const looksLikeLicenseHeader = (block: CommentBlock): boolean => {
 	);
 };
 
+const BARE_LABEL_RE = /^[A-Z][A-Za-z0-9 ]{1,28}$/;
+const isBareSectionLabel = (prose: string): boolean => {
+	if (!BARE_LABEL_RE.test(prose)) return false;
+	if (prose.endsWith(".")) return false;
+	const words = prose.split(/\s+/);
+	if (words.length > 3) return false;
+	return true;
+};
+
+const DATA_ENTRY_START = /^\s*(?:\{|\[|["'`]|\d|\w+:\s|case\s)/;
+const nextLineLooksLikeDataEntry = (nextLine: string | null): boolean => {
+	if (nextLine === null) return false;
+	if (!DATA_ENTRY_START.test(nextLine)) return false;
+	const trimmed = nextLine.trim();
+	if (trimmed.startsWith("case ")) return true;
+	if (
+		trimmed.startsWith("{") ||
+		trimmed.startsWith("[") ||
+		trimmed.startsWith('"') ||
+		trimmed.startsWith("'") ||
+		trimmed.startsWith("`")
+	)
+		return true;
+	if (/^\w+\s*:/.test(trimmed)) return true;
+	return false;
+};
+
 const looksLikeSuppressDirective = (block: CommentBlock): boolean =>
 	block.rawLines.some((l) =>
 		/\b(biome-ignore|eslint-disable|ts-ignore|ts-expect-error|@ts-\w+|noqa|pylint:\s*disable|rubocop:disable|noinspection|phpcs:disable)\b/.test(
@@ -214,6 +242,15 @@ const detectNarrativeInBlock = (
 
 	if (block.kind === "line" && block.prose.some((l) => SECTION_HEADER.test(l))) {
 		return { matched: true, reason: "phase/section header" };
+	}
+
+	if (
+		block.kind === "line" &&
+		block.prose.length === 1 &&
+		isBareSectionLabel(block.prose[0]) &&
+		!nextLineLooksLikeDataEntry(block.nextNonBlankLine)
+	) {
+		return { matched: true, reason: "bare section label" };
 	}
 
 	if (block.prose.length >= 3 && looksLikeDeclarationPreamble(block.nextNonBlankLine, ext)) {
@@ -248,11 +285,18 @@ const detectNarrativeInBlock = (
 		return { matched: true, reason: "explanatory preamble" };
 	}
 
-	// 5+ prose lines is almost always narrative regardless of what follows —
-	// catches in-function essays, multi-paragraph explanations, and JSDoc/line
-	// blocks that aren't tied to a declaration.
-	if (block.prose.filter((l) => l.length > 0).length >= 5) {
+	const nonEmptyProseCount = block.prose.filter((l) => l.length > 0).length;
+	const joinedProse = block.prose.join(" ");
+	const hasWhyMarker = EXPLANATORY_WHY_MARKERS.test(joinedProse);
+
+	if (nonEmptyProseCount >= 5) {
 		return { matched: true, reason: "long narrative block" };
+	}
+
+	// 3+ prose lines inside a function body with no WHY marker is almost
+	// always restating-what-the-code-does. A real explanation cites a reason.
+	if (nonEmptyProseCount >= 3 && !hasWhyMarker && block.kind === "line") {
+		return { matched: true, reason: "multi-line narrative prose" };
 	}
 
 	return { matched: false, reason: "" };

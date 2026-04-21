@@ -79,7 +79,9 @@ export const run = () => 0;
 		const diags = await detectNarrativeComments(ctx(tmpDir));
 		expect(diags).toHaveLength(1);
 		await fixNarrativeComments(ctx(tmpDir));
-		expect(fs.readFileSync(path.join(tmpDir, "c.ts"), "utf-8")).toBe("export const run = () => 0;\n");
+		expect(fs.readFileSync(path.join(tmpDir, "c.ts"), "utf-8")).toBe(
+			"export const run = () => 0;\n",
+		);
 	});
 
 	it("detects cross-reference commentary", async () => {
@@ -403,6 +405,39 @@ function getUser() {}
  * @returns {object} 200 user
  */
 router.get('/api/auth/me', handler);
+`,
+		);
+		const diags = await detectNarrativeComments(ctx(tmpDir));
+		expect(diags).toHaveLength(0);
+	});
+
+	it("flags 3+ line prose blocks inside function bodies with no WHY marker", async () => {
+		writeFile(
+			"inside.ts",
+			`export const run = () => {
+	initState();
+	// Build the next-step list from counts, the elided count, and regression
+	// status. Structured so the agent can act on it without re-parsing prose.
+	// Each string is a single actionable sentence.
+	buildSteps();
+	return;
+};
+`,
+		);
+		const diags = await detectNarrativeComments(ctx(tmpDir));
+		expect(diags.length).toBeGreaterThan(0);
+		expect(diags[0].message).toMatch(/multi-line narrative prose/);
+	});
+
+	it("exempts 3-line blocks that contain a WHY marker (because / since / workaround / etc.)", async () => {
+		writeFile(
+			"why.ts",
+			`export const run = () => {
+	// Run this before the CORS middleware because credentialed origins
+	// otherwise reject OPTIONS requests. Discovered in prod after session
+	// cookies started arriving stripped — see issue #2143.
+	register();
+};
 `,
 		);
 		const diags = await detectNarrativeComments(ctx(tmpDir));

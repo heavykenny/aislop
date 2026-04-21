@@ -34,12 +34,8 @@ interface ParseDiagnosticsCarrier {
 
 const assertParsesClean = (filePath: string): void => {
 	const content = fs.readFileSync(filePath, "utf-8");
-	const sf = ts.createSourceFile(
-		filePath,
-		content,
-		ts.ScriptTarget.Latest,
-		true,
-	) as ts.SourceFile & ParseDiagnosticsCarrier;
+	const sf = ts.createSourceFile(filePath, content, ts.ScriptTarget.Latest, true) as ts.SourceFile &
+		ParseDiagnosticsCarrier;
 	const diagnostics = sf.parseDiagnostics ?? [];
 	expect(diagnostics, `file ${filePath} should parse without syntax errors`).toHaveLength(0);
 };
@@ -233,7 +229,10 @@ export const other = 1;
 		["prefix decrement", "let counter = 0; const unused = --counter;"],
 		["delete expression", "const obj: { k?: number } = { k: 1 }; const unused = delete obj.k;"],
 	])("skips a const whose initializer mutates via %s", (_label, source) => {
-		const file = writeFixture(`mutates-${Math.random().toString(36).slice(2)}.ts`, `${source}\nexport const other = 1;\n`);
+		const file = writeFixture(
+			`mutates-${Math.random().toString(36).slice(2)}.ts`,
+			`${source}\nexport const other = 1;\n`,
+		);
 		const decl: UnusedDeclaration = {
 			filePath: file,
 			line: findLine(fs.readFileSync(file, "utf-8"), "unused"),

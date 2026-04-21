@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-	parseClaudeStdin,
-	renderClaudeOutput,
-} from "../../src/hooks/adapters/claude.js";
+import { parseClaudeStdin, renderClaudeOutput } from "../../src/hooks/adapters/claude.js";
 
 describe("parseClaudeStdin", () => {
 	it("returns {} for empty input", () => {

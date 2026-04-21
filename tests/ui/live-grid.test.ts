@@ -38,8 +38,20 @@ describe("live-grid", () => {
 			renderGridFrame(
 				{
 					rows: [
-						{ label: "Linting", status: "done", outcome: "warn", summary: "2 warnings", elapsedMs: 1100 },
-						{ label: "Security", status: "done", outcome: "ok", summary: "0 issues", elapsedMs: 2100 },
+						{
+							label: "Linting",
+							status: "done",
+							outcome: "warn",
+							summary: "2 warnings",
+							elapsedMs: 1100,
+						},
+						{
+							label: "Security",
+							status: "done",
+							outcome: "ok",
+							summary: "0 issues",
+							elapsedMs: 2100,
+						},
 					],
 				},
 				opts,
@@ -60,9 +72,7 @@ describe("live-grid", () => {
 	});
 
 	it("renders queued rows with pending glyph", () => {
-		const out = strip(
-			renderGridFrame({ rows: [{ label: "Linting", status: "queued" }] }, opts),
-		);
+		const out = strip(renderGridFrame({ rows: [{ label: "Linting", status: "queued" }] }, opts));
 		expect(out).toMatch(/• Linting\s+queued\s+—/);
 	});
 });

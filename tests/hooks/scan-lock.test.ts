@@ -35,10 +35,7 @@ describe("acquireHookLock", () => {
 
 	it("reclaims a stale lock (> 30s old)", () => {
 		fs.mkdirSync(path.dirname(lockPath(cwd)), { recursive: true });
-		fs.writeFileSync(
-			lockPath(cwd),
-			JSON.stringify({ pid: 99999, ts: Date.now() - 60_000 }),
-		);
+		fs.writeFileSync(lockPath(cwd), JSON.stringify({ pid: 99999, ts: Date.now() - 60_000 }));
 		const release = acquireHookLock(cwd);
 		expect(release).not.toBeNull();
 		release?.();
@@ -56,10 +53,7 @@ describe("acquireHookLock", () => {
 		const release = acquireHookLock(cwd);
 		expect(release).not.toBeNull();
 		// Simulate another process stealing the lock after ours expired
-		fs.writeFileSync(
-			lockPath(cwd),
-			JSON.stringify({ pid: 54321, ts: Date.now() }),
-		);
+		fs.writeFileSync(lockPath(cwd), JSON.stringify({ pid: 54321, ts: Date.now() }));
 		release?.();
 		// Stolen lock should still be present
 		expect(fs.existsSync(lockPath(cwd))).toBe(true);

@@ -1,3 +1,4 @@
+// aislop-ignore-file duplicate-block
 export interface Symbols {
 	stepActive: string;
 	stepDone: string;

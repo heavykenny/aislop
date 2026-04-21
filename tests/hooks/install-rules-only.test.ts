@@ -2,29 +2,16 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import {
-	installAntigravity,
-	uninstallAntigravity,
-} from "../../src/hooks/install/antigravity.js";
+import { installAntigravity, uninstallAntigravity } from "../../src/hooks/install/antigravity.js";
 import { installCline, uninstallCline } from "../../src/hooks/install/cline.js";
-import {
-	installCodex,
-	resolveCodexPaths,
-	uninstallCodex,
-} from "../../src/hooks/install/codex.js";
+import { installCodex, resolveCodexPaths, uninstallCodex } from "../../src/hooks/install/codex.js";
 import {
 	installCopilot,
 	resolveCopilotPaths,
 	uninstallCopilot,
 } from "../../src/hooks/install/copilot.js";
-import {
-	installKilocode,
-	uninstallKilocode,
-} from "../../src/hooks/install/kilocode.js";
-import {
-	installWindsurf,
-	uninstallWindsurf,
-} from "../../src/hooks/install/windsurf.js";
+import { installKilocode, uninstallKilocode } from "../../src/hooks/install/kilocode.js";
+import { installWindsurf, uninstallWindsurf } from "../../src/hooks/install/windsurf.js";
 
 let home: string;
 let cwd: string;
@@ -83,9 +70,9 @@ describe("P3 project-only installers", () => {
 
 	it("Antigravity writes .agents/rules/antigravity-aislop-rules.md", () => {
 		installAntigravity({ home, cwd, scope: "project" });
-		expect(
-			fs.existsSync(path.join(cwd, ".agents", "rules", "antigravity-aislop-rules.md")),
-		).toBe(true);
+		expect(fs.existsSync(path.join(cwd, ".agents", "rules", "antigravity-aislop-rules.md"))).toBe(
+			true,
+		);
 	});
 
 	it("Copilot writes .github/copilot-instructions.md", () => {
@@ -116,29 +103,23 @@ describe("rules-only uninstall reversibility", () => {
 		installCline(opts);
 		uninstallCline(opts);
 		expect(fs.existsSync(path.join(cwd, ".clinerules"))).toBe(false);
-		expect(fs.existsSync(path.join(cwd, ".roo", "rules", "aislop.md"))).toBe(
-			false,
-		);
+		expect(fs.existsSync(path.join(cwd, ".roo", "rules", "aislop.md"))).toBe(false);
 	});
 
 	it("uninstallKilocode removes the rules file", () => {
 		const opts = { home, cwd, scope: "project" as const };
 		installKilocode(opts);
 		uninstallKilocode(opts);
-		expect(
-			fs.existsSync(path.join(cwd, ".kilocode", "rules", "aislop-rules.md")),
-		).toBe(false);
+		expect(fs.existsSync(path.join(cwd, ".kilocode", "rules", "aislop-rules.md"))).toBe(false);
 	});
 
 	it("uninstallAntigravity removes the rules file", () => {
 		const opts = { home, cwd, scope: "project" as const };
 		installAntigravity(opts);
 		uninstallAntigravity(opts);
-		expect(
-			fs.existsSync(
-				path.join(cwd, ".agents", "rules", "antigravity-aislop-rules.md"),
-			),
-		).toBe(false);
+		expect(fs.existsSync(path.join(cwd, ".agents", "rules", "antigravity-aislop-rules.md"))).toBe(
+			false,
+		);
 	});
 
 	it("uninstallCopilot removes .github/copilot-instructions.md", () => {

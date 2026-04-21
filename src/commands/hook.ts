@@ -14,7 +14,20 @@ import {
 } from "../hooks/install/registry.js";
 import type { HookInstallOpts } from "../hooks/install/types.js";
 import { captureBaseline } from "../hooks/quality-gate/baseline.js";
+import { isCancel, multiselect } from "../ui/prompts.js";
 import { style, theme } from "../ui/theme.js";
+
+const AGENT_LABELS: Record<AgentName, { label: string; hint: string }> = {
+	claude: { label: "Claude Code", hint: "PostToolUse, runtime" },
+	cursor: { label: "Cursor", hint: "afterFileEdit, runtime" },
+	gemini: { label: "Gemini CLI", hint: "AfterTool, runtime" },
+	codex: { label: "Codex CLI", hint: "rules-only" },
+	windsurf: { label: "Windsurf", hint: "rules-only, project" },
+	cline: { label: "Cline + Roo", hint: "rules-only, project" },
+	kilocode: { label: "Kilo Code", hint: "rules-only, project" },
+	antigravity: { label: "Antigravity", hint: "rules-only, project" },
+	copilot: { label: "GitHub Copilot", hint: "rules-only, project" },
+};
 
 interface InstallFlags {
 	agents: AgentName[];
@@ -105,6 +118,12 @@ export const hookStatus = async (): Promise<void> => {
 };
 
 export const hookRun = async (agent: AgentName, flags?: { stop?: boolean }): Promise<void> => {
+	if (process.stdin.isTTY) {
+		process.stderr.write(
+			`aislop hook ${agent} is an internal callback the agent invokes automatically. It reads a payload on stdin and has nothing to do interactively.\n\nYou probably want:\n  aislop hook install --${agent}     (install the hook for ${agent})\n  aislop hook status                   (see what's installed)\n  aislop hook uninstall --${agent}   (remove it)\n`,
+		);
+		process.exit(0);
+	}
 	let exitCode = 0;
 	if (agent === "claude") {
 		exitCode = flags?.stop ? await runClaudeStopHook() : await runClaudeHook();
@@ -141,4 +160,59 @@ export const parseAgentFlag = (raw: string | undefined, fallback: AgentName[]): 
 
 export const defaultInstallTargets = (): AgentName[] => {
 	return AGENTS_SUPPORTING_BOTH_SCOPES;
+};
+
+export const resolveAgents = (
+	perAgentFlags: Partial<Record<AgentName, boolean>>,
+	positional: string[],
+	agentFlag: string | undefined,
+	fallback: AgentName[],
+): AgentName[] => {
+	const flagged = ALL_AGENTS.filter((a) => perAgentFlags[a] === true);
+	if (flagged.length > 0) return flagged;
+	if (positional.length > 0) {
+		const unknown = positional.filter((p): p is AgentName => !ALL_AGENTS.includes(p as AgentName));
+		if (unknown.length > 0) {
+			throw new Error(`Unknown agent(s): ${unknown.join(", ")}. Valid: ${ALL_AGENTS.join(", ")}`);
+		}
+		return positional as AgentName[];
+	}
+	return parseAgentFlag(agentFlag, fallback);
+};
+
+export const hasExplicitAgentSelection = (
+	perAgentFlags: Partial<Record<AgentName, boolean>>,
+	positional: string[],
+	agentFlag: string | undefined,
+): boolean => {
+	if (ALL_AGENTS.some((a) => perAgentFlags[a] === true)) return true;
+	if (positional.length > 0) return true;
+	if (typeof agentFlag === "string" && agentFlag.trim().length > 0) return true;
+	return false;
+};
+
+export const promptAgentSelection = async (
+	mode: "install" | "uninstall",
+	deps: { installed?: AgentName[] } = {},
+): Promise<AgentName[] | null> => {
+	const installed = deps.installed ?? [];
+	const pool = mode === "uninstall" ? installed : ALL_AGENTS;
+	if (pool.length === 0) return [];
+	const preChecked =
+		mode === "uninstall" ? installed : (AGENTS_SUPPORTING_BOTH_SCOPES as AgentName[]);
+	const choice = await multiselect<AgentName>({
+		message:
+			mode === "install"
+				? "Which agents should get aislop hooks?"
+				: "Which agent hooks should be removed?",
+		options: pool.map((a) => ({
+			value: a,
+			label: AGENT_LABELS[a].label,
+			hint: AGENT_LABELS[a].hint,
+		})),
+		initialValues: preChecked.filter((a) => pool.includes(a)),
+		required: false,
+	});
+	if (isCancel(choice)) return null;
+	return choice as AgentName[];
 };

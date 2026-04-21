@@ -134,10 +134,7 @@ describe("detectTrivialComments", () => {
 	});
 
 	it("detects 'Get the X' comment", async () => {
-		const filePath = writeFile(
-			"get.ts",
-			"// Get the current user\nconst user = getCurrentUser();",
-		);
+		const filePath = writeFile("get.ts", "// Get the current user\nconst user = getCurrentUser();");
 		const diagnostics = await detectTrivialComments(makeContext([filePath]));
 		expect(diagnostics.length).toBeGreaterThanOrEqual(1);
 	});
@@ -153,30 +150,21 @@ describe("detectTrivialComments", () => {
 	});
 
 	it("skips non-source files (.md, .txt)", async () => {
-		const filePath = writeFile(
-			"README.md",
-			"// This function does something\n# Docs",
-		);
+		const filePath = writeFile("README.md", "// This function does something\n# Docs");
 		const diagnostics = await detectTrivialComments(makeContext([filePath]));
 		// .md is not in SOURCE_EXTENSIONS so file should be filtered out
 		expect(diagnostics).toHaveLength(0);
 	});
 
 	it("reports relative file paths, not absolute", async () => {
-		const filePath = writeFile(
-			"subdir/bad.ts",
-			"// Initialize the app\nconst app = new App();",
-		);
+		const filePath = writeFile("subdir/bad.ts", "// Initialize the app\nconst app = new App();");
 		const diagnostics = await detectTrivialComments(makeContext([filePath]));
 		expect(diagnostics.length).toBeGreaterThanOrEqual(1);
 		expect(path.isAbsolute(diagnostics[0].filePath)).toBe(false);
 	});
 
 	it("marks diagnostics as fixable", async () => {
-		const filePath = writeFile(
-			"fix.ts",
-			"// Define the user class\nclass User {}",
-		);
+		const filePath = writeFile("fix.ts", "// Define the user class\nclass User {}");
 		const diagnostics = await detectTrivialComments(makeContext([filePath]));
 		expect(diagnostics.length).toBeGreaterThanOrEqual(1);
 		expect(diagnostics[0].fixable).toBe(true);
@@ -194,6 +182,82 @@ describe("detectTrivialComments", () => {
 		);
 		const diagnostics = await detectTrivialComments(makeContext([filePath]));
 		expect(diagnostics.length).toBeGreaterThanOrEqual(1);
+	});
+
+	it("catches 'Run X' / 'Running X' comments", async () => {
+		const filePath = writeFile(
+			"run.ts",
+			"// Run the scan\nrunScan(project);\n// Running the fixer\nfix();\n",
+		);
+		const diagnostics = await detectTrivialComments(makeContext([filePath]));
+		expect(diagnostics.length).toBe(2);
+	});
+
+	it("catches 'Parse X' / 'Write X' / 'Cleanup' / 'Setup' comments", async () => {
+		const filePath = writeFile(
+			"ops.ts",
+			[
+				"// Parse results",
+				"const parsed = JSON.parse(out);",
+				"// Write standards config",
+				"fs.writeFileSync(path, body);",
+				"// Cleanup",
+				"fs.rmSync(tmp);",
+				"// Setup",
+				"init();",
+			].join("\n"),
+		);
+		const diagnostics = await detectTrivialComments(makeContext([filePath]));
+		expect(diagnostics.length).toBe(4);
+	});
+
+	it("catches 'Execute X' / 'Extract X' / 'Load X' / 'Build X' comments", async () => {
+		const filePath = writeFile(
+			"verbs.ts",
+			[
+				"// Execute the query",
+				"db.query(sql);",
+				"// Extract the token",
+				"const t = auth();",
+				"// Load the config",
+				"loadConfig();",
+				"// Build the tree",
+				"tree.build();",
+			].join("\n"),
+		);
+		const diagnostics = await detectTrivialComments(makeContext([filePath]));
+		expect(diagnostics.length).toBe(4);
+	});
+
+	it("catches bare single-word imperatives (// Cleanup, // Setup, // Parse)", async () => {
+		const filePath = writeFile(
+			"bare.ts",
+			[
+				"function f() {",
+				"\t// Cleanup",
+				"\tfs.rmSync(tmp);",
+				"\t// Setup",
+				"\tinit();",
+				"\t// Parse",
+				"\tparse(x);",
+				"}",
+			].join("\n"),
+		);
+		const diagnostics = await detectTrivialComments(makeContext([filePath]));
+		expect(diagnostics.length).toBe(3);
+	});
+
+	it("does not flag explanatory prose that contains WHY markers", async () => {
+		const filePath = writeFile(
+			"why.ts",
+			[
+				"// Run this before the middleware because credentialed origins reject OPTIONS",
+				"// otherwise. Discovered in prod when session cookies arrived stripped.",
+				"registerHook();",
+			].join("\n"),
+		);
+		const diagnostics = await detectTrivialComments(makeContext([filePath]));
+		expect(diagnostics).toHaveLength(0);
 	});
 });
 
@@ -214,20 +278,13 @@ describe("detectSwallowedExceptions", () => {
 				"}",
 			].join("\n"),
 		);
-		const diagnostics = await detectSwallowedExceptions(
-			makeContext([filePath]),
-		);
+		const diagnostics = await detectSwallowedExceptions(makeContext([filePath]));
 		expect(diagnostics).toHaveLength(0);
 	});
 
 	it("detects empty catch block in TypeScript", async () => {
-		const filePath = writeFile(
-			"empty-catch.ts",
-			"try { doSomething(); } catch (e) {}",
-		);
-		const diagnostics = await detectSwallowedExceptions(
-			makeContext([filePath]),
-		);
+		const filePath = writeFile("empty-catch.ts", "try { doSomething(); } catch (e) {}");
+		const diagnostics = await detectSwallowedExceptions(makeContext([filePath]));
 		expect(diagnostics.length).toBeGreaterThanOrEqual(1);
 		expect(diagnostics[0].rule).toBe("ai-slop/swallowed-exception");
 		expect(diagnostics[0].severity).toBe("error");
@@ -235,13 +292,8 @@ describe("detectSwallowedExceptions", () => {
 	});
 
 	it("detects empty catch block in JavaScript", async () => {
-		const filePath = writeFile(
-			"empty-catch.js",
-			"try { doSomething(); } catch (err) {}",
-		);
-		const diagnostics = await detectSwallowedExceptions(
-			makeContext([filePath]),
-		);
+		const filePath = writeFile("empty-catch.js", "try { doSomething(); } catch (err) {}");
+		const diagnostics = await detectSwallowedExceptions(makeContext([filePath]));
 		expect(diagnostics.length).toBeGreaterThanOrEqual(1);
 	});
 
@@ -250,21 +302,14 @@ describe("detectSwallowedExceptions", () => {
 			"console-catch.ts",
 			"try { run(); } catch (error) { console.log(error); }",
 		);
-		const diagnostics = await detectSwallowedExceptions(
-			makeContext([filePath]),
-		);
+		const diagnostics = await detectSwallowedExceptions(makeContext([filePath]));
 		expect(diagnostics.length).toBeGreaterThanOrEqual(1);
 		expect(diagnostics[0].message).toContain("logs error");
 	});
 
 	it("detects Python bare except with pass", async () => {
-		const filePath = writeFile(
-			"swallow.py",
-			"try:\n    do_thing()\nexcept:\n    pass",
-		);
-		const diagnostics = await detectSwallowedExceptions(
-			makeContext([filePath]),
-		);
+		const filePath = writeFile("swallow.py", "try:\n    do_thing()\nexcept:\n    pass");
+		const diagnostics = await detectSwallowedExceptions(makeContext([filePath]));
 		expect(diagnostics.length).toBeGreaterThanOrEqual(1);
 		expect(diagnostics[0].message).toContain("pass");
 	});
@@ -274,9 +319,7 @@ describe("detectSwallowedExceptions", () => {
 			"broad_except.py",
 			"try:\n    do_thing()\nexcept Exception:\n    pass",
 		);
-		const diagnostics = await detectSwallowedExceptions(
-			makeContext([filePath]),
-		);
+		const diagnostics = await detectSwallowedExceptions(makeContext([filePath]));
 		expect(diagnostics.length).toBeGreaterThanOrEqual(1);
 	});
 
@@ -286,12 +329,8 @@ describe("detectSwallowedExceptions", () => {
 			'package main\nfunc main() {\n  _ = fmt.Println("hello")\n}',
 		);
 		// Go files should not match JS catch patterns
-		const diagnostics = await detectSwallowedExceptions(
-			makeContext([filePath]),
-		);
-		const jsCatchDiags = diagnostics.filter((d) =>
-			d.message.includes("catch block"),
-		);
+		const diagnostics = await detectSwallowedExceptions(makeContext([filePath]));
+		const jsCatchDiags = diagnostics.filter((d) => d.message.includes("catch block"));
 		expect(jsCatchDiags).toHaveLength(0);
 	});
 
@@ -300,17 +339,13 @@ describe("detectSwallowedExceptions", () => {
 			"comment-catch.ts",
 			"try { doSomething(); } catch (e) { // ignore }",
 		);
-		const diagnostics = await detectSwallowedExceptions(
-			makeContext([filePath]),
-		);
+		const diagnostics = await detectSwallowedExceptions(makeContext([filePath]));
 		expect(diagnostics.length).toBeGreaterThanOrEqual(1);
 	});
 
 	it("reports correct engine and category", async () => {
 		const filePath = writeFile("cat.ts", "try { run(); } catch (e) {}");
-		const diagnostics = await detectSwallowedExceptions(
-			makeContext([filePath]),
-		);
+		const diagnostics = await detectSwallowedExceptions(makeContext([filePath]));
 		expect(diagnostics.length).toBeGreaterThanOrEqual(1);
 		expect(diagnostics[0].engine).toBe("ai-slop");
 		expect(diagnostics[0].category).toBe("AI Slop");
@@ -338,12 +373,8 @@ describe("detectOverAbstraction", () => {
 		);
 		const diagnostics = await detectOverAbstraction(makeContext([filePath]));
 		// No thin wrapper or generic naming
-		const wrapperDiags = diagnostics.filter(
-			(d) => d.rule === "ai-slop/thin-wrapper",
-		);
-		const namingDiags = diagnostics.filter(
-			(d) => d.rule === "ai-slop/generic-naming",
-		);
+		const wrapperDiags = diagnostics.filter((d) => d.rule === "ai-slop/thin-wrapper");
+		const namingDiags = diagnostics.filter((d) => d.rule === "ai-slop/generic-naming");
 		expect(wrapperDiags).toHaveLength(0);
 		expect(namingDiags).toHaveLength(0);
 	});
@@ -354,35 +385,23 @@ describe("detectOverAbstraction", () => {
 			"export function getData(id: string) {\n  return fetchData(id);\n}",
 		);
 		const diagnostics = await detectOverAbstraction(makeContext([filePath]));
-		const wrappers = diagnostics.filter(
-			(d) => d.rule === "ai-slop/thin-wrapper",
-		);
+		const wrappers = diagnostics.filter((d) => d.rule === "ai-slop/thin-wrapper");
 		expect(wrappers.length).toBeGreaterThanOrEqual(1);
 		expect(wrappers[0].message).toContain("thin wrapper");
 		expect(wrappers[0].severity).toBe("warning");
 	});
 
 	it("detects a thin arrow function wrapper", async () => {
-		const filePath = writeFile(
-			"arrow.ts",
-			"export const getUser = (id: string) => fetchUser(id);",
-		);
+		const filePath = writeFile("arrow.ts", "export const getUser = (id: string) => fetchUser(id);");
 		const diagnostics = await detectOverAbstraction(makeContext([filePath]));
-		const wrappers = diagnostics.filter(
-			(d) => d.rule === "ai-slop/thin-wrapper",
-		);
+		const wrappers = diagnostics.filter((d) => d.rule === "ai-slop/thin-wrapper");
 		expect(wrappers.length).toBeGreaterThanOrEqual(1);
 	});
 
 	it("detects AI-style generic naming: helper1", async () => {
-		const filePath = writeFile(
-			"names.ts",
-			"function helper1(x: number) { return x * 2; }",
-		);
+		const filePath = writeFile("names.ts", "function helper1(x: number) { return x * 2; }");
 		const diagnostics = await detectOverAbstraction(makeContext([filePath]));
-		const naming = diagnostics.filter(
-			(d) => d.rule === "ai-slop/generic-naming",
-		);
+		const naming = diagnostics.filter((d) => d.rule === "ai-slop/generic-naming");
 		expect(naming.length).toBeGreaterThanOrEqual(1);
 		expect(naming[0].message).toContain("helper1");
 	});
@@ -390,40 +409,29 @@ describe("detectOverAbstraction", () => {
 	it("detects AI-style generic naming: data1", async () => {
 		const filePath = writeFile("names2.ts", "const data1 = getData();");
 		const diagnostics = await detectOverAbstraction(makeContext([filePath]));
-		const naming = diagnostics.filter(
-			(d) => d.rule === "ai-slop/generic-naming",
-		);
+		const naming = diagnostics.filter((d) => d.rule === "ai-slop/generic-naming");
 		expect(naming.length).toBeGreaterThanOrEqual(1);
 	});
 
 	it("detects AI-style generic naming: temp2", async () => {
 		const filePath = writeFile("names3.ts", "let temp2 = compute();");
 		const diagnostics = await detectOverAbstraction(makeContext([filePath]));
-		const naming = diagnostics.filter(
-			(d) => d.rule === "ai-slop/generic-naming",
-		);
+		const naming = diagnostics.filter((d) => d.rule === "ai-slop/generic-naming");
 		expect(naming.length).toBeGreaterThanOrEqual(1);
 	});
 
 	it("reports generic-naming as info severity", async () => {
 		const filePath = writeFile("sev.ts", "const result1 = fetchResult();");
 		const diagnostics = await detectOverAbstraction(makeContext([filePath]));
-		const naming = diagnostics.filter(
-			(d) => d.rule === "ai-slop/generic-naming",
-		);
+		const naming = diagnostics.filter((d) => d.rule === "ai-slop/generic-naming");
 		expect(naming.length).toBeGreaterThanOrEqual(1);
 		expect(naming[0].severity).toBe("info");
 	});
 
 	it("reports thin-wrapper as not fixable", async () => {
-		const filePath = writeFile(
-			"fix.ts",
-			"function wrap(x: string) {\n  return doThing(x);\n}",
-		);
+		const filePath = writeFile("fix.ts", "function wrap(x: string) {\n  return doThing(x);\n}");
 		const diagnostics = await detectOverAbstraction(makeContext([filePath]));
-		const wrappers = diagnostics.filter(
-			(d) => d.rule === "ai-slop/thin-wrapper",
-		);
+		const wrappers = diagnostics.filter((d) => d.rule === "ai-slop/thin-wrapper");
 		if (wrappers.length > 0) {
 			expect(wrappers[0].fixable).toBe(false);
 		}

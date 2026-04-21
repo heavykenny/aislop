@@ -36,11 +36,7 @@ describe("calculateScore", () => {
 	});
 
 	it("score decreases as diagnostics are added", () => {
-		const one = calculateScore(
-			[makeDiagnostic()],
-			defaultWeights,
-			defaultThresholds,
-		);
+		const one = calculateScore([makeDiagnostic()], defaultWeights, defaultThresholds);
 		const many = calculateScore(
 			Array(10).fill(makeDiagnostic()),
 			defaultWeights,
@@ -92,37 +88,25 @@ describe("calculateScore", () => {
 		expect(securityResult.score).toBeLessThan(formatResult.score);
 	});
 
-  it("single security error in a small clean codebase stays in a proportional range", () => {
-    const result = calculateScore(
-      [makeDiagnostic({ engine: "security", severity: "error" })],
-      defaultWeights,
-      defaultThresholds,
-      2,
-    );
+	it("single security error in a small clean codebase stays in a proportional range", () => {
+		const result = calculateScore(
+			[makeDiagnostic({ engine: "security", severity: "error" })],
+			defaultWeights,
+			defaultThresholds,
+			2,
+		);
 
-    expect(result.score).toBeGreaterThanOrEqual(75);
-    expect(result.score).toBeLessThanOrEqual(85);
-  });
+		expect(result.score).toBeGreaterThanOrEqual(75);
+		expect(result.score).toBeLessThanOrEqual(85);
+	});
 
-  it("same issue has lower impact in larger codebases", () => {
-    const diagnostics = [
-      makeDiagnostic({ engine: "security", severity: "error" }),
-    ];
-    const smallCodebase = calculateScore(
-      diagnostics,
-      defaultWeights,
-      defaultThresholds,
-      2,
-    );
-    const largeCodebase = calculateScore(
-      diagnostics,
-      defaultWeights,
-      defaultThresholds,
-      200,
-    );
+	it("same issue has lower impact in larger codebases", () => {
+		const diagnostics = [makeDiagnostic({ engine: "security", severity: "error" })];
+		const smallCodebase = calculateScore(diagnostics, defaultWeights, defaultThresholds, 2);
+		const largeCodebase = calculateScore(diagnostics, defaultWeights, defaultThresholds, 200);
 
-    expect(largeCodebase.score).toBeGreaterThan(smallCodebase.score);
-  });
+		expect(largeCodebase.score).toBeGreaterThan(smallCodebase.score);
+	});
 
 	it("unknown engine falls back to weight 1.0", () => {
 		// "custom-engine" not in weights → default 1.0
@@ -142,23 +126,13 @@ describe("calculateScore", () => {
 	});
 
 	it("score never goes below 0", () => {
-		const diagnostics = Array(500).fill(
-			makeDiagnostic({ engine: "security", severity: "error" }),
-		);
-		const result = calculateScore(
-			diagnostics,
-			defaultWeights,
-			defaultThresholds,
-		);
+		const diagnostics = Array(500).fill(makeDiagnostic({ engine: "security", severity: "error" }));
+		const result = calculateScore(diagnostics, defaultWeights, defaultThresholds);
 		expect(result.score).toBeGreaterThanOrEqual(0);
 	});
 
 	it("score is an integer (Math.round applied)", () => {
-		const result = calculateScore(
-			[makeDiagnostic()],
-			defaultWeights,
-			defaultThresholds,
-		);
+		const result = calculateScore([makeDiagnostic()], defaultWeights, defaultThresholds);
 		expect(Number.isInteger(result.score)).toBe(true);
 	});
 
@@ -170,14 +144,8 @@ describe("calculateScore", () => {
 
 	it("label is Critical when score is below ok threshold", () => {
 		// Flood with heavy errors to push score below 50
-		const diagnostics = Array(200).fill(
-			makeDiagnostic({ engine: "security", severity: "error" }),
-		);
-		const result = calculateScore(
-			diagnostics,
-			defaultWeights,
-			defaultThresholds,
-		);
+		const diagnostics = Array(200).fill(makeDiagnostic({ engine: "security", severity: "error" }));
+		const result = calculateScore(diagnostics, defaultWeights, defaultThresholds);
 		expect(result.label).toBe("Critical");
 		expect(result.score).toBeLessThan(defaultThresholds.ok);
 	});
@@ -203,16 +171,8 @@ describe("calculateScore", () => {
 		const lenientThresholds = { good: 30, ok: 10 };
 
 		const diagnostics = [makeDiagnostic({ severity: "warning" })];
-		const strict = calculateScore(
-			diagnostics,
-			defaultWeights,
-			strictThresholds,
-		);
-		const lenient = calculateScore(
-			diagnostics,
-			defaultWeights,
-			lenientThresholds,
-		);
+		const strict = calculateScore(diagnostics, defaultWeights, strictThresholds);
+		const lenient = calculateScore(diagnostics, defaultWeights, lenientThresholds);
 
 		// Same score, but label depends on threshold
 		expect(strict.score).toBe(lenient.score);

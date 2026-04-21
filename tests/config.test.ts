@@ -3,12 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { DEFAULT_CONFIG } from "../src/config/defaults.js";
-import {
-	CONFIG_DIR,
-	CONFIG_FILE,
-	findConfigDir,
-	loadConfig,
-} from "../src/config/index.js";
+import { CONFIG_DIR, CONFIG_FILE, findConfigDir, loadConfig } from "../src/config/index.js";
 import { parseConfig } from "../src/config/schema.js";
 
 // ─── parseConfig ──────────────────────────────────────────────────────────────
@@ -53,9 +48,7 @@ describe("parseConfig", () => {
 		expect(result.quality.maxFileLoc).toBe(200);
 		expect(result.security.audit).toBe(false);
 		// Untouched values stay at defaults
-		expect(result.security.auditTimeout).toBe(
-			DEFAULT_CONFIG.security.auditTimeout,
-		);
+		expect(result.security.auditTimeout).toBe(DEFAULT_CONFIG.security.auditTimeout);
 	});
 
 	it("falls back to defaults when ci.format is an invalid value", () => {
@@ -82,9 +75,7 @@ describe("parseConfig", () => {
 		});
 		expect(result.scoring.weights.security).toBe(3.0);
 		// Other weights keep defaults
-		expect(result.scoring.weights.format).toBe(
-			DEFAULT_CONFIG.scoring.weights.format,
-		);
+		expect(result.scoring.weights.format).toBe(DEFAULT_CONFIG.scoring.weights.format);
 	});
 
 	it("overrides scoring thresholds", () => {
@@ -236,11 +227,7 @@ describe("loadConfig", () => {
 	it("returns DEFAULT_CONFIG when config.yml contains invalid YAML", () => {
 		const aislopDir = path.join(tmpDir, CONFIG_DIR);
 		fs.mkdirSync(aislopDir);
-		fs.writeFileSync(
-			path.join(aislopDir, CONFIG_FILE),
-			"{ invalid yaml: [",
-			"utf-8",
-		);
+		fs.writeFileSync(path.join(aislopDir, CONFIG_FILE), "{ invalid yaml: [", "utf-8");
 		const result = loadConfig(tmpDir);
 		expect(result).toEqual(DEFAULT_CONFIG);
 	});

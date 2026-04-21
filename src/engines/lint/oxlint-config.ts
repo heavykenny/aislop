@@ -21,7 +21,6 @@ const buildBaseRules = (): Record<string, string> => ({
 	"no-irregular-whitespace": "warn",
 	"no-loss-of-precision": "error",
 
-	// Import
 	"import/no-duplicates": "warn",
 
 	// Unicorn

@@ -55,9 +55,7 @@ describe("checkComplexity — file too large", () => {
 		const content = makeLines(50, "const x = 1;");
 		const filePath = writeFile("small.ts", content);
 		const diagnostics = await checkComplexity(makeContext([filePath]));
-		const fileDiags = diagnostics.filter(
-			(d) => d.rule === "complexity/file-too-large",
-		);
+		const fileDiags = diagnostics.filter((d) => d.rule === "complexity/file-too-large");
 		expect(fileDiags).toHaveLength(0);
 	});
 
@@ -65,12 +63,8 @@ describe("checkComplexity — file too large", () => {
 		// maxFileLoc = 10, write a 15-line file
 		const content = makeLines(15, "const x = 1;");
 		const filePath = writeFile("big.ts", content);
-		const diagnostics = await checkComplexity(
-			makeContext([filePath], { maxFileLoc: 10 }),
-		);
-		const fileDiags = diagnostics.filter(
-			(d) => d.rule === "complexity/file-too-large",
-		);
+		const diagnostics = await checkComplexity(makeContext([filePath], { maxFileLoc: 10 }));
+		const fileDiags = diagnostics.filter((d) => d.rule === "complexity/file-too-large");
 		expect(fileDiags).toHaveLength(1);
 		expect(fileDiags[0].severity).toBe("warning");
 		expect(fileDiags[0].engine).toBe("code-quality");
@@ -81,12 +75,8 @@ describe("checkComplexity — file too large", () => {
 	it("includes the file path in the diagnostic", async () => {
 		const content = makeLines(15, "const x = 1;");
 		const filePath = writeFile("subdir/big.ts", content);
-		const diagnostics = await checkComplexity(
-			makeContext([filePath], { maxFileLoc: 10 }),
-		);
-		const fileDiags = diagnostics.filter(
-			(d) => d.rule === "complexity/file-too-large",
-		);
+		const diagnostics = await checkComplexity(makeContext([filePath], { maxFileLoc: 10 }));
+		const fileDiags = diagnostics.filter((d) => d.rule === "complexity/file-too-large");
 		expect(fileDiags).toHaveLength(1);
 		expect(path.isAbsolute(fileDiags[0].filePath)).toBe(false);
 		expect(fileDiags[0].filePath).toContain("big.ts");
@@ -95,12 +85,8 @@ describe("checkComplexity — file too large", () => {
 	it("returns no diagnostic when file is exactly at maxFileLoc", async () => {
 		const content = makeLines(10, "const x = 1;");
 		const filePath = writeFile("exact.ts", content);
-		const diagnostics = await checkComplexity(
-			makeContext([filePath], { maxFileLoc: 10 }),
-		);
-		const fileDiags = diagnostics.filter(
-			(d) => d.rule === "complexity/file-too-large",
-		);
+		const diagnostics = await checkComplexity(makeContext([filePath], { maxFileLoc: 10 }));
+		const fileDiags = diagnostics.filter((d) => d.rule === "complexity/file-too-large");
 		expect(fileDiags).toHaveLength(0);
 	});
 
@@ -108,9 +94,7 @@ describe("checkComplexity — file too large", () => {
 		// maxFileLoc = 10, effective TSX cap = 15. 15 lines passes; 16 fires.
 		const fifteen = writeFile("page.tsx", makeLines(15, "const x = 1;"));
 		const sixteen = writeFile("too-big.tsx", makeLines(16, "const x = 1;"));
-		const diagnostics = await checkComplexity(
-			makeContext([fifteen, sixteen], { maxFileLoc: 10 }),
-		);
+		const diagnostics = await checkComplexity(makeContext([fifteen, sixteen], { maxFileLoc: 10 }));
 		const fileDiags = diagnostics
 			.filter((d) => d.rule === "complexity/file-too-large")
 			.map((d) => d.filePath);
@@ -120,12 +104,8 @@ describe("checkComplexity — file too large", () => {
 
 	it("applies the same 1.5x tolerance to .jsx files", async () => {
 		const filePath = writeFile("widget.jsx", makeLines(16, "const x = 1;"));
-		const diagnostics = await checkComplexity(
-			makeContext([filePath], { maxFileLoc: 10 }),
-		);
-		const fileDiags = diagnostics.filter(
-			(d) => d.rule === "complexity/file-too-large",
-		);
+		const diagnostics = await checkComplexity(makeContext([filePath], { maxFileLoc: 10 }));
+		const fileDiags = diagnostics.filter((d) => d.rule === "complexity/file-too-large");
 		expect(fileDiags).toHaveLength(1);
 		expect(fileDiags[0].message).toContain("max: 15");
 	});
@@ -133,30 +113,18 @@ describe("checkComplexity — file too large", () => {
 	it("does NOT apply the JSX tolerance to .ts files", async () => {
 		// 11 lines on .ts at max 10 must fire (no multiplier, no soft buffer).
 		const filePath = writeFile("logic.ts", makeLines(11, "const x = 1;"));
-		const diagnostics = await checkComplexity(
-			makeContext([filePath], { maxFileLoc: 10 }),
-		);
-		const fileDiags = diagnostics.filter(
-			(d) => d.rule === "complexity/file-too-large",
-		);
+		const diagnostics = await checkComplexity(makeContext([filePath], { maxFileLoc: 10 }));
+		const fileDiags = diagnostics.filter((d) => d.rule === "complexity/file-too-large");
 		expect(fileDiags).toHaveLength(1);
 	});
 });
 
 describe("checkComplexity — function too long", () => {
 	it("returns no function-too-long diagnostic for a short function", async () => {
-		const content = [
-			"function shortFn(a: number) {",
-			"  return a + 1;",
-			"}",
-		].join("\n");
+		const content = ["function shortFn(a: number) {", "  return a + 1;", "}"].join("\n");
 		const filePath = writeFile("short.ts", content);
-		const diagnostics = await checkComplexity(
-			makeContext([filePath], { maxFunctionLoc: 80 }),
-		);
-		const fnDiags = diagnostics.filter(
-			(d) => d.rule === "complexity/function-too-long",
-		);
+		const diagnostics = await checkComplexity(makeContext([filePath], { maxFunctionLoc: 80 }));
+		const fnDiags = diagnostics.filter((d) => d.rule === "complexity/function-too-long");
 		expect(fnDiags).toHaveLength(0);
 	});
 
@@ -165,12 +133,8 @@ describe("checkComplexity — function too long", () => {
 		const body = Array(8).fill("  const x = 1;").join("\n");
 		const content = `function longFn(a: number) {\n${body}\n  return a;\n}`;
 		const filePath = writeFile("long.ts", content);
-		const diagnostics = await checkComplexity(
-			makeContext([filePath], { maxFunctionLoc: 5 }),
-		);
-		const fnDiags = diagnostics.filter(
-			(d) => d.rule === "complexity/function-too-long",
-		);
+		const diagnostics = await checkComplexity(makeContext([filePath], { maxFunctionLoc: 5 }));
+		const fnDiags = diagnostics.filter((d) => d.rule === "complexity/function-too-long");
 		expect(fnDiags.length).toBeGreaterThanOrEqual(1);
 		expect(fnDiags[0].severity).toBe("warning");
 		expect(fnDiags[0].engine).toBe("code-quality");
@@ -189,12 +153,8 @@ describe("checkComplexity — function too long", () => {
 			"}",
 		].join("\n");
 		const filePath = writeFile("lines.ts", content);
-		const diagnostics = await checkComplexity(
-			makeContext([filePath], { maxFunctionLoc: 2 }),
-		);
-		const fnDiags = diagnostics.filter(
-			(d) => d.rule === "complexity/function-too-long",
-		);
+		const diagnostics = await checkComplexity(makeContext([filePath], { maxFunctionLoc: 2 }));
+		const fnDiags = diagnostics.filter((d) => d.rule === "complexity/function-too-long");
 		expect(fnDiags.length).toBeGreaterThanOrEqual(1);
 		// Function starts on line 3
 		expect(fnDiags[0].line).toBe(3);
@@ -204,12 +164,8 @@ describe("checkComplexity — function too long", () => {
 		const body = Array(8).fill("  await sleep(1);").join("\n");
 		const content = `async function asyncFn(): Promise<void> {\n${body}\n}`;
 		const filePath = writeFile("async.ts", content);
-		const diagnostics = await checkComplexity(
-			makeContext([filePath], { maxFunctionLoc: 5 }),
-		);
-		const fnDiags = diagnostics.filter(
-			(d) => d.rule === "complexity/function-too-long",
-		);
+		const diagnostics = await checkComplexity(makeContext([filePath], { maxFunctionLoc: 5 }));
+		const fnDiags = diagnostics.filter((d) => d.rule === "complexity/function-too-long");
 		expect(fnDiags.length).toBeGreaterThanOrEqual(1);
 		expect(fnDiags[0].message).toContain("asyncFn");
 	});
@@ -225,12 +181,8 @@ describe("checkComplexity — function too long", () => {
 			"};",
 		].join("\n");
 		const filePath = writeFile("llms.ts", content);
-		const diagnostics = await checkComplexity(
-			makeContext([filePath], { maxFunctionLoc: 80 }),
-		);
-		const fnDiags = diagnostics.filter(
-			(d) => d.rule === "complexity/function-too-long",
-		);
+		const diagnostics = await checkComplexity(makeContext([filePath], { maxFunctionLoc: 80 }));
+		const fnDiags = diagnostics.filter((d) => d.rule === "complexity/function-too-long");
 		expect(fnDiags).toHaveLength(0);
 	});
 
@@ -238,18 +190,14 @@ describe("checkComplexity — function too long", () => {
 		const logic = Array(90).fill("  const x = 1;").join("\n");
 		const content = [
 			"function realLogic() {",
-			'  const tag = `tag-${id}`;',
+			"  const tag = `tag-${id}`;",
 			logic,
 			"  return tag;",
 			"}",
 		].join("\n");
 		const filePath = writeFile("logic.ts", content);
-		const diagnostics = await checkComplexity(
-			makeContext([filePath], { maxFunctionLoc: 80 }),
-		);
-		const fnDiags = diagnostics.filter(
-			(d) => d.rule === "complexity/function-too-long",
-		);
+		const diagnostics = await checkComplexity(makeContext([filePath], { maxFunctionLoc: 80 }));
+		const fnDiags = diagnostics.filter((d) => d.rule === "complexity/function-too-long");
 		expect(fnDiags.length).toBeGreaterThanOrEqual(1);
 	});
 });
@@ -258,12 +206,8 @@ describe("checkComplexity — too many parameters", () => {
 	it("returns no too-many-params diagnostic for acceptable parameter count", async () => {
 		const content = "function fn(a: string, b: number) { return a; }";
 		const filePath = writeFile("ok-params.ts", content);
-		const diagnostics = await checkComplexity(
-			makeContext([filePath], { maxParams: 6 }),
-		);
-		const paramDiags = diagnostics.filter(
-			(d) => d.rule === "complexity/too-many-params",
-		);
+		const diagnostics = await checkComplexity(makeContext([filePath], { maxParams: 6 }));
+		const paramDiags = diagnostics.filter((d) => d.rule === "complexity/too-many-params");
 		expect(paramDiags).toHaveLength(0);
 	});
 
@@ -271,12 +215,8 @@ describe("checkComplexity — too many parameters", () => {
 		const content =
 			"function manyParams(a: string, b: number, c: boolean, d: string, e: number) { return a; }";
 		const filePath = writeFile("many-params.ts", content);
-		const diagnostics = await checkComplexity(
-			makeContext([filePath], { maxParams: 3 }),
-		);
-		const paramDiags = diagnostics.filter(
-			(d) => d.rule === "complexity/too-many-params",
-		);
+		const diagnostics = await checkComplexity(makeContext([filePath], { maxParams: 3 }));
+		const paramDiags = diagnostics.filter((d) => d.rule === "complexity/too-many-params");
 		expect(paramDiags.length).toBeGreaterThanOrEqual(1);
 		expect(paramDiags[0].severity).toBe("warning");
 		expect(paramDiags[0].message).toContain("manyParams");
@@ -286,25 +226,16 @@ describe("checkComplexity — too many parameters", () => {
 	it("counts parameters correctly for 0-param functions", async () => {
 		const content = "function noParams() { return 1; }";
 		const filePath = writeFile("no-params.ts", content);
-		const diagnostics = await checkComplexity(
-			makeContext([filePath], { maxParams: 1 }),
-		);
-		const paramDiags = diagnostics.filter(
-			(d) => d.rule === "complexity/too-many-params",
-		);
+		const diagnostics = await checkComplexity(makeContext([filePath], { maxParams: 1 }));
+		const paramDiags = diagnostics.filter((d) => d.rule === "complexity/too-many-params");
 		expect(paramDiags).toHaveLength(0);
 	});
 
 	it("detects Python functions with too many parameters", async () => {
-		const content =
-			"def complex_func(a, b, c, d, e, f, g):\n    return a + b\n";
+		const content = "def complex_func(a, b, c, d, e, f, g):\n    return a + b\n";
 		const filePath = writeFile("params.py", content);
-		const diagnostics = await checkComplexity(
-			makeContext([filePath], { maxParams: 4 }),
-		);
-		const paramDiags = diagnostics.filter(
-			(d) => d.rule === "complexity/too-many-params",
-		);
+		const diagnostics = await checkComplexity(makeContext([filePath], { maxParams: 4 }));
+		const paramDiags = diagnostics.filter((d) => d.rule === "complexity/too-many-params");
 		expect(paramDiags.length).toBeGreaterThanOrEqual(1);
 		expect(paramDiags[0].message).toContain("complex_func");
 	});
@@ -321,12 +252,8 @@ describe("checkComplexity — deep nesting", () => {
 			"}",
 		].join("\n");
 		const filePath = writeFile("shallow.ts", content);
-		const diagnostics = await checkComplexity(
-			makeContext([filePath], { maxNesting: 10 }),
-		);
-		const nestDiags = diagnostics.filter(
-			(d) => d.rule === "complexity/deep-nesting",
-		);
+		const diagnostics = await checkComplexity(makeContext([filePath], { maxNesting: 10 }));
+		const nestDiags = diagnostics.filter((d) => d.rule === "complexity/deep-nesting");
 		expect(nestDiags).toHaveLength(0);
 	});
 
@@ -348,12 +275,8 @@ describe("checkComplexity — deep nesting", () => {
 			"}",
 		].join("\n");
 		const filePath = writeFile("deep.ts", content);
-		const diagnostics = await checkComplexity(
-			makeContext([filePath], { maxNesting: 2 }),
-		);
-		const nestDiags = diagnostics.filter(
-			(d) => d.rule === "complexity/deep-nesting",
-		);
+		const diagnostics = await checkComplexity(makeContext([filePath], { maxNesting: 2 }));
+		const nestDiags = diagnostics.filter((d) => d.rule === "complexity/deep-nesting");
 		expect(nestDiags.length).toBeGreaterThanOrEqual(1);
 		expect(nestDiags[0].severity).toBe("warning");
 		expect(nestDiags[0].message).toContain("deepNest");
@@ -374,9 +297,7 @@ describe("checkComplexity — general", () => {
 
 	it("skips non-source files", async () => {
 		const filePath = writeFile("README.md", makeLines(500, "some text"));
-		const diagnostics = await checkComplexity(
-			makeContext([filePath], { maxFileLoc: 10 }),
-		);
+		const diagnostics = await checkComplexity(makeContext([filePath], { maxFileLoc: 10 }));
 		expect(diagnostics).toHaveLength(0);
 	});
 
@@ -407,9 +328,7 @@ describe("checkComplexity — general", () => {
 		const body = Array(8).fill("  const x = 1;").join("\n");
 		const content = `function fn(a: string) {\n${body}\n}`;
 		const filePath = writeFile("engine.ts", content);
-		const diagnostics = await checkComplexity(
-			makeContext([filePath], { maxFunctionLoc: 5 }),
-		);
+		const diagnostics = await checkComplexity(makeContext([filePath], { maxFunctionLoc: 5 }));
 		for (const d of diagnostics) {
 			expect(d.engine).toBe("code-quality");
 		}
@@ -419,9 +338,7 @@ describe("checkComplexity — general", () => {
 		const body = Array(8).fill("  const x = 1;").join("\n");
 		const content = `function fn(a: string) {\n${body}\n}`;
 		const filePath = writeFile("cat.ts", content);
-		const diagnostics = await checkComplexity(
-			makeContext([filePath], { maxFunctionLoc: 5 }),
-		);
+		const diagnostics = await checkComplexity(makeContext([filePath], { maxFunctionLoc: 5 }));
 		for (const d of diagnostics) {
 			expect(d.category).toBe("Complexity");
 		}
@@ -431,9 +348,7 @@ describe("checkComplexity — general", () => {
 		const body = Array(8).fill("  const x = 1;").join("\n");
 		const content = `function fn(a: string) {\n${body}\n}`;
 		const filePath = writeFile("notfix.ts", content);
-		const diagnostics = await checkComplexity(
-			makeContext([filePath], { maxFunctionLoc: 5 }),
-		);
+		const diagnostics = await checkComplexity(makeContext([filePath], { maxFunctionLoc: 5 }));
 		for (const d of diagnostics) {
 			expect(d.fixable).toBe(false);
 		}
@@ -443,12 +358,8 @@ describe("checkComplexity — general", () => {
 		const body = Array(8).fill("  x := 1").join("\n");
 		const content = `package main\n\nfunc processData(a string) string {\n${body}\n  return a\n}`;
 		const filePath = writeFile("main.go", content);
-		const diagnostics = await checkComplexity(
-			makeContext([filePath], { maxFunctionLoc: 5 }),
-		);
-		const fnDiags = diagnostics.filter(
-			(d) => d.rule === "complexity/function-too-long",
-		);
+		const diagnostics = await checkComplexity(makeContext([filePath], { maxFunctionLoc: 5 }));
+		const fnDiags = diagnostics.filter((d) => d.rule === "complexity/function-too-long");
 		expect(fnDiags.length).toBeGreaterThanOrEqual(1);
 		expect(fnDiags[0].message).toContain("processData");
 	});

@@ -20,11 +20,53 @@ export const maskStringsAndComments = (content: string, ext: string): string => 
 	return maskSimple(content, family);
 };
 
+interface MaskHandler {
+	handled: boolean;
+	nextI: number;
+}
+
+const handleQuotesAndComments = (
+	content: string,
+	i: number,
+	tplStack: number[],
+	mask: (start: number, end: number) => void,
+): MaskHandler => {
+	const len = content.length;
+	const c = content[i];
+	const next = content[i + 1];
+	if (c === '"' || c === "'") {
+		const strStart = i;
+		const end = consumeQuotedString(content, i, c);
+		mask(strStart + 1, end - 1);
+		return { handled: true, nextI: end };
+	}
+	if (c === "`") {
+		const scan = consumeTemplateString(content, i + 1);
+		mask(i + 1, scan.maskEnd);
+		if (scan.openedInterp) tplStack.push(0);
+		return { handled: true, nextI: scan.resumeAt };
+	}
+	if (c === "/" && next === "/") {
+		const strStart = i;
+		let k = i;
+		while (k < len && content[k] !== "\n") k++;
+		mask(strStart, k);
+		return { handled: true, nextI: k };
+	}
+	if (c === "/" && next === "*") {
+		const strStart = i;
+		let k = i + 2;
+		while (k < len - 1 && !(content[k] === "*" && content[k + 1] === "/")) k++;
+		if (k < len - 1) k += 2;
+		mask(strStart, k);
+		return { handled: true, nextI: k };
+	}
+	return { handled: false, nextI: i };
+};
+
 const maskJs = (content: string): string => {
 	const out = content.split("");
 	const len = content.length;
-	// Template-literal stack: each entry tracks an interpolation's brace depth.
-	// When 0, the next `}` closes the interpolation and we re-enter the string.
 	const tplStack: number[] = [];
 	let i = 0;
 
@@ -36,9 +78,7 @@ const maskJs = (content: string): string => {
 
 	while (i < len) {
 		const c = content[i];
-		const next = content[i + 1];
 
-		// Inside a template-literal interpolation → treat as code, but track braces
 		if (tplStack.length > 0) {
 			if (c === "{") {
 				tplStack[tplStack.length - 1]++;
@@ -49,7 +89,6 @@ const maskJs = (content: string): string => {
 				const depth = tplStack[tplStack.length - 1];
 				if (depth === 0) {
 					tplStack.pop();
-					// Back inside the template-literal string after the closing `}`.
 					const scan = consumeTemplateString(content, i + 1);
 					mask(i + 1, scan.maskEnd);
 					if (scan.openedInterp) tplStack.push(0);
@@ -60,65 +99,11 @@ const maskJs = (content: string): string => {
 				i++;
 				continue;
 			}
-			// Interpolation expressions can themselves contain strings/comments.
-			// Recurse into the same state machine for nested constructs.
-			if (c === '"' || c === "'") {
-				const strStart = i;
-				i = consumeQuotedString(content, i, c);
-				mask(strStart + 1, i - 1);
-				continue;
-			}
-			if (c === "`") {
-				const scan = consumeTemplateString(content, i + 1);
-				mask(i + 1, scan.maskEnd);
-				if (scan.openedInterp) tplStack.push(0);
-				i = scan.resumeAt;
-				continue;
-			}
-			if (c === "/" && next === "/") {
-				const strStart = i;
-				while (i < len && content[i] !== "\n") i++;
-				mask(strStart, i);
-				continue;
-			}
-			if (c === "/" && next === "*") {
-				const strStart = i;
-				i += 2;
-				while (i < len - 1 && !(content[i] === "*" && content[i + 1] === "/")) i++;
-				if (i < len - 1) i += 2;
-				mask(strStart, i);
-				continue;
-			}
-			i++;
-			continue;
 		}
 
-		// Top-level (not inside an interpolation): strings + comments
-		if (c === '"' || c === "'") {
-			const strStart = i;
-			i = consumeQuotedString(content, i, c);
-			mask(strStart + 1, i - 1);
-			continue;
-		}
-		if (c === "`") {
-			const scan = consumeTemplateString(content, i + 1);
-			mask(i + 1, scan.maskEnd);
-			if (scan.openedInterp) tplStack.push(0);
-			i = scan.resumeAt;
-			continue;
-		}
-		if (c === "/" && next === "/") {
-			const strStart = i;
-			while (i < len && content[i] !== "\n") i++;
-			mask(strStart, i);
-			continue;
-		}
-		if (c === "/" && next === "*") {
-			const strStart = i;
-			i += 2;
-			while (i < len - 1 && !(content[i] === "*" && content[i + 1] === "/")) i++;
-			if (i < len - 1) i += 2;
-			mask(strStart, i);
+		const handled = handleQuotesAndComments(content, i, tplStack, mask);
+		if (handled.handled) {
+			i = handled.nextI;
 			continue;
 		}
 
