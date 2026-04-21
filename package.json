@@ -23,7 +23,7 @@
 		"typecheck": "tsc --noEmit",
 		"test": "pnpm build && vitest run",
 		"scan": "pnpm build && node dist/cli.js scan .",
-		"scan:exclude": "pnpm build && node dist/cli.js scan . --exclude src,tests,tools,node_modules",
+		"scan:exclude": "pnpm build && node dist/cli.js scan . --exclude .idea --exclude .git",
 		"scan:json": "pnpm build && node dist/cli.js scan . --json",
 		"quality": "pnpm typecheck && pnpm test && node dist/cli.js scan . --json"
 	},

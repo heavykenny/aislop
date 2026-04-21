@@ -165,16 +165,16 @@ export const scanCommand = async (
 
 	let files: string[] | undefined;
 	if (options.staged) {
-		files = filterProjectFiles(resolvedDir, getStagedFiles(resolvedDir), [], options.exclude);
+		files = filterProjectFiles(resolvedDir, getStagedFiles(resolvedDir), [], config.exclude);
 		if (!options.json) {
 			log.muted(`Scope: ${files.length} staged file(s)`);
 		}
 	} else if (options.changes) {
-		files = filterProjectFiles(resolvedDir, getChangedFiles(resolvedDir), [], options.exclude);
+		files = filterProjectFiles(resolvedDir, getChangedFiles(resolvedDir), [], config.exclude);
 		if (!options.json) {
 			log.muted(`Scope: ${files.length} changed file(s)`);
 		}
-	} else if (options.exclude) {
+	} else {
 		const allFiles = listProjectFiles(resolvedDir);
 		files = filterProjectFiles(resolvedDir, allFiles, [], config.exclude);
 		if (!options.json) {

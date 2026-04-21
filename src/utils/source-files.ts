@@ -184,11 +184,10 @@ export const filterProjectFiles = (
 	const relativePaths = normalizedFiles.map(({ relativePath }) => relativePath);
 
 	const ignoredPaths = getIgnoredPaths(rootDirectory, relativePaths);
-
+	const normalizedExcludePatterns = exclude.length?normalizeExcludePatterns(exclude):[];
 	const isUserExcluded = (relativePath: string) => {
-		if (!exclude.length) return false;
-		const normalized = normalizeExcludePatterns(exclude);
-		return micromatch.isMatch(relativePath, normalized, {
+		if (!normalizedExcludePatterns.length) return false;
+		return micromatch.isMatch(relativePath, normalizedExcludePatterns, {
 			dot: true,
 		});
 	};

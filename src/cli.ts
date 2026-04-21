@@ -1,18 +1,18 @@
-import { Command } from "commander";
-import { ciCommand } from "./commands/ci.js";
-import { doctorCommand } from "./commands/doctor.js";
-import { fixCommand } from "./commands/fix.js";
-import { hookInstall, hookRun, type SupportedAgent } from "./commands/hook.js";
-import { initCommand } from "./commands/init.js";
-import { interactiveCommand } from "./commands/interactive.js";
-import { rulesCommand } from "./commands/rules.js";
-import { scanCommand } from "./commands/scan.js";
-import { loadConfig } from "./config/index.js";
-import { renderHeader } from "./ui/header.js";
-import { renderHintLine } from "./ui/logger.js";
-import { style, theme } from "./ui/theme.js";
-import { flushTelemetry } from "./utils/telemetry.js";
-import { APP_VERSION } from "./version.js";
+import {Command} from "commander";
+import {ciCommand} from "./commands/ci.js";
+import {doctorCommand} from "./commands/doctor.js";
+import {fixCommand} from "./commands/fix.js";
+import {hookInstall, hookRun, type SupportedAgent} from "./commands/hook.js";
+import {initCommand} from "./commands/init.js";
+import {interactiveCommand} from "./commands/interactive.js";
+import {rulesCommand} from "./commands/rules.js";
+import {scanCommand} from "./commands/scan.js";
+import {loadConfig} from "./config/index.js";
+import {renderHeader} from "./ui/header.js";
+import {renderHintLine} from "./ui/logger.js";
+import {style, theme} from "./ui/theme.js";
+import {flushTelemetry} from "./utils/telemetry.js";
+import {APP_VERSION} from "./version.js";
 
 process.on("SIGINT", () => process.exit(0));
 process.on("SIGTERM", () => process.exit(0));
@@ -52,9 +52,9 @@ const program = new Command()
 			const config = loadConfig(directory);
 			const finalConfig = flags.exclude?.length
 				? {
-						...config,
-						exclude: [...(config.exclude ?? []), ...flags.exclude],
-					}
+					...config,
+					exclude: [...(config.exclude ?? []), ...flags.exclude],
+				}
 				: config;
 
 			// If no flags, show interactive menu (if TTY)
@@ -74,7 +74,7 @@ const program = new Command()
 				}
 			}
 
-			const { exitCode } = await scanCommand(directory, finalConfig, {
+			const {exitCode} = await scanCommand(directory, finalConfig, {
 				changes: Boolean(flags.changes),
 				staged: Boolean(flags.staged),
 				verbose: Boolean(flags.verbose),
@@ -88,7 +88,7 @@ const program = new Command()
 			}
 		},
 	)
-	.addHelpText("beforeAll", renderHeader({ version: APP_VERSION, command: "--bare", context: [] }))
+	.addHelpText("beforeAll", renderHeader({version: APP_VERSION, command: "--bare", context: []}))
 	.addHelpText(
 		"after",
 		`
@@ -114,7 +114,7 @@ ${style(theme, "dim", "Examples:")}
   npx aislop ci              JSON output for CI pipelines
   npx aislop scan --exclude node_modules
   npx aislop scan --exclude node_modules,dist,file.txt
-  npx aislop scan --exclude node_modules --exclude dist *.ts
+  npx aislop scan --exclude node_modules --exclude dist --exclude **/*.ts
 ${renderHintLine("Run npx aislop scan to scan your project").trimEnd()}
 `,
 	);
@@ -150,12 +150,12 @@ program
 		const config = loadConfig(directory);
 		const finalConfig = flags.exclude?.length
 			? {
-					...config,
-					exclude: [...(config.exclude ?? []), ...flags.exclude],
-				}
+				...config,
+				exclude: [...(config.exclude ?? []), ...flags.exclude],
+			}
 			: config;
 
-		const { exitCode } = await scanCommand(directory, finalConfig, {
+		const {exitCode} = await scanCommand(directory, finalConfig, {
 			changes: Boolean(flags.changes),
 			staged: Boolean(flags.staged),
 			verbose: Boolean(flags.verbose),
@@ -208,7 +208,7 @@ program
 			"goose",
 		] as const;
 		// Commander camelCases --deep-agents to deepAgents
-		const flagToAgent: Record<string, string> = { deepAgents: "deep-agents" };
+		const flagToAgent: Record<string, string> = {deepAgents: "deep-agents"};
 		const matched = agentNames.find((name) => flags[name]);
 		const agent = matched ? (flagToAgent[matched] ?? matched) : undefined;
 		await fixCommand(directory, config, {
@@ -240,7 +240,7 @@ program
 	.action(async (directory = ".", _flags, command) => {
 		const flags = command.optsWithGlobals() as { human?: boolean };
 		const config = loadConfig(directory);
-		const { exitCode } = await ciCommand(directory, config, {
+		const {exitCode} = await ciCommand(directory, config, {
 			human: Boolean(flags.human),
 		});
 		if (exitCode !== 0) {
