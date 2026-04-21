@@ -28,14 +28,12 @@ const FRAMEWORK_METHOD_NAMES =
 const DUNDER_PATTERN = /^__\w+__$/;
 
 const hasHardcodedArgs = (matchText: string): boolean => {
-	// Extract the inner function call's arguments
 	const innerCallMatch = matchText.match(/=>\s*\w+\(([^)]*)\)\s*;?\s*$/);
 	if (!innerCallMatch) {
 		const returnCallMatch = matchText.match(/return\s+\w+\(([^)]*)\)\s*;?\s*\}/);
 		if (!returnCallMatch) return false;
 		return /['"`]\w+['"`]|(?<!\w)\d+(?!\w)/.test(returnCallMatch[1]);
 	}
-	// Check for string literals or number literals in arguments
 	return /['"`]\w+['"`]|(?<!\w)\d+(?!\w)/.test(innerCallMatch[1]);
 };
 

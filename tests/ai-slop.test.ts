@@ -183,6 +183,82 @@ describe("detectTrivialComments", () => {
 		const diagnostics = await detectTrivialComments(makeContext([filePath]));
 		expect(diagnostics.length).toBeGreaterThanOrEqual(1);
 	});
+
+	it("catches 'Run X' / 'Running X' comments", async () => {
+		const filePath = writeFile(
+			"run.ts",
+			"// Run the scan\nrunScan(project);\n// Running the fixer\nfix();\n",
+		);
+		const diagnostics = await detectTrivialComments(makeContext([filePath]));
+		expect(diagnostics.length).toBe(2);
+	});
+
+	it("catches 'Parse X' / 'Write X' / 'Cleanup' / 'Setup' comments", async () => {
+		const filePath = writeFile(
+			"ops.ts",
+			[
+				"// Parse results",
+				"const parsed = JSON.parse(out);",
+				"// Write standards config",
+				"fs.writeFileSync(path, body);",
+				"// Cleanup",
+				"fs.rmSync(tmp);",
+				"// Setup",
+				"init();",
+			].join("\n"),
+		);
+		const diagnostics = await detectTrivialComments(makeContext([filePath]));
+		expect(diagnostics.length).toBe(4);
+	});
+
+	it("catches 'Execute X' / 'Extract X' / 'Load X' / 'Build X' comments", async () => {
+		const filePath = writeFile(
+			"verbs.ts",
+			[
+				"// Execute the query",
+				"db.query(sql);",
+				"// Extract the token",
+				"const t = auth();",
+				"// Load the config",
+				"loadConfig();",
+				"// Build the tree",
+				"tree.build();",
+			].join("\n"),
+		);
+		const diagnostics = await detectTrivialComments(makeContext([filePath]));
+		expect(diagnostics.length).toBe(4);
+	});
+
+	it("catches bare single-word imperatives (// Cleanup, // Setup, // Parse)", async () => {
+		const filePath = writeFile(
+			"bare.ts",
+			[
+				"function f() {",
+				"\t// Cleanup",
+				"\tfs.rmSync(tmp);",
+				"\t// Setup",
+				"\tinit();",
+				"\t// Parse",
+				"\tparse(x);",
+				"}",
+			].join("\n"),
+		);
+		const diagnostics = await detectTrivialComments(makeContext([filePath]));
+		expect(diagnostics.length).toBe(3);
+	});
+
+	it("does not flag explanatory prose that contains WHY markers", async () => {
+		const filePath = writeFile(
+			"why.ts",
+			[
+				"// Run this before the middleware because credentialed origins reject OPTIONS",
+				"// otherwise. Discovered in prod when session cookies arrived stripped.",
+				"registerHook();",
+			].join("\n"),
+		);
+		const diagnostics = await detectTrivialComments(makeContext([filePath]));
+		expect(diagnostics).toHaveLength(0);
+	});
 });
 
 // ─── detectSwallowedExceptions ────────────────────────────────────────────────

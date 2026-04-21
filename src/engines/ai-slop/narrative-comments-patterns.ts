@@ -23,6 +23,9 @@ export const JUSTIFICATION_OPENERS = [
 export const EXPLANATORY_OPENERS =
 	/^(Matches|Detects|Represents|Holds|Stores|Tracks|Handles|Manages|Controls|Contains|Captures|Encapsulates|Wraps|Describes)\s+[A-Za-z`'"]/;
 
+export const EXPLANATORY_WHY_MARKERS =
+	/\b(?:because|since|otherwise|workaround|caveat|warning|important|assumes?|note:|bug|issue|see\s+(?:issue|above|below)|in\s+prod|in\s+production|breaks?\s+when|fails?\s+when|must\s+run|must\s+be|has\s+to\s+be|hack\s+for|fix\s+for|reason:)\b/i;
+
 export const MEANINGFUL_JSDOC_TAGS = new Set([
 	"deprecated",
 	"see",

@@ -60,7 +60,6 @@ const getAnonymousId = (): string => {
 let pendingRequest: Promise<void> | null = null;
 
 export const trackEvent = (event: TelemetryEvent): void => {
-	// Validate that we have an API key configured
 	if (!POSTHOG_KEY) {
 		return;
 	}

@@ -52,7 +52,6 @@ const detectTestFramework = (rootDir: string): TestFramework => {
 		if (allDeps.jest || allDeps["ts-jest"] || allDeps["@jest/core"]) return "jest";
 		if (allDeps.mocha) return "mocha";
 
-		// Check for jest in config files
 		if (
 			fs.existsSync(path.join(rootDir, "jest.config.js")) ||
 			fs.existsSync(path.join(rootDir, "jest.config.ts")) ||

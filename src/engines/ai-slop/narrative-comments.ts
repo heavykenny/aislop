@@ -8,6 +8,7 @@ import {
 	DECORATIVE_SECTION_HEADER,
 	DECORATIVE_SEPARATOR,
 	EXPLANATORY_OPENERS,
+	EXPLANATORY_WHY_MARKERS,
 	EXPORT_DEFAULT,
 	GO_DECL_START,
 	JAVA_DECL_START,
@@ -284,11 +285,18 @@ const detectNarrativeInBlock = (
 		return { matched: true, reason: "explanatory preamble" };
 	}
 
-	// 5+ prose lines is almost always narrative regardless of what follows —
-	// catches in-function essays, multi-paragraph explanations, and JSDoc/line
-	// blocks that aren't tied to a declaration.
-	if (block.prose.filter((l) => l.length > 0).length >= 5) {
+	const nonEmptyProseCount = block.prose.filter((l) => l.length > 0).length;
+	const joinedProse = block.prose.join(" ");
+	const hasWhyMarker = EXPLANATORY_WHY_MARKERS.test(joinedProse);
+
+	if (nonEmptyProseCount >= 5) {
 		return { matched: true, reason: "long narrative block" };
+	}
+
+	// 3+ prose lines inside a function body with no WHY marker is almost
+	// always restating-what-the-code-does. A real explanation cites a reason.
+	if (nonEmptyProseCount >= 3 && !hasWhyMarker && block.kind === "line") {
+		return { matched: true, reason: "multi-line narrative prose" };
 	}
 
 	return { matched: false, reason: "" };

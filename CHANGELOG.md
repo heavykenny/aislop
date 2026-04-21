@@ -21,6 +21,10 @@ A follow-up round after 0.6.0 went live: hook UX gaps surfaced on first contact,
 - `code-quality/duplicate-block` — sliding 10-line window, literal-only normalisation, requires ≥7 distinct lines. Catches non-trivial copy-paste across a file.
 - `ai-slop/narrative-comment` widened with a **"bare section label"** detector for 1–3-word title-case comments (`// Subcommands`, `// Init helpers`) NOT followed by a data-literal entry, so `// AWS` in a `SECRET_PATTERNS` array is correctly spared.
 
+**Coverage widening (gaps surfaced by real-world use):**
+- `ai-slop/trivial-comment` verb list gained **Write, Run, Parse, Execute, Extract, Save, Load, Build, Start, Stop, Cleanup, Setup, Configure, Validate, Process, Queue, Fire, Emit, Dispatch, Log, Print, Render** plus coverage for single-word bare imperatives (`// Cleanup`, `// Parse`). The rule now uses one consolidated verb-stem regex instead of 14 per-verb patterns.
+- `ai-slop/narrative-comment` now also flags **3+ line prose blocks inside function bodies** (previously only caught at the top level before a declaration). The threshold is exempted when the prose contains WHY markers (`because`, `since`, `otherwise`, `workaround`, `note:`, `bug`, `issue`, `in prod`, `must run`, `see issue`, etc.), so genuine explanatory context still passes through.
+
 **Suppression mechanism.** `// aislop-ignore-file <rule>` at the top of a file, or `// aislop-ignore-next-block <rule>` above a specific construct. Lets you opt out of a rule on code where the pattern is intentional (e.g. a diagnostic-push table that reads better as N similar blocks than as a data-driven loop).
 
 ### Changed
@@ -35,7 +39,7 @@ A follow-up round after 0.6.0 went live: hook UX gaps surfaced on first contact,
 
 ### Notes
 
-- **607 tests passing** (598 baseline + 9 new across `resolveAgents`, `repeated-chained-call`, `duplicate-block`).
+- **614 tests passing** (598 baseline + 16 new across `resolveAgents`, `repeated-chained-call`, `duplicate-block`, widened trivial verbs, and inside-function narrative prose).
 - Self-scan: **100 / 100 Healthy**, 0 findings.
 - No breaking changes. `--agent <names>` still works; it's one of four equivalent ways to select agents now.
 - Packaged size: 138 kB (15 files).

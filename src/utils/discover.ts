@@ -102,14 +102,12 @@ const countSourceFiles = (rootDirectory: string): number =>
 const detectLanguages = (directory: string): Language[] => {
 	const languages = new Set<Language>();
 
-	// Check file-based signals
 	for (const [file, lang] of Object.entries(LANGUAGE_SIGNALS)) {
 		if (fs.existsSync(path.join(directory, file))) {
 			languages.add(lang);
 		}
 	}
 
-	// Check package.json for JS/TS
 	const packageJson = readPackageJson(path.join(directory, "package.json"));
 	if (packageJson) {
 		if (fs.existsSync(path.join(directory, "tsconfig.json"))) {

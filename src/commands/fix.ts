@@ -121,7 +121,6 @@ export const fixCommand = async (
 
 	const totalResolved = steps.reduce((sum, s) => sum + s.resolvedIssues, 0);
 
-	// Fire-and-forget anonymous telemetry
 	if (!isTelemetryDisabled(config.telemetry?.enabled)) {
 		trackEvent({
 			command: "fix",
