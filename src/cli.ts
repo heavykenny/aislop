@@ -22,15 +22,28 @@ interface ScanFlags {
 	staged?: boolean;
 	verbose?: boolean;
 	json?: boolean;
+	exclude?: string[];
 }
+
+const excludeParser = (value: string, previous: string[] = []): string[] => {
+	const parts = value
+		.split(",")
+		.map((v) => v.trim())
+		.filter(Boolean);
+	return [...previous, ...parts];
+};
 
 const runScan = async (directory: string, flags: ScanFlags): Promise<void> => {
 	const config = loadConfig(directory);
-	const { exitCode } = await scanCommand(directory, config, {
+	const finalConfig = flags.exclude?.length
+		? { ...config, exclude: [...(config.exclude ?? []), ...flags.exclude] }
+		: config;
+	const { exitCode } = await scanCommand(directory, finalConfig, {
 		changes: Boolean(flags.changes),
 		staged: Boolean(flags.staged),
 		verbose: Boolean(flags.verbose),
 		json: Boolean(flags.json),
+		exclude: flags.exclude,
 	});
 	if (exitCode !== 0) {
 		await flushTelemetry();
@@ -39,7 +52,11 @@ const runScan = async (directory: string, flags: ScanFlags): Promise<void> => {
 };
 
 const noFlagsPassed = (flags: ScanFlags): boolean =>
-	!flags.changes && !flags.staged && !flags.verbose && !flags.json;
+	!flags.changes &&
+	!flags.staged &&
+	!flags.verbose &&
+	!flags.json &&
+	!(flags.exclude && flags.exclude.length > 0);
 
 const program = new Command()
 	.name("aislop")
@@ -50,6 +67,12 @@ const program = new Command()
 	.option("--staged", "only scan staged files")
 	.option("-d, --verbose", "show file details per rule")
 	.option("--json", "output JSON instead of terminal UI")
+	.option(
+		"--exclude <patterns>",
+		"comma-separated or repeatable list of paths and files to exclude",
+		excludeParser,
+		[],
+	)
 	.action(async (directory: string, flags: ScanFlags) => {
 		if (noFlagsPassed(flags) && process.stdin.isTTY) {
 			try {
@@ -85,7 +108,9 @@ ${style(theme, "dim", "Examples:")}
   npx aislop fix --cursor    Open Cursor + copy prompt to clipboard
   npx aislop fix -p          Print a prompt to paste into any coding agent
   npx aislop ci              JSON output for CI pipelines
-
+  npx aislop scan --exclude node_modules
+  npx aislop scan --exclude node_modules,dist,file.txt
+  npx aislop scan --exclude node_modules --exclude dist --exclude **/*.ts
 ${renderHintLine("Run npx aislop scan to scan your project").trimEnd()}
 `,
 	);
@@ -97,6 +122,12 @@ program
 	.option("--staged", "only scan staged files")
 	.option("-d, --verbose", "show file details per rule")
 	.option("--json", "output JSON")
+	.option(
+		"--exclude <patterns>",
+		"comma-separated or repeatable list of paths and files to exclude",
+		excludeParser,
+		[],
+	)
 	.action(async (directory = ".", _flags, command) => {
 		await runScan(directory, command.optsWithGlobals() as ScanFlags);
 	});

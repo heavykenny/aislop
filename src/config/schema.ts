@@ -88,6 +88,7 @@ const AislopConfigSchema = z.object({
 	telemetry: TelemetrySchema.default(() => ({
 		enabled: true,
 	})),
+	exclude: z.array(z.string()).default(() => ["node_modules", ".git", "dist", "build", "coverage"]),
 });
 
 export type AislopConfig = z.infer<typeof AislopConfigSchema>;

@@ -17,7 +17,7 @@ import { createSymbols } from "../ui/symbols.js";
 import { createTheme } from "../ui/theme.js";
 import { discoverProject } from "../utils/discover.js";
 import { getChangedFiles, getStagedFiles } from "../utils/git.js";
-import { filterProjectFiles } from "../utils/source-files.js";
+import { filterProjectFiles, listProjectFiles } from "../utils/source-files.js";
 import { getScoreBucket, isTelemetryDisabled, trackEvent } from "../utils/telemetry.js";
 import { APP_VERSION } from "../version.js";
 
@@ -28,6 +28,7 @@ interface ScanOptions {
 	json: boolean;
 	showHeader?: boolean;
 	printBrand?: boolean;
+	exclude?: string[];
 	/** Used for telemetry to distinguish scan vs ci invocation */
 	command?: "scan" | "ci";
 }
@@ -164,14 +165,20 @@ export const scanCommand = async (
 
 	let files: string[] | undefined;
 	if (options.staged) {
-		files = filterProjectFiles(resolvedDir, getStagedFiles(resolvedDir));
+		files = filterProjectFiles(resolvedDir, getStagedFiles(resolvedDir), [], config.exclude);
 		if (!options.json) {
 			log.muted(`Scope: ${files.length} staged file(s)`);
 		}
 	} else if (options.changes) {
-		files = filterProjectFiles(resolvedDir, getChangedFiles(resolvedDir));
+		files = filterProjectFiles(resolvedDir, getChangedFiles(resolvedDir), [], config.exclude);
 		if (!options.json) {
 			log.muted(`Scope: ${files.length} changed file(s)`);
+		}
+	} else {
+		const allFiles = listProjectFiles(resolvedDir);
+		files = filterProjectFiles(resolvedDir, allFiles, [], config.exclude);
+		if (!options.json) {
+			log.muted(`Scope: ${files.length} file(s) after exclusions`);
 		}
 	}
 
