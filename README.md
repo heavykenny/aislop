@@ -33,6 +33,9 @@ npx aislop fix
 
 # CI mode (JSON output + quality gate)
 npx aislop ci
+
+# wire aislop into your agent so it runs on every edit (new in 0.6.0)
+npx aislop hook install --claude
 ```
 
 Sample output:
@@ -43,7 +46,7 @@ Sample output:
  [!]  Code Quality: done (2 warnings, 812ms)
  [!]  AI Slop: done (4 warnings, 455ms)
  [ok] Security: done (0 issues, 1.3s)
- aislop 0.5.0  ·  the quality gate for agentic coding
+ aislop 0.6.1  ·  the quality gate for agentic coding
 
  scan  ·  my-app  ·  typescript  ·  142 files
 
@@ -75,6 +78,7 @@ AI coding tools generate code that compiles and passes tests but ships with patt
 
 - **One score, one gate**: a 0-100 number you can enforce in CI with `aislop ci`. Weighted so sloppy patterns (dead code, `as any`, swallowed errors) hit harder than style noise.
 - **Auto-fix first, agent second**: `aislop fix` clears what's mechanically safe (formatters, unused imports, trivial comments, dead patterns). For the rest, one flag hands off to Claude Code, Codex, Cursor, Gemini, Windsurf, Amp, Aider, Goose, and 7 more, with full diagnostic context pre-filled.
+- **Wire it into your agent (new in 0.6.0)**: `aislop hook install` plugs aislop into Claude Code, Cursor, Gemini CLI (runtime), plus Codex, Windsurf, Cline, Kilo Code, Antigravity, and Copilot (rules-only). The agent gets score + findings on the turn it wrote the code, not after.
 - **Deterministic**: regex, AST, and standard tooling. No LLMs, no API keys, no network dependency. Same repo in, same score out.
 - **Zero-config start**: `npx aislop scan` works on any repo. Add `.aislop/config.yml` when you want to tune thresholds or enable the architecture engine.
 - **Works across stacks**: TypeScript, JavaScript, Python, Go, Rust, Ruby, PHP, Expo / React Native.
@@ -160,6 +164,35 @@ aislop fix --vscode        # VS Code Copilot (copies prompt to clipboard)
 aislop fix --prompt        # print the prompt (agent-agnostic)
 ```
 
+### Install as a native hook
+
+One command and aislop runs automatically after every agent edit. Findings flow back to the agent as structured feedback (`aislop.hook.v1`) with score, counts, top-20 findings, and next steps, so the agent can self-correct on the same turn.
+
+```bash
+aislop hook install --claude           # Claude Code PostToolUse
+aislop hook install --cursor           # Cursor afterFileEdit
+aislop hook install --gemini           # Gemini CLI AfterTool
+aislop hook install                    # every supported agent at once
+aislop hook install claude cursor      # pick any subset as positional args
+aislop hook install --agent claude,cursor   # comma-list if you prefer one flag
+```
+
+Runtime adapters (scan + feedback on every edit): `claude`, `cursor`, `gemini`.
+
+Rules-only installers (agent reads rules on every turn): `codex`, `windsurf`, `cline`, `kilocode`, `antigravity`, `copilot`.
+
+Opt-in quality-gate mode captures `.aislop/baseline.json` at install time and blocks the Claude Stop hook if the score regresses:
+
+```bash
+aislop hook install --claude --quality-gate
+aislop hook baseline                    # re-capture baseline
+aislop hook status                      # list installed hooks
+aislop hook uninstall --claude          # remove a specific agent
+aislop hook uninstall                   # remove every aislop entry, sentinel-verified
+```
+
+Every install is sentinel-guarded (SHA-256 hash fence) for idempotent re-runs and exact uninstall. Full guide: [`/docs/hooks`](https://scanaislop.com/docs/hooks).
+
 ### Use in CI pipelines
 
 ```bash
@@ -185,6 +218,7 @@ aislop scan
 aislop init                # create .aislop/config.yml
 aislop doctor              # check which tools are available
 aislop rules               # list all built-in rules
+aislop hook install        # wire aislop into your coding agent
 aislop                     # interactive menu
 ```
 

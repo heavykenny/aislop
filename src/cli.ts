@@ -1,16 +1,8 @@
 import { Command } from "commander";
+import { registerHookCommand } from "./cli/hook-command.js";
 import { ciCommand } from "./commands/ci.js";
 import { doctorCommand } from "./commands/doctor.js";
 import { fixCommand } from "./commands/fix.js";
-import {
-	defaultInstallTargets,
-	hookBaseline,
-	hookInstall,
-	hookRun,
-	hookStatus,
-	hookUninstall,
-	parseAgentFlag,
-} from "./commands/hook.js";
 import { initCommand } from "./commands/init.js";
 import { interactiveCommand } from "./commands/interactive.js";
 import { rulesCommand } from "./commands/rules.js";
@@ -25,6 +17,30 @@ import { APP_VERSION } from "./version.js";
 process.on("SIGINT", () => process.exit(0));
 process.on("SIGTERM", () => process.exit(0));
 
+interface ScanFlags {
+	changes?: boolean;
+	staged?: boolean;
+	verbose?: boolean;
+	json?: boolean;
+}
+
+const runScan = async (directory: string, flags: ScanFlags): Promise<void> => {
+	const config = loadConfig(directory);
+	const { exitCode } = await scanCommand(directory, config, {
+		changes: Boolean(flags.changes),
+		staged: Boolean(flags.staged),
+		verbose: Boolean(flags.verbose),
+		json: Boolean(flags.json),
+	});
+	if (exitCode !== 0) {
+		await flushTelemetry();
+		process.exit(exitCode);
+	}
+};
+
+const noFlagsPassed = (flags: ScanFlags): boolean =>
+	!flags.changes && !flags.staged && !flags.verbose && !flags.json;
+
 const program = new Command()
 	.name("aislop")
 	.description("The unified code quality CLI")
@@ -34,41 +50,17 @@ const program = new Command()
 	.option("--staged", "only scan staged files")
 	.option("-d, --verbose", "show file details per rule")
 	.option("--json", "output JSON instead of terminal UI")
-	.action(
-		async (
-			directory: string,
-			flags: {
-				changes?: boolean;
-				staged?: boolean;
-				verbose?: boolean;
-				json?: boolean;
-			},
-		) => {
-			const config = loadConfig(directory);
-
-			// If no flags, show interactive menu (if TTY)
-			if (!flags.changes && !flags.staged && !flags.verbose && !flags.json && process.stdin.isTTY) {
-				try {
-					await interactiveCommand(directory, config);
-					return;
-				} catch {
-					// Fall through to scan if interactive fails
-				}
+	.action(async (directory: string, flags: ScanFlags) => {
+		if (noFlagsPassed(flags) && process.stdin.isTTY) {
+			try {
+				await interactiveCommand(directory, loadConfig(directory));
+				return;
+			} catch {
+				// Interactive prompt was cancelled or errored; fall through to a plain scan.
 			}
-
-			const { exitCode } = await scanCommand(directory, config, {
-				changes: Boolean(flags.changes),
-				staged: Boolean(flags.staged),
-				verbose: Boolean(flags.verbose),
-				json: Boolean(flags.json),
-			});
-
-			if (exitCode !== 0) {
-				await flushTelemetry();
-				process.exit(exitCode);
-			}
-		},
-	)
+		}
+		await runScan(directory, flags);
+	})
 	.addHelpText("beforeAll", renderHeader({ version: APP_VERSION, command: "--bare", context: [] }))
 	.addHelpText(
 		"after",
@@ -98,7 +90,6 @@ ${renderHintLine("Run npx aislop scan to scan your project").trimEnd()}
 `,
 	);
 
-// Subcommands
 program
 	.command("scan [directory]")
 	.description("Run full code quality scan")
@@ -107,75 +98,50 @@ program
 	.option("-d, --verbose", "show file details per rule")
 	.option("--json", "output JSON")
 	.action(async (directory = ".", _flags, command) => {
-		const flags = command.optsWithGlobals() as {
-			changes?: boolean;
-			staged?: boolean;
-			verbose?: boolean;
-			json?: boolean;
-		};
-		const config = loadConfig(directory);
-		const { exitCode } = await scanCommand(directory, config, {
-			changes: Boolean(flags.changes),
-			staged: Boolean(flags.staged),
-			verbose: Boolean(flags.verbose),
-			json: Boolean(flags.json),
-		});
-		if (exitCode !== 0) {
-			await flushTelemetry();
-			process.exit(exitCode);
-		}
+		await runScan(directory, command.optsWithGlobals() as ScanFlags);
 	});
 
-program
+const FIX_AGENT_FLAGS: { flag: string; name: string; help: string }[] = [
+	{ flag: "claude", name: "claude", help: "open Claude Code to fix remaining issues" },
+	{ flag: "codex", name: "codex", help: "open Codex to fix remaining issues" },
+	{ flag: "cursor", name: "cursor", help: "open Cursor and copy prompt to clipboard" },
+	{ flag: "windsurf", name: "windsurf", help: "open Windsurf and copy prompt to clipboard" },
+	{ flag: "vscode", name: "vscode", help: "open VS Code and copy prompt to clipboard" },
+	{ flag: "amp", name: "amp", help: "open Amp to fix remaining issues" },
+	{ flag: "antigravity", name: "antigravity", help: "open Antigravity to fix remaining issues" },
+	// Commander camelCases --deep-agents to deepAgents on the parsed opts object.
+	{ flag: "deep-agents", name: "deepAgents", help: "open Deep Agents to fix remaining issues" },
+	{ flag: "gemini", name: "gemini", help: "open Gemini CLI to fix remaining issues" },
+	{ flag: "kimi", name: "kimi", help: "open Kimi Code CLI to fix remaining issues" },
+	{ flag: "opencode", name: "opencode", help: "open OpenCode to fix remaining issues" },
+	{ flag: "warp", name: "warp", help: "open Warp to fix remaining issues" },
+	{ flag: "aider", name: "aider", help: "open Aider to fix remaining issues" },
+	{ flag: "goose", name: "goose", help: "open Goose to fix remaining issues" },
+];
+
+const matchFixAgent = (flags: Record<string, boolean | undefined>): string | undefined => {
+	const hit = FIX_AGENT_FLAGS.find((a) => flags[a.name]);
+	return hit?.flag;
+};
+
+const fixProgram = program
 	.command("fix [directory]")
 	.description("Auto-fix ai slop in codebase")
 	.option("-d, --verbose", "show detailed fix progress")
 	.option("-f, --force", "run aggressive fixes (audit and framework dependency alignment)")
-	.option("-p, --prompt", "print a prompt for your coding agent to fix remaining issues")
-	.option("--claude", "open Claude Code to fix remaining issues")
-	.option("--codex", "open Codex to fix remaining issues")
-	.option("--cursor", "open Cursor and copy prompt to clipboard")
-	.option("--windsurf", "open Windsurf and copy prompt to clipboard")
-	.option("--vscode", "open VS Code and copy prompt to clipboard")
-	.option("--amp", "open Amp to fix remaining issues")
-	.option("--antigravity", "open Antigravity to fix remaining issues")
-	.option("--deep-agents", "open Deep Agents to fix remaining issues")
-	.option("--gemini", "open Gemini CLI to fix remaining issues")
-	.option("--kimi", "open Kimi Code CLI to fix remaining issues")
-	.option("--opencode", "open OpenCode to fix remaining issues")
-	.option("--warp", "open Warp to fix remaining issues")
-	.option("--aider", "open Aider to fix remaining issues")
-	.option("--goose", "open Goose to fix remaining issues")
-	.action(async (directory = ".", _flags, command) => {
-		const flags = command.optsWithGlobals() as Record<string, boolean | undefined>;
-		const config = loadConfig(directory);
-		const agentNames = [
-			"claude",
-			"codex",
-			"cursor",
-			"windsurf",
-			"vscode",
-			"amp",
-			"antigravity",
-			"deepAgents",
-			"gemini",
-			"kimi",
-			"opencode",
-			"warp",
-			"aider",
-			"goose",
-		] as const;
-		// Commander camelCases --deep-agents to deepAgents
-		const flagToAgent: Record<string, string> = { deepAgents: "deep-agents" };
-		const matched = agentNames.find((name) => flags[name]);
-		const agent = matched ? (flagToAgent[matched] ?? matched) : undefined;
-		await fixCommand(directory, config, {
-			verbose: Boolean(flags.verbose),
-			force: Boolean(flags.force),
-			prompt: Boolean(flags.prompt),
-			agent,
-		});
+	.option("-p, --prompt", "print a prompt for your coding agent to fix remaining issues");
+
+for (const a of FIX_AGENT_FLAGS) fixProgram.option(`--${a.flag}`, a.help);
+
+fixProgram.action(async (directory = ".", _flags, command) => {
+	const flags = command.optsWithGlobals() as Record<string, boolean | undefined>;
+	await fixCommand(directory, loadConfig(directory), {
+		verbose: Boolean(flags.verbose),
+		force: Boolean(flags.force),
+		prompt: Boolean(flags.prompt),
+		agent: matchFixAgent(flags),
 	});
+});
 
 program
 	.command("init [directory]")
@@ -214,104 +180,7 @@ program
 		await rulesCommand(directory);
 	});
 
-const hook = program.command("hook").description("Install or invoke AI-agent integration hooks");
-
-const resolveScope = (flags: { global?: boolean; project?: boolean }): "global" | "project" => {
-	if (flags.project) return "project";
-	if (flags.global) return "global";
-	return "global";
-};
-
-hook
-	.command("install")
-	.description("Install aislop hooks for one or more coding agents")
-	.option(
-		"--agent <names>",
-		"comma-separated agent list (claude,cursor,gemini,codex,windsurf,cline,kilocode,antigravity,copilot). default: all non-project-only agents",
-	)
-	.option("-g, --global", "install to the user-scope config (default for agents that support it)")
-	.option("--project", "install to the project-scope config")
-	.option("--dry-run", "print the planned diff without writing")
-	.option("--yes", "skip the confirmation prompt (reserved)")
-	.option(
-		"--quality-gate",
-		"add a Stop hook that blocks when score regresses below baseline (Claude only)",
-	)
-	.action(
-		async (opts: {
-			agent?: string;
-			global?: boolean;
-			project?: boolean;
-			dryRun?: boolean;
-			yes?: boolean;
-			qualityGate?: boolean;
-		}) => {
-			const agents = parseAgentFlag(opts.agent, defaultInstallTargets());
-			await hookInstall({
-				agents,
-				scope: resolveScope(opts),
-				dryRun: Boolean(opts.dryRun),
-				yes: Boolean(opts.yes),
-				qualityGate: Boolean(opts.qualityGate),
-			});
-		},
-	);
-
-hook
-	.command("uninstall")
-	.description("Uninstall aislop hooks for one or more agents")
-	.option("--agent <names>", "comma-separated agent list. default: all agents with installed hooks")
-	.option("-g, --global", "uninstall from user-scope config")
-	.option("--project", "uninstall from project-scope config")
-	.option("--dry-run", "print the planned removal without writing")
-	.action(
-		async (opts: { agent?: string; global?: boolean; project?: boolean; dryRun?: boolean }) => {
-			const agents = parseAgentFlag(opts.agent, defaultInstallTargets());
-			await hookUninstall({
-				agents,
-				scope: resolveScope(opts),
-				dryRun: Boolean(opts.dryRun),
-				yes: true,
-				qualityGate: false,
-			});
-		},
-	);
-
-hook
-	.command("status")
-	.description("Show which agent hooks are installed")
-	.action(async () => {
-		await hookStatus();
-	});
-
-hook
-	.command("baseline")
-	.description("Capture the current project score as the quality-gate baseline")
-	.action(async () => {
-		await hookBaseline();
-	});
-
-hook
-	.command("claude")
-	.description("Internal: Claude Code PostToolUse / Stop callback (reads stdin)")
-	.option("--stop", "run in Stop-hook mode for the quality gate")
-	.action(async (opts: { stop?: boolean }) => {
-		await hookRun("claude", { stop: Boolean(opts.stop) });
-	});
-
-hook
-	.command("cursor")
-	.description("Internal: Cursor afterFileEdit callback (reads stdin)")
-	.action(async () => {
-		await hookRun("cursor");
-	});
-
-hook
-	.command("gemini")
-	.description("Internal: Gemini CLI AfterTool callback (reads stdin)")
-	.action(async () => {
-		await hookRun("gemini");
-	});
+registerHookCommand(program);
 
 const main = async () => {
 	await program.parseAsync();

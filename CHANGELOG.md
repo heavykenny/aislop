@@ -4,6 +4,42 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.6.1 (2026-04-20)
+
+A follow-up round after 0.6.0 went live: hook UX gaps surfaced on first contact, README was still on 0.5.x, and adding deterministic duplicate-detection caught real issues in aislop's own source.
+
+### Added
+
+**Hook UX fixes.**
+- **Per-agent `--<name>` flags on `install` / `uninstall`.** `aislop hook install --claude`, `--cursor --gemini`, `--copilot`, etc. Matches the existing `fix --claude` pattern so there's one way to select an agent across the CLI.
+- **Positional agent args on `install` / `uninstall`.** `aislop hook install claude cursor` and `aislop hook uninstall gemini` now work. Previously they threw "too many arguments."
+- **Interactive multi-select picker** on `aislop hook install` / `aislop hook uninstall` when no agents are specified and stdin is a TTY. Space to toggle, enter to confirm. Install defaults check the four agents that support both user and project scopes (Claude, Cursor, Gemini, Codex); uninstall only shows agents actually detected on disk. Non-TTY (CI) keeps the previous default-all behaviour.
+- **Interactive-TTY guard on the internal `hook claude` / `hook cursor` / `hook gemini` subcommands.** Invoking one yourself at a terminal used to silently no-op (reading stdin from a TTY yields nothing). Now prints a hint pointing to `hook install --<agent>`.
+
+**Three new deterministic detection rules.**
+- `code-quality/repeated-chained-call` — flags 5+ consecutive method calls on the same chain that differ only in string literals. Catches the `.option("--claude", ...)` × 14 pattern.
+- `code-quality/duplicate-block` — sliding 10-line window, literal-only normalisation, requires ≥7 distinct lines. Catches non-trivial copy-paste across a file.
+- `ai-slop/narrative-comment` widened with a **"bare section label"** detector for 1–3-word title-case comments (`// Subcommands`, `// Init helpers`) NOT followed by a data-literal entry, so `// AWS` in a `SECRET_PATTERNS` array is correctly spared.
+
+**Suppression mechanism.** `// aislop-ignore-file <rule>` at the top of a file, or `// aislop-ignore-next-block <rule>` above a specific construct. Lets you opt out of a rule on code where the pattern is intentional (e.g. a diagnostic-push table that reads better as N similar blocks than as a data-driven loop).
+
+### Changed
+
+- **`README.md` covers hooks.** New "Install as a native hook" section under Usage with adapter + rules-only installer lists, quality-gate flow, and a link to [`/docs/hooks`](https://scanaislop.com/docs/hooks). Quick-start and "Why aislop" blocks mention hooks. Sample-output version banner bumped to 0.6.1.
+- **Internal refactors** driven by the new rules:
+  - `src/commands/doctor.ts`: extracted `systemToolDecision()` + `firstMatching()` + `FORMAT_SPECS` / `LINT_SPECS` / `AUDIT_SPECS` data tables, replacing six repeated `if (languages.includes(X)) return installedTools[Y] ? {...} : {...}` blocks.
+  - `src/utils/source-masker.ts`: extracted `handleQuotesAndComments()` — the string/template/comment state machine was duplicated across the top-level and inside-interpolation branches.
+  - `src/engines/ai-slop/dead-patterns.ts`: `slop()` helper replaces 8 inline `diagnostics.push({ engine: "ai-slop", category: "AI Slop", column: 0, ... })` copy-pastes.
+  - `src/cli.ts`: extracted `runScan()` (shared between top-level default action and `scan` subcommand), `matchFixAgent()` + `FIX_AGENT_FLAGS` table (drives the `fix --<agent>` registration), `noFlagsPassed()` predicate.
+  - Hook command wiring moved to `src/cli/hook-command.ts`, split into `registerInstall` / `registerUninstall` / `registerCallbacks` helpers.
+
+### Notes
+
+- **607 tests passing** (598 baseline + 9 new across `resolveAgents`, `repeated-chained-call`, `duplicate-block`).
+- Self-scan: **100 / 100 Healthy**, 0 findings.
+- No breaking changes. `--agent <names>` still works; it's one of four equivalent ways to select agents now.
+- Packaged size: 138 kB (15 files).
+
 ## 0.6.0 (2026-04-20)
 
 Agent integration hooks. `aislop` now plugs into Claude Code, Cursor, and Gemini CLI natively so you get machine-readable findings on the turn the agent wrote the code, not after.

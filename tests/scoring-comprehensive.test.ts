@@ -64,11 +64,7 @@ describe("Issue #9: single issue in codebases of different sizes", () => {
 
 	it("snapshot: single innerHTML error score with default weights", () => {
 		// This is the #9 scenario: one innerHTML drops score dramatically
-		const result = calculateScore(
-			[makeInnerHTMLDiagnostic()],
-			defaultWeights,
-			defaultThresholds,
-		);
+		const result = calculateScore([makeInnerHTMLDiagnostic()], defaultWeights, defaultThresholds);
 
 		// Document the exact current score for regression tracking.
 		// security weight=2.0, error penalty=3, deduction=6
@@ -193,66 +189,36 @@ describe("engine weight ordering", () => {
 
 describe("multiple issues of same severity", () => {
 	it("snapshot: 5 lint warnings", () => {
-		const diagnostics = Array(5).fill(
-			makeDiagnostic({ engine: "lint", severity: "warning" }),
-		);
-		const result = calculateScore(
-			diagnostics,
-			defaultWeights,
-			defaultThresholds,
-		);
+		const diagnostics = Array(5).fill(makeDiagnostic({ engine: "lint", severity: "warning" }));
+		const result = calculateScore(diagnostics, defaultWeights, defaultThresholds);
 
 		expect(result.score).toMatchInlineSnapshot(`68`);
 	});
 
 	it("snapshot: 10 lint warnings", () => {
-		const diagnostics = Array(10).fill(
-			makeDiagnostic({ engine: "lint", severity: "warning" }),
-		);
-		const result = calculateScore(
-			diagnostics,
-			defaultWeights,
-			defaultThresholds,
-		);
+		const diagnostics = Array(10).fill(makeDiagnostic({ engine: "lint", severity: "warning" }));
+		const result = calculateScore(diagnostics, defaultWeights, defaultThresholds);
 
 		expect(result.score).toMatchInlineSnapshot(`50`);
 	});
 
 	it("snapshot: 20 lint warnings", () => {
-		const diagnostics = Array(20).fill(
-			makeDiagnostic({ engine: "lint", severity: "warning" }),
-		);
-		const result = calculateScore(
-			diagnostics,
-			defaultWeights,
-			defaultThresholds,
-		);
+		const diagnostics = Array(20).fill(makeDiagnostic({ engine: "lint", severity: "warning" }));
+		const result = calculateScore(diagnostics, defaultWeights, defaultThresholds);
 
 		expect(result.score).toMatchInlineSnapshot(`37`);
 	});
 
 	it("snapshot: 5 security errors", () => {
-		const diagnostics = Array(5).fill(
-			makeDiagnostic({ engine: "security", severity: "error" }),
-		);
-		const result = calculateScore(
-			diagnostics,
-			defaultWeights,
-			defaultThresholds,
-		);
+		const diagnostics = Array(5).fill(makeDiagnostic({ engine: "security", severity: "error" }));
+		const result = calculateScore(diagnostics, defaultWeights, defaultThresholds);
 
 		expect(result.score).toMatchInlineSnapshot(`36`);
 	});
 
 	it("snapshot: 10 security errors", () => {
-		const diagnostics = Array(10).fill(
-			makeDiagnostic({ engine: "security", severity: "error" }),
-		);
-		const result = calculateScore(
-			diagnostics,
-			defaultWeights,
-			defaultThresholds,
-		);
+		const diagnostics = Array(10).fill(makeDiagnostic({ engine: "security", severity: "error" }));
+		const result = calculateScore(diagnostics, defaultWeights, defaultThresholds);
 
 		expect(result.score).toMatchInlineSnapshot(`20`);
 	});
@@ -260,12 +226,8 @@ describe("multiple issues of same severity", () => {
 	it("diminishing returns: overall trend is sublinear", () => {
 		const scores: number[] = [];
 		for (let i = 1; i <= 10; i++) {
-			const diagnostics = Array(i).fill(
-				makeDiagnostic({ engine: "lint", severity: "warning" }),
-			);
-			scores.push(
-				calculateScore(diagnostics, defaultWeights, defaultThresholds).score,
-			);
+			const diagnostics = Array(i).fill(makeDiagnostic({ engine: "lint", severity: "warning" }));
+			scores.push(calculateScore(diagnostics, defaultWeights, defaultThresholds).score);
 		}
 
 		// Due to rounding, individual steps may not be strictly diminishing.
@@ -288,11 +250,7 @@ describe("mixed severity issues", () => {
 			makeDiagnostic({ engine: "lint", severity: "warning" }),
 			makeDiagnostic({ engine: "format", severity: "info" }),
 		];
-		const result = calculateScore(
-			diagnostics,
-			defaultWeights,
-			defaultThresholds,
-		);
+		const result = calculateScore(diagnostics, defaultWeights, defaultThresholds);
 
 		expect(result.score).toMatchInlineSnapshot(`62`);
 		expect(result.label).toBe("Needs Work");
@@ -328,21 +286,13 @@ describe("mixed severity issues", () => {
 				rule: "max-params",
 			}),
 			// 5 lint warnings
-			...Array(5).fill(
-				makeDiagnostic({ engine: "lint", severity: "warning" }),
-			),
+			...Array(5).fill(makeDiagnostic({ engine: "lint", severity: "warning" })),
 			// 3 format infos
-			...Array(3).fill(
-				makeDiagnostic({ engine: "format", severity: "info" }),
-			),
+			...Array(3).fill(makeDiagnostic({ engine: "format", severity: "info" })),
 			// 1 ai-slop warning
 			makeDiagnostic({ engine: "ai-slop", severity: "warning" }),
 		];
-		const result = calculateScore(
-			diagnostics,
-			defaultWeights,
-			defaultThresholds,
-		);
+		const result = calculateScore(diagnostics, defaultWeights, defaultThresholds);
 
 		expect(result.score).toMatchInlineSnapshot(`34`);
 		expect(result.label).toBe("Critical");
@@ -356,16 +306,8 @@ describe("mixed severity issues", () => {
 		];
 		const reversed = [...diagnostics].reverse();
 
-		const result1 = calculateScore(
-			diagnostics,
-			defaultWeights,
-			defaultThresholds,
-		);
-		const result2 = calculateScore(
-			reversed,
-			defaultWeights,
-			defaultThresholds,
-		);
+		const result1 = calculateScore(diagnostics, defaultWeights, defaultThresholds);
+		const result2 = calculateScore(reversed, defaultWeights, defaultThresholds);
 
 		expect(result1.score).toBe(result2.score);
 		expect(result1.label).toBe(result2.label);
@@ -385,11 +327,7 @@ describe("edge cases", () => {
 		const diagnostics = Array(10000).fill(
 			makeDiagnostic({ engine: "security", severity: "error" }),
 		);
-		const result = calculateScore(
-			diagnostics,
-			defaultWeights,
-			defaultThresholds,
-		);
+		const result = calculateScore(diagnostics, defaultWeights, defaultThresholds);
 
 		expect(result.score).toBeGreaterThanOrEqual(0);
 		expect(result.score).toBeLessThanOrEqual(100);
@@ -399,11 +337,7 @@ describe("edge cases", () => {
 		const testCases = [1, 2, 3, 5, 10, 25, 50, 100, 500];
 		for (const count of testCases) {
 			const diagnostics = Array(count).fill(makeDiagnostic());
-			const result = calculateScore(
-				diagnostics,
-				defaultWeights,
-				defaultThresholds,
-			);
+			const result = calculateScore(diagnostics, defaultWeights, defaultThresholds);
 			expect(Number.isInteger(result.score)).toBe(true);
 		}
 	});
@@ -422,14 +356,8 @@ describe("edge cases", () => {
 		for (const severity of severities) {
 			for (const engine of engines) {
 				for (const count of [1, 10, 100]) {
-					const diagnostics = Array(count).fill(
-						makeDiagnostic({ engine, severity }),
-					);
-					const result = calculateScore(
-						diagnostics,
-						defaultWeights,
-						defaultThresholds,
-					);
+					const diagnostics = Array(count).fill(makeDiagnostic({ engine, severity }));
+					const result = calculateScore(diagnostics, defaultWeights, defaultThresholds);
 					expect(result.score).toBeGreaterThanOrEqual(0);
 					expect(result.score).toBeLessThanOrEqual(100);
 				}
@@ -515,9 +443,7 @@ describe("label threshold boundaries", () => {
 		// We need to find a diagnostic set that produces score=50 exactly.
 		// If we can't hit it exactly, test that the boundary logic is correct.
 		const result = calculateScore(
-			Array(10).fill(
-				makeDiagnostic({ engine: "lint", severity: "warning" }),
-			),
+			Array(10).fill(makeDiagnostic({ engine: "lint", severity: "warning" })),
 			defaultWeights,
 			thresholds,
 		);
@@ -574,33 +500,25 @@ describe("snapshot: score table for known inputs", () => {
 		},
 		{
 			name: "1 code-quality error",
-			diagnostics: [
-				makeDiagnostic({ engine: "code-quality", severity: "error" }),
-			],
+			diagnostics: [makeDiagnostic({ engine: "code-quality", severity: "error" })],
 			expectedScore: 81,
 			expectedLabel: "Healthy",
 		},
 		{
 			name: "3 lint warnings",
-			diagnostics: Array(3).fill(
-				makeDiagnostic({ engine: "lint", severity: "warning" }),
-			),
+			diagnostics: Array(3).fill(makeDiagnostic({ engine: "lint", severity: "warning" })),
 			expectedScore: 80,
 			expectedLabel: "Healthy",
 		},
 		{
 			name: "10 format infos",
-			diagnostics: Array(10).fill(
-				makeDiagnostic({ engine: "format", severity: "info" }),
-			),
+			diagnostics: Array(10).fill(makeDiagnostic({ engine: "format", severity: "info" })),
 			expectedScore: 83,
 			expectedLabel: "Healthy",
 		},
 		{
 			name: "3 security errors",
-			diagnostics: Array(3).fill(
-				makeDiagnostic({ engine: "security", severity: "error" }),
-			),
+			diagnostics: Array(3).fill(makeDiagnostic({ engine: "security", severity: "error" })),
 			expectedScore: 50,
 			expectedLabel: "Needs Work",
 		},
@@ -608,11 +526,7 @@ describe("snapshot: score table for known inputs", () => {
 
 	for (const tc of cases) {
 		it(`${tc.name} → score=${tc.expectedScore}, label=${tc.expectedLabel}`, () => {
-			const result = calculateScore(
-				tc.diagnostics,
-				defaultWeights,
-				defaultThresholds,
-			);
+			const result = calculateScore(tc.diagnostics, defaultWeights, defaultThresholds);
 			expect(result.score).toBe(tc.expectedScore);
 			expect(result.label).toBe(tc.expectedLabel);
 		});
@@ -629,14 +543,8 @@ describe("getScoreColor integration with calculateScore", () => {
 	});
 
 	it("Critical scores produce error color", () => {
-		const diagnostics = Array(100).fill(
-			makeDiagnostic({ engine: "security", severity: "error" }),
-		);
-		const result = calculateScore(
-			diagnostics,
-			defaultWeights,
-			defaultThresholds,
-		);
+		const diagnostics = Array(100).fill(makeDiagnostic({ engine: "security", severity: "error" }));
+		const result = calculateScore(diagnostics, defaultWeights, defaultThresholds);
 		const color = getScoreColor(result.score, defaultThresholds);
 		expect(color).toBe("error");
 	});
@@ -648,11 +556,7 @@ describe("getScoreColor integration with calculateScore", () => {
 			const diagnostics = Array(count).fill(
 				makeDiagnostic({ engine: "lint", severity: "warning" }),
 			);
-			const result = calculateScore(
-				diagnostics,
-				defaultWeights,
-				defaultThresholds,
-			);
+			const result = calculateScore(diagnostics, defaultWeights, defaultThresholds);
 			const color = getScoreColor(result.score, defaultThresholds);
 
 			if (result.score >= defaultThresholds.good) {
@@ -738,38 +642,20 @@ describe("density-aware scoring (sourceFileCount)", () => {
 
 	it("density caps at 1.0 for heavily polluted codebases", () => {
 		// 100 issues in 5 files = extremely dense, density capped at 1.0
-		const diagnostics = Array(100).fill(
-			makeDiagnostic({ engine: "security", severity: "error" }),
-		);
-		const withDensity = calculateScore(
-			diagnostics,
-			defaultWeights,
-			defaultThresholds,
-			5,
-		);
-		const withoutDensity = calculateScore(
-			diagnostics,
-			defaultWeights,
-			defaultThresholds,
-		);
+		const diagnostics = Array(100).fill(makeDiagnostic({ engine: "security", severity: "error" }));
+		const withDensity = calculateScore(diagnostics, defaultWeights, defaultThresholds, 5);
+		const withoutDensity = calculateScore(diagnostics, defaultWeights, defaultThresholds);
 
 		// When density >= 1.0, sqrt(1.0)=1.0, so deductions are unscaled
 		expect(withDensity.score).toBe(withoutDensity.score);
 	});
 
 	it("more files = higher score for the same diagnostics", () => {
-		const diagnostics = Array(5).fill(
-			makeDiagnostic({ engine: "lint", severity: "warning" }),
-		);
+		const diagnostics = Array(5).fill(makeDiagnostic({ engine: "lint", severity: "warning" }));
 
 		const scores = [10, 50, 100, 500].map(
 			(fileCount) =>
-				calculateScore(
-					diagnostics,
-					defaultWeights,
-					defaultThresholds,
-					fileCount,
-				).score,
+				calculateScore(diagnostics, defaultWeights, defaultThresholds, fileCount).score,
 		);
 
 		// Each step should be >= the previous (monotonically non-decreasing)
@@ -779,15 +665,8 @@ describe("density-aware scoring (sourceFileCount)", () => {
 	});
 
 	it("score never goes below 0 even with density scaling", () => {
-		const diagnostics = Array(500).fill(
-			makeDiagnostic({ engine: "security", severity: "error" }),
-		);
-		const result = calculateScore(
-			diagnostics,
-			defaultWeights,
-			defaultThresholds,
-			10,
-		);
+		const diagnostics = Array(500).fill(makeDiagnostic({ engine: "security", severity: "error" }));
+		const result = calculateScore(diagnostics, defaultWeights, defaultThresholds, 10);
 
 		expect(result.score).toBeGreaterThanOrEqual(0);
 	});

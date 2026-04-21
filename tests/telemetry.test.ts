@@ -1,8 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import {
-	getScoreBucket,
-	isTelemetryDisabled,
-} from "../src/utils/telemetry.js";
+import { getScoreBucket, isTelemetryDisabled } from "../src/utils/telemetry.js";
 
 describe("isTelemetryDisabled", () => {
 	const originalEnv = { ...process.env };

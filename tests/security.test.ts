@@ -55,10 +55,7 @@ describe("scanSecrets", () => {
 	});
 
 	it("detects a hardcoded API key", async () => {
-		const filePath = writeFile(
-			"config.ts",
-			'const apiKey = "abcdefghijklmnopqrstu12345";',
-		);
+		const filePath = writeFile("config.ts", 'const apiKey = "abcdefghijklmnopqrstu12345";');
 		const diagnostics = await scanSecrets(makeContext([filePath]));
 		expect(diagnostics.length).toBeGreaterThanOrEqual(1);
 		expect(diagnostics[0].rule).toBe("security/hardcoded-secret");
@@ -67,20 +64,14 @@ describe("scanSecrets", () => {
 	});
 
 	it("detects an AWS Access Key ID", async () => {
-		const filePath = writeFile(
-			"aws.ts",
-			"const accessKeyId = 'AKIAIOSFODNN7EXAMPLE';",
-		);
+		const filePath = writeFile("aws.ts", "const accessKeyId = 'AKIAIOSFODNN7EXAMPLE';");
 		const diagnostics = await scanSecrets(makeContext([filePath]));
 		expect(diagnostics.length).toBeGreaterThanOrEqual(1);
 		expect(diagnostics[0].message).toContain("AWS Access Key");
 	});
 
 	it("detects a hardcoded password", async () => {
-		const filePath = writeFile(
-			"db.ts",
-			'const password = "super-secret-password-123";',
-		);
+		const filePath = writeFile("db.ts", 'const password = "super-secret-password-123";');
 		const diagnostics = await scanSecrets(makeContext([filePath]));
 		expect(diagnostics.length).toBeGreaterThanOrEqual(1);
 		expect(diagnostics[0].message).toContain("password");
@@ -148,10 +139,7 @@ describe("scanSecrets", () => {
 	});
 
 	it("reports relative file paths", async () => {
-		const filePath = writeFile(
-			"subdir/config.ts",
-			'const apiKey = "abcdefghijklmnopqrstu12345";',
-		);
+		const filePath = writeFile("subdir/config.ts", 'const apiKey = "abcdefghijklmnopqrstu12345";');
 		const diagnostics = await scanSecrets(makeContext([filePath]));
 		expect(diagnostics.length).toBeGreaterThanOrEqual(1);
 		expect(path.isAbsolute(diagnostics[0].filePath)).toBe(false);
@@ -168,20 +156,14 @@ describe("scanSecrets", () => {
 	});
 
 	it("marks diagnostics as not fixable", async () => {
-		const filePath = writeFile(
-			"fix.ts",
-			'const apiKey = "abcdefghijklmnopqrstu12345";',
-		);
+		const filePath = writeFile("fix.ts", 'const apiKey = "abcdefghijklmnopqrstu12345";');
 		const diagnostics = await scanSecrets(makeContext([filePath]));
 		expect(diagnostics.length).toBeGreaterThanOrEqual(1);
 		expect(diagnostics[0].fixable).toBe(false);
 	});
 
 	it("category is Security", async () => {
-		const filePath = writeFile(
-			"cat.ts",
-			'const apiKey = "abcdefghijklmnopqrstu12345";',
-		);
+		const filePath = writeFile("cat.ts", 'const apiKey = "abcdefghijklmnopqrstu12345";');
 		const diagnostics = await scanSecrets(makeContext([filePath]));
 		expect(diagnostics.length).toBeGreaterThanOrEqual(1);
 		expect(diagnostics[0].category).toBe("Security");
@@ -193,10 +175,7 @@ describe("scanSecrets", () => {
 	});
 
 	it("detects generic authentication token", async () => {
-		const filePath = writeFile(
-			"token.ts",
-			'const token = "abcdefghijklmnopqrstu12345ABCD";',
-		);
+		const filePath = writeFile("token.ts", 'const token = "abcdefghijklmnopqrstu12345ABCD";');
 		const diagnostics = await scanSecrets(makeContext([filePath]));
 		expect(diagnostics.length).toBeGreaterThanOrEqual(1);
 		expect(diagnostics[0].message).toContain("token");
@@ -254,10 +233,7 @@ describe("detectRiskyConstructs", () => {
 	});
 
 	it("detects new Function() in TypeScript", async () => {
-		const filePath = writeFile(
-			"fn.ts",
-			"const fn = new Function('x', 'return x * 2');",
-		);
+		const filePath = writeFile("fn.ts", "const fn = new Function('x', 'return x * 2');");
 		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));
 		expect(diagnostics.length).toBeGreaterThanOrEqual(1);
 		expect(diagnostics[0].rule).toBe("security/new-function");
@@ -281,32 +257,21 @@ describe("detectRiskyConstructs", () => {
 	});
 
 	it("does NOT detect dangerouslySetInnerHTML in .ts files (only tsx/jsx)", async () => {
-		const filePath = writeFile(
-			"comp.ts",
-			"const html = dangerouslySetInnerHTML;",
-		);
+		const filePath = writeFile("comp.ts", "const html = dangerouslySetInnerHTML;");
 		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));
-		const dsiDiags = diagnostics.filter(
-			(d) => d.rule === "security/dangerously-set-innerhtml",
-		);
+		const dsiDiags = diagnostics.filter((d) => d.rule === "security/dangerously-set-innerhtml");
 		expect(dsiDiags).toHaveLength(0);
 	});
 
 	it("detects pickle.load in Python", async () => {
-		const filePath = writeFile(
-			"serialize.py",
-			"import pickle\ndata = pickle.loads(raw_bytes)",
-		);
+		const filePath = writeFile("serialize.py", "import pickle\ndata = pickle.loads(raw_bytes)");
 		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));
 		expect(diagnostics.length).toBeGreaterThanOrEqual(1);
 		expect(diagnostics[0].rule).toBe("security/pickle-load");
 	});
 
 	it("detects exec() in Python", async () => {
-		const filePath = writeFile(
-			"exec_test.py",
-			"exec('import os; os.system(\"ls\")')",
-		);
+		const filePath = writeFile("exec_test.py", "exec('import os; os.system(\"ls\")')");
 		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));
 		expect(diagnostics.length).toBeGreaterThanOrEqual(1);
 		expect(diagnostics[0].rule).toBe("security/python-exec");
@@ -335,9 +300,7 @@ describe("detectRiskyConstructs", () => {
 	it("does not flag Python patterns in .ts files", async () => {
 		const filePath = writeFile("not-python.ts", "// pickle.loads(data)\n");
 		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));
-		const pickleDiags = diagnostics.filter(
-			(d) => d.rule === "security/pickle-load",
-		);
+		const pickleDiags = diagnostics.filter((d) => d.rule === "security/pickle-load");
 		expect(pickleDiags).toHaveLength(0);
 	});
 
@@ -352,40 +315,28 @@ describe("detectRiskyConstructs", () => {
 	});
 
 	it("does NOT flag eval() inside a single-quoted string literal", async () => {
-		const filePath = writeFile(
-			"single.ts",
-			"const msg = 'eval() is dangerous';",
-		);
+		const filePath = writeFile("single.ts", "const msg = 'eval() is dangerous';");
 		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));
 		const evalDiags = diagnostics.filter((d) => d.rule === "security/eval");
 		expect(evalDiags).toHaveLength(0);
 	});
 
 	it("does NOT flag eval() inside a line comment", async () => {
-		const filePath = writeFile(
-			"comment.ts",
-			"// never call eval() on user input\nconst x = 1;",
-		);
+		const filePath = writeFile("comment.ts", "// never call eval() on user input\nconst x = 1;");
 		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));
 		const evalDiags = diagnostics.filter((d) => d.rule === "security/eval");
 		expect(evalDiags).toHaveLength(0);
 	});
 
 	it("does NOT flag eval() inside a block comment", async () => {
-		const filePath = writeFile(
-			"block.ts",
-			"/* warning: eval() is unsafe */\nconst x = 1;",
-		);
+		const filePath = writeFile("block.ts", "/* warning: eval() is unsafe */\nconst x = 1;");
 		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));
 		const evalDiags = diagnostics.filter((d) => d.rule === "security/eval");
 		expect(evalDiags).toHaveLength(0);
 	});
 
 	it("DOES flag eval() inside a template literal interpolation", async () => {
-		const filePath = writeFile(
-			"interp.ts",
-			"const result = `Hello ${eval(userInput)}`;",
-		);
+		const filePath = writeFile("interp.ts", "const result = `Hello ${eval(userInput)}`;");
 		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));
 		const evalDiags = diagnostics.filter((d) => d.rule === "security/eval");
 		expect(evalDiags.length).toBeGreaterThanOrEqual(1);
@@ -394,12 +345,10 @@ describe("detectRiskyConstructs", () => {
 	it("does NOT flag SQL-injection-looking template literal inside a string", async () => {
 		const filePath = writeFile(
 			"fake-sql.ts",
-			"const doc = \"db.query(`SELECT * FROM u WHERE id = ${id}`)\";",
+			'const doc = "db.query(`SELECT * FROM u WHERE id = ${id}`)";',
 		);
 		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));
-		const sqlDiags = diagnostics.filter(
-			(d) => d.rule === "security/sql-injection",
-		);
+		const sqlDiags = diagnostics.filter((d) => d.rule === "security/sql-injection");
 		expect(sqlDiags).toHaveLength(0);
 	});
 
@@ -409,9 +358,7 @@ describe("detectRiskyConstructs", () => {
 			"// element.innerHTML = userInput;\nconst x = 1;",
 		);
 		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));
-		const innerHtmlDiags = diagnostics.filter(
-			(d) => d.rule === "security/innerhtml",
-		);
+		const innerHtmlDiags = diagnostics.filter((d) => d.rule === "security/innerhtml");
 		expect(innerHtmlDiags).toHaveLength(0);
 	});
 
@@ -451,35 +398,26 @@ describe("detectRiskyConstructs", () => {
 			"const template = document.createElement('template');\ntemplate.innerHTML = html;",
 		);
 		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));
-		const innerHtmlDiags = diagnostics.filter(
-			(d) => d.rule === "security/innerhtml",
-		);
+		const innerHtmlDiags = diagnostics.filter((d) => d.rule === "security/innerhtml");
 		expect(innerHtmlDiags).toHaveLength(0);
 	});
 
 	it("does NOT flag tmpl.innerHTML as XSS (template variable naming)", async () => {
 		const filePath = writeFile("tmpl.ts", "tmpl.innerHTML = sanitizedHtml;");
 		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));
-		const innerHtmlDiags = diagnostics.filter(
-			(d) => d.rule === "security/innerhtml",
-		);
+		const innerHtmlDiags = diagnostics.filter((d) => d.rule === "security/innerhtml");
 		expect(innerHtmlDiags).toHaveLength(0);
 	});
 
 	it("still flags non-template innerHTML as XSS", async () => {
 		const filePath = writeFile("div.ts", "div.innerHTML = userInput;");
 		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));
-		const innerHtmlDiags = diagnostics.filter(
-			(d) => d.rule === "security/innerhtml",
-		);
+		const innerHtmlDiags = diagnostics.filter((d) => d.rule === "security/innerhtml");
 		expect(innerHtmlDiags).toHaveLength(1);
 	});
 
 	it("detects multiple risky constructs in the same file", async () => {
-		const filePath = writeFile(
-			"multi.ts",
-			"eval('bad');\nelement.innerHTML = userInput;\n",
-		);
+		const filePath = writeFile("multi.ts", "eval('bad');\nelement.innerHTML = userInput;\n");
 		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));
 		expect(diagnostics.length).toBeGreaterThanOrEqual(2);
 	});
@@ -519,10 +457,7 @@ describe("detectRiskyConstructs", () => {
 	});
 
 	it("does NOT flag bare query(`...${x}`) as SQL injection (no DB receiver)", async () => {
-		const filePath = writeFile(
-			"bare.ts",
-			"query(`SELECT * FROM users WHERE id = ${userId}`);",
-		);
+		const filePath = writeFile("bare.ts", "query(`SELECT * FROM users WHERE id = ${userId}`);");
 		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));
 		const sqlDiags = diagnostics.filter((d) => d.rule === "security/sql-injection");
 		expect(sqlDiags).toHaveLength(0);

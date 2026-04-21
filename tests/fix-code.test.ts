@@ -81,7 +81,10 @@ describe("printPrompt", () => {
 	it("includes code snippets when line number is provided", () => {
 		const filePath = path.join(tmpDir, "src", "big.ts");
 		fs.mkdirSync(path.join(tmpDir, "src"), { recursive: true });
-		fs.writeFileSync(filePath, Array.from({ length: 20 }, (_, i) => `const line${i} = ${i};`).join("\n"));
+		fs.writeFileSync(
+			filePath,
+			Array.from({ length: 20 }, (_, i) => `const line${i} = ${i};`).join("\n"),
+		);
 
 		const origIsTTY = process.stdout.isTTY;
 		const chunks: string[] = [];

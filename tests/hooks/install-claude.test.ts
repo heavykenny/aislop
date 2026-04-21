@@ -2,7 +2,11 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { installClaude, resolveClaudePaths, uninstallClaude } from "../../src/hooks/install/claude.js";
+import {
+	installClaude,
+	resolveClaudePaths,
+	uninstallClaude,
+} from "../../src/hooks/install/claude.js";
 
 let home: string;
 let cwd: string;

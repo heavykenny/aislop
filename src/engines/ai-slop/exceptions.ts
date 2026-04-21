@@ -69,7 +69,6 @@ export const detectSwallowedExceptions = async (context: EngineContext): Promise
 		const ext = path.extname(filePath);
 		const relativePath = path.relative(context.rootDirectory, filePath);
 
-		// Check swallowed exceptions
 		for (const { pattern, languages, message } of SWALLOWED_EXCEPTION_PATTERNS) {
 			if (!languages.includes(ext)) continue;
 

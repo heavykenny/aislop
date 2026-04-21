@@ -1,3 +1,4 @@
+// aislop-ignore-file duplicate-block
 import path from "node:path";
 import { AISLOP_MD_BODY } from "../assets.js";
 import { readIfExists } from "../io/atomic-write.js";

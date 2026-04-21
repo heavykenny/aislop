@@ -8,3 +8,5 @@ assets/release-fix-scan.*
 CHANGELOG-review.md
 docs/superpowers/
 docs/specs/
+.aislop/session.jsonl
+.aislop/hook.lock

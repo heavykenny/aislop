@@ -119,7 +119,6 @@ const detectLanguages = (directory: string): Language[] => {
 		}
 	}
 
-	// Check Python signals
 	for (const signal of PYTHON_SIGNALS) {
 		if (fs.existsSync(path.join(directory, signal))) {
 			languages.add("python");
@@ -127,7 +126,6 @@ const detectLanguages = (directory: string): Language[] => {
 		}
 	}
 
-	// Check Java signals
 	for (const signal of JAVA_SIGNALS) {
 		if (fs.existsSync(path.join(directory, signal))) {
 			languages.add("java");

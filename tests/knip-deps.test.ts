@@ -64,7 +64,7 @@ describe("knip dependency diagnostic shape", () => {
 		// TypeScript compiler API. knip's `--fix` is no longer invoked, because
 		// stripping `export` and leaving dead bodies behind created more work than
 		// it saved.
-		const mod = await import("../src/engines/code-quality/knip.js") as Record<string, unknown>;
+		const mod = (await import("../src/engines/code-quality/knip.js")) as Record<string, unknown>;
 		expect(mod.runKnipUnusedExports).toBeUndefined();
 		expect(mod.fixKnipUnusedExports).toBeUndefined();
 	});

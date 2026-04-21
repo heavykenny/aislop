@@ -2,7 +2,11 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { installCursor, resolveCursorPaths, uninstallCursor } from "../../src/hooks/install/cursor.js";
+import {
+	installCursor,
+	resolveCursorPaths,
+	uninstallCursor,
+} from "../../src/hooks/install/cursor.js";
 
 let home: string;
 let cwd: string;

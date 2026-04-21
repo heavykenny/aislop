@@ -41,12 +41,10 @@ afterEach(() => {
 
 describe("fixDeadPatterns — single-line console removal", () => {
 	it("removes a single-line console.log", async () => {
-		const file = writeFile("app.ts", [
-			'export function run() {',
-			'    console.log("debug");',
-			'    return 1;',
-			'}',
-		].join("\n"));
+		const file = writeFile(
+			"app.ts",
+			["export function run() {", '    console.log("debug");', "    return 1;", "}"].join("\n"),
+		);
 
 		await fixDeadPatterns(makeContext([file]));
 		const result = readFile("app.ts");
@@ -56,13 +54,16 @@ describe("fixDeadPatterns — single-line console removal", () => {
 	});
 
 	it("removes console.debug and console.info", async () => {
-		const file = writeFile("app.ts", [
-			'export function run() {',
-			'    console.debug("dbg");',
-			'    console.info("info");',
-			'    return 1;',
-			'}',
-		].join("\n"));
+		const file = writeFile(
+			"app.ts",
+			[
+				"export function run() {",
+				'    console.debug("dbg");',
+				'    console.info("info");',
+				"    return 1;",
+				"}",
+			].join("\n"),
+		);
 
 		await fixDeadPatterns(makeContext([file]));
 		const result = readFile("app.ts");
@@ -77,15 +78,18 @@ describe("fixDeadPatterns — single-line console removal", () => {
 
 describe("fixDeadPatterns — multi-line console removal", () => {
 	it("removes a multi-line console.log completely", async () => {
-		const file = writeFile("app.ts", [
-			'export function run() {',
-			'    console.log(',
-			'        "starting",',
-			'        "up",',
-			'    );',
-			'    return 1;',
-			'}',
-		].join("\n"));
+		const file = writeFile(
+			"app.ts",
+			[
+				"export function run() {",
+				"    console.log(",
+				'        "starting",',
+				'        "up",',
+				"    );",
+				"    return 1;",
+				"}",
+			].join("\n"),
+		);
 
 		await fixDeadPatterns(makeContext([file]));
 		const result = readFile("app.ts");
@@ -97,14 +101,17 @@ describe("fixDeadPatterns — multi-line console removal", () => {
 	});
 
 	it("does not leave orphaned lines from multi-line removal", async () => {
-		const file = writeFile("app.ts", [
-			'export function main() {',
-			'    console.log(',
-			'        "Starting up now",',
-			'    );',
-			'    return false;',
-			'}',
-		].join("\n"));
+		const file = writeFile(
+			"app.ts",
+			[
+				"export function main() {",
+				"    console.log(",
+				'        "Starting up now",',
+				"    );",
+				"    return false;",
+				"}",
+			].join("\n"),
+		);
 
 		await fixDeadPatterns(makeContext([file]));
 		const result = readFile("app.ts");
@@ -116,16 +123,19 @@ describe("fixDeadPatterns — multi-line console removal", () => {
 	});
 
 	it("produces valid JavaScript after multi-line removal", async () => {
-		const file = writeFile("app.js", [
-			'function setup() {',
-			'    const x = 1;',
-			'    console.log(',
-			'        "value:",',
-			'        x,',
-			'    );',
-			'    return x;',
-			'}',
-		].join("\n"));
+		const file = writeFile(
+			"app.js",
+			[
+				"function setup() {",
+				"    const x = 1;",
+				"    console.log(",
+				'        "value:",',
+				"        x,",
+				"    );",
+				"    return x;",
+				"}",
+			].join("\n"),
+		);
 
 		await fixDeadPatterns(makeContext([file]));
 		const result = readFile("app.js");
@@ -142,12 +152,15 @@ describe("fixDeadPatterns — multi-line console removal", () => {
 
 describe("fixDeadPatterns — console.error upgrade", () => {
 	it("upgrades console.log with 'error' to console.error", async () => {
-		const file = writeFile("app.ts", [
-			'export function run() {',
-			'    console.log("Error: connection failed");',
-			'    return 1;',
-			'}',
-		].join("\n"));
+		const file = writeFile(
+			"app.ts",
+			[
+				"export function run() {",
+				'    console.log("Error: connection failed");',
+				"    return 1;",
+				"}",
+			].join("\n"),
+		);
 
 		await fixDeadPatterns(makeContext([file]));
 		const result = readFile("app.ts");
@@ -157,12 +170,15 @@ describe("fixDeadPatterns — console.error upgrade", () => {
 	});
 
 	it("upgrades console.log with 'not found' to console.error", async () => {
-		const file = writeFile("app.ts", [
-			'export function run() {',
-			'    console.log("Config file not found");',
-			'    return 1;',
-			'}',
-		].join("\n"));
+		const file = writeFile(
+			"app.ts",
+			[
+				"export function run() {",
+				'    console.log("Config file not found");',
+				"    return 1;",
+				"}",
+			].join("\n"),
+		);
 
 		await fixDeadPatterns(makeContext([file]));
 		const result = readFile("app.ts");
@@ -171,12 +187,12 @@ describe("fixDeadPatterns — console.error upgrade", () => {
 	});
 
 	it("upgrades console.log with 'failed' to console.error", async () => {
-		const file = writeFile("app.ts", [
-			'export function run() {',
-			'    console.log("Build failed");',
-			'    return 1;',
-			'}',
-		].join("\n"));
+		const file = writeFile(
+			"app.ts",
+			["export function run() {", '    console.log("Build failed");', "    return 1;", "}"].join(
+				"\n",
+			),
+		);
 
 		await fixDeadPatterns(makeContext([file]));
 		const result = readFile("app.ts");
@@ -185,12 +201,15 @@ describe("fixDeadPatterns — console.error upgrade", () => {
 	});
 
 	it("upgrades console.log with 'unable' to console.error", async () => {
-		const file = writeFile("app.ts", [
-			'export function run() {',
-			'    console.log("Unable to connect to database");',
-			'    return 1;',
-			'}',
-		].join("\n"));
+		const file = writeFile(
+			"app.ts",
+			[
+				"export function run() {",
+				'    console.log("Unable to connect to database");',
+				"    return 1;",
+				"}",
+			].join("\n"),
+		);
 
 		await fixDeadPatterns(makeContext([file]));
 		const result = readFile("app.ts");
@@ -199,14 +218,17 @@ describe("fixDeadPatterns — console.error upgrade", () => {
 	});
 
 	it("upgrades multi-line console.log with error message to console.error", async () => {
-		const file = writeFile("app.ts", [
-			'export function run(id: string) {',
-			'    console.log(',
-			'        "No booted simulator found. Boot one first.",',
-			'    );',
-			'    return 1;',
-			'}',
-		].join("\n"));
+		const file = writeFile(
+			"app.ts",
+			[
+				"export function run(id: string) {",
+				"    console.log(",
+				'        "No booted simulator found. Boot one first.",',
+				"    );",
+				"    return 1;",
+				"}",
+			].join("\n"),
+		);
 
 		await fixDeadPatterns(makeContext([file]));
 		const result = readFile("app.ts");
@@ -217,16 +239,19 @@ describe("fixDeadPatterns — console.error upgrade", () => {
 	});
 
 	it("preserves all lines of a multi-line error upgrade", async () => {
-		const file = writeFile("app.ts", [
-			'export function run(id: string) {',
-			'    console.log(',
-			'        "Unable to find device",',
-			'        id,',
-			'        "in the list",',
-			'    );',
-			'    return 1;',
-			'}',
-		].join("\n"));
+		const file = writeFile(
+			"app.ts",
+			[
+				"export function run(id: string) {",
+				"    console.log(",
+				'        "Unable to find device",',
+				"        id,",
+				'        "in the list",',
+				"    );",
+				"    return 1;",
+				"}",
+			].join("\n"),
+		);
 
 		await fixDeadPatterns(makeContext([file]));
 		const result = readFile("app.ts");
@@ -238,14 +263,17 @@ describe("fixDeadPatterns — console.error upgrade", () => {
 	});
 
 	it("does NOT upgrade plain debug console.log to console.error", async () => {
-		const file = writeFile("app.ts", [
-			'export function run() {',
-			'    console.log("Starting setup...");',
-			'    console.log("All done!");',
-			'    console.log("Debug data:", { x: 1 });',
-			'    return 1;',
-			'}',
-		].join("\n"));
+		const file = writeFile(
+			"app.ts",
+			[
+				"export function run() {",
+				'    console.log("Starting setup...");',
+				'    console.log("All done!");',
+				'    console.log("Debug data:", { x: 1 });',
+				"    return 1;",
+				"}",
+			].join("\n"),
+		);
 
 		await fixDeadPatterns(makeContext([file]));
 		const result = readFile("app.ts");
@@ -262,19 +290,22 @@ describe("fixDeadPatterns — console.error upgrade", () => {
 
 describe("fixDeadPatterns — mixed console handling", () => {
 	it("handles mix of removals and upgrades in one file", async () => {
-		const file = writeFile("app.ts", [
-			'export function setup(udid: string) {',
-			'    console.log("Starting setup...");',
-			'    if (!udid) {',
-			'        console.log("No simulator found");',
-			'        process.exit(1);',
-			'    }',
-			'    console.log("Debug:", { udid });',
-			'    console.log("Error: connection failed for", udid);',
-			'    console.log("All done!");',
-			'    return udid;',
-			'}',
-		].join("\n"));
+		const file = writeFile(
+			"app.ts",
+			[
+				"export function setup(udid: string) {",
+				'    console.log("Starting setup...");',
+				"    if (!udid) {",
+				'        console.log("No simulator found");',
+				"        process.exit(1);",
+				"    }",
+				'    console.log("Debug:", { udid });',
+				'    console.log("Error: connection failed for", udid);',
+				'    console.log("All done!");',
+				"    return udid;",
+				"}",
+			].join("\n"),
+		);
 
 		await fixDeadPatterns(makeContext([file]));
 		const result = readFile("app.ts");
@@ -294,14 +325,17 @@ describe("fixDeadPatterns — mixed console handling", () => {
 	});
 
 	it("does not touch console.error or console.warn", async () => {
-		const file = writeFile("app.ts", [
-			'export function run() {',
-			'    console.error("This is fine");',
-			'    console.warn("This too");',
-			'    console.log("Remove me");',
-			'    return 1;',
-			'}',
-		].join("\n"));
+		const file = writeFile(
+			"app.ts",
+			[
+				"export function run() {",
+				'    console.error("This is fine");',
+				'    console.warn("This too");',
+				'    console.log("Remove me");',
+				"    return 1;",
+				"}",
+			].join("\n"),
+		);
 
 		await fixDeadPatterns(makeContext([file]));
 		const result = readFile("app.ts");

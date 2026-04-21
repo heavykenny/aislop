@@ -25,10 +25,8 @@ const AI_NAMING_PATTERNS = [
 const FRAMEWORK_METHOD_NAMES =
 	/^(?:setUp|tearDown|setUpClass|tearDownClass|setUpModule|tearDownModule)$/;
 
-// Dunder method pattern
 const DUNDER_PATTERN = /^__\w+__$/;
 
-// Check if the inner call has hardcoded literals (partial application, not a thin wrapper)
 const hasHardcodedArgs = (matchText: string): boolean => {
 	// Extract the inner function call's arguments
 	const innerCallMatch = matchText.match(/=>\s*\w+\(([^)]*)\)\s*;?\s*$/);

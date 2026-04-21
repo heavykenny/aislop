@@ -190,6 +190,33 @@ const looksLikeLicenseHeader = (block: CommentBlock): boolean => {
 	);
 };
 
+const BARE_LABEL_RE = /^[A-Z][A-Za-z0-9 ]{1,28}$/;
+const isBareSectionLabel = (prose: string): boolean => {
+	if (!BARE_LABEL_RE.test(prose)) return false;
+	if (prose.endsWith(".")) return false;
+	const words = prose.split(/\s+/);
+	if (words.length > 3) return false;
+	return true;
+};
+
+const DATA_ENTRY_START = /^\s*(?:\{|\[|["'`]|\d|\w+:\s|case\s)/;
+const nextLineLooksLikeDataEntry = (nextLine: string | null): boolean => {
+	if (nextLine === null) return false;
+	if (!DATA_ENTRY_START.test(nextLine)) return false;
+	const trimmed = nextLine.trim();
+	if (trimmed.startsWith("case ")) return true;
+	if (
+		trimmed.startsWith("{") ||
+		trimmed.startsWith("[") ||
+		trimmed.startsWith('"') ||
+		trimmed.startsWith("'") ||
+		trimmed.startsWith("`")
+	)
+		return true;
+	if (/^\w+\s*:/.test(trimmed)) return true;
+	return false;
+};
+
 const looksLikeSuppressDirective = (block: CommentBlock): boolean =>
 	block.rawLines.some((l) =>
 		/\b(biome-ignore|eslint-disable|ts-ignore|ts-expect-error|@ts-\w+|noqa|pylint:\s*disable|rubocop:disable|noinspection|phpcs:disable)\b/.test(
@@ -214,6 +241,15 @@ const detectNarrativeInBlock = (
 
 	if (block.kind === "line" && block.prose.some((l) => SECTION_HEADER.test(l))) {
 		return { matched: true, reason: "phase/section header" };
+	}
+
+	if (
+		block.kind === "line" &&
+		block.prose.length === 1 &&
+		isBareSectionLabel(block.prose[0]) &&
+		!nextLineLooksLikeDataEntry(block.nextNonBlankLine)
+	) {
+		return { matched: true, reason: "bare section label" };
 	}
 
 	if (block.prose.length >= 3 && looksLikeDeclarationPreamble(block.nextNonBlankLine, ext)) {

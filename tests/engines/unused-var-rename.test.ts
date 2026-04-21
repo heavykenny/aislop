@@ -44,10 +44,7 @@ const assertParsesClean = (filePath: string): void => {
 	expect(diagnostics, `file ${filePath} should parse without syntax errors`).toHaveLength(0);
 };
 
-const locate = (
-	content: string,
-	token: string,
-): { line: number; column: number } => {
+const locate = (content: string, token: string): { line: number; column: number } => {
 	const lines = content.split("\n");
 	for (let i = 0; i < lines.length; i++) {
 		const idx = lines[i].indexOf(token);
@@ -146,8 +143,20 @@ export const run = (): void => {
 		const posA = locate(source, "languagesLoading");
 		const posB = locate(source, "voicesLoading");
 		const targets: UnusedVarTarget[] = [
-			{ filePath: file, line: posA.line, column: posA.column, name: "languagesLoading", type: "variable" },
-			{ filePath: file, line: posB.line, column: posB.column, name: "voicesLoading", type: "variable" },
+			{
+				filePath: file,
+				line: posA.line,
+				column: posA.column,
+				name: "languagesLoading",
+				type: "variable",
+			},
+			{
+				filePath: file,
+				line: posB.line,
+				column: posB.column,
+				name: "voicesLoading",
+				type: "variable",
+			},
 		];
 
 		const result = prefixUnusedVars(tmpDir, targets);
@@ -171,7 +180,13 @@ export const run = (): void => {
 		const file = writeFixture("moovie.ts", source);
 		const pos = locate(source, "existingMember");
 		const targets: UnusedVarTarget[] = [
-			{ filePath: file, line: pos.line, column: pos.column, name: "existingMember", type: "variable" },
+			{
+				filePath: file,
+				line: pos.line,
+				column: pos.column,
+				name: "existingMember",
+				type: "variable",
+			},
 		];
 		const result = prefixUnusedVars(tmpDir, targets);
 		expect(result.renamed).toBe(1);
@@ -213,7 +228,13 @@ export const run = (): void => {
 		const file = writeFixture("rest-spread.ts", source);
 		const pos = locate(source, "unusedSecret");
 		const targets: UnusedVarTarget[] = [
-			{ filePath: file, line: pos.line, column: pos.column, name: "unusedSecret", type: "variable" },
+			{
+				filePath: file,
+				line: pos.line,
+				column: pos.column,
+				name: "unusedSecret",
+				type: "variable",
+			},
 		];
 		const result = prefixUnusedVars(tmpDir, targets);
 		expect(result.renamed).toBe(1);

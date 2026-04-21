@@ -11,7 +11,12 @@ describe("rules render", () => {
 			buildRulesRender({
 				rules: [
 					{ id: "ai-slop/trivial-comment", engine: "ai-slop", severity: "warning", fixable: true },
-					{ id: "ai-slop/swallowed-exception", engine: "ai-slop", severity: "error", fixable: false },
+					{
+						id: "ai-slop/swallowed-exception",
+						engine: "ai-slop",
+						severity: "error",
+						fixable: false,
+					},
 					{ id: "lint/no-any", engine: "lint", severity: "warning", fixable: false },
 				],
 			}),

@@ -2,9 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Diagnostic } from "../src/engines/types.js";
 import { renderDiagnostics } from "../src/output/terminal.js";
 
-const createDiagnostic = (
-	overrides: Partial<Diagnostic> = {},
-): Diagnostic => ({
+const createDiagnostic = (overrides: Partial<Diagnostic> = {}): Diagnostic => ({
 	filePath: "src/example.ts",
 	engine: "lint",
 	rule: "lint/example",

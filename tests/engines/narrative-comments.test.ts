@@ -79,7 +79,9 @@ export const run = () => 0;
 		const diags = await detectNarrativeComments(ctx(tmpDir));
 		expect(diags).toHaveLength(1);
 		await fixNarrativeComments(ctx(tmpDir));
-		expect(fs.readFileSync(path.join(tmpDir, "c.ts"), "utf-8")).toBe("export const run = () => 0;\n");
+		expect(fs.readFileSync(path.join(tmpDir, "c.ts"), "utf-8")).toBe(
+			"export const run = () => 0;\n",
+		);
 	});
 
 	it("detects cross-reference commentary", async () => {
