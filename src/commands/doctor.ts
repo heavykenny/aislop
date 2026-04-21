@@ -127,104 +127,89 @@ const primaryLanguage = (langs: Language[]): Language | null => {
 	return null;
 };
 
+interface SystemToolSpec {
+	binary: string;
+	toolLabel: string;
+	remediation: string;
+}
+
+interface LangToolSpec extends SystemToolSpec {
+	language: Language;
+}
+
+const systemToolDecision = (
+	installed: Record<string, boolean>,
+	spec: SystemToolSpec,
+): ToolDecision =>
+	installed[spec.binary]
+		? { tool: `${spec.toolLabel} (system)`, status: "ok" }
+		: {
+				tool: `${spec.toolLabel} not found`,
+				status: "missing",
+				remediation: spec.remediation,
+			};
+
+const firstMatching = (
+	langs: Language[],
+	installed: Record<string, boolean>,
+	specs: LangToolSpec[],
+): ToolDecision | null => {
+	for (const spec of specs) {
+		if (langs.includes(spec.language)) return systemToolDecision(installed, spec);
+	}
+	return null;
+};
+
+const spec = (
+	language: Language,
+	binary: string,
+	toolLabel: string,
+	remediation: string,
+): LangToolSpec => ({ language, binary, toolLabel, remediation });
+
+const FORMAT_SPECS: LangToolSpec[] = [
+	spec("python", "ruff", "ruff", "Install: pipx install ruff"),
+	spec("go", "gofmt", "gofmt", "Install: via go toolchain — https://go.dev/dl/"),
+	spec("rust", "cargo", "cargo fmt", "Install: rustup component add rustfmt"),
+	spec("ruby", "rubocop", "rubocop", "Install: gem install rubocop"),
+	spec(
+		"php",
+		"php-cs-fixer",
+		"php-cs-fixer",
+		"Install: composer global require friendsofphp/php-cs-fixer",
+	),
+];
+
+const LINT_SPECS: LangToolSpec[] = [
+	spec("python", "ruff", "ruff", "Install: pipx install ruff"),
+	spec("go", "golangci-lint", "golangci-lint", "Install: brew install golangci-lint"),
+	spec("rust", "clippy-driver", "clippy", "Install: rustup component add clippy"),
+	spec("ruby", "rubocop", "rubocop", "Install: gem install rubocop"),
+];
+
 const planFormat = (ctx: PlanContext): ToolDecision => {
 	const { languages, installedTools } = ctx.projectInfo;
-	if (hasJsLike(languages)) {
-		return { tool: "biome (bundled)", status: "ok" };
-	}
-	if (languages.includes("python")) {
-		return installedTools["ruff"]
-			? { tool: "ruff (system)", status: "ok" }
-			: {
-					tool: "ruff not found",
-					status: "missing",
-					remediation: "Install: pipx install ruff",
-				};
-	}
-	if (languages.includes("go")) {
-		return installedTools["gofmt"]
-			? { tool: "gofmt (system)", status: "ok" }
-			: {
-					tool: "gofmt not found",
-					status: "missing",
-					remediation: "Install: via go toolchain — https://go.dev/dl/",
-				};
-	}
-	if (languages.includes("rust")) {
-		return installedTools["cargo"]
-			? { tool: "cargo fmt (system)", status: "ok" }
-			: {
-					tool: "cargo fmt not found",
-					status: "missing",
-					remediation: "Install: rustup component add rustfmt",
-				};
-	}
-	if (languages.includes("ruby")) {
-		return installedTools["rubocop"]
-			? { tool: "rubocop (system)", status: "ok" }
-			: {
-					tool: "rubocop not found",
-					status: "missing",
-					remediation: "Install: gem install rubocop",
-				};
-	}
-	if (languages.includes("php")) {
-		return installedTools["php-cs-fixer"]
-			? { tool: "php-cs-fixer (system)", status: "ok" }
-			: {
-					tool: "php-cs-fixer not found",
-					status: "missing",
-					remediation: "Install: composer global require friendsofphp/php-cs-fixer",
-				};
-	}
-	return { tool: "no formatter", status: "skipped", skipReason: "no supported language" };
+	if (hasJsLike(languages)) return { tool: "biome (bundled)", status: "ok" };
+	return (
+		firstMatching(languages, installedTools, FORMAT_SPECS) ?? {
+			tool: "no formatter",
+			status: "skipped",
+			skipReason: "no supported language",
+		}
+	);
 };
 
 const planLint = (ctx: PlanContext): ToolDecision => {
 	const { languages, frameworks, installedTools } = ctx.projectInfo;
-	if (frameworks.includes("expo")) {
-		return { tool: "expo-doctor + oxlint (bundled)", status: "ok" };
-	}
-	if (hasJsLike(languages)) {
-		return { tool: "oxlint (bundled)", status: "ok" };
-	}
-	if (languages.includes("python")) {
-		return installedTools["ruff"]
-			? { tool: "ruff (system)", status: "ok" }
-			: {
-					tool: "ruff not found",
-					status: "missing",
-					remediation: "Install: pipx install ruff",
-				};
-	}
-	if (languages.includes("go")) {
-		return installedTools["golangci-lint"]
-			? { tool: "golangci-lint (system)", status: "ok" }
-			: {
-					tool: "golangci-lint not found",
-					status: "missing",
-					remediation: "Install: brew install golangci-lint",
-				};
-	}
-	if (languages.includes("rust")) {
-		return installedTools["clippy-driver"]
-			? { tool: "clippy (system)", status: "ok" }
-			: {
-					tool: "clippy not found",
-					status: "missing",
-					remediation: "Install: rustup component add clippy",
-				};
-	}
-	if (languages.includes("ruby")) {
-		return installedTools["rubocop"]
-			? { tool: "rubocop (system)", status: "ok" }
-			: {
-					tool: "rubocop not found",
-					status: "missing",
-					remediation: "Install: gem install rubocop",
-				};
-	}
-	return { tool: "no linter", status: "skipped", skipReason: "no supported language" };
+	if (frameworks.includes("expo")) return { tool: "expo-doctor + oxlint (bundled)", status: "ok" };
+	if (hasJsLike(languages)) return { tool: "oxlint (bundled)", status: "ok" };
+	return (
+		firstMatching(languages, installedTools, LINT_SPECS) ?? {
+			tool: "no linter",
+			status: "skipped",
+			skipReason: "no supported language",
+		}
+	);
 };
 
 const planCodeQuality = (ctx: PlanContext): ToolDecision => {
@@ -239,44 +224,60 @@ const planAiSlop = (_ctx: PlanContext): ToolDecision => ({
 	status: "ok",
 });
 
+interface AuditSpec {
+	files: string[];
+	bundled?: string;
+	systemTool?: SystemToolSpec & { requiresBinaries?: string[] };
+}
+
+const AUDIT_SPECS: AuditSpec[] = [
+	{ files: ["pnpm-lock.yaml"], bundled: "pnpm audit" },
+	{ files: ["package-lock.json"], bundled: "npm audit" },
+	{
+		files: ["requirements.txt", "poetry.lock", "Pipfile.lock"],
+		systemTool: {
+			binary: "pip-audit",
+			toolLabel: "pip-audit",
+			remediation: "Install: pipx install pip-audit",
+		},
+	},
+	{
+		files: ["Cargo.toml"],
+		systemTool: {
+			binary: "cargo-audit",
+			toolLabel: "cargo audit",
+			remediation: "Install: cargo install cargo-audit",
+			requiresBinaries: ["cargo", "cargo-audit"],
+		},
+	},
+	{
+		files: ["go.mod"],
+		systemTool: {
+			binary: "govulncheck",
+			toolLabel: "govulncheck",
+			remediation: "Install: go install golang.org/x/vuln/cmd/govulncheck@latest",
+		},
+	},
+];
+
 const planSecurity = (ctx: PlanContext): ToolDecision => {
 	const { rootDirectory, projectInfo } = ctx;
 	const { installedTools } = projectInfo;
-
 	const hasFile = (rel: string): boolean => fs.existsSync(path.join(rootDirectory, rel));
-
-	if (hasFile("pnpm-lock.yaml")) {
-		return { tool: "pnpm audit", status: "ok" };
-	}
-	if (hasFile("package-lock.json")) {
-		return { tool: "npm audit", status: "ok" };
-	}
-	if (hasFile("requirements.txt") || hasFile("poetry.lock") || hasFile("Pipfile.lock")) {
-		return installedTools["pip-audit"]
-			? { tool: "pip-audit (system)", status: "ok" }
-			: {
-					tool: "pip-audit not found",
-					status: "missing",
-					remediation: "Install: pipx install pip-audit",
-				};
-	}
-	if (hasFile("Cargo.toml")) {
-		return installedTools["cargo"] && installedTools["cargo-audit"]
-			? { tool: "cargo audit (system)", status: "ok" }
-			: {
-					tool: "cargo audit not found",
-					status: "missing",
-					remediation: "Install: cargo install cargo-audit",
-				};
-	}
-	if (hasFile("go.mod")) {
-		return installedTools["govulncheck"]
-			? { tool: "govulncheck (system)", status: "ok" }
-			: {
-					tool: "govulncheck not found",
-					status: "missing",
-					remediation: "Install: go install golang.org/x/vuln/cmd/govulncheck@latest",
-				};
+	for (const spec of AUDIT_SPECS) {
+		if (!spec.files.some(hasFile)) continue;
+		if (spec.bundled) return { tool: spec.bundled, status: "ok" };
+		if (spec.systemTool) {
+			const required = spec.systemTool.requiresBinaries ?? [spec.systemTool.binary];
+			const allPresent = required.every((b) => installedTools[b]);
+			return allPresent
+				? { tool: `${spec.systemTool.toolLabel} (system)`, status: "ok" }
+				: {
+						tool: `${spec.systemTool.toolLabel} not found`,
+						status: "missing",
+						remediation: spec.systemTool.remediation,
+					};
+		}
 	}
 	return { tool: "no auditor", status: "skipped", skipReason: "no lockfile" };
 };

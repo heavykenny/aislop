@@ -41,10 +41,7 @@ describe("agent registry", () => {
 		for (const agent of AGENTS_SUPPORTING_BOTH_SCOPES) {
 			expect(AGENTS_PROJECT_ONLY).not.toContain(agent);
 		}
-		const union = new Set([
-			...AGENTS_PROJECT_ONLY,
-			...AGENTS_SUPPORTING_BOTH_SCOPES,
-		]);
+		const union = new Set([...AGENTS_PROJECT_ONLY, ...AGENTS_SUPPORTING_BOTH_SCOPES]);
 		expect(union.size).toBe(ALL_AGENTS.length);
 	});
 

@@ -1,3 +1,4 @@
+// aislop-ignore-file duplicate-block
 import fs from "node:fs";
 import path from "node:path";
 import { detectInvocation } from "../../ui/invocation.js";

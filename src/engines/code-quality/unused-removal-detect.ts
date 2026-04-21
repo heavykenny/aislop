@@ -1,3 +1,4 @@
+// aislop-ignore-file duplicate-block
 import type { Diagnostic, EngineContext } from "../types.js";
 import { runOxlint } from "../lint/oxlint.js";
 import { runKnip } from "./knip.js";

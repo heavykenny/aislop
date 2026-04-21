@@ -4,10 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { discoverProject } from "../src/utils/discover.js";
-import {
-	filterProjectFiles,
-	getSourceFilesForRoot,
-} from "../src/utils/source-files.js";
+import { filterProjectFiles, getSourceFilesForRoot } from "../src/utils/source-files.js";
 
 const createFile = (rootDir: string, filePath: string, content = "") => {
 	const absolutePath = path.join(rootDir, filePath);
@@ -38,11 +35,7 @@ describe("source file selection", () => {
 		createFile(tmpDir, "src/app.test.ts", "export const testFile = true;\n");
 		createFile(tmpDir, "tests/helper.ts", "export const helper = true;\n");
 		createFile(tmpDir, "ignored.ts", "export const ignored = true;\n");
-		createFile(
-			tmpDir,
-			"ignored-dir/task.ts",
-			"export const ignoredTask = true;\n",
-		);
+		createFile(tmpDir, "ignored-dir/task.ts", "export const ignoredTask = true;\n");
 
 		git(tmpDir, [
 			"add",
@@ -59,10 +52,7 @@ describe("source file selection", () => {
 		const sourceFiles = getSourceFilesForRoot(tmpDir).sort();
 
 		expect(sourceFiles).toEqual(
-			[
-				path.join(tmpDir, "src/app.ts"),
-				path.join(tmpDir, "src/worker.ts"),
-			].sort(),
+			[path.join(tmpDir, "src/app.ts"), path.join(tmpDir, "src/worker.ts")].sort(),
 		);
 
 		const filteredFiles = filterProjectFiles(tmpDir, [

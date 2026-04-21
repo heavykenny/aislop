@@ -94,11 +94,9 @@ describe("buildFixStepNames", () => {
 	});
 
 	it("includes Expo step when framework is expo and force is on", () => {
-		const steps = buildFixStepNames(
-			makeProjectInfo({ frameworks: ["expo"] }),
-			DEFAULT_CONFIG,
-			{ force: true },
-		);
+		const steps = buildFixStepNames(makeProjectInfo({ frameworks: ["expo"] }), DEFAULT_CONFIG, {
+			force: true,
+		});
 		expect(steps).toContain("Expo dependency alignment");
 	});
 

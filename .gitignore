@@ -1,4 +1,5 @@
 node_modules/
+.idea/
 dist/
 tools/
 assets/release-fix-scan.*
@@ -8,3 +9,5 @@ assets/release-fix-scan.*
 CHANGELOG-review.md
 docs/superpowers/
 docs/specs/
+.aislop/session.jsonl
+.aislop/hook.lock

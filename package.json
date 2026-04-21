@@ -1,6 +1,6 @@
 {
 	"name": "aislop",
-	"version": "0.6.0",
+	"version": "0.6.1",
 	"description": "Stop AI slop from shipping. A unified code quality CLI that catches the lazy patterns AI coding tools leave behind.",
 	"type": "module",
 	"bin": {
@@ -23,6 +23,7 @@
 		"typecheck": "tsc --noEmit",
 		"test": "pnpm build && vitest run",
 		"scan": "pnpm build && node dist/cli.js scan .",
+		"scan:exclude": "pnpm build && node dist/cli.js scan . --exclude .idea --exclude .gitnore --exclude node_modules",
 		"scan:json": "pnpm build && node dist/cli.js scan . --json",
 		"quality": "pnpm typecheck && pnpm test && node dist/cli.js scan . --json"
 	},
@@ -66,6 +67,7 @@
 		"commander": "^14.0.3",
 		"expo-doctor": "^1.18.10",
 		"knip": "^5.85.0",
+		"micromatch": "^4.0.8",
 		"oxlint": "^1.51.0",
 		"picocolors": "^1.1.1",
 		"tar": "^7.5.11",
@@ -75,6 +77,7 @@
 		"zod": "^4.3.6"
 	},
 	"devDependencies": {
+		"@types/micromatch": "^4.0.10",
 		"@types/node": "^25.6.0",
 		"tsdown": "^0.20.3",
 		"vitest": "^4.0.18"
