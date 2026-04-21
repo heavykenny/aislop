@@ -60,9 +60,9 @@ const program = new Command()
 			const config = loadConfig(directory);
 			const finalConfig = flags.exclude?.length
 				? {
-					...config,
-					exclude: [...(config.exclude ?? []), ...flags.exclude],
-				}
+						...config,
+						exclude: [...(config.exclude ?? []), ...flags.exclude],
+					}
 				: config;
 
 			// If no flags, show interactive menu (if TTY)
@@ -82,7 +82,7 @@ const program = new Command()
 				}
 			}
 
-			const {exitCode} = await scanCommand(directory, finalConfig, {
+			const { exitCode } = await scanCommand(directory, finalConfig, {
 				changes: Boolean(flags.changes),
 				staged: Boolean(flags.staged),
 				verbose: Boolean(flags.verbose),
@@ -96,7 +96,7 @@ const program = new Command()
 			}
 		},
 	)
-	.addHelpText("beforeAll", renderHeader({version: APP_VERSION, command: "--bare", context: []}))
+	.addHelpText("beforeAll", renderHeader({ version: APP_VERSION, command: "--bare", context: [] }))
 	.addHelpText(
 		"after",
 		`
@@ -158,12 +158,12 @@ program
 		const config = loadConfig(directory);
 		const finalConfig = flags.exclude?.length
 			? {
-				...config,
-				exclude: [...(config.exclude ?? []), ...flags.exclude],
-			}
+					...config,
+					exclude: [...(config.exclude ?? []), ...flags.exclude],
+				}
 			: config;
 
-		const {exitCode} = await scanCommand(directory, finalConfig, {
+		const { exitCode } = await scanCommand(directory, finalConfig, {
 			changes: Boolean(flags.changes),
 			staged: Boolean(flags.staged),
 			verbose: Boolean(flags.verbose),
@@ -216,7 +216,7 @@ program
 			"goose",
 		] as const;
 		// Commander camelCases --deep-agents to deepAgents
-		const flagToAgent: Record<string, string> = {deepAgents: "deep-agents"};
+		const flagToAgent: Record<string, string> = { deepAgents: "deep-agents" };
 		const matched = agentNames.find((name) => flags[name]);
 		const agent = matched ? (flagToAgent[matched] ?? matched) : undefined;
 		await fixCommand(directory, config, {
@@ -248,7 +248,7 @@ program
 	.action(async (directory = ".", _flags, command) => {
 		const flags = command.optsWithGlobals() as { human?: boolean };
 		const config = loadConfig(directory);
-		const {exitCode} = await ciCommand(directory, config, {
+		const { exitCode } = await ciCommand(directory, config, {
 			human: Boolean(flags.human),
 		});
 		if (exitCode !== 0) {
