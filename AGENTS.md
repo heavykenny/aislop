@@ -9,7 +9,7 @@ aislop is a unified code-quality CLI that catches the lazy patterns AI coding to
 - **npm package**: `aislop`
 - **CLI binary**: `aislop`
 - **Config directory**: `.aislop/`
-- **Repository**: https://github.com/heavykenny/aislop
+- **Repository**: https://github.com/scanaislop/aislop
 
 ## Build & test commands
 

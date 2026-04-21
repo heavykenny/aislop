@@ -30,7 +30,7 @@ Or the composite action (one-liner):
 
 ```yaml
 - uses: actions/checkout@v4
-- uses: heavykenny/aislop@v0.5
+- uses: scanaislop/aislop@v0.5
 ```
 
 `aislop ci` outputs JSON and exits with code 1 if the score is below the configured threshold or any error-severity diagnostic is present.

@@ -1,6 +1,6 @@
 {
 	"name": "aislop",
-	"version": "0.5.1",
+	"version": "0.6.0",
 	"description": "Stop AI slop from shipping. A unified code quality CLI that catches the lazy patterns AI coding tools leave behind.",
 	"type": "module",
 	"bin": {
@@ -23,7 +23,7 @@
 		"typecheck": "tsc --noEmit",
 		"test": "pnpm build && vitest run",
 		"scan": "pnpm build && node dist/cli.js scan .",
-		"scan:exclude": "pnpm build && node dist/cli.js scan . --exclude .idea --exclude .git",
+		"scan:exclude": "pnpm build && node dist/cli.js scan . --exclude .idea --exclude .git --exclude src",
 		"scan:json": "pnpm build && node dist/cli.js scan . --json",
 		"quality": "pnpm typecheck && pnpm test && node dist/cli.js scan . --json"
 	},
@@ -48,13 +48,13 @@
 	],
 	"author": "heavykenny",
 	"license": "MIT",
-	"homepage": "https://github.com/heavykenny/aislop#readme",
+	"homepage": "https://github.com/scanaislop/aislop#readme",
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/heavykenny/aislop.git"
+		"url": "git+https://github.com/scanaislop/aislop.git"
 	},
 	"bugs": {
-		"url": "https://github.com/heavykenny/aislop/issues"
+		"url": "https://github.com/scanaislop/aislop/issues"
 	},
 	"engines": {
 		"node": ">=20"

@@ -28,10 +28,10 @@ aislop scan
 
 ## Install from GitHub Packages
 
-The package is also published as `@heavykenny/aislop` on GitHub Packages:
+The package is also published as `@scanaislop/aislop` on GitHub Packages:
 
 ```bash
-npm install --save-dev @heavykenny/aislop --registry=https://npm.pkg.github.com
+npm install --save-dev @scanaislop/aislop --registry=https://npm.pkg.github.com
 ```
 
 ## Bundled tooling

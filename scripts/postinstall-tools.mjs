@@ -70,8 +70,8 @@ const TOOL_DEFINITIONS = [
 const isWindows = process.platform === "win32";
 const withExecutableExtension = (name) => (isWindows ? `${name}.exe` : name);
 
-const info = (message) => console.log(`[aislop] ${message}`);
-const warn = (message) => console.warn(`[aislop] ${message}`);
+const info = (message) => console.error(`[aislop] ${message}`);
+const warn = (message) => console.error(`[aislop] ${message}`);
 
 const downloadFile = async (url, destination) => {
 	const response = await fetch(url, {

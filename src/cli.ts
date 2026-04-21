@@ -1,18 +1,26 @@
-import {Command} from "commander";
-import {ciCommand} from "./commands/ci.js";
-import {doctorCommand} from "./commands/doctor.js";
-import {fixCommand} from "./commands/fix.js";
-import {hookInstall, hookRun, type SupportedAgent} from "./commands/hook.js";
-import {initCommand} from "./commands/init.js";
-import {interactiveCommand} from "./commands/interactive.js";
-import {rulesCommand} from "./commands/rules.js";
-import {scanCommand} from "./commands/scan.js";
-import {loadConfig} from "./config/index.js";
-import {renderHeader} from "./ui/header.js";
-import {renderHintLine} from "./ui/logger.js";
-import {style, theme} from "./ui/theme.js";
-import {flushTelemetry} from "./utils/telemetry.js";
-import {APP_VERSION} from "./version.js";
+import { Command } from "commander";
+import { ciCommand } from "./commands/ci.js";
+import { doctorCommand } from "./commands/doctor.js";
+import { fixCommand } from "./commands/fix.js";
+import {
+	defaultInstallTargets,
+	hookBaseline,
+	hookInstall,
+	hookRun,
+	hookStatus,
+	hookUninstall,
+	parseAgentFlag,
+} from "./commands/hook.js";
+import { initCommand } from "./commands/init.js";
+import { interactiveCommand } from "./commands/interactive.js";
+import { rulesCommand } from "./commands/rules.js";
+import { scanCommand } from "./commands/scan.js";
+import { loadConfig } from "./config/index.js";
+import { renderHeader } from "./ui/header.js";
+import { renderHintLine } from "./ui/logger.js";
+import { style, theme } from "./ui/theme.js";
+import { flushTelemetry } from "./utils/telemetry.js";
+import { APP_VERSION } from "./version.js";
 
 process.on("SIGINT", () => process.exit(0));
 process.on("SIGTERM", () => process.exit(0));
@@ -258,23 +266,101 @@ program
 
 const hook = program.command("hook").description("Install or invoke AI-agent integration hooks");
 
+const resolveScope = (flags: { global?: boolean; project?: boolean }): "global" | "project" => {
+	if (flags.project) return "project";
+	if (flags.global) return "global";
+	return "global";
+};
+
 hook
 	.command("install")
-	.description("Install an agent-integration hook (Claude Code supported)")
-	.option("--agent <name>", "target agent (claude)", "claude")
-	.option("-g, --global", "install to the user-scope config", true)
-	.action(async (opts: { agent: string; global: boolean }) => {
-		await hookInstall({
-			agent: opts.agent as SupportedAgent,
-			global: Boolean(opts.global),
-		});
+	.description("Install aislop hooks for one or more coding agents")
+	.option(
+		"--agent <names>",
+		"comma-separated agent list (claude,cursor,gemini,codex,windsurf,cline,kilocode,antigravity,copilot). default: all non-project-only agents",
+	)
+	.option("-g, --global", "install to the user-scope config (default for agents that support it)")
+	.option("--project", "install to the project-scope config")
+	.option("--dry-run", "print the planned diff without writing")
+	.option("--yes", "skip the confirmation prompt (reserved)")
+	.option(
+		"--quality-gate",
+		"add a Stop hook that blocks when score regresses below baseline (Claude only)",
+	)
+	.action(
+		async (opts: {
+			agent?: string;
+			global?: boolean;
+			project?: boolean;
+			dryRun?: boolean;
+			yes?: boolean;
+			qualityGate?: boolean;
+		}) => {
+			const agents = parseAgentFlag(opts.agent, defaultInstallTargets());
+			await hookInstall({
+				agents,
+				scope: resolveScope(opts),
+				dryRun: Boolean(opts.dryRun),
+				yes: Boolean(opts.yes),
+				qualityGate: Boolean(opts.qualityGate),
+			});
+		},
+	);
+
+hook
+	.command("uninstall")
+	.description("Uninstall aislop hooks for one or more agents")
+	.option("--agent <names>", "comma-separated agent list. default: all agents with installed hooks")
+	.option("-g, --global", "uninstall from user-scope config")
+	.option("--project", "uninstall from project-scope config")
+	.option("--dry-run", "print the planned removal without writing")
+	.action(
+		async (opts: { agent?: string; global?: boolean; project?: boolean; dryRun?: boolean }) => {
+			const agents = parseAgentFlag(opts.agent, defaultInstallTargets());
+			await hookUninstall({
+				agents,
+				scope: resolveScope(opts),
+				dryRun: Boolean(opts.dryRun),
+				yes: true,
+				qualityGate: false,
+			});
+		},
+	);
+
+hook
+	.command("status")
+	.description("Show which agent hooks are installed")
+	.action(async () => {
+		await hookStatus();
+	});
+
+hook
+	.command("baseline")
+	.description("Capture the current project score as the quality-gate baseline")
+	.action(async () => {
+		await hookBaseline();
 	});
 
 hook
 	.command("claude")
-	.description("Internal: Claude Code PostToolUse callback (reads stdin)")
+	.description("Internal: Claude Code PostToolUse / Stop callback (reads stdin)")
+	.option("--stop", "run in Stop-hook mode for the quality gate")
+	.action(async (opts: { stop?: boolean }) => {
+		await hookRun("claude", { stop: Boolean(opts.stop) });
+	});
+
+hook
+	.command("cursor")
+	.description("Internal: Cursor afterFileEdit callback (reads stdin)")
 	.action(async () => {
-		await hookRun("claude");
+		await hookRun("cursor");
+	});
+
+hook
+	.command("gemini")
+	.description("Internal: Gemini CLI AfterTool callback (reads stdin)")
+	.action(async () => {
+		await hookRun("gemini");
 	});
 
 const main = async () => {
