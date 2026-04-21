@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import micromatch from "micromatch";
 import fs from "node:fs";
 import path from "node:path";
 import type { EngineContext } from "../engines/types.js";
@@ -111,7 +112,7 @@ const getIgnoredPaths = (rootDirectory: string, files: string[]): Set<string> =>
 	);
 };
 
-const listProjectFiles = (rootDirectory: string): string[] => {
+export const listProjectFiles = (rootDirectory: string): string[] => {
 	const result = spawnSync("git", ["ls-files", "--cached", "--others", "--exclude-standard"], {
 		cwd: rootDirectory,
 		encoding: "utf-8",
@@ -152,10 +153,24 @@ const listProjectFiles = (rootDirectory: string): string[] => {
 		.map((file) => file.replace(/^\.\//, ""));
 };
 
+const normalizeExcludePatterns = (patterns: string[]): string[] => {
+	return patterns.flatMap((pattern) => {
+		const p = pattern.trim();
+		if (p.startsWith(".")) {
+			return [`**/*${p}`];
+		}
+		if (!p.includes("*") && !p.includes(".")) {
+			return [`${p}/**`];
+		}
+		return [p];
+	});
+};
+
 export const filterProjectFiles = (
 	rootDirectory: string,
 	files: string[],
 	extraExtensions: string[] = [],
+	exclude: string[] = [],
 ): string[] => {
 	const extraSet = new Set(extraExtensions);
 	const normalizedFiles = files
@@ -166,20 +181,28 @@ export const filterProjectFiles = (
 		})
 		.filter(({ relativePath }) => isWithinProject(relativePath));
 
-	const ignoredPaths = getIgnoredPaths(
-		rootDirectory,
-		normalizedFiles.map(({ relativePath }) => relativePath),
-	);
+	const relativePaths = normalizedFiles.map(({ relativePath }) => relativePath);
+
+	const ignoredPaths = getIgnoredPaths(rootDirectory, relativePaths);
+	const normalizedExcludePatterns = exclude.length?normalizeExcludePatterns(exclude):[];
+	const isUserExcluded = (relativePath: string) => {
+		if (!normalizedExcludePatterns.length) return false;
+		return micromatch.isMatch(relativePath, normalizedExcludePatterns, {
+			dot: true,
+		});
+	};
 
 	return normalizedFiles
-		.filter(
-			({ absolutePath, relativePath }) =>
+		.filter(({ absolutePath, relativePath }) => {
+			return (
 				hasAllowedExtension(relativePath, extraSet) &&
 				!isExcludedPath(relativePath) &&
 				!isTestFile(relativePath) &&
 				!ignoredPaths.has(relativePath) &&
-				fs.existsSync(absolutePath),
-		)
+				!isUserExcluded(relativePath) &&
+				fs.existsSync(absolutePath)
+			);
+		})
 		.map(({ absolutePath }) => absolutePath);
 };
 

@@ -34,6 +34,18 @@ const program = new Command()
 	.option("--staged", "only scan staged files")
 	.option("-d, --verbose", "show file details per rule")
 	.option("--json", "output JSON instead of terminal UI")
+	.option(
+		"--exclude <patterns>",
+		"comma-separated or repeatable list of paths and files to exclude",
+		(value, previous: string[] = []) => {
+			const parts = value
+				.split(",")
+				.map((v) => v.trim())
+				.filter(Boolean);
+			return [...previous, ...parts];
+		},
+		[],
+	)
 	.action(
 		async (
 			directory: string,
@@ -42,25 +54,40 @@ const program = new Command()
 				staged?: boolean;
 				verbose?: boolean;
 				json?: boolean;
+				exclude?: string[];
 			},
 		) => {
 			const config = loadConfig(directory);
+			const finalConfig = flags.exclude?.length
+				? {
+					...config,
+					exclude: [...(config.exclude ?? []), ...flags.exclude],
+				}
+				: config;
 
 			// If no flags, show interactive menu (if TTY)
-			if (!flags.changes && !flags.staged && !flags.verbose && !flags.json && process.stdin.isTTY) {
+			if (
+				!flags.changes &&
+				!flags.staged &&
+				!flags.verbose &&
+				!flags.json &&
+				process.stdin.isTTY &&
+				!(flags.exclude && flags.exclude.length > 0)
+			) {
 				try {
-					await interactiveCommand(directory, config);
+					await interactiveCommand(directory, finalConfig);
 					return;
 				} catch {
 					// Fall through to scan if interactive fails
 				}
 			}
 
-			const { exitCode } = await scanCommand(directory, config, {
+			const {exitCode} = await scanCommand(directory, finalConfig, {
 				changes: Boolean(flags.changes),
 				staged: Boolean(flags.staged),
 				verbose: Boolean(flags.verbose),
 				json: Boolean(flags.json),
+				exclude: flags.exclude,
 			});
 
 			if (exitCode !== 0) {
@@ -69,7 +96,7 @@ const program = new Command()
 			}
 		},
 	)
-	.addHelpText("beforeAll", renderHeader({ version: APP_VERSION, command: "--bare", context: [] }))
+	.addHelpText("beforeAll", renderHeader({version: APP_VERSION, command: "--bare", context: []}))
 	.addHelpText(
 		"after",
 		`
@@ -93,7 +120,9 @@ ${style(theme, "dim", "Examples:")}
   npx aislop fix --cursor    Open Cursor + copy prompt to clipboard
   npx aislop fix -p          Print a prompt to paste into any coding agent
   npx aislop ci              JSON output for CI pipelines
-
+  npx aislop scan --exclude node_modules
+  npx aislop scan --exclude node_modules,dist,file.txt
+  npx aislop scan --exclude node_modules --exclude dist --exclude **/*.ts
 ${renderHintLine("Run npx aislop scan to scan your project").trimEnd()}
 `,
 	);
@@ -106,19 +135,40 @@ program
 	.option("--staged", "only scan staged files")
 	.option("-d, --verbose", "show file details per rule")
 	.option("--json", "output JSON")
+	.option(
+		"--exclude <patterns>",
+		"comma-separated or repeatable list of paths and files to exclude",
+		(value, previous: string[] = []) => {
+			const parts = value
+				.split(",")
+				.map((v) => v.trim())
+				.filter(Boolean);
+			return [...previous, ...parts];
+		},
+		[],
+	)
 	.action(async (directory = ".", _flags, command) => {
 		const flags = command.optsWithGlobals() as {
 			changes?: boolean;
 			staged?: boolean;
 			verbose?: boolean;
 			json?: boolean;
+			exclude?: string[];
 		};
 		const config = loadConfig(directory);
-		const { exitCode } = await scanCommand(directory, config, {
+		const finalConfig = flags.exclude?.length
+			? {
+				...config,
+				exclude: [...(config.exclude ?? []), ...flags.exclude],
+			}
+			: config;
+
+		const {exitCode} = await scanCommand(directory, finalConfig, {
 			changes: Boolean(flags.changes),
 			staged: Boolean(flags.staged),
 			verbose: Boolean(flags.verbose),
 			json: Boolean(flags.json),
+			exclude: flags.exclude ?? [],
 		});
 		if (exitCode !== 0) {
 			await flushTelemetry();
@@ -166,7 +216,7 @@ program
 			"goose",
 		] as const;
 		// Commander camelCases --deep-agents to deepAgents
-		const flagToAgent: Record<string, string> = { deepAgents: "deep-agents" };
+		const flagToAgent: Record<string, string> = {deepAgents: "deep-agents"};
 		const matched = agentNames.find((name) => flags[name]);
 		const agent = matched ? (flagToAgent[matched] ?? matched) : undefined;
 		await fixCommand(directory, config, {
@@ -198,7 +248,7 @@ program
 	.action(async (directory = ".", _flags, command) => {
 		const flags = command.optsWithGlobals() as { human?: boolean };
 		const config = loadConfig(directory);
-		const { exitCode } = await ciCommand(directory, config, {
+		const {exitCode} = await ciCommand(directory, config, {
 			human: Boolean(flags.human),
 		});
 		if (exitCode !== 0) {
