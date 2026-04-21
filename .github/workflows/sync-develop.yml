@@ -1,0 +1,61 @@
+name: Sync main → develop
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: develop
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch main
+        run: git fetch origin main
+
+      - name: Fast-forward if possible, otherwise merge
+        id: merge
+        run: |
+          if git merge-base --is-ancestor origin/main HEAD; then
+            echo "develop already contains main — nothing to do"
+            echo "needs_sync=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "needs_sync=true" >> "$GITHUB_OUTPUT"
+          if git merge --no-ff origin/main -m "chore: sync main → develop (auto)"; then
+            echo "clean=true" >> "$GITHUB_OUTPUT"
+          else
+            git merge --abort
+            echo "clean=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Push clean merge
+        if: steps.merge.outputs.needs_sync == 'true' && steps.merge.outputs.clean == 'true'
+        run: git push origin develop
+
+      - name: Open sync PR on conflict
+        if: steps.merge.outputs.needs_sync == 'true' && steps.merge.outputs.clean == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr list --base develop --head main --json number --jq '.[].number' | xargs -I{} echo "existing sync PR: #{}" || true
+          if ! gh pr list --base develop --head main --state open --json number --jq '.[].number' | grep -q .; then
+            gh pr create \
+              --base develop \
+              --head main \
+              --title "chore: sync main → develop (manual resolution needed)" \
+              --body "Auto-merge from the main→develop sync workflow hit conflicts. Resolve locally and push." || true
+          fi
