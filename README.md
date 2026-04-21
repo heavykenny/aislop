@@ -135,6 +135,25 @@ aislop scan --staged       # only staged files (pre-commit)
 aislop scan --json         # output JSON
 ```
 
+**Exclude files and directories.** `node_modules`, `.git`, `dist`, `build`, and `coverage` are excluded by default. Add more via `.aislop/config.yml`:
+
+```yaml
+exclude:
+  - "**/*.test.ts"          # globs supported (micromatch)
+  - src/generated
+  - legacy
+```
+
+Or override per-run with `--exclude` (comma-separated or repeatable, stacks on top of the config):
+
+```bash
+aislop scan --exclude "**/*.test.ts"
+aislop scan --exclude node_modules,dist,logs
+aislop scan --exclude "src/generated" --exclude "**/*.spec.*"
+```
+
+CLI flags beat config; config beats defaults.
+
 ### Fix issues automatically
 
 ```bash

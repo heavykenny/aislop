@@ -27,6 +27,8 @@ A follow-up round after 0.6.0 went live: hook UX gaps surfaced on first contact,
 
 **Suppression mechanism.** `// aislop-ignore-file <rule>` at the top of a file, or `// aislop-ignore-next-block <rule>` above a specific construct. Lets you opt out of a rule on code where the pattern is intentional (e.g. a diagnostic-push table that reads better as N similar blocks than as a data-driven loop).
 
+**Config-driven file exclusion (thanks [@myke-awoniran](https://github.com/myke-awoniran)).** `exclude:` key in `.aislop/config.yml` and `--exclude <pattern>` on the CLI, both glob-supported via `micromatch`. Defaults cover `node_modules`, `.git`, `dist`, `build`, `coverage`. User excludes stack: CLI overrides config, config stacks on defaults. Applied uniformly across full-scan, `--staged`, and `--changes` modes.
+
 ### Changed
 
 - **`README.md` covers hooks.** New "Install as a native hook" section under Usage with adapter + rules-only installer lists, quality-gate flow, and a link to [`/docs/hooks`](https://scanaislop.com/docs/hooks). Quick-start and "Why aislop" blocks mention hooks. Sample-output version banner bumped to 0.6.1.
