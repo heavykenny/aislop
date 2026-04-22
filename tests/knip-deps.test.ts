@@ -69,3 +69,30 @@ describe("knip dependency diagnostic shape", () => {
 		expect(mod.fixKnipUnusedExports).toBeUndefined();
 	});
 });
+
+describe("shouldIncludeIssue", () => {
+	const loadPredicate = async () => {
+		const mod = await import("../src/engines/code-quality/knip.js");
+		return mod.shouldIncludeIssue;
+	};
+
+	it("drops binaries diagnostics for .github/workflows files", async () => {
+		// Workflow YAML invokes runner-provided binaries (gh, aws, docker, jq)
+		// that can never appear in package.json — pure false positive.
+		const shouldIncludeIssue = await loadPredicate();
+		expect(shouldIncludeIssue("binaries", ".github/workflows/sync-develop.yml")).toBe(false);
+		expect(shouldIncludeIssue("binaries", ".github\\workflows\\ci.yml")).toBe(false);
+	});
+
+	it("keeps binaries diagnostics for non-workflow files", async () => {
+		const shouldIncludeIssue = await loadPredicate();
+		expect(shouldIncludeIssue("binaries", "scripts/release.sh")).toBe(true);
+		expect(shouldIncludeIssue("binaries", "package.json")).toBe(true);
+	});
+
+	it("does not suppress other issue types in workflow files", async () => {
+		const shouldIncludeIssue = await loadPredicate();
+		expect(shouldIncludeIssue("dependencies", ".github/workflows/sync.yml")).toBe(true);
+		expect(shouldIncludeIssue("unlisted", ".github/workflows/sync.yml")).toBe(true);
+	});
+});
