@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.6.2 (2026-04-22)
+
+Single-finding patch: the knip-backed `Unlisted binary` rule was firing on `.github/workflows/**` for runner-provided tools like `gh`, `aws`, `docker`, and `jq`, which can never be declared in `package.json`.
+
+### Fixed
+
+- **`knip/binaries` no longer flags CI workflow files.** `src/engines/code-quality/knip.ts` now routes every issue through `shouldIncludeIssue(issueType, filePath)`; the predicate drops `binaries` diagnostics whose file path lives under `.github/workflows/`. Backslashes are normalised so Windows paths behave the same. The rule stays active everywhere else, so an npm script invoking an undeclared tool is still a real signal.
+
+### Tests
+
+- 3 new unit tests in `tests/knip-deps.test.ts` covering the predicate: workflow binaries dropped, non-workflow binaries kept, other issue types unaffected in workflow files. Total suite: 617 (614 + 3).
+
 ## 0.6.1 (2026-04-20)
 
 A follow-up round after 0.6.0 went live: hook UX gaps surfaced on first contact, README was still on 0.5.x, and adding deterministic duplicate-detection caught real issues in aislop's own source.

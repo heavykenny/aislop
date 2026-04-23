@@ -46,7 +46,7 @@ Sample output:
  [!]  Code Quality: done (2 warnings, 812ms)
  [!]  AI Slop: done (4 warnings, 455ms)
  [ok] Security: done (0 issues, 1.3s)
- aislop 0.6.1  ·  the quality gate for agentic coding
+ aislop 0.6.2  ·  the quality gate for agentic coding
 
  scan  ·  my-app  ·  typescript  ·  142 files
 
