@@ -55,6 +55,13 @@ const getIssueItems = (fileIssue: KnipFileIssue, issueType: string): KnipIssueIt
 	return Array.isArray(items) ? items : [];
 };
 
+// Runner-provided binaries (gh, aws, docker) can't be listed in package.json.
+export const shouldIncludeIssue = (issueType: string, filePath: string): boolean => {
+	if (issueType !== "binaries") return true;
+	const normalized = filePath.replace(/\\/g, "/");
+	return !normalized.includes(".github/workflows/");
+};
+
 const DEPENDENCY_HELP: Record<string, string> = {
 	dependencies:
 		"This package is listed in package.json but not imported anywhere. Remove it with `npm uninstall` or `npx aislop fix`.",
@@ -73,6 +80,7 @@ const collectIssues = (
 	knipCwd: string,
 ): Diagnostic[] => {
 	const diagnostics: Diagnostic[] = [];
+	if (!shouldIncludeIssue(issueType, fileIssue.file)) return diagnostics;
 	const issues = getIssueItems(fileIssue, issueType);
 	const isDepType = isDependencyType(issueType);
 	const category = isDepType ? "Dependencies" : "Dead Code";
