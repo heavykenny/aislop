@@ -318,7 +318,7 @@ The CLI is MIT-licensed and always will be. [Learn more about the platform →](
 Show your aislop score on a README. Free for any project that opts in on [scanaislop.com](https://scanaislop.com).
 
 ```markdown
-![aislop](https://badges.scanaislop.com/score/<owner>/<repo>.svg)
+[![aislop](https://badges.scanaislop.com/score/<owner>/<repo>.svg)](https://scanaislop.com)
 ```
 
 Shields-compatible SVG, edge-cached on Cloudflare. Colour-coded: green ≥ 85, amber 70-84, red < 70, grey if no scans yet.
