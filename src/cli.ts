@@ -1,18 +1,18 @@
-import { Command } from "commander";
-import { registerHookCommand } from "./cli/hook-command.js";
-import { ciCommand } from "./commands/ci.js";
-import { doctorCommand } from "./commands/doctor.js";
-import { fixCommand } from "./commands/fix.js";
-import { initCommand } from "./commands/init.js";
-import { interactiveCommand } from "./commands/interactive.js";
-import { rulesCommand } from "./commands/rules.js";
-import { scanCommand } from "./commands/scan.js";
-import { loadConfig } from "./config/index.js";
-import { renderHeader } from "./ui/header.js";
-import { renderHintLine } from "./ui/logger.js";
-import { style, theme } from "./ui/theme.js";
-import { flushTelemetry } from "./utils/telemetry.js";
-import { APP_VERSION } from "./version.js";
+import {Command} from "commander";
+import {registerHookCommand} from "./cli/hook-command.js";
+import {ciCommand} from "./commands/ci.js";
+import {doctorCommand} from "./commands/doctor.js";
+import {fixCommand} from "./commands/fix.js";
+import {initCommand} from "./commands/init.js";
+import {interactiveCommand} from "./commands/interactive.js";
+import {rulesCommand} from "./commands/rules.js";
+import {scanCommand} from "./commands/scan.js";
+import {loadConfig} from "./config/index.js";
+import {renderHeader} from "./ui/header.js";
+import {renderHintLine} from "./ui/logger.js";
+import {style, theme} from "./ui/theme.js";
+import {flushTelemetry} from "./utils/telemetry.js";
+import {APP_VERSION} from "./version.js";
 
 process.on("SIGINT", () => process.exit(0));
 process.on("SIGTERM", () => process.exit(0));
@@ -23,9 +23,10 @@ interface ScanFlags {
 	verbose?: boolean;
 	json?: boolean;
 	exclude?: string[];
+	include?: string[];
 }
 
-const excludeParser = (value: string, previous: string[] = []): string[] => {
+const commaSeparatedParser = (value: string, previous: string[] = []): string[] => {
 	const parts = value
 		.split(",")
 		.map((v) => v.trim())
@@ -35,10 +36,18 @@ const excludeParser = (value: string, previous: string[] = []): string[] => {
 
 const runScan = async (directory: string, flags: ScanFlags): Promise<void> => {
 	const config = loadConfig(directory);
-	const finalConfig = flags.exclude?.length
-		? { ...config, exclude: [...(config.exclude ?? []), ...flags.exclude] }
-		: config;
-	const { exitCode } = await scanCommand(directory, finalConfig, {
+	const finalConfig = {
+		...config,
+		exclude: [
+			...(config.exclude ?? []),
+			...(flags.exclude ?? []),
+		],
+		include: [
+			...(config.include ?? []),
+			...(flags.include ?? []),
+		],
+	};
+	const {exitCode} = await scanCommand(directory, finalConfig, {
 		changes: Boolean(flags.changes),
 		staged: Boolean(flags.staged),
 		verbose: Boolean(flags.verbose),
@@ -70,7 +79,13 @@ const program = new Command()
 	.option(
 		"--exclude <patterns>",
 		"comma-separated or repeatable list of paths and files to exclude",
-		excludeParser,
+		commaSeparatedParser,
+		[],
+	)
+	.option(
+		"--include <patterns>",
+		"comma-separated or repeatable list of paths and files to include",
+		commaSeparatedParser,
 		[],
 	)
 	.action(async (directory: string, flags: ScanFlags) => {
@@ -84,7 +99,7 @@ const program = new Command()
 		}
 		await runScan(directory, flags);
 	})
-	.addHelpText("beforeAll", renderHeader({ version: APP_VERSION, command: "--bare", context: [] }))
+	.addHelpText("beforeAll", renderHeader({version: APP_VERSION, command: "--bare", context: []}))
 	.addHelpText(
 		"after",
 		`
@@ -125,29 +140,34 @@ program
 	.option(
 		"--exclude <patterns>",
 		"comma-separated or repeatable list of paths and files to exclude",
-		excludeParser,
+		commaSeparatedParser,
 		[],
-	)
+	).option(
+	"--include <patterns>",
+	"comma-separated or repeatable list of paths and files to include",
+	commaSeparatedParser,
+	[],
+)
 	.action(async (directory = ".", _flags, command) => {
 		await runScan(directory, command.optsWithGlobals() as ScanFlags);
 	});
 
 const FIX_AGENT_FLAGS: { flag: string; name: string; help: string }[] = [
-	{ flag: "claude", name: "claude", help: "open Claude Code to fix remaining issues" },
-	{ flag: "codex", name: "codex", help: "open Codex to fix remaining issues" },
-	{ flag: "cursor", name: "cursor", help: "open Cursor and copy prompt to clipboard" },
-	{ flag: "windsurf", name: "windsurf", help: "open Windsurf and copy prompt to clipboard" },
-	{ flag: "vscode", name: "vscode", help: "open VS Code and copy prompt to clipboard" },
-	{ flag: "amp", name: "amp", help: "open Amp to fix remaining issues" },
-	{ flag: "antigravity", name: "antigravity", help: "open Antigravity to fix remaining issues" },
+	{flag: "claude", name: "claude", help: "open Claude Code to fix remaining issues"},
+	{flag: "codex", name: "codex", help: "open Codex to fix remaining issues"},
+	{flag: "cursor", name: "cursor", help: "open Cursor and copy prompt to clipboard"},
+	{flag: "windsurf", name: "windsurf", help: "open Windsurf and copy prompt to clipboard"},
+	{flag: "vscode", name: "vscode", help: "open VS Code and copy prompt to clipboard"},
+	{flag: "amp", name: "amp", help: "open Amp to fix remaining issues"},
+	{flag: "antigravity", name: "antigravity", help: "open Antigravity to fix remaining issues"},
 	// Commander camelCases --deep-agents to deepAgents on the parsed opts object.
-	{ flag: "deep-agents", name: "deepAgents", help: "open Deep Agents to fix remaining issues" },
-	{ flag: "gemini", name: "gemini", help: "open Gemini CLI to fix remaining issues" },
-	{ flag: "kimi", name: "kimi", help: "open Kimi Code CLI to fix remaining issues" },
-	{ flag: "opencode", name: "opencode", help: "open OpenCode to fix remaining issues" },
-	{ flag: "warp", name: "warp", help: "open Warp to fix remaining issues" },
-	{ flag: "aider", name: "aider", help: "open Aider to fix remaining issues" },
-	{ flag: "goose", name: "goose", help: "open Goose to fix remaining issues" },
+	{flag: "deep-agents", name: "deepAgents", help: "open Deep Agents to fix remaining issues"},
+	{flag: "gemini", name: "gemini", help: "open Gemini CLI to fix remaining issues"},
+	{flag: "kimi", name: "kimi", help: "open Kimi Code CLI to fix remaining issues"},
+	{flag: "opencode", name: "opencode", help: "open OpenCode to fix remaining issues"},
+	{flag: "warp", name: "warp", help: "open Warp to fix remaining issues"},
+	{flag: "aider", name: "aider", help: "open Aider to fix remaining issues"},
+	{flag: "goose", name: "goose", help: "open Goose to fix remaining issues"},
 ];
 
 const matchFixAgent = (flags: Record<string, boolean | undefined>): string | undefined => {
@@ -195,7 +215,7 @@ program
 	.action(async (directory = ".", _flags, command) => {
 		const flags = command.optsWithGlobals() as { human?: boolean };
 		const config = loadConfig(directory);
-		const { exitCode } = await ciCommand(directory, config, {
+		const {exitCode} = await ciCommand(directory, config, {
 			human: Boolean(flags.human),
 		});
 		if (exitCode !== 0) {
