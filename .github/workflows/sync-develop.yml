@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   sync:
@@ -22,30 +23,39 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      - name: Fetch main
-        run: git fetch origin main
-
       - name: Decide what to do
         id: plan
         run: |
+          git fetch origin main
           if git merge-base --is-ancestor origin/main HEAD; then
             echo "needs_sync=false" >> "$GITHUB_OUTPUT"
           else
             echo "needs_sync=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Push refresh branch
+      - name: Refresh sync branch
         if: steps.plan.outputs.needs_sync == 'true'
         run: |
           git checkout -B bot/sync-from-main origin/main
           git push --force origin bot/sync-from-main
-          {
-            echo "### main moved ahead of develop"
-            echo ""
-            echo "Pushed \`bot/sync-from-main\` (= origin/main). Open a PR to bring develop up to date:"
-            echo ""
-            echo "https://github.com/${{ github.repository }}/compare/develop...bot/sync-from-main?expand=1"
-          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Open or update PR with auto-merge
+        if: steps.plan.outputs.needs_sync == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          existing=$(gh pr list --base develop --head bot/sync-from-main --state open --json number --jq '.[0].number // empty')
+          if [ -z "$existing" ]; then
+            num=$(gh pr create \
+              --base develop \
+              --head bot/sync-from-main \
+              --title "chore: sync main → develop" \
+              --body "Auto-opened by \`.github/workflows/sync-develop.yml\`. Brings develop up to main. Auto-merge enabled (squash) — merges itself once CI passes." \
+              --label automated | grep -oE '[0-9]+$')
+          else
+            num=$existing
+          fi
+          gh pr merge "$num" --squash --auto --delete-branch
 
       - name: No-op summary
         if: steps.plan.outputs.needs_sync == 'false'
