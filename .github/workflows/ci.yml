@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   check:
-    name: Build, test, quality gate
+    name: Build & test
     runs-on: ubuntu-latest
 
     strategy:
@@ -41,8 +41,25 @@ jobs:
       - name: Test
         run: pnpm vitest run
 
-      # Self-gate on one matrix version only — we just need to know the PR's
-      # build passes aislop ci against itself; no need to run it on every Node.
-      - name: Quality gate (aislop ci)
-        if: matrix.node-version == 22
+  quality-gate:
+    name: Quality gate
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v5
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: aislop ci
         run: node dist/cli.js ci .
