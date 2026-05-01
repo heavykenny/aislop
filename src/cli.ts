@@ -1,5 +1,6 @@
 import { Command } from "commander";
 import { registerHookCommand } from "./cli/hook-command.js";
+import { badgeCommand } from "./commands/badge.js";
 import { ciCommand } from "./commands/ci.js";
 import { doctorCommand } from "./commands/doctor.js";
 import { fixCommand } from "./commands/fix.js";
@@ -209,6 +210,31 @@ program
 	.description("List all available rules")
 	.action(async (directory = ".") => {
 		await rulesCommand(directory);
+	});
+
+program
+	.command("badge [directory]")
+	.description("Print the public score badge URL + README markdown for this repo")
+	.option("--owner <owner>", "GitHub owner (auto-detected from git remote if omitted)")
+	.option("--repo <repo>", "GitHub repo name (auto-detected from git remote if omitted)")
+	.option("--json", "emit machine-readable JSON instead of the rendered output")
+	.action(async (directory = ".", _flags, command) => {
+		const flags = command.optsWithGlobals() as {
+			owner?: string;
+			repo?: string;
+			json?: boolean;
+		};
+		try {
+			await badgeCommand({
+				directory,
+				owner: flags.owner,
+				repo: flags.repo,
+				json: Boolean(flags.json),
+			});
+		} catch (err: any) {
+			process.stderr.write(`${err?.message ?? "Failed to print badge"}\n`);
+			process.exit(1);
+		}
 	});
 
 registerHookCommand(program);
