@@ -7,7 +7,6 @@ on:
 
 permissions:
   contents: write
-  pull-requests: write
 
 jobs:
   contributors:
@@ -23,21 +22,32 @@ jobs:
           node-version: 20
 
       - name: Render contributors
-        run: node .github/scripts/render-contributors.mjs
+        id: render
+        run: |
+          node .github/scripts/render-contributors.mjs
+          if [ -n "$(git status --porcelain README.md)" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: peter-evans/create-pull-request@v6
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: "docs(contributors): refresh from git history"
-          branch: bot/contributors-update
-          delete-branch: true
-          title: "docs(contributors): refresh from git history"
-          body: |
-            Automated update from `.github/workflows/contributors.yml`.
+      - name: Push refresh branch
+        if: steps.render.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B bot/contributors-update
+          git add README.md
+          git commit -m "docs(contributors): refresh from git history"
+          git push --force origin bot/contributors-update
+          {
+            echo "### Contributors updated"
+            echo ""
+            echo "Pushed to \`bot/contributors-update\`. Open a PR from the GitHub UI to merge: https://github.com/${{ github.repository }}/compare/${{ github.ref_name }}...bot/contributors-update?expand=1"
+          } >> "$GITHUB_STEP_SUMMARY"
 
-            The render script reads `git log`, resolves each commit author's email to a GitHub login (noreply-pattern parse, then `.github/contributors-overrides.json`, then GitHub search API), and writes a `@mention`-style link list between the README's `CONTRIBUTORS-START` / `CONTRIBUTORS-END` markers.
-
-            If a contributor is missing here, add them to `.github/contributors-overrides.json` keyed by their commit email.
-          labels: contributors,automated
+      - name: No-op summary
+        if: steps.render.outputs.changed == 'false'
+        run: echo "No contributor changes." >> "$GITHUB_STEP_SUMMARY"
