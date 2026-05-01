@@ -257,6 +257,22 @@ Version bumps follow [semver](https://semver.org/):
 
 ---
 
+## Recognising contributors
+
+The README has an [All Contributors](https://allcontributors.org) table covering code, docs, ideas, design, infrastructure, and bug reports. After a PR lands, a maintainer credits the contributor with one of:
+
+```bash
+# CLI form, no bot install needed
+npx all-contributors-cli add <github-username> code,doc
+
+# bot form, on the merged PR
+@all-contributors please add @<github-username> for code,doc
+```
+
+Both update `.all-contributorsrc` and regenerate the table in `README.md`. Use the [emoji key](https://allcontributors.org/docs/en/emoji-key) to pick the contribution types that apply.
+
+---
+
 ## License
 
 By contributing you agree that your contributions will be licensed under the [MIT License](LICENSE).
