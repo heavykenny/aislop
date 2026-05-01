@@ -51,7 +51,7 @@ jobs:
               --head bot/sync-from-main \
               --title "chore: sync main → develop" \
               --body "Auto-opened by \`.github/workflows/sync-develop.yml\`. Brings develop up to main. Auto-merge enabled (squash) — merges itself once CI passes." \
-              --label automated | grep -oE '[0-9]+$')
+              | grep -oE '[0-9]+$')
           else
             num=$existing
           fi
