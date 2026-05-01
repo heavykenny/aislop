@@ -4,26 +4,29 @@ import path from "node:path";
 const GITHUB_REMOTE_RE =
 	/^(?:git@github\.com:|https:\/\/(?:[^@]+@)?github\.com\/)([^/]+)\/([^/.\s]+?)(?:\.git)?\s*$/;
 
-export interface BadgeOptions {
+interface BadgeOptions {
 	owner?: string;
 	repo?: string;
 	directory?: string;
 	json?: boolean;
 }
 
-export interface BadgeRenderInput {
+interface BadgeRenderInput {
 	owner: string;
 	repo: string;
 	svgUrl: string;
 	pageUrl: string;
 }
 
-export const renderBadgeOutput = ({
-	owner,
-	repo,
-	svgUrl,
-	pageUrl,
-}: BadgeRenderInput): string => {
+interface BadgeResult {
+	owner: string;
+	repo: string;
+	svgUrl: string;
+	pageUrl: string;
+	output: string;
+}
+
+export const renderBadgeOutput = ({ owner, repo, svgUrl, pageUrl }: BadgeRenderInput): string => {
 	const slug = `${owner}/${repo}`;
 	const markdown = `[![aislop](${svgUrl})](${pageUrl})`;
 	return [
@@ -40,9 +43,7 @@ export const renderBadgeOutput = ({
 	].join("\n");
 };
 
-const detectGithubSlugFromGit = (
-	directory: string,
-): { owner: string; repo: string } | null => {
+const detectGithubSlugFromGit = (directory: string): { owner: string; repo: string } | null => {
 	let raw: string;
 	try {
 		raw = execSync("git remote get-url origin", {
@@ -61,17 +62,7 @@ const detectGithubSlugFromGit = (
 	return { owner, repo };
 };
 
-export interface BadgeResult {
-	owner: string;
-	repo: string;
-	svgUrl: string;
-	pageUrl: string;
-	output: string;
-}
-
-export const badgeCommand = async (
-	options: BadgeOptions = {},
-): Promise<BadgeResult> => {
+export const badgeCommand = async (options: BadgeOptions = {}): Promise<BadgeResult> => {
 	let owner = options.owner?.trim();
 	let repo = options.repo?.trim();
 
