@@ -28,16 +28,24 @@ jobs:
         run: |
           git fetch origin main
           if git merge-base --is-ancestor origin/main HEAD; then
+            echo "develop already contains main — nothing to do"
+            echo "needs_sync=false" >> "$GITHUB_OUTPUT"
+          elif git diff --quiet origin/main HEAD; then
+            echo "main and develop have identical trees — only commit graph differs, skip"
             echo "needs_sync=false" >> "$GITHUB_OUTPUT"
           else
             echo "needs_sync=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Refresh sync branch
+      - name: Build sync commit (parent = develop, tree = main)
         if: steps.plan.outputs.needs_sync == 'true'
         run: |
-          git checkout -B bot/sync-from-main origin/main
-          git push --force origin bot/sync-from-main
+          # Don't replay main's commits onto develop — that conflicts when
+          # both branches squashed the same content under different SHAs.
+          # Capture the diff as a single commit on top of develop instead.
+          git read-tree --reset -u origin/main
+          git commit -m "chore: sync main → develop"
+          git push --force origin HEAD:refs/heads/bot/sync-from-main
 
       - name: Open or update PR with auto-merge
         if: steps.plan.outputs.needs_sync == 'true'
