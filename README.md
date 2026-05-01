@@ -250,6 +250,7 @@ aislop scan
 aislop init                # create .aislop/config.yml
 aislop doctor              # check which tools are available
 aislop rules               # list all built-in rules
+aislop badge               # print the public score badge URL + README snippet
 aislop hook install        # wire aislop into your coding agent
 aislop                     # interactive menu
 ```
@@ -335,6 +336,8 @@ Show your aislop score on a README. Free for any project that opts in on [scanai
 ```
 
 Shields-compatible SVG, edge-cached on Cloudflare. Colour-coded: green ≥ 85, amber 70-84, red < 70, grey if no scans yet.
+
+Run `aislop badge` to print the snippet pre-filled with your repo's owner/name, auto-detected from `git remote get-url origin`.
 
 ## Contributing
 
