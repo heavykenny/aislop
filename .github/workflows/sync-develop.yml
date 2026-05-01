@@ -8,6 +8,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  actions: write
 
 jobs:
   sync:
@@ -64,6 +65,11 @@ jobs:
             num=$existing
           fi
           gh pr merge "$num" --squash --auto --delete-branch
+          # GITHUB_TOKEN-driven PRs don't fire downstream workflows (GitHub's
+          # anti-loop guard), so the required CI checks never run and the PR
+          # sits BLOCKED. Dispatch CI explicitly against the sync branch so
+          # the checks the develop ruleset demands actually appear.
+          gh workflow run ci.yml --ref bot/sync-from-main
 
       - name: No-op summary
         if: steps.plan.outputs.needs_sync == 'false'
