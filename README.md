@@ -353,27 +353,12 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and how to add new 
 
 ## Contributors
 
-Thanks to everyone who has shipped code, ideas, docs, or bug reports. ([emoji key](https://allcontributors.org/docs/en/emoji-key))
+Thanks to everyone who has shipped code, ideas, docs, or bug reports.
 
-<!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
-<!-- prettier-ignore-start -->
-<!-- markdownlint-disable -->
-<table>
-  <tbody>
-    <tr>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/heavykenny"><img src="https://avatars.githubusercontent.com/u/32848806?v=4?s=80" width="80px;" alt="Kenny Olawuwo"/><br /><sub><b>Kenny Olawuwo</b></sub></a><br /><a href="https://github.com/scanaislop/aislop/commits?author=heavykenny" title="Code">💻</a> <a href="https://github.com/scanaislop/aislop/commits?author=heavykenny" title="Documentation">📖</a> <a href="#design-heavykenny" title="Design">🎨</a> <a href="#ideas-heavykenny" title="Ideas, Planning, & Feedback">🤔</a> <a href="#infra-heavykenny" title="Infrastructure (Hosting, Build-Tools, etc)">🚇</a> <a href="#maintenance-heavykenny" title="Maintenance">🚧</a> <a href="#projectManagement-heavykenny" title="Project Management">📆</a> <a href="https://github.com/scanaislop/aislop/commits?author=heavykenny" title="Tests">⚠️</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/yashrajoria"><img src="https://avatars.githubusercontent.com/u/61435936?v=4?s=80" width="80px;" alt="Yash Rajoria"/><br /><sub><b>Yash Rajoria</b></sub></a><br /><a href="https://github.com/scanaislop/aislop/commits?author=yashrajoria" title="Code">💻</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/myke-awoniran"><img src="https://avatars.githubusercontent.com/u/76267448?v=4?s=80" width="80px;" alt="Michael Awoniran"/><br /><sub><b>Michael Awoniran</b></sub></a><br /><a href="https://github.com/scanaislop/aislop/commits?author=myke-awoniran" title="Code">💻</a></td>
-    </tr>
-  </tbody>
-</table>
+<!-- CONTRIBUTORS-START -->
+<!-- CONTRIBUTORS-END -->
 
-<!-- markdownlint-restore -->
-<!-- prettier-ignore-end -->
-
-<!-- ALL-CONTRIBUTORS-LIST:END -->
-
-This project follows the [all-contributors](https://github.com/all-contributors/all-contributors) spec. Contributions of any kind welcome.
+This list is regenerated automatically on every push by `.github/workflows/contributors.yml`. Avatars and links come from git history. If your commits aren't being credited, add your commit email under [Settings -> Emails](https://github.com/settings/emails) on GitHub.
 
 ## License
 

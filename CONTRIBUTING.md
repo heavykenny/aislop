@@ -259,17 +259,9 @@ Version bumps follow [semver](https://semver.org/):
 
 ## Recognising contributors
 
-The README has an [All Contributors](https://allcontributors.org) table covering code, docs, ideas, design, infrastructure, and bug reports. After a PR lands, a maintainer credits the contributor with one of:
+The Contributors block in `README.md` is regenerated automatically by `.github/workflows/contributors.yml` on every push to `develop` and `main`. The workflow reads git history (commits + `Co-authored-by:` trailers) and rewrites the avatar table between the `<!-- CONTRIBUTORS-START -->` / `<!-- CONTRIBUTORS-END -->` markers. No emoji key, no manual editing.
 
-```bash
-# CLI form, no bot install needed
-npx all-contributors-cli add <github-username> code,doc
-
-# bot form, on the merged PR
-@all-contributors please add @<github-username> for code,doc
-```
-
-Both update `.all-contributorsrc` and regenerate the table in `README.md`. Use the [emoji key](https://allcontributors.org/docs/en/emoji-key) to pick the contribution types that apply.
+If a commit doesn't appear under your avatar, your commit email isn't linked to your GitHub account. Add it under [Settings → Emails](https://github.com/settings/emails) and the next push will pick it up.
 
 ---
 

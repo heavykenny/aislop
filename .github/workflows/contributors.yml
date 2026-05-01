@@ -1,0 +1,29 @@
+name: Update contributors
+
+on:
+  push:
+    branches: [develop, main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  contributors:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: BobAnkh/add-contributors@v0.2.2
+        with:
+          REPO_NAME: scanaislop/aislop
+          CONTRIBUTOR: '## Contributors'
+          COLUMN_PER_ROW: '6'
+          ACCESS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IMG_WIDTH: '80'
+          FONT_SIZE: '14'
+          PATH: /README.md
+          COMMIT_MESSAGE: 'docs(contributors): refresh from git history [skip ci]'
+          AVATAR_SHAPE: round
