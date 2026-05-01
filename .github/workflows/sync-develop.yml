@@ -6,9 +6,7 @@ on:
   workflow_dispatch: {}
 
 permissions:
-  contents: write
-  pull-requests: write
-  actions: write
+  contents: read
 
 jobs:
   sync:
@@ -18,11 +16,17 @@ jobs:
         with:
           fetch-depth: 0
           ref: develop
+          # SYNC_BOT_PAT is a fine-grained PAT with contents:write +
+          # pull-requests:write on this repo. Pushes via this token attribute
+          # to the PAT's user, which means downstream pull_request workflows
+          # (CI) actually fire — GITHUB_TOKEN can't because of GitHub's
+          # anti-loop guard.
+          token: ${{ secrets.SYNC_BOT_PAT }}
 
       - name: Configure git identity
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name "scanaislop-sync[bot]"
+          git config user.email "scanaislop-sync@users.noreply.github.com"
 
       - name: Decide what to do
         id: plan
@@ -51,7 +55,7 @@ jobs:
       - name: Open or update PR with auto-merge
         if: steps.plan.outputs.needs_sync == 'true'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.SYNC_BOT_PAT }}
         run: |
           existing=$(gh pr list --base develop --head bot/sync-from-main --state open --json number --jq '.[0].number // empty')
           if [ -z "$existing" ]; then
@@ -65,11 +69,6 @@ jobs:
             num=$existing
           fi
           gh pr merge "$num" --squash --auto --delete-branch
-          # GITHUB_TOKEN-driven PRs don't fire downstream workflows (GitHub's
-          # anti-loop guard), so the required CI checks never run and the PR
-          # sits BLOCKED. Dispatch CI explicitly against the sync branch so
-          # the checks the develop ruleset demands actually appear.
-          gh workflow run ci.yml --ref bot/sync-from-main
 
       - name: No-op summary
         if: steps.plan.outputs.needs_sync == 'false'
