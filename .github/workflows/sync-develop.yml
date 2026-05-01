@@ -7,7 +7,6 @@ on:
 
 permissions:
   contents: write
-  pull-requests: write
 
 jobs:
   sync:
@@ -26,36 +25,28 @@ jobs:
       - name: Fetch main
         run: git fetch origin main
 
-      - name: Fast-forward if possible, otherwise merge
-        id: merge
+      - name: Decide what to do
+        id: plan
         run: |
           if git merge-base --is-ancestor origin/main HEAD; then
-            echo "develop already contains main — nothing to do"
             echo "needs_sync=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          echo "needs_sync=true" >> "$GITHUB_OUTPUT"
-          if git merge --no-ff origin/main -m "chore: sync main → develop (auto)"; then
-            echo "clean=true" >> "$GITHUB_OUTPUT"
           else
-            git merge --abort
-            echo "clean=false" >> "$GITHUB_OUTPUT"
+            echo "needs_sync=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Push clean merge
-        if: steps.merge.outputs.needs_sync == 'true' && steps.merge.outputs.clean == 'true'
-        run: git push origin develop
-
-      - name: Open sync PR on conflict
-        if: steps.merge.outputs.needs_sync == 'true' && steps.merge.outputs.clean == 'false'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Push refresh branch
+        if: steps.plan.outputs.needs_sync == 'true'
         run: |
-          gh pr list --base develop --head main --json number --jq '.[].number' | xargs -I{} echo "existing sync PR: #{}" || true
-          if ! gh pr list --base develop --head main --state open --json number --jq '.[].number' | grep -q .; then
-            gh pr create \
-              --base develop \
-              --head main \
-              --title "chore: sync main → develop (manual resolution needed)" \
-              --body "Auto-merge from the main→develop sync workflow hit conflicts. Resolve locally and push." || true
-          fi
+          git checkout -B bot/sync-from-main origin/main
+          git push --force origin bot/sync-from-main
+          {
+            echo "### main moved ahead of develop"
+            echo ""
+            echo "Pushed \`bot/sync-from-main\` (= origin/main). Open a PR to bring develop up to date:"
+            echo ""
+            echo "https://github.com/${{ github.repository }}/compare/develop...bot/sync-from-main?expand=1"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: No-op summary
+        if: steps.plan.outputs.needs_sync == 'false'
+        run: echo "develop already contains main — nothing to do." >> "$GITHUB_STEP_SUMMARY"
