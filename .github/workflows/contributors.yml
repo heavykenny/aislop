@@ -1,0 +1,43 @@
+name: Update contributors
+
+on:
+  push:
+    branches: [develop, main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  contributors:
+    runs-on: ubuntu-latest
+    if: github.actor != 'github-actions[bot]'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Render contributors
+        run: node .github/scripts/render-contributors.mjs
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "docs(contributors): refresh from git history"
+          branch: bot/contributors-update
+          delete-branch: true
+          title: "docs(contributors): refresh from git history"
+          body: |
+            Automated update from `.github/workflows/contributors.yml`.
+
+            The render script reads `git log`, resolves each commit author's email to a GitHub login (noreply-pattern parse, then `.github/contributors-overrides.json`, then GitHub search API), and writes a `@mention`-style link list between the README's `CONTRIBUTORS-START` / `CONTRIBUTORS-END` markers.
+
+            If a contributor is missing here, add them to `.github/contributors-overrides.json` keyed by their commit email.
+          labels: contributors,automated

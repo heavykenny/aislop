@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
-import YAML from "yaml";
 import { DEFAULT_CONFIG } from "./defaults.js";
+import { loadConfigChain } from "./extends.js";
 import { type AislopConfig, parseConfig } from "./schema.js";
 
 export const CONFIG_DIR = ".aislop";
@@ -30,9 +30,8 @@ export const loadConfig = (directory: string): AislopConfig => {
 	if (!fs.existsSync(configPath)) return DEFAULT_CONFIG;
 
 	try {
-		const raw = fs.readFileSync(configPath, "utf-8");
-		const parsed = YAML.parse(raw);
-		return parseConfig(parsed);
+		const merged = loadConfigChain(configPath);
+		return parseConfig(merged);
 	} catch (error) {
 		const msg = error instanceof Error ? error.message : String(error);
 		process.stderr.write(
