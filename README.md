@@ -313,6 +313,16 @@ ci:
 
 The CLI is MIT-licensed and always will be. [Learn more about the platform →](https://scanaislop.com)
 
+## Public score badge
+
+Show your aislop score on a README. Free for any project that opts in on [scanaislop.com](https://scanaislop.com).
+
+```markdown
+[![aislop](https://badges.scanaislop.com/score/<owner>/<repo>.svg)](https://scanaislop.com)
+```
+
+Shields-compatible SVG, edge-cached on Cloudflare. Colour-coded: green ≥ 85, amber 70-84, red < 70, grey if no scans yet.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and how to add new rules. AI coding assistants can find project context in [AGENTS.md](AGENTS.md).
