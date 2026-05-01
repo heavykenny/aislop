@@ -55,7 +55,7 @@ jobs:
           else
             num=$existing
           fi
-          gh pr merge "$num" --squash --auto
+          gh pr merge "$num" --squash --auto --delete-branch
 
       - name: No-op summary
         if: steps.plan.outputs.needs_sync == 'false'
