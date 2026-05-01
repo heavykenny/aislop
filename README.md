@@ -360,7 +360,6 @@ Thanks to everyone who has shipped code, ideas, docs, or bug reports.
 
 <!-- CONTRIBUTORS-START -->
 - [@heavykenny](https://github.com/heavykenny)
-- [@myke-awoniran](https://github.com/myke-awoniran)
 - [@yashrajoria](https://github.com/yashrajoria)
 <!-- CONTRIBUTORS-END -->
 
