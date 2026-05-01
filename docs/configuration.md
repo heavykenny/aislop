@@ -87,6 +87,33 @@ scoring:
   smoothing: 20        # increase to reduce penalty spikes on larger repos
 ```
 
+## Extending a shared config
+
+`extends:` lets a project inherit a parent config and override only the keys it cares about. Useful for org-wide baselines.
+
+```yaml
+# packages/payments/.aislop/config.yml
+extends: ../../.aislop/base.yml
+
+ci:
+  failBelow: 80         # override one key, inherit everything else from the parent
+```
+
+Multiple parents are supported via an array; later entries win on conflict:
+
+```yaml
+extends:
+  - ../../.aislop/base.yml
+  - ./local-overrides.yml
+```
+
+**Resolution rules**
+
+- Paths are relative to the config file declaring `extends:`. Absolute paths are accepted; package or URL forms are not yet supported and will fail with a clear error.
+- Nested objects (`engines`, `scoring.weights`, `quality`) are deep-merged key-by-key. The child's keys win on conflict.
+- Arrays (e.g. `exclude:`) are replaced wholesale, not concatenated. Append in the child if you want to extend rather than overwrite.
+- Cycles and chains deeper than 5 levels are rejected at load time, not silently ignored.
+
 ## Architecture rules
 
 Create `.aislop/rules.yml` to define custom import and path rules. Enable the architecture engine in your config:

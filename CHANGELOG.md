@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.7.0 (2026-05-01)
+
+Two user-facing additions plus a security floor on a transitive dependency.
+
+### Added
+
+- **`extends:` in `.aislop/config.yml` (#45).** Inherit a parent config and override only the keys you need. Accepts a single relative path or an array; later entries win on conflict. Nested objects deep-merge key-by-key, arrays replace wholesale. Circular references and chains deeper than 5 are rejected at load time. Useful for org-wide baselines: one strict parent in the monorepo root, per-package overrides for `ci.failBelow` or specific weights. Documented in [`docs/configuration.md`](docs/configuration.md#extending-a-shared-config).
+- **Public score badge in the README header (#46).** Shields-compatible SVG served from `badges.scanaislop.com`, edge-cached. Drop one line into any README that opts in:
+  ```markdown
+  [![aislop](https://badges.scanaislop.com/score/<owner>/<repo>.svg)](https://scanaislop.com/<owner>/<repo>)
+  ```
+  Colour bands: green ≥ 85, amber 70–84, red < 70, grey if no scans yet. The CLI's own README now wears the badge alongside `npm version`, `CI`, and `License`.
+
+### Security
+
+- **Floor on `postcss` transitive (#49).** Added a `pnpm.overrides` entry pinning `postcss` ≥ 8.5.10 so `aislop scan`'s own `security/vulnerable-dependency` rule no longer fires on this repo. No top-level dep used postcss directly; the override is the right tool over a runtime dep that doesn't exist. Resolved version is `8.5.13`.
+
+### Internal
+
+- 8 commits land on develop including 3 auto-syncs from the `main → develop` workflow added in 0.6.2.
+- A draft PR (#48) parks an unwired TypeScript-as-lint engine — the implementation is solid but the registry, schema, config gate, and tests are deliberately not in this release.
+
 ## 0.6.2 (2026-04-22)
 
 Single-finding patch: the knip-backed `Unlisted binary` rule was firing on `.github/workflows/**` for runner-provided tools like `gh`, `aws`, `docker`, and `jq`, which can never be declared in `package.json`.
