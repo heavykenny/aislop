@@ -7,6 +7,16 @@ export interface ScoreResult {
 
 const PERFECT_SCORE = 100;
 
+// One engine going wild (e.g. pnpm audit finding 50 vulnerable deps) should not
+// be able to drag the whole score to single digits on its own. Cap how much
+// deduction each engine contributes after weighting + fixable discount.
+const PER_ENGINE_DEDUCTION_CAP = 25;
+
+// Fixable issues are one click away from being resolved. Count them at half
+// weight so a repo full of mechanical-but-autofixable findings doesn't score
+// the same as one with the same number of architectural problems.
+const FIXABLE_DISCOUNT = 0.5;
+
 const getEffectiveFileCount = (diagnostics: Diagnostic[], sourceFileCount?: number): number => {
 	if (typeof sourceFileCount === "number" && sourceFileCount > 0) {
 		return sourceFileCount;
@@ -28,16 +38,29 @@ export const calculateScore = (
 		return { score: PERFECT_SCORE, label: "Healthy" };
 	}
 
-	let deductions = 0;
-
+	// Group raw weighted contributions by engine so we can apply a per-engine cap.
+	const byEngine = new Map<string, number>();
 	for (const d of diagnostics) {
 		const engineWeight = weights[d.engine] ?? 1.0;
-		const severityPenalty = d.severity === "error" ? 3 : d.severity === "warning" ? 1 : 0.25;
-		deductions += severityPenalty * engineWeight;
+		const severityPenalty =
+			d.severity === "error" ? 3 : d.severity === "warning" ? 1 : 0.25;
+		const fixableMultiplier = d.fixable ? FIXABLE_DISCOUNT : 1;
+		const contribution = severityPenalty * engineWeight * fixableMultiplier;
+		byEngine.set(d.engine, (byEngine.get(d.engine) ?? 0) + contribution);
+	}
+
+	let deductions = 0;
+	for (const engineTotal of byEngine.values()) {
+		deductions += Math.min(engineTotal, PER_ENGINE_DEDUCTION_CAP);
 	}
 
 	const effectiveFileCount = getEffectiveFileCount(diagnostics, sourceFileCount);
-	const smoothingConstant = typeof smoothing === "number" ? smoothing : 10;
+	// Smoothing scales with repo size so a 10k-file mature repo gets proportional
+	// headroom instead of saturating density to 1 like a 50-file slop pile.
+	const smoothingConstant =
+		typeof smoothing === "number"
+			? smoothing
+			: Math.max(10, effectiveFileCount * 0.3);
 	const issueDensity = Math.min(1, diagnostics.length / (effectiveFileCount + smoothingConstant));
 	const scaledDeductions = deductions * Math.sqrt(issueDensity);
 
