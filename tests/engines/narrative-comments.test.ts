@@ -2,10 +2,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import {
-	detectNarrativeComments,
-	fixNarrativeComments,
-} from "../../src/engines/ai-slop/narrative-comments.js";
+import { fixNarrativeComments } from "../../src/engines/ai-slop/narrative-comments-fix.js";
+import { detectNarrativeComments } from "../../src/engines/ai-slop/narrative-comments.js";
 import type { EngineContext } from "../../src/engines/types.js";
 
 let tmpDir: string;

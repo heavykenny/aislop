@@ -60,10 +60,15 @@ const readWorkspaceGlobs = (rootDir: string, rootPkg: unknown): string[] => {
 	}
 	try {
 		const pnpmWs = fs.readFileSync(path.join(rootDir, "pnpm-workspace.yaml"), "utf-8");
-		const pkgsBlock = pnpmWs.match(/^packages\s*:\s*\n([\s\S]*?)(?=^\S|\Z)/m);
-		const block = pkgsBlock ? pkgsBlock[1] : pnpmWs;
-		for (const line of block.split("\n")) {
-			const m = line.match(/^\s*-\s*["']?([^"'\n]+?)["']?\s*$/);
+		let inPackages = false;
+		for (const rawLine of pnpmWs.split("\n")) {
+			if (/^packages\s*:\s*$/.test(rawLine)) {
+				inPackages = true;
+				continue;
+			}
+			if (!inPackages) continue;
+			if (/^\S/.test(rawLine)) break;
+			const m = rawLine.match(/^\s*-\s*["']?([^"'\n]+?)["']?\s*$/);
 			if (m) globs.push(m[1].trim());
 		}
 	} catch {

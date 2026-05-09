@@ -69,13 +69,11 @@ const isDataFile = (content: string): boolean => {
 	return dataLines.length / nonEmpty.length > 0.8;
 };
 
-const TEST_PATH_RE =
-	/(?:^|\/)(?:tests?|spec|specs|__tests__|__spec__|src\/test)\//i;
+const TEST_PATH_RE = /(?:^|\/)(?:tests?|spec|specs|__tests__|__spec__|src\/test)\//i;
 const TEST_BASENAME_RE =
-	/(?:^|[\/.])(?:test_[\w-]+\.(?:py|rb)|[\w-]+_(?:test|spec)\.(?:py|rb|go|rs)|[\w-]+\.(?:test|spec)\.(?:[jt]sx?|mjs|cjs)|conftest\.py|[A-Z]\w*Tests?\.(?:java|cs|php))$/;
+	/(?:^|[/.])(?:test_[\w-]+\.(?:py|rb)|[\w-]+_(?:test|spec)\.(?:py|rb|go|rs)|[\w-]+\.(?:test|spec)\.(?:[jt]sx?|mjs|cjs)|conftest\.py|[A-Z]\w*Tests?\.(?:java|cs|php))$/;
 
-const MIGRATION_PATH_RE =
-	/(?:^|\/)(?:migrations?|migrate|prisma\/migrations|db\/migrate)\//i;
+const MIGRATION_PATH_RE = /(?:^|\/)(?:migrations?|migrate|prisma\/migrations|db\/migrate)\//i;
 
 const FIXTURE_PATH_RE =
 	/(?:^|\/)(?:__fixtures__|__snapshots__|__mocks__|fixtures?|snapshots?|seeds?|stubs?)\//i;
