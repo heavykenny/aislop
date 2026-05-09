@@ -3,6 +3,7 @@ import { detectOverAbstraction } from "./abstractions.js";
 import { detectTrivialComments } from "./comments.js";
 import { detectDeadPatterns } from "./dead-patterns.js";
 import { detectSwallowedExceptions } from "./exceptions.js";
+import { detectHallucinatedImports } from "./hallucinated-imports.js";
 import { detectNarrativeComments } from "./narrative-comments.js";
 import { detectUnusedImports } from "./unused-imports.js";
 
@@ -19,6 +20,7 @@ export const aiSlopEngine: Engine = {
 			detectDeadPatterns(context),
 			detectUnusedImports(context),
 			detectNarrativeComments(context),
+			detectHallucinatedImports(context),
 		]);
 
 		for (const result of results) {
