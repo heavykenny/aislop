@@ -4,6 +4,50 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.8.0 (2026-05-09)
+
+Major feature release with MCP server support, TypeScript typecheck engine, expanded multi-language AI slop coverage, and significant false-positive reduction via OSS validation.
+
+### Added
+
+- **MCP server support (#89).** `aislop-mcp` binary now ships with the package. Exposes `scan`, `fix`, `why`, and `baseline` as MCP tools via Model Context Protocol. AI coding assistants (Claude Desktop, etc.) can directly invoke aislop operations.
+- **TypeScript typecheck engine (#84).** New lint engine runs `tsc --noEmit` and parses TypeScript compiler diagnostics. Integrates with existing lint scoring, respects tsconfig.json project references. Catches type errors alongside eslint/oxlint findings.
+- **Hallucinated-import detector (#86).** Flags imports of packages not declared in any package.json manifest. Walks manifests up to depth 4 for monorepos. Catches AI-generated imports of non-existent packages.
+- **Expanded multi-language AI slop patterns (#90).** Added 7 new detectors across Python, Go, and Rust:
+  - Python: placeholder exception handlers, generic print debugging
+  - Go: library panics in exported functions, TODO/FIXME markers in production
+  - Rust: unwrap() chains, unimplemented!() in library code, excessive .clone()
+- **Hook envelope v2 + duplicate-import rule (#87).** New hook protocol version with structured responses. Added `ai-slop/duplicate-import` detector that flags redundant imports of the same symbol/module.
+- **FileChanged hook subscription (#88).** Claude Code integration now watches `.aislop/config.yml`, `.aislop/rules.yml`, and `package.json` for changes and re-scans automatically.
+- **GitHub Step Summary writer (#79).** CI runs now output rich markdown summaries in GitHub Actions UI with per-finding help text, severity badges, and quick-fix suggestions.
+- **Improved scoring system (#74).** New formula with per-engine caps, file-aware density smoothing, and fixable-issue discount. More stable scores across project sizes, less penalty for auto-fixable findings.
+
+### Fixed
+
+- **False-positive reduction via OSS validation (#91).** Validated detectors against 25 real OSS projects (requests, flask, fastapi, cobra, gin, hugo, clap, ripgrep, tokio, serde, prisma, trpc, zod, vitest, nest, express, lodash, axios, chalk, commander). Eliminated ~4,100 false positives:
+  - `narrative-comment` now skips Rust doc comments (///), Go doc conventions, and JSDoc with WHY markers
+  - `trivial-comment` skips rustdoc and vendored/example directories
+  - `console-leftover` exempts CLI command source directories
+  - `go-library-panic` exempts nil-check preconditions
+  - `hallucinated-import` walks package.json manifests to depth 4 for monorepos
+  - `file-too-large` adds 10% buffer over configured max (consistent with function-too-long)
+  - All detectors now skip test files, migrations, fixtures, snapshots, mocks, and generated output across all languages
+- **Contributors tracking (#83).** Squash-merged PRs now correctly attribute external contributors. Previously only direct committers appeared in contributor lists.
+- **Dependency audit warnings (#76).** Missing audit tools (npm audit, cargo audit, etc.) now show clear warning messages instead of silent failures.
+- **Dogfooding cleanup (#92).** Split `fixNarrativeComments` into separate file to keep under file-too-large threshold. Fixed pnpm-workspace.yaml regex pattern.
+
+### Documentation
+
+- **Positioning refinement (#85).** Locked "standards layer and quality gate" framing in README and npm description. Clarifies aislop's role as enforcement infrastructure, not a linter replacement.
+- **PR check clarifications (#80).** Updated documentation explaining aislop's PR checks and CI integration patterns.
+
+### Internal
+
+- 16 commits land on develop including 8 new features, 4 fixes, and 2 documentation updates.
+- 674 tests passing (up from 630).
+- 8 new detectors added (1 hallucinated-import + 7 multi-language patterns + duplicate-import).
+- Self-scan: 100/100.
+
 ## 0.7.0 (2026-05-01)
 
 Two user-facing additions plus a security floor on a transitive dependency.
