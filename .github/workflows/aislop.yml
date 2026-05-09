@@ -35,11 +35,8 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: pnpm/action-setup@v5
-
       - uses: actions/setup-node@v6
         with:
           node-version: 22
-          cache: pnpm
 
       - run: npx aislop@latest ci .
