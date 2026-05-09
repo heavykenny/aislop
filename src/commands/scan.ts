@@ -275,11 +275,6 @@ export const scanCommand = async (
 		});
 	}
 
-	if (options.command === "ci") {
-		const { writeGitHubStepSummary } = await import("../output/github-step-summary.js");
-		writeGitHubStepSummary(allDiagnostics, scoreResult, projectInfo.sourceFileCount);
-	}
-
 	if (options.json) {
 		const { buildJsonOutput } = await import("../output/json.js");
 		const jsonOut = buildJsonOutput(results, scoreResult, projectInfo.sourceFileCount, elapsedMs);

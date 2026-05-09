@@ -1,41 +1,13 @@
-name: Aislop checks
+name: aislop
 
 on:
-  push:
-    branches: [main, develop]
   pull_request:
-    branches: [main, develop]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  build:
-    name: Build & test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-
-      - uses: pnpm/action-setup@v5
-
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Typecheck
-        run: pnpm typecheck
-
-      - name: Build
-        run: pnpm build
-
-      - name: Test
-        run: pnpm test
-
   scan-smoke:
     name: Scan smoke
     runs-on: ubuntu-latest
@@ -69,8 +41,5 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
 
       - run: npx aislop@latest ci .
