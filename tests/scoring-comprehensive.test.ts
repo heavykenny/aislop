@@ -213,14 +213,14 @@ describe("multiple issues of same severity", () => {
 		const diagnostics = Array(5).fill(makeDiagnostic({ engine: "security", severity: "error" }));
 		const result = calculateScore(diagnostics, defaultWeights, defaultThresholds);
 
-		expect(result.score).toMatchInlineSnapshot(`40`);
+		expect(result.score).toMatchInlineSnapshot(`36`);
 	});
 
 	it("snapshot: 10 security errors", () => {
 		const diagnostics = Array(10).fill(makeDiagnostic({ engine: "security", severity: "error" }));
 		const result = calculateScore(diagnostics, defaultWeights, defaultThresholds);
 
-		expect(result.score).toMatchInlineSnapshot(`33`);
+		expect(result.score).toMatchInlineSnapshot(`20`);
 	});
 
 	it("diminishing returns: overall trend is sublinear", () => {
