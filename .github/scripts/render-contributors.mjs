@@ -43,6 +43,35 @@ async function searchGithub(email) {
 	return data.items?.[0]?.login ?? null;
 }
 
+// Workaround: squash merges hide external PR authors from `git log` (the merger is recorded as commit author), so pull merged-PR authors from the API too.
+async function fetchMergedPrAuthors() {
+	const token = process.env.GITHUB_TOKEN;
+	const repo = process.env.GITHUB_REPOSITORY;
+	if (!token || !repo) return [];
+	const logins = new Set();
+	for (let page = 1; page <= 10; page++) {
+		const res = await fetch(
+			`https://api.github.com/repos/${repo}/pulls?state=closed&per_page=100&page=${page}`,
+			{
+				headers: {
+					Authorization: `Bearer ${token}`,
+					Accept: "application/vnd.github+json",
+				},
+			},
+		);
+		if (!res.ok) break;
+		const prs = await res.json();
+		if (!Array.isArray(prs) || prs.length === 0) break;
+		for (const pr of prs) {
+			if (pr.merged_at && pr.user?.login && pr.user.type === "User") {
+				logins.add(pr.user.login);
+			}
+		}
+		if (prs.length < 100) break;
+	}
+	return [...logins];
+}
+
 async function resolve(email) {
 	const m = email.match(NOREPLY);
 	if (m) return m[1];
@@ -56,6 +85,10 @@ for (const [email, name] of seen) {
 	const login = await resolve(email);
 	if (!login) continue;
 	if (!collected.has(login)) collected.set(login, name);
+}
+
+for (const login of await fetchMergedPrAuthors()) {
+	if (!collected.has(login)) collected.set(login, login);
 }
 
 if (collected.size === 0) {
