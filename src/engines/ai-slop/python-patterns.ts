@@ -20,9 +20,7 @@ const isTestFile = (relPath: string, basename: string): boolean =>
 const isScriptOrEntrypoint = (basename: string): boolean =>
 	basename === "__main__.py" || basename === "manage.py" || basename === "setup.py";
 
-// Directories where Python files are scripts, docs, or examples — print() is intentional.
-// Validated additions: action/ (black's GH Action), docs_src/ (FastAPI docs convention),
-// docs/, examples/, example/.
+// Directories where print() is intentional output (validated: action, docs_src, etc.).
 const SCRIPT_DIR_NAMES = new Set([
 	"scripts",
 	"bin",
@@ -45,9 +43,7 @@ const isTutorialFile = (basename: string): boolean =>
 const MAIN_GUARD_RE = /^\s*if\s+__name__\s*==\s*["']__main__["']\s*:/;
 const hasMainGuard = (lines: string[]): boolean => lines.some((l) => MAIN_GUARD_RE.test(l));
 
-// Track which lines are inside triple-quoted docstrings. Validated against httpx —
-// print() in docstring examples (`""" ... print(...) ... """`) was firing as a real
-// finding when it's just illustrative code in the function's documentation.
+// Track lines inside triple-quoted docstrings — print() in doc examples isn't real code (validated: httpx).
 const buildDocstringRanges = (lines: string[]): Set<number> => {
 	const inside = new Set<number>();
 	let openDelim: '"""' | "'''" | null = null;

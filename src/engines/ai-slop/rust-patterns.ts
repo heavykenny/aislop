@@ -9,9 +9,7 @@ const UNWRAP_CALL_RE = /\.unwrap\s*\(\s*\)/;
 const TODO_MACRO_RE = /\b(todo|unimplemented)\s*!\s*\(/;
 const COMMENT_LINE_RE = /^\s*\/\//;
 const TEST_ATTR_RE = /^\s*#\s*\[\s*(?:cfg\s*\(\s*test\s*\)|test|tokio::test)/;
-// `writeln!(out, ...).unwrap()` / `write!(out, ...).unwrap()` is infallible when the
-// writer is a String / Vec<u8> / Formatter — the canonical Rust idiom. Validated
-// against ripgrep where 8 unwraps on the version.rs file are all this pattern.
+// `writeln!/write!(...).unwrap()` is infallible on String/Vec/Formatter — canonical Rust idiom (validated: ripgrep).
 const WRITELN_UNWRAP_RE = /\b(?:writeln|write)\s*!\s*\([^)]*\)\s*\.unwrap\s*\(\s*\)/;
 
 const TEST_BASENAMES = new Set([
