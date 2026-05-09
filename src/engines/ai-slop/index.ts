@@ -4,8 +4,11 @@ import { detectTrivialComments } from "./comments.js";
 import { detectDeadPatterns } from "./dead-patterns.js";
 import { detectDuplicateImports } from "./duplicate-imports.js";
 import { detectSwallowedExceptions } from "./exceptions.js";
+import { detectGoPatterns } from "./go-patterns.js";
 import { detectHallucinatedImports } from "./hallucinated-imports.js";
 import { detectNarrativeComments } from "./narrative-comments.js";
+import { detectPythonPatterns } from "./python-patterns.js";
+import { detectRustPatterns } from "./rust-patterns.js";
 import { detectUnusedImports } from "./unused-imports.js";
 
 export const aiSlopEngine: Engine = {
@@ -22,6 +25,9 @@ export const aiSlopEngine: Engine = {
 			detectUnusedImports(context),
 			detectNarrativeComments(context),
 			detectDuplicateImports(context),
+			detectPythonPatterns(context),
+			detectGoPatterns(context),
+			detectRustPatterns(context),
 			detectHallucinatedImports(context),
 		]);
 
