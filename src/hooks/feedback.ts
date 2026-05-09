@@ -19,10 +19,21 @@ interface Finding {
 	fix?: FindingFix;
 }
 
+type SuggestedActionId = "run_aislop_fix" | "run_aislop_fix_force" | "review_finding" | "no_action";
+
+interface SuggestedAction {
+	id: SuggestedActionId;
+	label: string;
+	command?: string;
+	rationale: string;
+	ruleIds?: string[];
+}
+
 interface AislopFeedback {
-	schema: "aislop.hook.v1";
+	schema: "aislop.hook.v2";
 	score: number;
 	baseline?: number;
+	delta?: number;
 	regressed: boolean;
 	counts: {
 		error: number;
@@ -32,10 +43,22 @@ interface AislopFeedback {
 	};
 	findings: Finding[];
 	elided?: number;
+	newSinceBaseline?: Finding[];
 	nextSteps: string[];
+	suggestedActions: SuggestedAction[];
 }
 
+interface BaselineSnapshot {
+	score: number;
+	findingFingerprints: string[];
+}
+
+const fingerprintFinding = (f: Finding): string => `${f.file}:${f.line}:${f.ruleId}`;
+
 const MAX_FINDINGS = 20;
+const MAX_NEW_SINCE_BASELINE = 10;
+const REVIEW_TOP_N = 3;
+const REGRESSION_FLAG_THRESHOLD = 5;
 
 const toFinding = (d: Diagnostic, rootDirectory: string): Finding | null => {
 	if (d.severity !== "error" && d.severity !== "warning") return null;
@@ -75,11 +98,76 @@ const buildNextSteps = (findings: Finding[]): string[] => {
 	return steps;
 };
 
+const buildSuggestedActions = (
+	diagnostics: Diagnostic[],
+	findings: Finding[],
+	regressed: boolean,
+	delta: number | undefined,
+): SuggestedAction[] => {
+	const actions: SuggestedAction[] = [];
+
+	const fixableDiags = diagnostics.filter((d) => d.fixable);
+	if (fixableDiags.length > 0) {
+		const ruleIds = Array.from(new Set(fixableDiags.map((d) => d.rule)));
+		actions.push({
+			id: "run_aislop_fix",
+			label: `Run aislop fix to clear ${fixableDiags.length} mechanical finding${fixableDiags.length === 1 ? "" : "s"}.`,
+			command: "npx aislop fix",
+			rationale:
+				"These findings have deterministic fixes (formatting, unused imports, trivial comments). Running this before any manual work avoids burning agent tokens on what the CLI handles for free.",
+			ruleIds,
+		});
+	}
+
+	const archErrors = findings.filter((f) => f.ruleId.startsWith("arch/") && f.severity === "error");
+	if (archErrors.length > 0) {
+		actions.push({
+			id: "review_finding",
+			label: `Review ${archErrors.length} architecture rule violation${archErrors.length === 1 ? "" : "s"} — these can't be auto-fixed.`,
+			rationale:
+				"Architecture rules encode intentional project structure decisions. The fix usually means moving code, not editing it.",
+			ruleIds: Array.from(new Set(archErrors.map((f) => f.ruleId))),
+		});
+	}
+
+	const significantRegression =
+		regressed && typeof delta === "number" && delta <= -REGRESSION_FLAG_THRESHOLD;
+	if (significantRegression && fixableDiags.length === 0) {
+		const top = findings
+			.filter((f) => f.severity === "error" || f.severity === "warning")
+			.slice(0, REVIEW_TOP_N);
+		if (top.length > 0) {
+			actions.push({
+				id: "review_finding",
+				label: `Score dropped ${Math.abs(delta as number)} points — review the top ${top.length} finding${top.length === 1 ? "" : "s"} from this edit.`,
+				rationale:
+					"None of these are auto-fixable. Read each one against the source and decide whether the fix is to change the code or to add a justified suppression with a reason.",
+				ruleIds: top.map((f) => f.ruleId),
+			});
+		}
+	}
+
+	if (actions.length === 0) {
+		actions.push({
+			id: "no_action",
+			label:
+				typeof delta === "number"
+					? delta > 0
+						? `Score improved by ${delta}. No action needed.`
+						: "Score unchanged. No action needed."
+					: "No findings. No action needed.",
+			rationale: "The current scan didn't reveal anything that requires the agent's attention.",
+		});
+	}
+
+	return actions;
+};
+
 export const buildFeedback = (
 	diagnostics: Diagnostic[],
 	score: number,
 	rootDirectory: string,
-	baseline?: number,
+	baseline?: BaselineSnapshot | number,
 ): AislopFeedback => {
 	const all = diagnostics
 		.map((d) => toFinding(d, rootDirectory))
@@ -94,16 +182,31 @@ export const buildFeedback = (
 		total: all.length,
 	};
 
-	const regressed = typeof baseline === "number" ? score < baseline : false;
+	const baselineSnapshot: BaselineSnapshot | undefined =
+		typeof baseline === "number" ? { score: baseline, findingFingerprints: [] } : baseline;
+
+	const baselineScore = baselineSnapshot?.score;
+	const delta = typeof baselineScore === "number" ? score - baselineScore : undefined;
+	const regressed = typeof delta === "number" ? delta < 0 : false;
+
+	let newSinceBaseline: Finding[] | undefined;
+	if (baselineSnapshot && baselineSnapshot.findingFingerprints.length > 0) {
+		const known = new Set(baselineSnapshot.findingFingerprints);
+		const fresh = all.filter((f) => !known.has(fingerprintFinding(f)));
+		newSinceBaseline = fresh.slice(0, MAX_NEW_SINCE_BASELINE);
+	}
 
 	return {
-		schema: "aislop.hook.v1",
+		schema: "aislop.hook.v2",
 		score,
-		baseline,
+		baseline: baselineScore,
+		delta,
 		regressed,
 		counts,
 		findings: capped,
 		elided,
+		newSinceBaseline,
 		nextSteps: buildNextSteps(capped),
+		suggestedActions: buildSuggestedActions(diagnostics, capped, regressed, delta),
 	};
 };

@@ -1,8 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
-import type { AislopConfig } from "../config/index.js";
-import { findConfigDir, RULES_FILE } from "../config/index.js";
+import { findConfigDir, RULES_FILE, type AislopConfig } from "../config/index.js";
 import { runEngines } from "../engines/orchestrator.js";
 import type { Diagnostic, EngineConfig, EngineName, EngineResult } from "../engines/types.js";
 import { ENGINE_INFO, getEngineLabel } from "../output/engine-info.js";

@@ -4,7 +4,7 @@ export const AISLOP_MD_BODY = `# aislop — agent instructions
 
 ## On every edit
 
-A PostToolUse hook runs \`aislop hook claude\` after every Edit, Write, or MultiEdit. It scans the touched files and returns findings as JSON \`additionalContext\` shaped like \`AislopFeedback\` (schema \`aislop.hook.v1\`). Act on them the same turn.
+A PostToolUse hook runs \`aislop hook claude\` after every Edit, Write, or MultiEdit. It scans the touched files and returns findings as JSON \`additionalContext\` shaped like \`AislopFeedback\` (schema \`aislop.hook.v2\` — score, baseline, delta, regressed, counts, findings, newSinceBaseline, suggestedActions). Act on them the same turn; the \`suggestedActions\` field tells you exactly what to run next.
 
 ## Severity ladder
 

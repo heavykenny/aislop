@@ -68,6 +68,7 @@ const AI_SLOP_FIXABLE = new Set<string>([
 	"ai-slop/trivial-comment",
 	"ai-slop/unused-import",
 	"ai-slop/narrative-comment",
+	"ai-slop/duplicate-import",
 ]);
 
 const AI_SLOP_ERRORS = new Set<string>(["ai-slop/hallucinated-import"]);
@@ -123,6 +124,7 @@ const BUILTIN_RULES: { engine: string; rules: string[] }[] = [
 			"ai-slop/double-type-assertion",
 			"ai-slop/ts-directive",
 			"ai-slop/narrative-comment",
+			"ai-slop/duplicate-import",
 			"ai-slop/python-bare-except",
 			"ai-slop/python-broad-except",
 			"ai-slop/python-mutable-default",

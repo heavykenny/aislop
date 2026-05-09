@@ -98,7 +98,14 @@ export const runClaudeHook = async (
 		const { diagnostics, score, rootDirectory } = await runScopedScan(cwd, files);
 		const baseline = readBaseline(cwd);
 		appendSessionFiles(cwd, files);
-		const feedback = buildFeedback(diagnostics, score, rootDirectory, baseline?.score);
+		const feedback = buildFeedback(
+			diagnostics,
+			score,
+			rootDirectory,
+			baseline
+				? { score: baseline.score, findingFingerprints: baseline.findingFingerprints }
+				: undefined,
+		);
 		const envelope = renderClaudeOutput(JSON.stringify(feedback));
 		write(JSON.stringify(envelope));
 		return 0;
@@ -195,7 +202,10 @@ export const runClaudeStopHook = async (
 	if (!release) return 0;
 	try {
 		const { diagnostics, score, rootDirectory } = await runScopedScan(cwd, sessionFiles);
-		const feedback = buildFeedback(diagnostics, score, rootDirectory, baseline.score);
+		const feedback = buildFeedback(diagnostics, score, rootDirectory, {
+			score: baseline.score,
+			findingFingerprints: baseline.findingFingerprints,
+		});
 		if (!feedback.regressed) {
 			clearSessionFiles(cwd);
 			return 0;

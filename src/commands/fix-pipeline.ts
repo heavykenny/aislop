@@ -2,6 +2,8 @@ import type { AislopConfig } from "../config/index.js";
 import { detectTrivialComments } from "../engines/ai-slop/comments.js";
 import { detectDeadPatterns } from "../engines/ai-slop/dead-patterns.js";
 import { fixDeadPatterns } from "../engines/ai-slop/dead-patterns-fix.js";
+import { detectDuplicateImports } from "../engines/ai-slop/duplicate-imports.js";
+import { fixDuplicateImports } from "../engines/ai-slop/duplicate-imports-fix.js";
 import {
 	detectNarrativeComments,
 	fixNarrativeComments,
@@ -65,6 +67,12 @@ export const runAiSlopSteps = async (deps: PipelineDeps): Promise<void> => {
 		"Unused imports",
 		() => detectUnusedImports(deps.context),
 		() => fixUnusedImports(deps.context),
+	);
+
+	await deps.runStep(
+		"Duplicate imports",
+		() => detectDuplicateImports(deps.context),
+		() => fixDuplicateImports(deps.context),
 	);
 
 	const detectFixableSlop = async () => {
