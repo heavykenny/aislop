@@ -152,23 +152,32 @@ const packageNameFromImport = (spec: string): string => {
 	return spec.split("/")[0];
 };
 
+// Static `import ... from "spec"` anchored to start-of-line so it never matches
+// `import { ... } from "x"` written *inside* a string literal in source.
+const STATIC_IMPORT_RE = /^\s*import\s+(?:[\w*{},\s]+\s+from\s+)?["']([^"']+)["']/;
+// Dynamic `import("spec")` and `require("spec")` can appear mid-line by design.
+const DYNAMIC_IMPORT_RE = /(?:import|require)\s*\(\s*["']([^"']+)["']/g;
+
 const extractJsImports = (content: string): { spec: string; line: number }[] => {
 	const lines = content.split("\n");
 	const results: { spec: string; line: number }[] = [];
-	const re =
-		/(?:import\s+(?:[\w*{},\s]+\s+from\s+)?|import\s*\(\s*|require\s*\(\s*)["']([^"']+)["']/g;
 	for (let i = 0; i < lines.length; i++) {
 		const line = lines[i];
-		// Skip comments — naive but effective; skips whole-line // and /* */ matches inside strings will still match
 		const trimmed = line.trim();
 		if (trimmed.startsWith("//") || trimmed.startsWith("*")) continue;
-		re.lastIndex = 0;
-		let match: RegExpExecArray | null = re.exec(line);
-		while (match !== null) {
-			if (isLikelyRealImportSpec(match[1])) {
-				results.push({ spec: match[1], line: i + 1 });
+
+		const staticMatch = STATIC_IMPORT_RE.exec(line);
+		if (staticMatch && isLikelyRealImportSpec(staticMatch[1])) {
+			results.push({ spec: staticMatch[1], line: i + 1 });
+		}
+
+		DYNAMIC_IMPORT_RE.lastIndex = 0;
+		let dyn: RegExpExecArray | null = DYNAMIC_IMPORT_RE.exec(line);
+		while (dyn !== null) {
+			if (isLikelyRealImportSpec(dyn[1])) {
+				results.push({ spec: dyn[1], line: i + 1 });
 			}
-			match = re.exec(line);
+			dyn = DYNAMIC_IMPORT_RE.exec(line);
 		}
 	}
 	return results;

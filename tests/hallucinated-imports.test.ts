@@ -97,6 +97,26 @@ export type Node = ReactNode
 		expect(diagnostics).toEqual([]);
 	});
 
+	it("does not false-positive on `import ... from \"x\"` written inside a string literal in source (e.g. help text)", async () => {
+		writePkgJson({ lodash: "^4.0.0" });
+		// Mirrors the FP found when scanning aislop on itself — the duplicate-import rule's
+		// help string contained the literal text `import { A, type B } from "x"` as an
+		// example, and the old un-anchored regex matched it as a real import.
+		writeFile(
+			"src/help-text.ts",
+			[
+				`import { format } from "lodash"`,
+				`export const HELP = 'Two imports from the same module split readers\\' attention. Merge them: \`import { A, type B } from "x"\` or \`import type { A, B } from "x"\`.'`,
+				`export { format }`,
+				``,
+			].join("\n"),
+		);
+
+		const diagnostics = await detectHallucinatedImports(buildContext());
+
+		expect(diagnostics).toEqual([]);
+	});
+
 	it("does not false-positive on import-shaped substrings inside template literals or error messages", async () => {
 		writePkgJson({ lodash: "^4.0.0" });
 		writeFile(
