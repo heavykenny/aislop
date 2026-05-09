@@ -1,4 +1,4 @@
-name: aislop
+name: aislop Quality Gate
 description: Run the aislop quality gate on AI-assisted code (scan + fail CI below threshold from .aislop/config.yml).
 author: Kenny Olawuwo
 branding:
