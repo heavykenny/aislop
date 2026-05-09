@@ -70,6 +70,8 @@ const AI_SLOP_FIXABLE = new Set<string>([
 	"ai-slop/narrative-comment",
 ]);
 
+const AI_SLOP_ERRORS = new Set<string>(["ai-slop/hallucinated-import"]);
+
 const BUILTIN_RULES: { engine: string; rules: string[] }[] = [
 	{
 		engine: "format",
@@ -121,6 +123,7 @@ const BUILTIN_RULES: { engine: string; rules: string[] }[] = [
 			"ai-slop/double-type-assertion",
 			"ai-slop/ts-directive",
 			"ai-slop/narrative-comment",
+			"ai-slop/hallucinated-import",
 		],
 	},
 	{
@@ -147,7 +150,7 @@ const toRuleEntry = (engine: string, ruleId: string): RuleEntry => {
 		return {
 			id: ruleId,
 			engine,
-			severity: "warning",
+			severity: AI_SLOP_ERRORS.has(ruleId) ? "error" : "warning",
 			fixable: AI_SLOP_FIXABLE.has(ruleId),
 		};
 	}
