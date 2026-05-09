@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	parseClaudeFileChangedStdin,
 	parseClaudeStdin,
 	parseClaudeStopStdin,
 	renderClaudeOutput,
@@ -24,6 +25,19 @@ describe("Claude adapter", () => {
 	it("parses Stop payload with stop_hook_active flag", () => {
 		const parsed = parseClaudeStopStdin(JSON.stringify({ stop_hook_active: true }));
 		expect(parsed.stop_hook_active).toBe(true);
+	});
+
+	it("parses FileChanged payload with file_path + cwd", () => {
+		const parsed = parseClaudeFileChangedStdin(
+			JSON.stringify({ cwd: "/repo", file_path: "/repo/.aislop/config.yml" }),
+		);
+		expect(parsed.cwd).toBe("/repo");
+		expect(parsed.file_path).toBe("/repo/.aislop/config.yml");
+	});
+
+	it("FileChanged parser returns empty object on garbage stdin", () => {
+		expect(parseClaudeFileChangedStdin("")).toEqual({});
+		expect(parseClaudeFileChangedStdin("not json")).toEqual({});
 	});
 });
 

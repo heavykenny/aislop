@@ -68,6 +68,31 @@ const buildStopHookGroup = () => {
 	};
 };
 
+// Files where a change outside the agent's edit cycle should refresh aislop's baseline.
+// FileChanged matchers accept pipe-separated literal filenames only — no globs.
+const FILE_CHANGED_MATCHER = ".aislop/config.yml|.aislop/rules.yml|package.json";
+
+const buildFileChangedHookGroup = () => {
+	const hashBody = JSON.stringify({
+		command: "aislop hook claude --on-file-changed",
+		matcher: FILE_CHANGED_MATCHER,
+	});
+	return {
+		matcher: FILE_CHANGED_MATCHER,
+		hooks: [
+			{
+				type: "command",
+				command: "aislop hook claude --on-file-changed",
+				[AISLOP_SENTINEL_KEY]: {
+					v: 1,
+					managed: true,
+					hash: sentinelHash(hashBody),
+				},
+			},
+		],
+	};
+};
+
 const renderSettings = (existingRaw: string | null, qualityGate: boolean): string => {
 	let obj: Record<string, unknown> = {};
 	if (existingRaw) {
@@ -78,6 +103,7 @@ const renderSettings = (existingRaw: string | null, qualityGate: boolean): strin
 		}
 	}
 	let next = upsertHookGroup(obj, "PostToolUse", buildHookGroup());
+	next = upsertHookGroup(next, "FileChanged", buildFileChangedHookGroup());
 	if (qualityGate) next = upsertHookGroup(next, "Stop", buildStopHookGroup());
 	else next = removeAislopEntries(next, "Stop").next;
 	return `${JSON.stringify(next, null, 2)}\n`;
@@ -88,7 +114,13 @@ export const installClaude = (opts: HookInstallOpts): HookInstallResult => {
 	const result = emptyResult();
 
 	const nextSettings = renderSettings(readIfExists(paths.settings), Boolean(opts.qualityGate));
-	applyContent(result, opts, paths.settings, nextSettings, "register PostToolUse hook");
+	applyContent(
+		result,
+		opts,
+		paths.settings,
+		nextSettings,
+		"register PostToolUse + FileChanged hooks",
+	);
 
 	const mdHash = sentinelHash(AISLOP_MD_BODY);
 	const existingMd = readIfExists(paths.aislopMd);
@@ -128,7 +160,9 @@ export const uninstallClaude = (
 		} catch {
 			obj = {};
 		}
-		const stripped = removeAislopEntries(removeAislopEntries(obj, "PostToolUse").next, "Stop").next;
+		const afterPostToolUse = removeAislopEntries(obj, "PostToolUse").next;
+		const afterFileChanged = removeAislopEntries(afterPostToolUse, "FileChanged").next;
+		const stripped = removeAislopEntries(afterFileChanged, "Stop").next;
 		const stillHasHooks =
 			stripped.hooks &&
 			typeof stripped.hooks === "object" &&
@@ -151,7 +185,7 @@ export const uninstallClaude = (
 	}
 
 	const claudeMd = readIfExists(paths.claudeMd);
-	if (claudeMd != null && claudeMd.includes("@AISLOP.md")) {
+	if (claudeMd?.includes("@AISLOP.md")) {
 		const stripped = claudeMd
 			.split("\n")
 			.filter((line) => line.trim() !== "@AISLOP.md")

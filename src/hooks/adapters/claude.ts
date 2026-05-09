@@ -4,6 +4,7 @@ import { acquireHookLock } from "../io/scan-lock.js";
 import { resolveHookFiles, runScopedScan } from "../io/scoped-scan.js";
 import {
 	appendSessionFiles,
+	captureBaseline,
 	clearSessionFiles,
 	readBaseline,
 	readSessionFiles,
@@ -103,6 +104,54 @@ export const runClaudeHook = async (
 		return 0;
 	} catch {
 		// A hook crash must never fail the user's Edit tool call.
+		return 0;
+	} finally {
+		release();
+	}
+};
+
+interface ClaudeFileChangedStdin {
+	cwd?: string;
+	file_path?: string;
+}
+
+export const parseClaudeFileChangedStdin = (raw: string): ClaudeFileChangedStdin => {
+	if (!raw.trim()) return {};
+	try {
+		return JSON.parse(raw) as ClaudeFileChangedStdin;
+	} catch {
+		return {};
+	}
+};
+
+export const runClaudeFileChangedHook = async (
+	deps: { stdin?: () => Promise<string>; write?: (s: string) => void } = {},
+): Promise<number> => {
+	const getStdin = deps.stdin ?? readStdin;
+	const write = deps.write ?? ((s: string) => process.stdout.write(s));
+
+	const raw = await getStdin();
+	const input = parseClaudeFileChangedStdin(raw);
+	const cwd = input.cwd && path.isAbsolute(input.cwd) ? input.cwd : process.cwd();
+
+	const release = acquireHookLock(cwd);
+	if (!release) return 0;
+	try {
+		const result = await captureBaseline(cwd);
+		const changed = input.file_path
+			? path.relative(cwd, input.file_path) || input.file_path
+			: "<unknown>";
+		const additional = JSON.stringify({
+			schema: "aislop.hook.v2",
+			event: "file_changed",
+			file: changed,
+			message: `Watched file changed (${changed}). aislop refreshed the baseline — score: ${result.score}.`,
+			baseline: { score: result.score, fileCount: result.fileCount },
+		});
+		const envelope = renderClaudeOutput(additional);
+		write(JSON.stringify(envelope));
+		return 0;
+	} catch {
 		return 0;
 	} finally {
 		release();

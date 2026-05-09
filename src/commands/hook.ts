@@ -1,13 +1,17 @@
 import fs from "node:fs";
 import os from "node:os";
-import { runClaudeHook, runClaudeStopHook } from "../hooks/adapters/claude.js";
+import {
+	runClaudeFileChangedHook,
+	runClaudeHook,
+	runClaudeStopHook,
+} from "../hooks/adapters/claude.js";
 import { runCursorHook } from "../hooks/adapters/cursor.js";
 import { runGeminiHook } from "../hooks/adapters/gemini.js";
 import {
 	AGENTS_PROJECT_ONLY,
 	AGENTS_SUPPORTING_BOTH_SCOPES,
-	ALL_AGENTS,
 	type AgentName,
+	ALL_AGENTS,
 	defaultScopeFor,
 	detectInstalledAgents,
 	REGISTRY,
@@ -117,7 +121,10 @@ export const hookStatus = async (): Promise<void> => {
 	}
 };
 
-export const hookRun = async (agent: AgentName, flags?: { stop?: boolean }): Promise<void> => {
+export const hookRun = async (
+	agent: AgentName,
+	flags?: { stop?: boolean; onFileChanged?: boolean },
+): Promise<void> => {
 	if (process.stdin.isTTY) {
 		process.stderr.write(
 			`aislop hook ${agent} is an internal callback the agent invokes automatically. It reads a payload on stdin and has nothing to do interactively.\n\nYou probably want:\n  aislop hook install --${agent}     (install the hook for ${agent})\n  aislop hook status                   (see what's installed)\n  aislop hook uninstall --${agent}   (remove it)\n`,
@@ -126,7 +133,13 @@ export const hookRun = async (agent: AgentName, flags?: { stop?: boolean }): Pro
 	}
 	let exitCode = 0;
 	if (agent === "claude") {
-		exitCode = flags?.stop ? await runClaudeStopHook() : await runClaudeHook();
+		if (flags?.onFileChanged) {
+			exitCode = await runClaudeFileChangedHook();
+		} else if (flags?.stop) {
+			exitCode = await runClaudeStopHook();
+		} else {
+			exitCode = await runClaudeHook();
+		}
 	} else if (agent === "cursor") {
 		exitCode = await runCursorHook();
 	} else if (agent === "gemini") {

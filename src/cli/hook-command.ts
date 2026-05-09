@@ -176,10 +176,17 @@ const registerCallbacks = (hook: Command): void => {
 		});
 	hook
 		.command("claude")
-		.description("Internal: Claude Code PostToolUse / Stop callback (reads stdin)")
+		.description("Internal: Claude Code PostToolUse / Stop / FileChanged callback (reads stdin)")
 		.option("--stop", "run in Stop-hook mode for the quality gate")
-		.action(async (opts: { stop?: boolean }) => {
-			await hookRun("claude", { stop: Boolean(opts.stop) });
+		.option(
+			"--on-file-changed",
+			"run in FileChanged mode (refresh baseline on watched file change)",
+		)
+		.action(async (opts: { stop?: boolean; onFileChanged?: boolean }) => {
+			await hookRun("claude", {
+				stop: Boolean(opts.stop),
+				onFileChanged: Boolean(opts.onFileChanged),
+			});
 		});
 	hook
 		.command("cursor")

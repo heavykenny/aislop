@@ -47,6 +47,20 @@ describe("installClaude global", () => {
 		expect(claudeMd).toContain("@AISLOP.md");
 	});
 
+	it("registers a FileChanged hook for the aislop config + manifest files", () => {
+		installClaude(globalOpts());
+		const paths = resolveClaudePaths(globalOpts());
+		const settings = JSON.parse(fs.readFileSync(paths.settings, "utf-8"));
+		expect(settings.hooks.FileChanged).toHaveLength(1);
+		expect(settings.hooks.FileChanged[0].matcher).toBe(
+			".aislop/config.yml|.aislop/rules.yml|package.json",
+		);
+		expect(settings.hooks.FileChanged[0].hooks[0].command).toBe(
+			"aislop hook claude --on-file-changed",
+		);
+		expect(settings.hooks.FileChanged[0].hooks[0].__aislop.managed).toBe(true);
+	});
+
 	it("is idempotent across repeated runs", () => {
 		installClaude(globalOpts());
 		const second = installClaude(globalOpts());
@@ -136,15 +150,31 @@ describe("installClaude quality gate", () => {
 });
 
 describe("uninstallClaude", () => {
-	it("removes PostToolUse hook and deletes AISLOP.md", () => {
+	it("removes PostToolUse + FileChanged hooks and deletes AISLOP.md", () => {
 		installClaude(globalOpts());
 		const result = uninstallClaude(globalOpts());
 		const paths = resolveClaudePaths(globalOpts());
 		expect(fs.existsSync(paths.aislopMd)).toBe(false);
 		expect(result.removed).toContain(paths.aislopMd);
-		// settings.json becomes empty after the aislop entry is removed → file is deleted per spec
+		// settings.json becomes empty after both aislop entries are removed → file is deleted per spec
 		expect(fs.existsSync(paths.settings)).toBe(false);
 		expect(result.removed).toContain(paths.settings);
+	});
+
+	it("preserves unrelated FileChanged hooks during uninstall", () => {
+		const paths = resolveClaudePaths(globalOpts());
+		installClaude(globalOpts());
+		const current = JSON.parse(fs.readFileSync(paths.settings, "utf-8"));
+		current.hooks.FileChanged.push({
+			matcher: ".envrc",
+			hooks: [{ type: "command", command: "my-direnv-handler" }],
+		});
+		fs.writeFileSync(paths.settings, `${JSON.stringify(current, null, 2)}\n`);
+
+		uninstallClaude(globalOpts());
+		const after = JSON.parse(fs.readFileSync(paths.settings, "utf-8"));
+		expect(after.hooks.FileChanged).toHaveLength(1);
+		expect(after.hooks.FileChanged[0].matcher).toBe(".envrc");
 	});
 
 	it("preserves unrelated PostToolUse hooks during uninstall", () => {
