@@ -188,6 +188,7 @@ export const scanCommand = async (
 	const engineConfig: EngineConfig = {
 		quality: config.quality,
 		security: config.security,
+		lint: config.lint,
 		architectureRulesPath: config.engines.architecture ? rulesPath : undefined,
 	};
 

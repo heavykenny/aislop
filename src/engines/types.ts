@@ -51,6 +51,9 @@ export interface EngineConfig {
 		audit: boolean;
 		auditTimeout: number;
 	};
+	lint: {
+		typecheck: boolean;
+	};
 	architectureRulesPath?: string;
 }
 

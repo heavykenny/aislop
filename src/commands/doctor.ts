@@ -199,10 +199,30 @@ const planFormat = (ctx: PlanContext): ToolDecision => {
 	);
 };
 
+const findLocalTsc = (root: string): string | null => {
+	const candidate = path.join(root, "node_modules", ".bin", "tsc");
+	return fs.existsSync(candidate) ? candidate : null;
+};
+
+const withTypecheckSuffix = (baseTool: string, ctx: PlanContext): ToolDecision => {
+	if (!ctx.config.lint?.typecheck) return { tool: baseTool, status: "ok" };
+	if (findLocalTsc(ctx.rootDirectory)) {
+		return { tool: `${baseTool} + tsc`, status: "ok" };
+	}
+	return {
+		tool: `${baseTool} + tsc not found`,
+		status: "missing",
+		remediation:
+			"Install TypeScript locally (pnpm add -D typescript), or set lint.typecheck: false in .aislop/config.yml.",
+	};
+};
+
 const planLint = (ctx: PlanContext): ToolDecision => {
 	const { languages, frameworks, installedTools } = ctx.projectInfo;
-	if (frameworks.includes("expo")) return { tool: "expo-doctor + oxlint (bundled)", status: "ok" };
-	if (hasJsLike(languages)) return { tool: "oxlint (bundled)", status: "ok" };
+	if (frameworks.includes("expo")) {
+		return withTypecheckSuffix("expo-doctor + oxlint (bundled)", ctx);
+	}
+	if (hasJsLike(languages)) return withTypecheckSuffix("oxlint (bundled)", ctx);
 	return (
 		firstMatching(languages, installedTools, LINT_SPECS) ?? {
 			tool: "no linter",

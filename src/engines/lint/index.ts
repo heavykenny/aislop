@@ -15,6 +15,9 @@ export const lintEngine: Engine = {
 
 		if (languages.includes("typescript") || languages.includes("javascript")) {
 			promises.push(runOxlint(context));
+			if (context.config.lint.typecheck) {
+				promises.push(import("./typecheck.js").then((mod) => mod.runTypecheck(context)));
+			}
 		}
 
 		if (context.frameworks.includes("expo")) {

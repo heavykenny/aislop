@@ -85,7 +85,7 @@ const BUILTIN_RULES: { engine: string; rules: string[] }[] = [
 	},
 	{
 		engine: "lint",
-		rules: ["oxlint/*", "ruff/*", "go/*", "clippy/*", "rubocop/*"],
+		rules: ["oxlint/*", "ruff/*", "go/*", "clippy/*", "rubocop/*", "typescript/*"],
 	},
 	{
 		engine: "code-quality",

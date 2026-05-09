@@ -49,7 +49,7 @@ const createEngineContext = (
 	languages: projectInfo.languages,
 	frameworks: projectInfo.frameworks,
 	installedTools: projectInfo.installedTools,
-	config: { quality: config.quality, security: config.security },
+	config: { quality: config.quality, security: config.security, lint: config.lint },
 });
 
 export const fixCommand = async (
@@ -135,6 +135,7 @@ export const fixCommand = async (
 	const engineConfig: EngineConfig = {
 		quality: config.quality,
 		security: config.security,
+		lint: config.lint,
 		architectureRulesPath: config.engines.architecture ? rulesPath : undefined,
 	};
 

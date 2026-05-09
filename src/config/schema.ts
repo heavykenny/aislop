@@ -25,6 +25,10 @@ const QualitySchema = z.object({
 	maxParams: z.number().positive().default(6),
 });
 
+const LintConfigSchema = z.object({
+	typecheck: z.boolean().default(false),
+});
+
 const SecurityConfigSchema = z.object({
 	audit: z.boolean().default(true),
 	auditTimeout: z.number().positive().default(25000),
@@ -68,6 +72,9 @@ const AislopConfigSchema = z.object({
 		maxFileLoc: 400,
 		maxNesting: 5,
 		maxParams: 6,
+	})),
+	lint: LintConfigSchema.default(() => ({
+		typecheck: false,
 	})),
 	security: SecurityConfigSchema.default(() => ({
 		audit: true,

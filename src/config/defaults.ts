@@ -17,6 +17,9 @@ export const DEFAULT_CONFIG: AislopConfig = {
 		maxNesting: 5,
 		maxParams: 6,
 	},
+	lint: {
+		typecheck: false,
+	},
 	security: {
 		audit: true,
 		auditTimeout: 25000,
