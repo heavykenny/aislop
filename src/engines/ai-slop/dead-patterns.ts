@@ -32,7 +32,7 @@ const slop = (
 const LOGGER_FILE_PATTERN = /(?:^|\/)(?:logger|logging|log)\.[^/]+$/i;
 
 const NON_PRODUCTION_DIR_PATTERN =
-	/(?:^|\/)(?:scripts|bin|examples?|demos?|bench|benches|benchmarks?|fixtures?|__fixtures__|__mocks__|__tests__)\//;
+	/(?:^|\/)(?:scripts|bin|examples?|demos?|bench|benches|benchmarks?|fixtures?|__fixtures__|__mocks__|__tests__|cli|cli-[\w-]+|[\w-]+-cli)\//;
 
 const detectConsoleLeftovers = (
 	content: string,

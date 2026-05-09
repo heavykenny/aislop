@@ -200,6 +200,15 @@ describe("console leftovers", () => {
 		expect(consoleD).toHaveLength(0);
 	});
 
+	it("does not flag console in CLI command sources (cli/, packages/cli/, my-cli/)", async () => {
+		const a = writeFile("packages/cli/src/Generate.ts", "console.log('hello');");
+		const b = writeFile("apps/cli/index.ts", "console.log('hello');");
+		const c = writeFile("my-cli/src/index.ts", "console.log('hello');");
+		const diagnostics = await detectDeadPatterns(makeContext([a, b, c]));
+		const consoleD = diagnostics.filter((d) => d.rule === "ai-slop/console-leftover");
+		expect(consoleD).toHaveLength(0);
+	});
+
 	it("does not flag console in fixtures/ or demos/", async () => {
 		const a = writeFile("__fixtures__/sample.js", "console.log('fixture');");
 		const b = writeFile("demo/walkthrough.ts", "console.log('demo');");

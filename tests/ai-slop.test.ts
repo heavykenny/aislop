@@ -259,6 +259,24 @@ describe("detectTrivialComments", () => {
 		const diagnostics = await detectTrivialComments(makeContext([filePath]));
 		expect(diagnostics).toHaveLength(0);
 	});
+
+	it("does not flag rustdoc /// or //! comments that match a trivial verb stem", async () => {
+		const filePath = writeFile(
+			"src/lib.rs",
+			["/// Run the parser.", "//! Build the runtime.", "pub fn run() {}"].join("\n"),
+		);
+		const diagnostics = await detectTrivialComments(makeContext([filePath]));
+		expect(diagnostics).toHaveLength(0);
+	});
+
+	it("does not flag trivial comments inside non-production dirs (examples, benches, vendor)", async () => {
+		const a = writeFile("examples/demo.rs", "// Run the parser\nfn main() {}");
+		const b = writeFile("benches/spawn.rs", "// Loop over the workers\nfn main() {}");
+		const c = writeFile("vendor/old/util.py", "# Parse the input\ndef parse(): pass");
+		const d = writeFile("src/blib2to3/grammar.py", "# Build the table\ndef build(): pass");
+		const diagnostics = await detectTrivialComments(makeContext([a, b, c, d]));
+		expect(diagnostics).toHaveLength(0);
+	});
 });
 
 // ─── detectSwallowedExceptions ────────────────────────────────────────────────

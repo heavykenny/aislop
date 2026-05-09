@@ -144,6 +144,47 @@ describe("go: library-panic", () => {
 		expect(diagnostics).toHaveLength(1);
 	});
 
+	it("does NOT flag a `panic` immediately following a nil-guard `if x == nil {`", async () => {
+		writeFile(
+			"pkg/cache/cache.go",
+			[
+				"package cache",
+				"",
+				"func New(opts *Opts) {",
+				"    if opts == nil {",
+				'        panic("nil opts")',
+				"    }",
+				"    if opts.Log == nil {",
+				'        panic("nil Log")',
+				"    }",
+				"}",
+				"",
+			].join("\n"),
+		);
+		const diagnostics = await detectGoPatterns(buildContext());
+		const matches = diagnostics.filter((d) => d.rule === "ai-slop/go-library-panic");
+		expect(matches).toEqual([]);
+	});
+
+	it("STILL flags a panic with a long string arg even after a nil-guard line", async () => {
+		writeFile(
+			"pkg/lib/long.go",
+			[
+				"package lib",
+				"",
+				"func F(x *T) {",
+				"    if x == nil {",
+				'        panic("a really really long story about how this happened in production yesterday")',
+				"    }",
+				"}",
+				"",
+			].join("\n"),
+		);
+		const diagnostics = await detectGoPatterns(buildContext());
+		const matches = diagnostics.filter((d) => d.rule === "ai-slop/go-library-panic");
+		expect(matches).toHaveLength(1);
+	});
+
 	it("flags multiple panics in the same library file with correct line numbers", async () => {
 		writeFile(
 			"pkg/lib/multi.go",

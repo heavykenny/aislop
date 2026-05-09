@@ -164,6 +164,17 @@ import { serve } from "bun:test";
 		expect(diags).toHaveLength(0);
 	});
 
+	it("reads nested package.json manifests anywhere in the tree (e.g. integration/* test apps)", async () => {
+		writeFile("package.json", JSON.stringify({ name: "root", dependencies: {} }));
+		writeFile(
+			"integration/auth/package.json",
+			JSON.stringify({ name: "auth-test", dependencies: { jsonwebtoken: "^9.0.0" } }),
+		);
+		writeFile("integration/auth/src/app.ts", `import jwt from "jsonwebtoken";\n`);
+		const diags = await detectHallucinatedImports(buildContext());
+		expect(diags).toHaveLength(0);
+	});
+
 	it("does not flag imports of monorepo workspace package names declared in lerna.json", async () => {
 		writeFile("package.json", JSON.stringify({ name: "root", dependencies: { lerna: "^7.0.0" } }));
 		writeFile("lerna.json", JSON.stringify({ packages: ["packages/*"], version: "1.0.0" }));

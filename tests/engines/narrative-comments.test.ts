@@ -476,6 +476,30 @@ pub mod foo {}
 		expect(diags).toHaveLength(0);
 	});
 
+	it("does not flag narrative comments inside vendored / third_party / examples dirs", async () => {
+		writeFile(
+			"vendor/legacy/foo.ts",
+			`// This function does N things.
+// First it parses input. Then it validates. Finally it writes.
+export const run = () => 0;
+`,
+		);
+		writeFile(
+			"third_party/lib/bar.ts",
+			`// Phase 1: setup
+export const x = 1;
+`,
+		);
+		writeFile(
+			"src/blib2to3/grammar.py",
+			`# Phase 1: tokenize
+def tokenize(): pass
+`,
+		);
+		const diags = await detectNarrativeComments(ctx(tmpDir));
+		expect(diags).toHaveLength(0);
+	});
+
 	it("still flags plain // narrative blocks in .rs files (does not blanket-exempt Rust)", async () => {
 		writeFile(
 			"src/lib.rs",

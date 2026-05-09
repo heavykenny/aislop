@@ -91,6 +91,35 @@ const expandWorkspaceDirs = (rootDir: string, globs: string[]): string[] => {
 	return dirs;
 };
 
+const SKIP_DIRS = new Set(["node_modules", ".git", "dist", "build", "out", "target", "coverage"]);
+const NESTED_PKG_JSON_DEPTH = 4;
+
+const collectNestedManifests = (rootDir: string, jsDeps: Set<string>): void => {
+	const walk = (dir: string, depth: number): void => {
+		if (depth > NESTED_PKG_JSON_DEPTH) return;
+		let entries: import("node:fs").Dirent[];
+		try {
+			entries = fs.readdirSync(dir, { withFileTypes: true });
+		} catch {
+			return;
+		}
+		for (const entry of entries) {
+			if (entry.name.startsWith(".") && entry.name !== ".github") continue;
+			if (SKIP_DIRS.has(entry.name)) continue;
+			const full = path.join(dir, entry.name);
+			if (entry.isDirectory()) {
+				walk(full, depth + 1);
+			} else if (entry.name === "package.json" && depth > 0) {
+				const wsPkg = readJson(full) as Record<string, unknown> | null;
+				if (!wsPkg) continue;
+				if (typeof wsPkg.name === "string") jsDeps.add(wsPkg.name);
+				addDepsFromPkg(wsPkg, jsDeps);
+			}
+		}
+	};
+	walk(rootDir, 0);
+};
+
 const collectJsDeps = (rootDir: string, jsDeps: Set<string>): boolean => {
 	const pkgPath = path.join(rootDir, "package.json");
 	if (!fs.existsSync(pkgPath)) return false;
@@ -106,6 +135,7 @@ const collectJsDeps = (rootDir: string, jsDeps: Set<string>): boolean => {
 		if (typeof wsPkg.name === "string") jsDeps.add(wsPkg.name);
 		addDepsFromPkg(wsPkg, jsDeps);
 	}
+	collectNestedManifests(rootDir, jsDeps);
 	return true;
 };
 
