@@ -237,6 +237,30 @@ aislop hook uninstall                   # remove every aislop entry, sentinel-ve
 
 Every install is sentinel-guarded (SHA-256 hash fence) for idempotent re-runs and exact uninstall. Full guide: [`/docs/hooks`](https://scanaislop.com/docs/hooks).
 
+### Use as an MCP server
+
+aislop ships an MCP (Model Context Protocol) server so any agent that speaks MCP — Claude Desktop, Claude Code, Cursor, Codex — can call it as a tool.
+
+```jsonc
+// ~/.cursor/mcp.json  /  Claude Desktop config  /  ~/.codex/config.toml equivalent
+{
+  "mcpServers": {
+    "aislop": {
+      "command": "npx",
+      "args": ["-y", "aislop-mcp"]
+    }
+  }
+}
+```
+
+Tools exposed:
+- `aislop_scan({ path? })` — score + counts + top findings
+- `aislop_fix({ path?, force? })` — apply mechanical fixes; returns before/after delta
+- `aislop_why({ rule_id })` — engine + docs link for a rule
+- `aislop_baseline({ path? })` — read the per-edit-hook baseline (score, lastScanAt, fileCount)
+
+Same engines as the CLI; calling these from inside an agent session lets the model self-check before claiming work is done.
+
 ### Use in CI pipelines
 
 ```bash

@@ -4,7 +4,8 @@
 	"description": "The engineering standards layer and quality gate for AI-written code. Define your standard once. Every agent — Claude Code, Cursor, Codex — is held to it automatically, on every edit and every PR. Catches the slop they leave behind, enforces the rules your team sets. 8+ languages. Deterministic.",
 	"type": "module",
 	"bin": {
-		"aislop": "./dist/cli.js"
+		"aislop": "./dist/cli.js",
+		"aislop-mcp": "./dist/mcp.js"
 	},
 	"files": [
 		"dist",
@@ -63,6 +64,7 @@
 	"dependencies": {
 		"@biomejs/biome": "^2.4.5",
 		"@clack/prompts": "^1.2.0",
+		"@modelcontextprotocol/sdk": "^1.29.0",
 		"adm-zip": "^0.5.16",
 		"commander": "^14.0.3",
 		"expo-doctor": "^1.18.10",
