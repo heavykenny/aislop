@@ -34,7 +34,7 @@ jobs:
         run: pnpm build
 
       - name: Test
-        run: pnpm vitest run
+        run: pnpm test
 
   scan-smoke:
     name: Scan smoke
