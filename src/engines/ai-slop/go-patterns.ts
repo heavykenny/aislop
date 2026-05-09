@@ -17,6 +17,16 @@ const detectPackageName = (lines: string[]): string | null => {
 	return null;
 };
 
+// A comment within ~3 lines above the panic = deliberate intent (validated against cobra).
+const PANIC_INTENT_LOOKBACK = 3;
+
+const hasIntentComment = (lines: string[], panicLineIdx: number): boolean => {
+	for (let j = panicLineIdx - 1; j >= Math.max(0, panicLineIdx - PANIC_INTENT_LOOKBACK); j--) {
+		if (COMMENT_LINE_RE.test(lines[j])) return true;
+	}
+	return false;
+};
+
 const flagLibraryPanic = (
 	lines: string[],
 	relPath: string,
@@ -30,6 +40,7 @@ const flagLibraryPanic = (
 		// Skip lines that only mention `panic` inside a string or a struct field name.
 		PANIC_CALL_RE.lastIndex = 0;
 		if (!PANIC_CALL_RE.test(line)) continue;
+		if (hasIntentComment(lines, i)) continue;
 		out.push({
 			filePath: relPath,
 			engine: "ai-slop",

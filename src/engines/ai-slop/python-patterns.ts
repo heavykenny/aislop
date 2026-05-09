@@ -20,6 +20,13 @@ const isTestFile = (relPath: string, basename: string): boolean =>
 const isScriptOrEntrypoint = (basename: string): boolean =>
 	basename === "__main__.py" || basename === "manage.py" || basename === "setup.py";
 
+const isInScriptDir = (relPath: string): boolean =>
+	relPath.split(path.sep).some((seg) => seg === "scripts" || seg === "bin" || seg === ".github");
+
+// Files with `if __name__ == "__main__":` are CLI entrypoints — print() is intentional output (validated: requests/help.py, requests/certs.py).
+const MAIN_GUARD_RE = /^\s*if\s+__name__\s*==\s*["']__main__["']\s*:/;
+const hasMainGuard = (lines: string[]): boolean => lines.some((l) => MAIN_GUARD_RE.test(l));
+
 interface FlagArgs {
 	relPath: string;
 	rule: string;
@@ -131,6 +138,9 @@ const flagPrintInProduction = (
 	out: Diagnostic[],
 ): void => {
 	if (isTestFile(relPath, basename) || isScriptOrEntrypoint(basename)) return;
+	if (isInScriptDir(relPath)) return;
+	// Files with a main-guard treat their print() calls as CLI output, not debug residue.
+	if (hasMainGuard(lines)) return;
 	for (let i = 0; i < lines.length; i++) {
 		const line = lines[i];
 		if (!PRINT_RE.test(line)) continue;

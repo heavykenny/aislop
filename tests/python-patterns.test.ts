@@ -188,4 +188,42 @@ describe("python: print-debug", () => {
 		const matches = diagnostics.filter((d) => d.rule === "ai-slop/python-print-debug");
 		expect(matches).toEqual([]);
 	});
+
+	it("does NOT flag `print()` in files containing `if __name__ == \"__main__\":` (CLI-script idiom)", async () => {
+		// Validated against requests/help.py and requests/certs.py — both fired
+		// before this exemption, both are intentional CLI output.
+		writeFile(
+			"src/help.py",
+			[
+				"def main():",
+				"    print('debug-style output')",
+				"",
+				"if __name__ == '__main__':",
+				"    main()",
+				"",
+			].join("\n"),
+		);
+		writeFile(
+			"src/certs.py",
+			[
+				"from certifi import where",
+				"",
+				"if __name__ == '__main__':",
+				"    print(where())",
+				"",
+			].join("\n"),
+		);
+		const diagnostics = await detectPythonPatterns(buildContext());
+		const matches = diagnostics.filter((d) => d.rule === "ai-slop/python-print-debug");
+		expect(matches).toEqual([]);
+	});
+
+	it("does NOT flag `print()` in files under scripts/ / bin/ / .github/ directories", async () => {
+		writeFile("scripts/seed-db.py", ["print('seeding')", ""].join("\n"));
+		writeFile("bin/migrate.py", ["print('migrating')", ""].join("\n"));
+		writeFile(".github/workflows/release-notes.py", ["print('release notes')", ""].join("\n"));
+		const diagnostics = await detectPythonPatterns(buildContext());
+		const matches = diagnostics.filter((d) => d.rule === "ai-slop/python-print-debug");
+		expect(matches).toEqual([]);
+	});
 });

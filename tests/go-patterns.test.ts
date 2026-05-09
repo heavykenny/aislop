@@ -108,6 +108,44 @@ describe("go: library-panic", () => {
 		expect(diagnostics).toEqual([]);
 	});
 
+	it("does NOT flag a panic preceded by an explanatory comment within ~3 lines", async () => {
+		// Validated against cobra: every panic in cobra has an intent comment above it.
+		// Reasonable Go-library-design choice ("panic on programmer error").
+		writeFile(
+			"pkg/cmd/cmd.go",
+			[
+				"package cmd",
+				"",
+				"// checkGroups validates a sub-command's group. If the group isn't defined",
+				"// we panic because it indicates a coding error that should be corrected.",
+				"func checkGroups() {",
+				"    panic(\"group not defined\")",
+				"}",
+				"",
+			].join("\n"),
+		);
+		const diagnostics = await detectGoPatterns(buildContext());
+		expect(diagnostics).toEqual([]);
+	});
+
+	it("STILL flags an undocumented panic (no comment within 3 lines)", async () => {
+		writeFile(
+			"pkg/cmd/raw.go",
+			[
+				"package cmd",
+				"",
+				"func DoThing(name string) {",
+				"    if name == \"\" {",
+				"        panic(\"empty\")",
+				"    }",
+				"}",
+				"",
+			].join("\n"),
+		);
+		const diagnostics = await detectGoPatterns(buildContext());
+		expect(diagnostics).toHaveLength(1);
+	});
+
 	it("flags multiple panics in the same library file with correct line numbers", async () => {
 		writeFile(
 			"pkg/lib/multi.go",

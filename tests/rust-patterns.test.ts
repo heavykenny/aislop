@@ -89,6 +89,38 @@ describe("rust: non-test-unwrap", () => {
 		expect(matches).toEqual([]);
 	});
 
+	it("does NOT flag `.unwrap()` preceded by an intent comment (// safe: ...)", async () => {
+		writeFile(
+			"src/lib.rs",
+			[
+				"pub fn parse_known_good(s: &str) -> u16 {",
+				"    // safe: caller guarantees the input is a valid u16",
+				"    s.parse::<u16>().unwrap()",
+				"}",
+				"",
+			].join("\n"),
+		);
+		const diagnostics = await detectRustPatterns(buildContext());
+		const matches = diagnostics.filter((d) => d.rule === "ai-slop/rust-non-test-unwrap");
+		expect(matches).toEqual([]);
+	});
+
+	it("does NOT flag `.unwrap()` or `todo!()` in files under examples/", async () => {
+		// Validated against clap: examples/ files use unwrap and todo as teaching shorthand.
+		writeFile(
+			"examples/find.rs",
+			[
+				"fn main() {",
+				"    let arg: u16 = std::env::args().nth(1).unwrap().parse().unwrap();",
+				"    todo!(\"reader extends this\");",
+				"}",
+				"",
+			].join("\n"),
+		);
+		const diagnostics = await detectRustPatterns(buildContext());
+		expect(diagnostics).toEqual([]);
+	});
+
 	it("does NOT flag `.unwrap()` mentioned only inside a comment", async () => {
 		writeFile(
 			"src/lib.rs",

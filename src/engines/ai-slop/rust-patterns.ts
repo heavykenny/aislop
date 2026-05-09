@@ -17,6 +17,21 @@ const isTestFile = (relPath: string): boolean => {
 	return basename === "tests.rs" || basename.endsWith("_tests.rs");
 };
 
+// `examples/` is demo code — `unwrap()` and `todo!()` are pedagogically intentional.
+// Validated against clap, where examples/ files use both as teaching shorthand.
+const isExampleFile = (relPath: string): boolean =>
+	relPath.split(path.sep).some((seg) => seg === "examples");
+
+// An unwrap preceded by a `// safe:`, `// unwrap:`, `// SAFETY:`, or any short
+// explanatory comment within ~2 lines above signals deliberate intent.
+const UNWRAP_INTENT_LOOKBACK = 2;
+const hasIntentComment = (lines: string[], lineIdx: number): boolean => {
+	for (let j = lineIdx - 1; j >= Math.max(0, lineIdx - UNWRAP_INTENT_LOOKBACK); j--) {
+		if (COMMENT_LINE_RE.test(lines[j])) return true;
+	}
+	return false;
+};
+
 // Walk the file: track whether we're inside a `#[cfg(test)]` mod block. Lines inside
 // that block (or inside any `#[test]`-attributed item) are exempt from unwrap noise.
 const buildTestRanges = (lines: string[]): Array<[number, number]> => {
@@ -59,6 +74,7 @@ const flagNonTestUnwrap = (
 		if (COMMENT_LINE_RE.test(line)) continue;
 		if (isInRange(testRanges, i)) continue;
 		if (!UNWRAP_CALL_RE.test(line)) continue;
+		if (hasIntentComment(lines, i)) continue;
 		out.push({
 			filePath: relPath,
 			engine: "ai-slop",
@@ -113,6 +129,9 @@ export const detectRustPatterns = async (context: EngineContext): Promise<Diagno
 
 		const relPath = path.relative(context.rootDirectory, filePath);
 		const lines = content.split("\n");
+
+		// Examples are pedagogical — `.unwrap()` and `todo!()` are routine teaching shorthand.
+		if (isExampleFile(relPath)) continue;
 
 		// Whole-file test mode: skip unwrap-checking, still flag todo!() (those are bugs anywhere).
 		if (isTestFile(relPath)) {
