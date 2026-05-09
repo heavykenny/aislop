@@ -20,12 +20,58 @@ const isTestFile = (relPath: string, basename: string): boolean =>
 const isScriptOrEntrypoint = (basename: string): boolean =>
 	basename === "__main__.py" || basename === "manage.py" || basename === "setup.py";
 
+// Directories where Python files are scripts, docs, or examples — print() is intentional.
+// Validated additions: action/ (black's GH Action), docs_src/ (FastAPI docs convention),
+// docs/, examples/, example/.
+const SCRIPT_DIR_NAMES = new Set([
+	"scripts",
+	"bin",
+	".github",
+	"action",
+	"docs",
+	"docs_src",
+	"examples",
+	"example",
+]);
+
 const isInScriptDir = (relPath: string): boolean =>
-	relPath.split(path.sep).some((seg) => seg === "scripts" || seg === "bin" || seg === ".github");
+	relPath.split(path.sep).some((seg) => SCRIPT_DIR_NAMES.has(seg));
+
+// Documentation/tutorial files in Python projects use print() to demonstrate output.
+const isTutorialFile = (basename: string): boolean =>
+	basename.startsWith("tutorial") && basename.endsWith(".py");
 
 // Files with `if __name__ == "__main__":` are CLI entrypoints — print() is intentional output (validated: requests/help.py, requests/certs.py).
 const MAIN_GUARD_RE = /^\s*if\s+__name__\s*==\s*["']__main__["']\s*:/;
 const hasMainGuard = (lines: string[]): boolean => lines.some((l) => MAIN_GUARD_RE.test(l));
+
+// Track which lines are inside triple-quoted docstrings. Validated against httpx —
+// print() in docstring examples (`""" ... print(...) ... """`) was firing as a real
+// finding when it's just illustrative code in the function's documentation.
+const buildDocstringRanges = (lines: string[]): Set<number> => {
+	const inside = new Set<number>();
+	let openDelim: '"""' | "'''" | null = null;
+	for (let i = 0; i < lines.length; i++) {
+		const line = lines[i];
+		if (openDelim) {
+			inside.add(i);
+			if (line.includes(openDelim)) openDelim = null;
+			continue;
+		}
+		// Find an opening triple-quote that isn't closed on the same line.
+		for (const delim of ['"""', "'''"] as const) {
+			const first = line.indexOf(delim);
+			if (first === -1) continue;
+			const second = line.indexOf(delim, first + 3);
+			if (second === -1) {
+				openDelim = delim;
+				inside.add(i);
+				break;
+			}
+		}
+	}
+	return inside;
+};
 
 interface FlagArgs {
 	relPath: string;
@@ -139,13 +185,16 @@ const flagPrintInProduction = (
 ): void => {
 	if (isTestFile(relPath, basename) || isScriptOrEntrypoint(basename)) return;
 	if (isInScriptDir(relPath)) return;
+	if (isTutorialFile(basename)) return;
 	// Files with a main-guard treat their print() calls as CLI output, not debug residue.
 	if (hasMainGuard(lines)) return;
+	const docstringLines = buildDocstringRanges(lines);
 	for (let i = 0; i < lines.length; i++) {
 		const line = lines[i];
 		if (!PRINT_RE.test(line)) continue;
 		const trimmed = line.trim();
 		if (trimmed.startsWith("#")) continue;
+		if (docstringLines.has(i)) continue;
 		pushFinding(out, {
 			relPath,
 			rule: "ai-slop/python-print-debug",

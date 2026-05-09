@@ -37,12 +37,7 @@ describe("rust: non-test-unwrap", () => {
 	it("flags `.unwrap()` in regular library code", async () => {
 		writeFile(
 			"src/lib.rs",
-			[
-				"pub fn read_port(s: &str) -> u16 {",
-				"    s.parse::<u16>().unwrap()",
-				"}",
-				"",
-			].join("\n"),
+			["pub fn read_port(s: &str) -> u16 {", "    s.parse::<u16>().unwrap()", "}", ""].join("\n"),
 		);
 		const diagnostics = await detectRustPatterns(buildContext());
 		const matches = diagnostics.filter((d) => d.rule === "ai-slop/rust-non-test-unwrap");
@@ -105,6 +100,74 @@ describe("rust: non-test-unwrap", () => {
 		expect(matches).toEqual([]);
 	});
 
+	it("does NOT flag `.unwrap()` in build.rs (Cargo build script — runs at build time)", async () => {
+		// Validated against xh: build.rs has 9 unwraps for env::var lookups during build.
+		writeFile(
+			"build.rs",
+			[
+				"use std::env;",
+				"fn main() {",
+				'    let out_dir = env::var_os("OUT_DIR").unwrap();',
+				"}",
+				"",
+			].join("\n"),
+		);
+		const diagnostics = await detectRustPatterns(buildContext());
+		expect(diagnostics).toEqual([]);
+	});
+
+	it("does NOT flag `.unwrap()` in testutil.rs / test_util.rs / test_utils.rs", async () => {
+		// Validated against ripgrep: crates/searcher/src/testutil.rs has 8 unwraps
+		// for test infrastructure. Naming convention says "this is test support code."
+		writeFile(
+			"crates/searcher/src/testutil.rs",
+			["pub fn helper() -> i32 {", "    Some(1).unwrap()", "}", ""].join("\n"),
+		);
+		writeFile("crates/lib/src/test_util.rs", ["pub fn h() { Some(1).unwrap(); }", ""].join("\n"));
+		writeFile("crates/lib/src/test_utils.rs", ["pub fn h() { Some(1).unwrap(); }", ""].join("\n"));
+		const diagnostics = await detectRustPatterns(buildContext());
+		expect(diagnostics).toEqual([]);
+	});
+
+	it("does NOT flag `writeln!(out, ...).unwrap()` / `write!(out, ...).unwrap()` (infallible String/Vec writers)", async () => {
+		// Validated against ripgrep: crates/core/flags/doc/version.rs has 8 unwraps
+		// like `writeln!(out, ...).unwrap()` writing to a String — infallible by design.
+		writeFile(
+			"src/render.rs",
+			[
+				"use std::fmt::Write;",
+				"pub fn render() -> String {",
+				"    let mut out = String::new();",
+				'    writeln!(out, "hello").unwrap();',
+				'    write!(out, "{}", 42).unwrap();',
+				"    out",
+				"}",
+				"",
+			].join("\n"),
+		);
+		const diagnostics = await detectRustPatterns(buildContext());
+		const matches = diagnostics.filter((d) => d.rule === "ai-slop/rust-non-test-unwrap");
+		expect(matches).toEqual([]);
+	});
+
+	it("does NOT flag `.unwrap()` or `todo!()` in files under benches/ (Rust benchmarks)", async () => {
+		// Validated against ripgrep: crates/globset/benches/bench.rs has 4 unwraps
+		// for benchmark setup. Bench code is not user-facing.
+		writeFile(
+			"benches/bench.rs",
+			[
+				"fn main() {",
+				"    let v = Some(1);",
+				"    let x = v.unwrap();",
+				'    todo!("add more cases");',
+				"}",
+				"",
+			].join("\n"),
+		);
+		const diagnostics = await detectRustPatterns(buildContext());
+		expect(diagnostics).toEqual([]);
+	});
+
 	it("does NOT flag `.unwrap()` or `todo!()` in files under examples/", async () => {
 		// Validated against clap: examples/ files use unwrap and todo as teaching shorthand.
 		writeFile(
@@ -112,7 +175,7 @@ describe("rust: non-test-unwrap", () => {
 			[
 				"fn main() {",
 				"    let arg: u16 = std::env::args().nth(1).unwrap().parse().unwrap();",
-				"    todo!(\"reader extends this\");",
+				'    todo!("reader extends this");',
 				"}",
 				"",
 			].join("\n"),
@@ -139,10 +202,7 @@ describe("rust: non-test-unwrap", () => {
 
 describe("rust: todo-stub", () => {
 	it("flags `todo!()` in any rust file", async () => {
-		writeFile(
-			"src/lib.rs",
-			["pub fn unfinished() -> i32 {", "    todo!()", "}", ""].join("\n"),
-		);
+		writeFile("src/lib.rs", ["pub fn unfinished() -> i32 {", "    todo!()", "}", ""].join("\n"));
 		const diagnostics = await detectRustPatterns(buildContext());
 		const matches = diagnostics.filter((d) => d.rule === "ai-slop/rust-todo-stub");
 		expect(matches).toHaveLength(1);
@@ -151,7 +211,7 @@ describe("rust: todo-stub", () => {
 	it("flags `unimplemented!()` too", async () => {
 		writeFile(
 			"src/lib.rs",
-			["pub fn nope() -> i32 {", "    unimplemented!(\"later\")", "}", ""].join("\n"),
+			["pub fn nope() -> i32 {", '    unimplemented!("later")', "}", ""].join("\n"),
 		);
 		const diagnostics = await detectRustPatterns(buildContext());
 		const matches = diagnostics.filter((d) => d.rule === "ai-slop/rust-todo-stub");

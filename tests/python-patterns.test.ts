@@ -35,10 +35,7 @@ afterEach(() => {
 
 describe("python: bare-except", () => {
 	it("flags `except:` with no exception class", async () => {
-		writeFile(
-			"src/risky.py",
-			["try:", "    do_something()", "except:", "    pass", ""].join("\n"),
-		);
+		writeFile("src/risky.py", ["try:", "    do_something()", "except:", "    pass", ""].join("\n"));
 		const diagnostics = await detectPythonPatterns(buildContext());
 		const matches = diagnostics.filter((d) => d.rule === "ai-slop/python-bare-except");
 		expect(matches).toHaveLength(1);
@@ -97,7 +94,10 @@ describe("python: broad-except with silent body", () => {
 
 describe("python: mutable-default-arg", () => {
 	it("flags `def f(items=[])`", async () => {
-		writeFile("src/bug.py", ["def append_to(items=[]):", "    items.append(1)", "    return items", ""].join("\n"));
+		writeFile(
+			"src/bug.py",
+			["def append_to(items=[]):", "    items.append(1)", "    return items", ""].join("\n"),
+		);
 		const diagnostics = await detectPythonPatterns(buildContext());
 		const matches = diagnostics.filter((d) => d.rule === "ai-slop/python-mutable-default");
 		expect(matches).toHaveLength(1);
@@ -123,11 +123,7 @@ describe("python: mutable-default-arg", () => {
 	it("does NOT flag `=None` or immutable defaults", async () => {
 		writeFile(
 			"src/safe.py",
-			[
-				"def f(x=None, y=0, z='', flag=True):",
-				"    return (x, y, z, flag)",
-				"",
-			].join("\n"),
+			["def f(x=None, y=0, z='', flag=True):", "    return (x, y, z, flag)", ""].join("\n"),
 		);
 		const diagnostics = await detectPythonPatterns(buildContext());
 		const matches = diagnostics.filter((d) => d.rule === "ai-slop/python-mutable-default");
@@ -158,7 +154,9 @@ describe("python: print-debug", () => {
 	it("flags `print(...)` in a regular module", async () => {
 		writeFile(
 			"src/foo.py",
-			["def reconcile(orders):", "    print('debug', len(orders))", "    return orders", ""].join("\n"),
+			["def reconcile(orders):", "    print('debug', len(orders))", "    return orders", ""].join(
+				"\n",
+			),
 		);
 		const diagnostics = await detectPythonPatterns(buildContext());
 		const matches = diagnostics.filter((d) => d.rule === "ai-slop/python-print-debug");
@@ -189,7 +187,7 @@ describe("python: print-debug", () => {
 		expect(matches).toEqual([]);
 	});
 
-	it("does NOT flag `print()` in files containing `if __name__ == \"__main__\":` (CLI-script idiom)", async () => {
+	it('does NOT flag `print()` in files containing `if __name__ == "__main__":` (CLI-script idiom)', async () => {
 		// Validated against requests/help.py and requests/certs.py — both fired
 		// before this exemption, both are intentional CLI output.
 		writeFile(
@@ -225,5 +223,69 @@ describe("python: print-debug", () => {
 		const diagnostics = await detectPythonPatterns(buildContext());
 		const matches = diagnostics.filter((d) => d.rule === "ai-slop/python-print-debug");
 		expect(matches).toEqual([]);
+	});
+
+	it("does NOT flag `print()` in docs / docs_src / examples / action directories", async () => {
+		// Validated against fastapi (docs_src/), black (action/), and the general
+		// docs/ + examples/ conventions used across Python projects.
+		writeFile("docs/conf.py", ["print('built docs')", ""].join("\n"));
+		writeFile(
+			"docs_src/python_types/tutorial001.py",
+			["print('this is a tutorial')", ""].join("\n"),
+		);
+		writeFile("examples/quickstart.py", ["print('hello world')", ""].join("\n"));
+		writeFile("action/main.py", ["print('GH action log')", ""].join("\n"));
+		const diagnostics = await detectPythonPatterns(buildContext());
+		const matches = diagnostics.filter((d) => d.rule === "ai-slop/python-print-debug");
+		expect(matches).toEqual([]);
+	});
+
+	it("does NOT flag `print()` in files named tutorial*.py", async () => {
+		writeFile("src/some_path/tutorial_intro.py", ["print('tutorial output')", ""].join("\n"));
+		const diagnostics = await detectPythonPatterns(buildContext());
+		const matches = diagnostics.filter((d) => d.rule === "ai-slop/python-print-debug");
+		expect(matches).toEqual([]);
+	});
+
+	it("does NOT flag `print()` inside a triple-quoted docstring", async () => {
+		// Validated against httpx — _exceptions.py and _transports/base.py both had
+		// `print()` calls inside docstring examples. Real production code has no
+		// print, only the documentation does.
+		writeFile(
+			"src/lib.py",
+			[
+				"def fetch(url: str) -> dict:",
+				'    """Fetch JSON from a URL.',
+				"",
+				"    Example:",
+				"        data = fetch('https://api.example.com')",
+				"        print(data)",
+				'    """',
+				"    return {}",
+				"",
+			].join("\n"),
+		);
+		const diagnostics = await detectPythonPatterns(buildContext());
+		const matches = diagnostics.filter((d) => d.rule === "ai-slop/python-print-debug");
+		expect(matches).toEqual([]);
+	});
+
+	it("STILL flags `print()` outside the docstring even when other prints are inside", async () => {
+		writeFile(
+			"src/mixed.py",
+			[
+				"def fetch(url: str) -> dict:",
+				'    """Fetch.',
+				"        print('inside docstring')",
+				'    """',
+				"    print('this is real code')",
+				"    return {}",
+				"",
+			].join("\n"),
+		);
+		const diagnostics = await detectPythonPatterns(buildContext());
+		const matches = diagnostics.filter((d) => d.rule === "ai-slop/python-print-debug");
+		expect(matches).toHaveLength(1);
+		expect(matches[0].line).toBe(5);
 	});
 });
