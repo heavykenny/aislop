@@ -62,7 +62,21 @@ const runNpmAudit = async (rootDir: string, timeout: number): Promise<Diagnostic
 		});
 		return parseJsAudit(result.stdout, "npm audit");
 	} catch {
-		return [];
+		// npm not available — warn about skipped audit
+		return [
+			{
+				filePath: "package.json",
+				engine: "security",
+				rule: "security/dependency-audit-skipped",
+				severity: "warning",
+				message: "Dependency audit skipped: npm not found",
+				help: "Ensure npm is installed to enable dependency vulnerability scanning",
+				line: 0,
+				column: 0,
+				category: "Security",
+				fixable: false,
+			},
+		];
 	}
 };
 
@@ -91,7 +105,22 @@ const runPnpmAuditWithFallback = async (
 		if (canFallbackToNpm) {
 			return runNpmAudit(rootDir, timeout);
 		}
-		return [];
+		// pnpm not available and no npm fallback — warn about skipped audit
+		return [
+			{
+				filePath: "pnpm-lock.yaml",
+				engine: "security",
+				rule: "security/dependency-audit-skipped",
+				severity: "warning",
+				message:
+					"Dependency audit skipped: pnpm not found and no package-lock.json fallback available",
+				help: "Install pnpm or generate package-lock.json to enable dependency vulnerability scanning",
+				line: 0,
+				column: 0,
+				category: "Security",
+				fixable: false,
+			},
+		];
 	}
 };
 
