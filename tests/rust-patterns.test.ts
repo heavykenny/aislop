@@ -184,6 +184,25 @@ describe("rust: non-test-unwrap", () => {
 		expect(diagnostics).toEqual([]);
 	});
 
+	it("does NOT flag `.unwrap()` in test-helper crate dirs (validated: tokio/tokio-test/src/io.rs)", async () => {
+		// Cargo workspace crates named `*-test`, `*-tests`, `tests-*` are test infrastructure.
+		writeFile(
+			"tokio-test/src/io.rs",
+			["pub fn helper() {", "    self.tx.send(x).unwrap();", "}", ""].join("\n"),
+		);
+		writeFile(
+			"tests-integration/src/bin/test-cat.rs",
+			["fn main() {", "    let v = Some(1).unwrap();", "}", ""].join("\n"),
+		);
+		writeFile(
+			"crates/foo-test-utils/src/lib.rs",
+			["pub fn helper() {", "    Some(1).unwrap();", "}", ""].join("\n"),
+		);
+		const diagnostics = await detectRustPatterns(buildContext());
+		const matches = diagnostics.filter((d) => d.rule === "ai-slop/rust-non-test-unwrap");
+		expect(matches).toEqual([]);
+	});
+
 	it("does NOT flag `.unwrap()` mentioned only inside a comment", async () => {
 		writeFile(
 			"src/lib.rs",

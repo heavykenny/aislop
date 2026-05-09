@@ -443,4 +443,49 @@ router.get('/api/auth/me', handler);
 		const diags = await detectNarrativeComments(ctx(tmpDir));
 		expect(diags).toHaveLength(0);
 	});
+
+	it("exempts Rust /// item-level doc comments (validated: tokio/src/fs/canonicalize.rs)", async () => {
+		writeFile(
+			"src/fs.rs",
+			`/// Returns the canonical, absolute form of a path with all intermediate
+/// components normalized and symbolic links resolved.
+///
+/// This is an async version of [\`std::fs::canonicalize\`].
+///
+/// # Platform-specific behavior
+pub async fn canonicalize() {}
+`,
+		);
+		const diags = await detectNarrativeComments(ctx(tmpDir));
+		expect(diags).toHaveLength(0);
+	});
+
+	it("exempts Rust //! module-level doc comments (validated: tokio/src/doc/mod.rs)", async () => {
+		writeFile(
+			"src/lib.rs",
+			`//! Types which are documented locally in the Tokio crate, but does not actually
+//! live here.
+//!
+//! **Note** this module is only visible on docs.rs, you cannot use it directly
+//! in your own code.
+
+pub mod foo {}
+`,
+		);
+		const diags = await detectNarrativeComments(ctx(tmpDir));
+		expect(diags).toHaveLength(0);
+	});
+
+	it("still flags plain // narrative blocks in .rs files (does not blanket-exempt Rust)", async () => {
+		writeFile(
+			"src/lib.rs",
+			`// This function takes a request and returns a response.
+// It does this by walking the routing table and matching the
+// path. The match is then dispatched to the handler.
+pub fn handle() {}
+`,
+		);
+		const diags = await detectNarrativeComments(ctx(tmpDir));
+		expect(diags.length).toBeGreaterThan(0);
+	});
 });

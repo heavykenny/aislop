@@ -183,6 +183,30 @@ describe("console leftovers", () => {
 		const consoleD = diagnostics.filter((d) => d.rule === "ai-slop/console-leftover");
 		expect(consoleD).toHaveLength(0);
 	});
+
+	it("does not flag console in examples/ (validated: chalk/examples/rainbow.js)", async () => {
+		const filePath = writeFile("examples/rainbow.js", "console.log('hello');");
+		const diagnostics = await detectDeadPatterns(makeContext([filePath]));
+		const consoleD = diagnostics.filter((d) => d.rule === "ai-slop/console-leftover");
+		expect(consoleD).toHaveLength(0);
+	});
+
+	it("does not flag console in bench/benches/benchmarks (validated: zod/packages/bench/)", async () => {
+		const a = writeFile("packages/bench/index.ts", "console.log('bench');");
+		const b = writeFile("benches/timing.ts", "console.log('bench');");
+		const c = writeFile("benchmarks/run.ts", "console.log('bench');");
+		const diagnostics = await detectDeadPatterns(makeContext([a, b, c]));
+		const consoleD = diagnostics.filter((d) => d.rule === "ai-slop/console-leftover");
+		expect(consoleD).toHaveLength(0);
+	});
+
+	it("does not flag console in fixtures/ or demos/", async () => {
+		const a = writeFile("__fixtures__/sample.js", "console.log('fixture');");
+		const b = writeFile("demo/walkthrough.ts", "console.log('demo');");
+		const diagnostics = await detectDeadPatterns(makeContext([a, b]));
+		const consoleD = diagnostics.filter((d) => d.rule === "ai-slop/console-leftover");
+		expect(consoleD).toHaveLength(0);
+	});
 });
 
 // ─── TODO Stubs ──────────────────────────────────────────────────────────────
@@ -316,6 +340,24 @@ describe("unsafe type assertions", () => {
 		const diagnostics = await detectDeadPatterns(makeContext([filePath]));
 		const asAny = diagnostics.filter((d) => d.rule === "ai-slop/unsafe-type-assertion");
 		expect(asAny).toHaveLength(0);
+	});
+
+	it("does not flag 'as any' in benchmarks (validated: zod/packages/bench/)", async () => {
+		const filePath = writeFile(
+			"packages/bench/benchUtil.ts",
+			"export const x = factory(zod3 as any) as T;",
+		);
+		const diagnostics = await detectDeadPatterns(makeContext([filePath]));
+		const asAny = diagnostics.filter((d) => d.rule === "ai-slop/unsafe-type-assertion");
+		expect(asAny).toHaveLength(0);
+	});
+
+	it("does not flag 'as unknown as' in fixtures or examples", async () => {
+		const a = writeFile("examples/sample.ts", "const x = value as unknown as SpecificType;");
+		const b = writeFile("__fixtures__/data.ts", "const y = thing as unknown as Other;");
+		const diagnostics = await detectDeadPatterns(makeContext([a, b]));
+		const doubleAssert = diagnostics.filter((d) => d.rule === "ai-slop/double-type-assertion");
+		expect(doubleAssert).toHaveLength(0);
 	});
 });
 

@@ -37,6 +37,7 @@ interface CommentBlock {
 	rawLines: string[];
 	prose: string[];
 	hasMeaningfulJsdocTag: boolean;
+	isRustDoc: boolean;
 	nextNonBlankLine: string | null;
 }
 
@@ -81,6 +82,11 @@ const getMatchedLinePrefix = (line: string, syntax: CommentSyntax): string | nul
 	return null;
 };
 
+const isRustDocCommentLine = (line: string): boolean => {
+	const trimmed = line.trimStart();
+	return trimmed.startsWith("///") || trimmed.startsWith("//!");
+};
+
 const collectBlocks = (sourceLines: string[], syntax: CommentSyntax): CommentBlock[] => {
 	const blocks: CommentBlock[] = [];
 	let i = 0;
@@ -98,6 +104,12 @@ const collectBlocks = (sourceLines: string[], syntax: CommentSyntax): CommentBlo
 			}
 			let next = i;
 			while (next < sourceLines.length && sourceLines[next].trim() === "") next += 1;
+			// `///` / `//!` are rustdoc comments — Rust's documentation primitive,
+			// not narrative slop. Treat the whole block as doc when every non-blank
+			// line uses the doc prefix (validated against tokio/serde/clap/ripgrep).
+			const docCandidates = raw.filter((l) => l.trim().length > 0);
+			const isRustDoc =
+				docCandidates.length > 0 && docCandidates.every((l) => isRustDocCommentLine(l));
 			blocks.push({
 				kind: "line",
 				startLine: start + 1,
@@ -105,6 +117,7 @@ const collectBlocks = (sourceLines: string[], syntax: CommentSyntax): CommentBlo
 				rawLines: raw,
 				prose: raw.map(stripLineComment),
 				hasMeaningfulJsdocTag: false,
+				isRustDoc,
 				nextNonBlankLine: next < sourceLines.length ? sourceLines[next] : null,
 			});
 			continue;
@@ -142,6 +155,7 @@ const collectBlocks = (sourceLines: string[], syntax: CommentSyntax): CommentBlo
 				rawLines: raw,
 				prose,
 				hasMeaningfulJsdocTag: hasMeaningful,
+				isRustDoc: false,
 				nextNonBlankLine: next < sourceLines.length ? sourceLines[next] : null,
 			});
 			continue;
@@ -232,6 +246,7 @@ const detectNarrativeInBlock = (
 	if (looksLikeLicenseHeader(block)) return { matched: false, reason: "" };
 	if (looksLikeSuppressDirective(block)) return { matched: false, reason: "" };
 	if (block.kind === "jsdoc" && block.hasMeaningfulJsdocTag) return { matched: false, reason: "" };
+	if (block.isRustDoc) return { matched: false, reason: "" };
 
 	if (
 		block.kind === "line" &&

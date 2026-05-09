@@ -134,6 +134,72 @@ export { msg, example, tpl }
 		expect(diagnostics).toEqual([]);
 	});
 
+	it("does not flag framework virtual modules: astro:*, virtual:*, bun:* (validated: scanaislop-marketing/Astro)", async () => {
+		writeFile("package.json", JSON.stringify({ name: "site", dependencies: { astro: "^5.0.0" } }));
+		writeFile(
+			"src/pages/rss.xml.js",
+			`import { getCollection } from "astro:content";
+import sw from "virtual:pwa-register";
+import { serve } from "bun:test";
+`,
+		);
+		const diags = await detectHallucinatedImports(buildContext());
+		expect(diags).toHaveLength(0);
+	});
+
+	it("does not flag self-imports (validated: fastapi/flask source uses `from fastapi import X`)", async () => {
+		writeFile("pyproject.toml", `[project]\nname = "fastapi"\ndependencies = ["pydantic"]\n`);
+		writeFile(
+			"fastapi/applications.py",
+			`from fastapi.routing import APIRouter\nfrom fastapi import params\n`,
+		);
+		const diags = await detectHallucinatedImports(buildContext());
+		expect(diags).toHaveLength(0);
+	});
+
+	it("does not flag JS self-imports of the project's own package name", async () => {
+		writeFile("package.json", JSON.stringify({ name: "my-lib", dependencies: {} }));
+		writeFile("src/index.ts", `import { helper } from "my-lib/internal";\n`);
+		const diags = await detectHallucinatedImports(buildContext());
+		expect(diags).toHaveLength(0);
+	});
+
+	it("does not flag imports of monorepo workspace package names declared in lerna.json (validated: NestJS)", async () => {
+		writeFile("package.json", JSON.stringify({ name: "root", dependencies: { lerna: "^7.0.0" } }));
+		writeFile("lerna.json", JSON.stringify({ packages: ["packages/*"], version: "1.0.0" }));
+		writeFile("packages/common/package.json", JSON.stringify({ name: "@nestjs/common" }));
+		writeFile("packages/core/package.json", JSON.stringify({ name: "@nestjs/core" }));
+		writeFile(
+			"integration/cors/src/app.module.ts",
+			`import { Module } from "@nestjs/common";
+import { NestFactory } from "@nestjs/core";
+export class AppModule {}
+`,
+		);
+		const diags = await detectHallucinatedImports(buildContext());
+		expect(diags).toHaveLength(0);
+	});
+
+	it("does not flag imports of workspaces declared via package.json#workspaces", async () => {
+		writeFile(
+			"package.json",
+			JSON.stringify({ name: "root", workspaces: ["packages/*"], dependencies: {} }),
+		);
+		writeFile("packages/util/package.json", JSON.stringify({ name: "@scope/util" }));
+		writeFile("apps/web/src/index.ts", `import { helper } from "@scope/util";\n`);
+		const diags = await detectHallucinatedImports(buildContext());
+		expect(diags).toHaveLength(0);
+	});
+
+	it("does not flag imports of workspaces declared via pnpm-workspace.yaml", async () => {
+		writeFile("package.json", JSON.stringify({ name: "root", dependencies: {} }));
+		writeFile("pnpm-workspace.yaml", `packages:\n  - "packages/*"\n`);
+		writeFile("packages/util/package.json", JSON.stringify({ name: "@scope/util" }));
+		writeFile("apps/web/src/index.ts", `import { helper } from "@scope/util";\n`);
+		const diags = await detectHallucinatedImports(buildContext());
+		expect(diags).toHaveLength(0);
+	});
+
 	it("flags require() calls and dynamic imports too", async () => {
 		writePkgJson({ lodash: "^4.0.0" });
 		writeFile(

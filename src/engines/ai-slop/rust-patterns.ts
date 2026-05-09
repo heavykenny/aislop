@@ -20,9 +20,15 @@ const TEST_BASENAMES = new Set([
 	"build.rs",
 ]);
 
+// Cargo workspaces commonly contain test-helper crates (e.g. `tokio-test`,
+// `tests-integration`, `*-test-utils`). A path segment with `test`/`tests`
+// as a tokenized word means test infrastructure, not production code.
+// Validated against tokio (tokio-test/, tests-integration/).
+const TEST_CRATE_SEGMENT_RE = /(?:^|[-_])tests?(?:$|[-_])/;
+
 const isTestFile = (relPath: string): boolean => {
 	const segments = relPath.split(path.sep);
-	if (segments.includes("tests")) return true;
+	if (segments.some((s) => TEST_CRATE_SEGMENT_RE.test(s))) return true;
 	const basename = segments[segments.length - 1] ?? "";
 	if (TEST_BASENAMES.has(basename)) return true;
 	return basename.endsWith("_tests.rs") || basename.endsWith("_testutil.rs");

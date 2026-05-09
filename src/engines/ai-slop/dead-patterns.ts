@@ -32,8 +32,12 @@ const slop = (
 // Files that are intentionally logging infrastructure (not leftover debugging)
 const LOGGER_FILE_PATTERN = /(?:^|\/)(?:logger|logging|log)\.[^/]+$/i;
 
-// Directories where console output is expected (CLI scripts, build scripts, etc.)
-const SCRIPT_DIR_PATTERN = /(?:^|\/)(scripts|bin)\//;
+// Directories where console output / unsafe type casts are expected:
+// CLI scripts, build scripts, examples, demos, benchmarks, test fixtures.
+// Includes Jest-style `__fixtures__` / `__mocks__` / `__tests__` conventions.
+// Validated against chalk/examples/, zod/packages/bench/, prisma/, vitest/.
+const NON_PRODUCTION_DIR_PATTERN =
+	/(?:^|\/)(?:scripts|bin|examples?|demos?|bench|benches|benchmarks?|fixtures?|__fixtures__|__mocks__|__tests__)\//;
 
 const detectConsoleLeftovers = (
 	content: string,
@@ -44,8 +48,8 @@ const detectConsoleLeftovers = (
 
 	// Skip files whose purpose is to be a logger
 	if (LOGGER_FILE_PATTERN.test(relativePath)) return [];
-	// Skip build/CLI scripts where console output is intentional
-	if (SCRIPT_DIR_PATTERN.test(relativePath)) return [];
+	// Skip build/CLI scripts, examples, benches where console output is intentional
+	if (NON_PRODUCTION_DIR_PATTERN.test(relativePath)) return [];
 
 	const diagnostics: Diagnostic[] = [];
 	const lines = content.split("\n");
@@ -211,6 +215,8 @@ const detectUnsafeTypePatterns = (
 	ext: string,
 ): Diagnostic[] => {
 	if (ext !== ".ts" && ext !== ".tsx") return [];
+	// Benchmarks, examples, fixtures use `as any` to compare type variants — not slop.
+	if (NON_PRODUCTION_DIR_PATTERN.test(relativePath)) return [];
 
 	const diagnostics: Diagnostic[] = [];
 	const lines = content.split("\n");
