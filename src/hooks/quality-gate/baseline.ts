@@ -2,19 +2,25 @@ import fs from "node:fs";
 import path from "node:path";
 import { loadConfig } from "../../config/index.js";
 import { runEngines } from "../../engines/orchestrator.js";
-import type { EngineContext, EngineName } from "../../engines/types.js";
+import type { Diagnostic, EngineContext, EngineName } from "../../engines/types.js";
 import { calculateScore } from "../../scoring/index.js";
 import { discoverProject } from "../../utils/discover.js";
 import { atomicWrite, readIfExists } from "../io/atomic-write.js";
 
 interface Baseline {
-	schema: "aislop.baseline.v1";
+	schema: "aislop.baseline.v2";
 	updatedAt: string;
 	score: number;
 	byEngine: Record<string, number>;
 	fileCount: number;
 	commit?: string;
+	findingFingerprints: string[];
 }
+
+const fingerprintDiagnostic = (d: Diagnostic, rootDirectory: string): string => {
+	const rel = path.isAbsolute(d.filePath) ? path.relative(rootDirectory, d.filePath) : d.filePath;
+	return `${rel}:${d.line}:${d.rule}`;
+};
 
 const BASELINE_REL = path.join(".aislop", "baseline.json");
 
@@ -24,9 +30,21 @@ export const readBaseline = (cwd: string): Baseline | null => {
 	const raw = readIfExists(baselinePath(cwd));
 	if (!raw) return null;
 	try {
-		const parsed = JSON.parse(raw) as Baseline;
-		if (parsed.schema !== "aislop.baseline.v1") return null;
-		return parsed;
+		const parsed = JSON.parse(raw) as Partial<Baseline> & { schema?: string };
+		// Accept both schemas. v1 lacks findingFingerprints — return [] so callers
+		// can still compute newSinceBaseline (it'll be empty until the next capture).
+		if (parsed.schema !== "aislop.baseline.v2" && parsed.schema !== "aislop.baseline.v1") {
+			return null;
+		}
+		return {
+			schema: "aislop.baseline.v2",
+			updatedAt: parsed.updatedAt ?? "",
+			score: parsed.score ?? 0,
+			byEngine: parsed.byEngine ?? {},
+			fileCount: parsed.fileCount ?? 0,
+			commit: parsed.commit,
+			findingFingerprints: parsed.findingFingerprints ?? [],
+		};
 	} catch {
 		return null;
 	}
@@ -84,12 +102,16 @@ export const captureBaseline = async (
 		);
 		byEngine[r.engine] = engineScore;
 	}
+	const findingFingerprints = diagnostics
+		.filter((d) => d.severity === "error" || d.severity === "warning")
+		.map((d) => fingerprintDiagnostic(d, project.rootDirectory));
 	const baseline: Baseline = {
-		schema: "aislop.baseline.v1",
+		schema: "aislop.baseline.v2",
 		updatedAt: new Date().toISOString(),
 		score,
 		byEngine,
 		fileCount: project.sourceFileCount,
+		findingFingerprints,
 	};
 	const target = writeBaseline(cwd, baseline);
 	return { score, fileCount: project.sourceFileCount, path: target };

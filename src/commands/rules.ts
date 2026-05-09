@@ -121,6 +121,7 @@ const BUILTIN_RULES: { engine: string; rules: string[] }[] = [
 			"ai-slop/double-type-assertion",
 			"ai-slop/ts-directive",
 			"ai-slop/narrative-comment",
+			"ai-slop/duplicate-import",
 		],
 	},
 	{

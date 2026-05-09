@@ -2,6 +2,7 @@ import type { Diagnostic, Engine, EngineContext, EngineResult } from "../types.j
 import { detectOverAbstraction } from "./abstractions.js";
 import { detectTrivialComments } from "./comments.js";
 import { detectDeadPatterns } from "./dead-patterns.js";
+import { detectDuplicateImports } from "./duplicate-imports.js";
 import { detectSwallowedExceptions } from "./exceptions.js";
 import { detectNarrativeComments } from "./narrative-comments.js";
 import { detectUnusedImports } from "./unused-imports.js";
@@ -19,6 +20,7 @@ export const aiSlopEngine: Engine = {
 			detectDeadPatterns(context),
 			detectUnusedImports(context),
 			detectNarrativeComments(context),
+			detectDuplicateImports(context),
 		]);
 
 		for (const result of results) {

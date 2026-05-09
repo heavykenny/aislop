@@ -35,10 +35,11 @@ describe("buildFeedback", () => {
 		expect(fb.counts.total).toBe(3);
 	});
 
-	it("marks regressed=true when score < baseline", () => {
+	it("marks regressed=true when score < baseline (number form)", () => {
 		const fb = buildFeedback([diag()], 70, "/repo", 85);
 		expect(fb.regressed).toBe(true);
 		expect(fb.baseline).toBe(85);
+		expect(fb.delta).toBe(-15);
 	});
 
 	it("caps findings at 20 and reports elided count", () => {
@@ -54,8 +55,79 @@ describe("buildFeedback", () => {
 		expect(fb.findings).toHaveLength(1);
 	});
 
-	it("stamps schema identifier", () => {
+	it("stamps schema identifier as v2", () => {
 		const fb = buildFeedback([], 100, "/repo");
-		expect(fb.schema).toBe("aislop.hook.v1");
+		expect(fb.schema).toBe("aislop.hook.v2");
+	});
+});
+
+describe("buildFeedback v2 — delta + newSinceBaseline + suggestedActions", () => {
+	it("computes positive delta on improvement; suggestedActions emits no_action", () => {
+		const fb = buildFeedback([], 92, "/repo", { score: 80, findingFingerprints: [] });
+		expect(fb.delta).toBe(12);
+		expect(fb.regressed).toBe(false);
+		expect(fb.suggestedActions[0].id).toBe("no_action");
+		expect(fb.suggestedActions[0].label).toContain("Score improved by 12");
+	});
+
+	it("computes zero delta when score matches baseline", () => {
+		const fb = buildFeedback([], 90, "/repo", { score: 90, findingFingerprints: [] });
+		expect(fb.delta).toBe(0);
+		expect(fb.regressed).toBe(false);
+	});
+
+	it("populates newSinceBaseline with findings whose fingerprint isn't in the snapshot", () => {
+		const carryOver = diag({ filePath: "/repo/src/old.ts", line: 5, rule: "ai-slop/foo" });
+		const fresh = diag({ filePath: "/repo/src/new.ts", line: 10, rule: "ai-slop/bar" });
+		const fb = buildFeedback([carryOver, fresh], 75, "/repo", {
+			score: 90,
+			findingFingerprints: ["src/old.ts:5:ai-slop/foo"],
+		});
+		expect(fb.newSinceBaseline).toBeDefined();
+		expect(fb.newSinceBaseline).toHaveLength(1);
+		expect(fb.newSinceBaseline?.[0].file).toBe("src/new.ts");
+	});
+
+	it("leaves newSinceBaseline undefined when baseline has no fingerprints recorded", () => {
+		const fb = buildFeedback([diag()], 80, "/repo", { score: 90, findingFingerprints: [] });
+		expect(fb.newSinceBaseline).toBeUndefined();
+	});
+
+	it("suggestedActions emits run_aislop_fix when there are fixable findings", () => {
+		const fb = buildFeedback([diag({ fixable: true })], 80, "/repo");
+		const fix = fb.suggestedActions.find((a) => a.id === "run_aislop_fix");
+		expect(fix).toBeDefined();
+		expect(fix?.command).toBe("npx aislop fix");
+	});
+
+	it("suggestedActions emits review_finding for arch/* errors (not auto-fixable)", () => {
+		const archErr = diag({
+			rule: "arch/no-cross-layer-imports",
+			severity: "error",
+			category: "Architecture",
+		});
+		const fb = buildFeedback([archErr], 80, "/repo");
+		const review = fb.suggestedActions.find((a) => a.id === "review_finding");
+		expect(review).toBeDefined();
+		expect(review?.ruleIds).toContain("arch/no-cross-layer-imports");
+	});
+
+	it("suggestedActions emits review_finding when score regressed by ≥5 with no fixable", () => {
+		const fb = buildFeedback([diag()], 80, "/repo", { score: 90, findingFingerprints: [] });
+		const review = fb.suggestedActions.find((a) => a.id === "review_finding");
+		expect(review).toBeDefined();
+		expect(review?.label).toContain("Score dropped 10 points");
+	});
+
+	it("suggestedActions stays at no_action on a small regression with no fixable", () => {
+		const fb = buildFeedback([diag()], 88, "/repo", { score: 90, findingFingerprints: [] });
+		// regressed=true, but delta=-2 is below the ≥5 review threshold and no fixable
+		expect(fb.suggestedActions.map((a) => a.id)).toEqual(["no_action"]);
+	});
+
+	it("keeps v1's nextSteps populated for back-compat consumers", () => {
+		const fb = buildFeedback([diag({ severity: "error" })], 60, "/repo");
+		expect(fb.nextSteps.length).toBeGreaterThan(0);
+		expect(fb.nextSteps[0]).toMatch(/^Fix 1 error/);
 	});
 });
