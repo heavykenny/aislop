@@ -62,11 +62,11 @@ export const detectDuplicateImports = async (context: EngineContext): Promise<Di
 					rule: "ai-slop/duplicate-import",
 					severity: "warning",
 					message: `"${spec}" is also imported on line ${firstLine}. Merge into a single import statement.`,
-					help: 'Two imports from the same module split readers\' attention and grow the import block. Merge them: `import { A, type B } from "x"` or `import type { A, B } from "x"`.',
+					help: "Two imports from the same module split readers' attention and grow the import block. Run aislop fix to merge them automatically.",
 					line: dup.line,
 					column: 1,
 					category: "AI Slop",
-					fixable: false,
+					fixable: true,
 				});
 			}
 		}

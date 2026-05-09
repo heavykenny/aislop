@@ -68,6 +68,7 @@ const AI_SLOP_FIXABLE = new Set<string>([
 	"ai-slop/trivial-comment",
 	"ai-slop/unused-import",
 	"ai-slop/narrative-comment",
+	"ai-slop/duplicate-import",
 ]);
 
 const BUILTIN_RULES: { engine: string; rules: string[] }[] = [

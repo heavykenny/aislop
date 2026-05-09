@@ -50,7 +50,7 @@ export const x = 1
 		const [d] = diagnostics;
 		expect(d.rule).toBe("ai-slop/duplicate-import");
 		expect(d.severity).toBe("warning");
-		expect(d.fixable).toBe(false);
+		expect(d.fixable).toBe(true);
 		expect(d.line).toBe(3);
 		expect(d.message).toContain("../engines/types.js");
 		expect(d.message).toContain("line 1");
