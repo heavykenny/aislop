@@ -444,7 +444,7 @@ router.get('/api/auth/me', handler);
 		expect(diags).toHaveLength(0);
 	});
 
-	it("exempts Rust /// item-level doc comments (validated: tokio/src/fs/canonicalize.rs)", async () => {
+	it("exempts Rust /// item-level doc comments", async () => {
 		writeFile(
 			"src/fs.rs",
 			`/// Returns the canonical, absolute form of a path with all intermediate
@@ -460,7 +460,7 @@ pub async fn canonicalize() {}
 		expect(diags).toHaveLength(0);
 	});
 
-	it("exempts Rust //! module-level doc comments (validated: tokio/src/doc/mod.rs)", async () => {
+	it("exempts Rust //! module-level doc comments", async () => {
 		writeFile(
 			"src/lib.rs",
 			`//! Types which are documented locally in the Tokio crate, but does not actually

@@ -90,11 +90,13 @@ describe("checkComplexity — file too large", () => {
 		expect(fileDiags).toHaveLength(0);
 	});
 
-	it("applies a 1.5x tolerance to .tsx files", async () => {
-		// maxFileLoc = 10, effective TSX cap = 15. 15 lines passes; 16 fires.
-		const fifteen = writeFile("page.tsx", makeLines(15, "const x = 1;"));
-		const sixteen = writeFile("too-big.tsx", makeLines(16, "const x = 1;"));
-		const diagnostics = await checkComplexity(makeContext([fifteen, sixteen], { maxFileLoc: 10 }));
+	it("applies a 1.5x JSX tolerance plus a 10% buffer to .tsx files", async () => {
+		// maxFileLoc = 10 → TSX cap 15 → trigger at 17 (10% buffer). 17 passes; 18 fires.
+		const seventeen = writeFile("page.tsx", makeLines(17, "const x = 1;"));
+		const eighteen = writeFile("too-big.tsx", makeLines(18, "const x = 1;"));
+		const diagnostics = await checkComplexity(
+			makeContext([seventeen, eighteen], { maxFileLoc: 10 }),
+		);
 		const fileDiags = diagnostics
 			.filter((d) => d.rule === "complexity/file-too-large")
 			.map((d) => d.filePath);
@@ -102,20 +104,24 @@ describe("checkComplexity — file too large", () => {
 		expect(fileDiags[0]).toContain("too-big.tsx");
 	});
 
-	it("applies the same 1.5x tolerance to .jsx files", async () => {
-		const filePath = writeFile("widget.jsx", makeLines(16, "const x = 1;"));
+	it("applies the same JSX-plus-buffer tolerance to .jsx files", async () => {
+		const filePath = writeFile("widget.jsx", makeLines(18, "const x = 1;"));
 		const diagnostics = await checkComplexity(makeContext([filePath], { maxFileLoc: 10 }));
 		const fileDiags = diagnostics.filter((d) => d.rule === "complexity/file-too-large");
 		expect(fileDiags).toHaveLength(1);
 		expect(fileDiags[0].message).toContain("max: 15");
 	});
 
-	it("does NOT apply the JSX tolerance to .ts files", async () => {
-		// 11 lines on .ts at max 10 must fire (no multiplier, no soft buffer).
-		const filePath = writeFile("logic.ts", makeLines(11, "const x = 1;"));
-		const diagnostics = await checkComplexity(makeContext([filePath], { maxFileLoc: 10 }));
-		const fileDiags = diagnostics.filter((d) => d.rule === "complexity/file-too-large");
+	it("applies a 10% buffer over maxFileLoc to .ts files (no JSX multiplier)", async () => {
+		// maxFileLoc = 10 → trigger at 11 (10% buffer). 11 passes; 12 fires.
+		const eleven = writeFile("ok.ts", makeLines(11, "const x = 1;"));
+		const twelve = writeFile("logic.ts", makeLines(12, "const x = 1;"));
+		const diagnostics = await checkComplexity(makeContext([eleven, twelve], { maxFileLoc: 10 }));
+		const fileDiags = diagnostics
+			.filter((d) => d.rule === "complexity/file-too-large")
+			.map((d) => d.filePath);
 		expect(fileDiags).toHaveLength(1);
+		expect(fileDiags[0]).toContain("logic.ts");
 	});
 });
 
@@ -298,6 +304,58 @@ describe("checkComplexity — general", () => {
 	it("skips non-source files", async () => {
 		const filePath = writeFile("README.md", makeLines(500, "some text"));
 		const diagnostics = await checkComplexity(makeContext([filePath], { maxFileLoc: 10 }));
+		expect(diagnostics).toHaveLength(0);
+	});
+
+	it("skips test files across all languages", async () => {
+		const files = [
+			writeFile("src/users.test.ts", makeLines(50, "expect(x).toBe(1);")),
+			writeFile("src/users.spec.ts", makeLines(50, "expect(x).toBe(1);")),
+			writeFile("__tests__/users.ts", makeLines(50, "expect(x).toBe(1);")),
+			writeFile("tests/integration/auth.py", makeLines(50, "assert x == 1")),
+			writeFile("api/test_users.py", makeLines(50, "assert x == 1")),
+			writeFile("api/users_test.py", makeLines(50, "assert x == 1")),
+			writeFile("conftest.py", makeLines(50, "import pytest")),
+			writeFile("pkg/users_test.go", makeLines(50, "t.Fatal(err)")),
+			writeFile("src/users_test.rs", makeLines(50, 'assert!(x == 1);')),
+			writeFile("spec/users_spec.rb", makeLines(50, "expect(x).to eq 1")),
+			writeFile("src/test/java/UsersTest.java", makeLines(50, "assertEquals(x, 1);")),
+		];
+		const diagnostics = await checkComplexity(makeContext(files, { maxFileLoc: 10 }));
+		expect(diagnostics).toHaveLength(0);
+	});
+
+	it("skips migrations across all languages", async () => {
+		const files = [
+			writeFile("api/migrations/0001_initial.py", makeLines(50, "pass")),
+			writeFile("db/migrate/20240101_create_users.rb", makeLines(50, "true")),
+			writeFile("database/migrations/2024_create.php", makeLines(50, "// db")),
+			writeFile("prisma/migrations/init/migration.sql", makeLines(50, "SELECT 1;")),
+			writeFile("migrations/001_initial.ts", makeLines(50, "const x = 1;")),
+		];
+		const diagnostics = await checkComplexity(makeContext(files, { maxFileLoc: 10 }));
+		expect(diagnostics).toHaveLength(0);
+	});
+
+	it("skips fixtures, snapshots, mocks, seeds", async () => {
+		const files = [
+			writeFile("__fixtures__/sample.ts", makeLines(50, "const x = 1;")),
+			writeFile("__snapshots__/users.test.ts.snap", makeLines(50, "x")),
+			writeFile("__mocks__/db.ts", makeLines(50, "export const x = 1;")),
+			writeFile("seeds/users.ts", makeLines(50, "const x = 1;")),
+			writeFile("fixtures/payload.py", makeLines(50, "x = 1")),
+		];
+		const diagnostics = await checkComplexity(makeContext(files, { maxFileLoc: 10 }));
+		expect(diagnostics).toHaveLength(0);
+	});
+
+	it("skips generated/build output dirs", async () => {
+		const files = [
+			writeFile("generated/api.ts", makeLines(50, "const x = 1;")),
+			writeFile("dist/index.js", makeLines(50, "var x = 1;")),
+			writeFile("target/release/build.rs", makeLines(50, "fn main() {}")),
+		];
+		const diagnostics = await checkComplexity(makeContext(files, { maxFileLoc: 10 }));
 		expect(diagnostics).toHaveLength(0);
 	});
 

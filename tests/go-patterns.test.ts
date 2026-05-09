@@ -109,8 +109,6 @@ describe("go: library-panic", () => {
 	});
 
 	it("does NOT flag a panic preceded by an explanatory comment within ~3 lines", async () => {
-		// Validated against cobra: every panic in cobra has an intent comment above it.
-		// Reasonable Go-library-design choice ("panic on programmer error").
 		writeFile(
 			"pkg/cmd/cmd.go",
 			[

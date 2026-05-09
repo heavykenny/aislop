@@ -134,7 +134,7 @@ export { msg, example, tpl }
 		expect(diagnostics).toEqual([]);
 	});
 
-	it("does not flag framework virtual modules: astro:*, virtual:*, bun:* (validated: scanaislop-marketing/Astro)", async () => {
+	it("does not flag framework virtual modules: astro:*, virtual:*, bun:*", async () => {
 		writeFile("package.json", JSON.stringify({ name: "site", dependencies: { astro: "^5.0.0" } }));
 		writeFile(
 			"src/pages/rss.xml.js",
@@ -147,7 +147,7 @@ import { serve } from "bun:test";
 		expect(diags).toHaveLength(0);
 	});
 
-	it("does not flag self-imports (validated: fastapi/flask source uses `from fastapi import X`)", async () => {
+	it("does not flag self-imports", async () => {
 		writeFile("pyproject.toml", `[project]\nname = "fastapi"\ndependencies = ["pydantic"]\n`);
 		writeFile(
 			"fastapi/applications.py",
@@ -164,7 +164,7 @@ import { serve } from "bun:test";
 		expect(diags).toHaveLength(0);
 	});
 
-	it("does not flag imports of monorepo workspace package names declared in lerna.json (validated: NestJS)", async () => {
+	it("does not flag imports of monorepo workspace package names declared in lerna.json", async () => {
 		writeFile("package.json", JSON.stringify({ name: "root", dependencies: { lerna: "^7.0.0" } }));
 		writeFile("lerna.json", JSON.stringify({ packages: ["packages/*"], version: "1.0.0" }));
 		writeFile("packages/common/package.json", JSON.stringify({ name: "@nestjs/common" }));

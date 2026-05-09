@@ -41,9 +41,6 @@ const addDepsFromPkg = (pkg: Record<string, unknown>, jsDeps: Set<string>): void
 	}
 };
 
-// Read workspace globs from `package.json#workspaces`, `pnpm-workspace.yaml`,
-// or `lerna.json#packages`. Returns the literal directory entries (the caller
-// expands trailing `/*`). Validated against NestJS (lerna) and Prisma (pnpm).
 const readWorkspaceGlobs = (rootDir: string, rootPkg: unknown): string[] => {
 	const globs: string[] = [];
 	if (rootPkg && typeof rootPkg === "object") {
@@ -78,7 +75,6 @@ const readWorkspaceGlobs = (rootDir: string, rootPkg: unknown): string[] => {
 const expandWorkspaceDirs = (rootDir: string, globs: string[]): string[] => {
 	const dirs: string[] = [];
 	for (const glob of globs) {
-		// Only support trailing `/*` and bare paths — covers ~all real-world cases.
 		if (glob.endsWith("/*")) {
 			const parent = path.join(rootDir, glob.slice(0, -2));
 			try {
@@ -86,7 +82,7 @@ const expandWorkspaceDirs = (rootDir: string, globs: string[]): string[] => {
 					if (entry.isDirectory()) dirs.push(path.join(parent, entry.name));
 				}
 			} catch {
-				// missing workspace dir — skip
+				continue;
 			}
 		} else if (!glob.includes("*")) {
 			dirs.push(path.join(rootDir, glob));
@@ -101,15 +97,12 @@ const collectJsDeps = (rootDir: string, jsDeps: Set<string>): boolean => {
 	const pkg = readJson(pkgPath) as Record<string, unknown> | null;
 	if (!pkg || typeof pkg !== "object") return false;
 	addDepsFromPkg(pkg, jsDeps);
-	// Single-package repos sometimes self-import (`import {x} from "my-pkg"`)
-	// via package self-reference resolution. Treat that as legitimate, not slop.
 	if (typeof pkg.name === "string") jsDeps.add(pkg.name);
 
 	const workspaceDirs = expandWorkspaceDirs(rootDir, readWorkspaceGlobs(rootDir, pkg));
 	for (const wsDir of workspaceDirs) {
 		const wsPkg = readJson(path.join(wsDir, "package.json")) as Record<string, unknown> | null;
 		if (!wsPkg) continue;
-		// The workspace's own name is importable from siblings — that's the whole point.
 		if (typeof wsPkg.name === "string") jsDeps.add(wsPkg.name);
 		addDepsFromPkg(wsPkg, jsDeps);
 	}
@@ -143,9 +136,6 @@ const collectFromPyproject = (rootDir: string, pyDeps: Set<string>): boolean => 
 	if (!fs.existsSync(pyprojPath)) return false;
 	try {
 		const content = fs.readFileSync(pyprojPath, "utf-8");
-		// The project's own name (`[project] name = "fastapi"`) — the source tree
-		// imports itself with `from fastapi import X`; that's a self-reference,
-		// not a hallucination. Validated against fastapi/, flask/.
 		const projectNameMatch = content.match(/\[project\][\s\S]*?^\s*name\s*=\s*["']([^"']+)/m);
 		if (projectNameMatch) addPyDep(pyDeps, projectNameMatch[1]);
 		const poetryNameMatch = content.match(/\[tool\.poetry\][\s\S]*?^\s*name\s*=\s*["']([^"']+)/m);
@@ -217,9 +207,6 @@ const isJsBuiltin = (spec: string): boolean => {
 	return isBuiltin(stripped) || isBuiltin(spec);
 };
 
-// Framework-injected virtual modules — present at build time, not in package.json.
-// `astro:*` (Astro), `virtual:*` (Vite/Vitest), `bun:*` (Bun built-ins).
-// Validated against scanaislop-marketing (Astro) and vitest results.
 const VIRTUAL_MODULE_PREFIXES = ["astro:", "virtual:", "bun:"];
 const isJsVirtualModule = (spec: string): boolean =>
 	VIRTUAL_MODULE_PREFIXES.some((p) => spec.startsWith(p));

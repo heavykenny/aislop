@@ -17,7 +17,7 @@ const detectPackageName = (lines: string[]): string | null => {
 	return null;
 };
 
-// A comment within ~3 lines above the panic = deliberate intent (validated against cobra).
+// A comment within N lines above the panic signals deliberate intent.
 const PANIC_INTENT_LOOKBACK = 3;
 
 const hasIntentComment = (lines: string[], panicLineIdx: number): boolean => {

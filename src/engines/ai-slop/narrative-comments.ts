@@ -104,9 +104,6 @@ const collectBlocks = (sourceLines: string[], syntax: CommentSyntax): CommentBlo
 			}
 			let next = i;
 			while (next < sourceLines.length && sourceLines[next].trim() === "") next += 1;
-			// `///` / `//!` are rustdoc comments — Rust's documentation primitive,
-			// not narrative slop. Treat the whole block as doc when every non-blank
-			// line uses the doc prefix (validated against tokio/serde/clap/ripgrep).
 			const docCandidates = raw.filter((l) => l.trim().length > 0);
 			const isRustDoc =
 				docCandidates.length > 0 && docCandidates.every((l) => isRustDocCommentLine(l));
@@ -239,6 +236,29 @@ const looksLikeSuppressDirective = (block: CommentBlock): boolean =>
 		),
 	);
 
+const GO_DECL_NAME_RE = /^(?:func|type|var|const)\s+(?:\([^)]*\)\s*)?(\w+)/;
+const looksLikeGoDocComment = (block: CommentBlock, ext: string): boolean => {
+	if (ext !== ".go" || block.kind !== "line") return false;
+	const next = block.nextNonBlankLine;
+	if (!next) return false;
+	const declMatch = GO_DECL_NAME_RE.exec(next.trim());
+	if (!declMatch) return false;
+	const firstProse = block.prose.find((l) => l.length > 0) ?? "";
+	const firstWord = firstProse.split(/\s+/)[0] ?? "";
+	return firstWord === declMatch[1];
+};
+
+const DOC_INDICATOR_RE =
+	/`[^`]+`|\|\s*[-:]+\s*\||```|\b(?:note|warning|warn|caveat|example|caution|see):/i;
+const hasDocIndicator = (block: CommentBlock): boolean => {
+	const joined = block.prose.join(" ");
+	if (DOC_INDICATOR_RE.test(joined)) return true;
+	for (const l of block.prose) {
+		if (/^[-]\s/.test(l)) return true;
+	}
+	return false;
+};
+
 const detectNarrativeInBlock = (
 	block: CommentBlock,
 	ext: string,
@@ -247,6 +267,7 @@ const detectNarrativeInBlock = (
 	if (looksLikeSuppressDirective(block)) return { matched: false, reason: "" };
 	if (block.kind === "jsdoc" && block.hasMeaningfulJsdocTag) return { matched: false, reason: "" };
 	if (block.isRustDoc) return { matched: false, reason: "" };
+	if (looksLikeGoDocComment(block, ext)) return { matched: false, reason: "" };
 
 	if (
 		block.kind === "line" &&
@@ -268,6 +289,13 @@ const detectNarrativeInBlock = (
 		return { matched: true, reason: "bare section label" };
 	}
 
+	const joined = block.prose.join(" ");
+	const hasWhyMarker = EXPLANATORY_WHY_MARKERS.test(joined);
+
+	if ((hasWhyMarker || hasDocIndicator(block)) && block.kind === "jsdoc") {
+		return { matched: false, reason: "" };
+	}
+
 	if (block.prose.length >= 3 && looksLikeDeclarationPreamble(block.nextNonBlankLine, ext)) {
 		return {
 			matched: true,
@@ -278,7 +306,6 @@ const detectNarrativeInBlock = (
 		};
 	}
 
-	const joined = block.prose.join(" ");
 	if (CROSS_REFERENCE_PHRASES.some((re) => re.test(joined))) {
 		return { matched: true, reason: "cross-reference commentary" };
 	}
@@ -301,15 +328,11 @@ const detectNarrativeInBlock = (
 	}
 
 	const nonEmptyProseCount = block.prose.filter((l) => l.length > 0).length;
-	const joinedProse = block.prose.join(" ");
-	const hasWhyMarker = EXPLANATORY_WHY_MARKERS.test(joinedProse);
 
 	if (nonEmptyProseCount >= 5) {
 		return { matched: true, reason: "long narrative block" };
 	}
 
-	// 3+ prose lines inside a function body with no WHY marker is almost
-	// always restating-what-the-code-does. A real explanation cites a reason.
 	if (nonEmptyProseCount >= 3 && !hasWhyMarker && block.kind === "line") {
 		return { matched: true, reason: "multi-line narrative prose" };
 	}

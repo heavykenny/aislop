@@ -69,6 +69,27 @@ const isDataFile = (content: string): boolean => {
 	return dataLines.length / nonEmpty.length > 0.8;
 };
 
+const TEST_PATH_RE =
+	/(?:^|\/)(?:tests?|spec|specs|__tests__|__spec__|src\/test)\//i;
+const TEST_BASENAME_RE =
+	/(?:^|[\/.])(?:test_[\w-]+\.(?:py|rb)|[\w-]+_(?:test|spec)\.(?:py|rb|go|rs)|[\w-]+\.(?:test|spec)\.(?:[jt]sx?|mjs|cjs)|conftest\.py|[A-Z]\w*Tests?\.(?:java|cs|php))$/;
+
+const MIGRATION_PATH_RE =
+	/(?:^|\/)(?:migrations?|migrate|prisma\/migrations|db\/migrate)\//i;
+
+const FIXTURE_PATH_RE =
+	/(?:^|\/)(?:__fixtures__|__snapshots__|__mocks__|fixtures?|snapshots?|seeds?|stubs?)\//i;
+
+const GENERATED_PATH_RE =
+	/(?:^|\/)(?:generated|gen|build|dist|out|target|coverage|node_modules|vendor|\.next|\.nuxt|\.svelte-kit)\//i;
+
+const isExemptFromComplexity = (relativePath: string): boolean =>
+	TEST_PATH_RE.test(relativePath) ||
+	TEST_BASENAME_RE.test(relativePath) ||
+	MIGRATION_PATH_RE.test(relativePath) ||
+	FIXTURE_PATH_RE.test(relativePath) ||
+	GENERATED_PATH_RE.test(relativePath);
+
 const analyzeFunctions = (content: string, ext: string): FunctionInfo[] => {
 	const lines = content.split("\n");
 	const functions: FunctionInfo[] = [];
@@ -122,17 +143,18 @@ const checkFileDiagnostics = (
 	if (isDataFile(content)) return results;
 
 	const isJsx = ext === ".jsx" || ext === ".tsx";
-	const effectiveMax = isJsx
+	const configuredMax = isJsx
 		? Math.ceil(limits.maxFileLoc * JSX_FILE_LOC_MULTIPLIER)
 		: limits.maxFileLoc;
+	const triggerAt = Math.ceil(configuredMax * 1.1);
 
-	if (lineCount > effectiveMax) {
+	if (lineCount > triggerAt) {
 		results.push({
 			filePath: relativePath,
 			engine: "code-quality",
 			rule: "complexity/file-too-large",
 			severity: "warning",
-			message: `File has ${lineCount} lines (max: ${effectiveMax})`,
+			message: `File has ${lineCount} lines (max: ${configuredMax})`,
 			help: "Consider splitting this file into smaller modules",
 			line: 0,
 			column: 0,
@@ -205,6 +227,9 @@ const checkFileComplexity = (
 	rootDirectory: string,
 	limits: QualityLimits,
 ): Diagnostic[] => {
+	const relativePath = path.relative(rootDirectory, filePath);
+	if (isExemptFromComplexity(relativePath)) return [];
+
 	let content: string;
 	try {
 		content = fs.readFileSync(filePath, "utf-8");
@@ -212,7 +237,6 @@ const checkFileComplexity = (
 		return [];
 	}
 
-	const relativePath = path.relative(rootDirectory, filePath);
 	const ext = path.extname(filePath).toLowerCase();
 	const diagnostics = checkFileDiagnostics(relativePath, content, limits);
 

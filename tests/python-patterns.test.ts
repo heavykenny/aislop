@@ -188,8 +188,6 @@ describe("python: print-debug", () => {
 	});
 
 	it('does NOT flag `print()` in files containing `if __name__ == "__main__":` (CLI-script idiom)', async () => {
-		// Validated against requests/help.py and requests/certs.py — both fired
-		// before this exemption, both are intentional CLI output.
 		writeFile(
 			"src/help.py",
 			[
@@ -226,8 +224,6 @@ describe("python: print-debug", () => {
 	});
 
 	it("does NOT flag `print()` in docs / docs_src / examples / action directories", async () => {
-		// Validated against fastapi (docs_src/), black (action/), and the general
-		// docs/ + examples/ conventions used across Python projects.
 		writeFile("docs/conf.py", ["print('built docs')", ""].join("\n"));
 		writeFile(
 			"docs_src/python_types/tutorial001.py",
@@ -248,9 +244,6 @@ describe("python: print-debug", () => {
 	});
 
 	it("does NOT flag `print()` inside a triple-quoted docstring", async () => {
-		// Validated against httpx — _exceptions.py and _transports/base.py both had
-		// `print()` calls inside docstring examples. Real production code has no
-		// print, only the documentation does.
 		writeFile(
 			"src/lib.py",
 			[

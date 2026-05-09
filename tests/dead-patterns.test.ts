@@ -184,14 +184,14 @@ describe("console leftovers", () => {
 		expect(consoleD).toHaveLength(0);
 	});
 
-	it("does not flag console in examples/ (validated: chalk/examples/rainbow.js)", async () => {
+	it("does not flag console in examples/", async () => {
 		const filePath = writeFile("examples/rainbow.js", "console.log('hello');");
 		const diagnostics = await detectDeadPatterns(makeContext([filePath]));
 		const consoleD = diagnostics.filter((d) => d.rule === "ai-slop/console-leftover");
 		expect(consoleD).toHaveLength(0);
 	});
 
-	it("does not flag console in bench/benches/benchmarks (validated: zod/packages/bench/)", async () => {
+	it("does not flag console in bench/benches/benchmarks", async () => {
 		const a = writeFile("packages/bench/index.ts", "console.log('bench');");
 		const b = writeFile("benches/timing.ts", "console.log('bench');");
 		const c = writeFile("benchmarks/run.ts", "console.log('bench');");
@@ -342,7 +342,7 @@ describe("unsafe type assertions", () => {
 		expect(asAny).toHaveLength(0);
 	});
 
-	it("does not flag 'as any' in benchmarks (validated: zod/packages/bench/)", async () => {
+	it("does not flag 'as any' in benchmarks", async () => {
 		const filePath = writeFile(
 			"packages/bench/benchUtil.ts",
 			"export const x = factory(zod3 as any) as T;",
