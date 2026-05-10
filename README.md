@@ -9,107 +9,36 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Node >= 20](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](https://nodejs.org)
 
-Define your standard once in `.aislop/config.yml` + `.aislop/rules.yml`. Every change your agent makes is held to it automatically. `aislop` catches the slop they leave behind (narrative comments, `as any`, swallowed errors, hallucinated imports, todo stubs), enforces the rules your team sets, and scores every change 0–100. 8+ languages. Deterministic — no LLM at runtime.
+Catches the slop AI agents leave behind: dead code, oversized functions and files, unused imports, `as any` casts, swallowed errors, hallucinated imports, todo stubs, narrative comments. Scores 0–100. Deterministic (regex + AST, no LLMs). 8+ languages.
 
-### The killer feature: the per-edit hook
-
-Install once into your coding agent:
+## Quick start
 
 ```bash
-npx aislop hook install --claude    # also: --cursor, --codex, --gemini, --windsurf, --cline, --kilo, --antigravity, --copilot
+npx aislop scan
 ```
 
-After every `Edit` / `Write` your agent makes, `aislop` runs and feeds the diagnostics back into the agent's next turn as structured `additionalContext` (envelope: `aislop.hook.v1` — score, counts, findings, regression flag, suggested next steps). **The agent sees the score regression on the same turn it wrote the code, before you prompt again.** No more PR-time surprises; the slop never leaves the keystroke that produced it.
+No install needed. Works on any project. Get your score in seconds.
 
-CI is the second gate: `aislop ci` exits non-zero when score drops below your threshold, so the same standard is enforced on every PR.
+```bash
+npx aislop fix                   # auto-fix issues
+npx aislop fix -f                # aggressive fixes (deps, unused files)
+npx aislop ci                    # CI mode (JSON + gate)
+npx aislop hook install --claude # per-edit hook
+```
 
-Every check is deterministic. Regex patterns, AST analysis, and standard tooling (Biome, oxlint, knip, ruff). Same code in, same score out. No API calls, no LLMs, no network dependency (except optional dependency audits). The name refers to what it *catches*.
+**Public badge**: Show your score on your README
+
+```markdown
+[![aislop](https://badges.scanaislop.com/score/<owner>/<repo>.svg)](https://scanaislop.com)
+```
+
+Run `npx aislop badge` to auto-generate. Free at [scanaislop.com](https://scanaislop.com).
 
 ## See it in action
 
 ### Scan
 
 ![aislop scan demo](assets/scan.gif)
-
-### Fix
-
-![aislop fix demo](assets/fix.gif)
-
-## Quick start
-
-```bash
-# scan your project
-npx aislop scan
-
-# auto-fix what can be fixed safely
-npx aislop fix
-
-# CI mode (JSON output + quality gate)
-npx aislop ci
-
-# wire aislop into your agent so it runs on every edit
-npx aislop hook install --claude
-```
-
-Sample output:
-
-```text
- [ok] Formatting: done (0 issues, 426ms)
- [ok] Linting: done (0 issues, 396ms)
- [!]  Code Quality: done (2 warnings, 812ms)
- [!]  AI Slop: done (4 warnings, 455ms)
- [ok] Security: done (0 issues, 1.3s)
- aislop 0.8.0  ·  the quality gate for agentic coding
-
- scan  ·  my-app  ·  typescript  ·  142 files
-
-  > Code Quality
-    [WARN] [auto] Unused export (2)
-      src/lib/format-bytes.ts:12
-      src/utils/retry.ts:8
-
-  > AI Slop
-    [WARN] [auto] Narrative comment block (2)
-      src/lib/auth.ts:86
-    [WARN] 'as any' bypasses type safety
-      src/api/normalize.ts:47
-
-   87 / 100  Healthy       0 errors  ·  6 warnings  ·  4 fixable
-   142 files  ·  5 engines  ·  1.9s
-
- → Run npx aislop fix to auto-fix 4 issues
- → Run npx aislop fix --claude to hand off the rest to an agent
-```
-
----
-
-## Why aislop
-
-AI coding tools generate code that compiles and passes tests but ships with patterns no engineer would write: trivial comments, swallowed exceptions, unused imports, `as any` casts, oversized functions, and leftover `console.log` calls. These problems are spread across many files and slip through review.
-
-`aislop` gives you one view and one score. Fully deterministic, no AI in the loop.
-
-- **One score, one gate**: a 0-100 number you can enforce in CI with `aislop ci`. Weighted so sloppy patterns (dead code, `as any`, swallowed errors) hit harder than style noise.
-- **Auto-fix first, agent second**: `aislop fix` clears what's mechanically safe (formatters, unused imports, trivial comments, dead patterns). For the rest, one flag hands off to Claude Code, Codex, Cursor, Gemini, Windsurf, Amp, Aider, Goose, and 7 more, with full diagnostic context pre-filled.
-- **Wire it into your agent**: `aislop hook install` plugs aislop into Claude Code, Cursor, Gemini CLI (runtime), plus Codex, Windsurf, Cline, Kilo Code, Antigravity, and Copilot (rules-only). The agent gets score + findings on the turn it wrote the code, not after.
-- **Deterministic**: regex, AST, and standard tooling. No LLMs, no API keys, no network dependency. Same repo in, same score out.
-- **Zero-config start**: `npx aislop scan` works on any repo. Add `.aislop/config.yml` when you want to tune thresholds or enable the architecture engine.
-- **Works across stacks**: TypeScript, JavaScript, Python, Go, Rust, Ruby, PHP, Expo / React Native.
-
-## What it catches
-
-Six deterministic engines run in parallel:
-
-| Engine | What it checks | How |
-|---|---|---|
-| **Formatting** | Code style consistency | Biome, ruff, gofmt, cargo fmt, rubocop, php-cs-fixer |
-| **Linting** | Language-specific issues | oxlint, ruff, golangci-lint, clippy, expo-doctor |
-| **Code Quality** | Complexity and dead code | Function/file size limits, deep nesting, unused files/deps (knip), AST-based unused-declaration removal |
-| **AI Slop** | AI-authored code patterns | Narrative comments, trivial comments, dead patterns, unused imports, `as any`, `console.log` leftovers, TODO stubs, generic names |
-| **Security** | Vulnerabilities and risky code | eval, innerHTML, SQL/shell injection, dependency audits (npm/pip/cargo/govulncheck) |
-| **Architecture** | Structural rules (opt-in) | Custom import bans, layering rules, required patterns |
-
-See the full [rules reference](docs/rules.md).
 
 ---
 
@@ -138,111 +67,89 @@ Also available as [`@scanaislop/aislop`](docs/installation.md) on GitHub Package
 
 ## Usage
 
-### Scan your project
+### Scan
 
 ```bash
-aislop scan                # scan current directory
-aislop scan ./src          # scan a specific directory
-aislop scan --changes      # only files changed from HEAD
-aislop scan --staged       # only staged files (pre-commit)
-aislop scan --json         # output JSON
+npx aislop scan           # current directory
+npx aislop scan ./src     # specific directory
+npx aislop scan --changes # changed files from HEAD
+npx aislop scan --staged  # staged files only
+npx aislop scan --json    # JSON output
 ```
 
-**Exclude files and directories.** `node_modules`, `.git`, `dist`, `build`, and `coverage` are excluded by default. Add more via `.aislop/config.yml`:
+**Exclude files**: `node_modules`, `.git`, `dist`, `build`, `coverage` excluded by default. Add more in `.aislop/config.yml`:
 
 ```yaml
 exclude:
-  - "**/*.test.ts"          # globs supported (micromatch)
+  - "**/*.test.ts"
   - src/generated
-  - legacy
 ```
 
-Or override per-run with `--exclude` (comma-separated or repeatable, stacks on top of the config):
+Or via CLI: `npx aislop scan --exclude "**/*.test.ts,dist"`
 
-```bash
-aislop scan --exclude "**/*.test.ts"
-aislop scan --exclude node_modules,dist,logs
-aislop scan --exclude "src/generated" --exclude "**/*.spec.*"
-```
-
-CLI flags beat config; config beats defaults.
-
-**Extend a shared config.** A project config can extend a parent and override specific keys. Useful for org-wide baselines: ship one strict config, let each repo soften or tighten as needed.
+**Extend config**: Project config can extend a parent:
 
 ```yaml
 # .aislop/config.yml
-extends: ../../.aislop/base.yml   # relative path to a parent config
-
+extends: ../../.aislop/base.yml
 ci:
-  failBelow: 80                   # override just this key, inherit the rest
+  failBelow: 80             # override specific keys
 ```
 
-`extends:` accepts a single path or an array of paths. Later entries win. Deep-merged: nested objects (`scoring.weights`, `engines`) are merged key-by-key; arrays are replaced. Circular references and depths beyond 5 are rejected with a clear error.
+### Fix
 
-### Fix issues automatically
+Auto-fix what's mechanical (formatters, unused imports, dead code). For issues that need context, hand off to your agent with full diagnostic info.
 
 ```bash
-aislop fix                 # safe auto-fixes: unused imports, formatting, lint
-aislop fix -f              # aggressive: dependency audit, unused files, Expo alignment
+npx aislop fix                 # safe auto-fixes
+npx aislop fix -f              # aggressive: deps, unused files
 ```
 
-### Hand off to your coding agent
+### Hand off to agent
 
-When auto-fix can't solve it, aislop generates a prompt with full context and opens your agent. 14 supported:
+When auto-fix can't solve it, pass the remaining issues to your coding agent with full context:
 
 ```bash
-aislop fix --claude        # Claude Code
-aislop fix --codex         # Codex CLI
-aislop fix --cursor        # Cursor (copies prompt to clipboard)
-aislop fix --gemini        # Gemini CLI
-aislop fix --windsurf      # Windsurf (copies prompt to clipboard)
-aislop fix --amp           # Amp
-aislop fix --aider         # Aider
-aislop fix --goose         # Goose
-aislop fix --opencode      # OpenCode
-aislop fix --warp          # Warp
-aislop fix --kimi          # Kimi Code CLI
-aislop fix --antigravity   # Antigravity
-aislop fix --deep-agents   # Deep Agents
-aislop fix --vscode        # VS Code Copilot (copies prompt to clipboard)
-aislop fix --prompt        # print the prompt (agent-agnostic)
+npx aislop fix --claude        # Claude Code
+npx aislop fix --cursor        # Cursor (copies to clipboard)
+npx aislop fix --gemini        # Gemini CLI
+npx aislop fix --codex         # Codex CLI
+# Also: --windsurf, --amp, --aider, --goose, --opencode, --warp, --kimi, --antigravity, --deep-agents, --vscode
+npx aislop fix --prompt        # print prompt (agent-agnostic)
 ```
 
-### Install as a native hook
+### Install hook
 
-One command and aislop runs automatically after every agent edit. Findings flow back to the agent as structured feedback (`aislop.hook.v1`) with score, counts, top-20 findings, and next steps, so the agent can self-correct on the same turn.
+Runs after every agent edit. Feedback flows back immediately.
 
 ```bash
-aislop hook install --claude           # Claude Code PostToolUse
-aislop hook install --cursor           # Cursor afterFileEdit
-aislop hook install --gemini           # Gemini CLI AfterTool
-aislop hook install                    # every supported agent at once
-aislop hook install claude cursor      # pick any subset as positional args
-aislop hook install --agent claude,cursor   # comma-list if you prefer one flag
+npx aislop hook install --claude           # Claude Code
+npx aislop hook install --cursor           # Cursor
+npx aislop hook install --gemini           # Gemini CLI
+npx aislop hook install                    # all supported agents
+npx aislop hook install claude cursor      # specific agents
 ```
 
-Runtime adapters (scan + feedback on every edit): `claude`, `cursor`, `gemini`.
+**Runtime adapters** (scan + feedback): `claude`, `cursor`, `gemini`.  
+**Rules-only** (agent reads rules): `codex`, `windsurf`, `cline`, `kilocode`, `antigravity`, `copilot`.
 
-Rules-only installers (agent reads rules on every turn): `codex`, `windsurf`, `cline`, `kilocode`, `antigravity`, `copilot`.
-
-Opt-in quality-gate mode captures `.aislop/baseline.json` at install time and blocks the Claude Stop hook if the score regresses:
+**Quality-gate mode**: Blocks if score regresses below baseline.
 
 ```bash
-aislop hook install --claude --quality-gate
-aislop hook baseline                    # re-capture baseline
-aislop hook status                      # list installed hooks
-aislop hook uninstall --claude          # remove a specific agent
-aislop hook uninstall                   # remove every aislop entry, sentinel-verified
+npx aislop hook install --claude --quality-gate
+npx aislop hook baseline                    # re-capture baseline
+npx aislop hook status                      # list installed
+npx aislop hook uninstall --claude          # remove
 ```
 
-Every install is sentinel-guarded (SHA-256 hash fence) for idempotent re-runs and exact uninstall. Full guide: [`/docs/hooks`](https://scanaislop.com/docs/hooks).
+Docs: [`/docs/hooks`](https://scanaislop.com/docs/hooks)
 
-### Use as an MCP server
+### MCP server
 
-aislop ships an MCP (Model Context Protocol) server so any agent that speaks MCP — Claude Desktop, Claude Code, Cursor, Codex — can call it as a tool.
+Expose aislop as MCP tools for Claude Desktop, Cursor, Codex:
 
 ```jsonc
-// ~/.cursor/mcp.json  /  Claude Desktop config  /  ~/.codex/config.toml equivalent
+// ~/.cursor/mcp.json or Claude Desktop config
 {
   "mcpServers": {
     "aislop": {
@@ -253,51 +160,30 @@ aislop ships an MCP (Model Context Protocol) server so any agent that speaks MCP
 }
 ```
 
-Tools exposed:
-- `aislop_scan({ path? })` — score + counts + top findings
-- `aislop_fix({ path?, force? })` — apply mechanical fixes; returns before/after delta
-- `aislop_why({ rule_id })` — engine + docs link for a rule
-- `aislop_baseline({ path? })` — read the per-edit-hook baseline (score, lastScanAt, fileCount)
+**Tools**: `aislop_scan`, `aislop_fix`, `aislop_why`, `aislop_baseline`
 
-Same engines as the CLI; calling these from inside an agent session lets the model self-check before claiming work is done.
-
-### Use in CI pipelines
+### CI
 
 ```bash
-aislop ci                  # JSON output, exits 1 if score < threshold
-```
-
-### Common workflow
-
-```bash
-# before commit
-aislop scan --staged
-
-# during local cleanup
-aislop fix
-
-# full project check
-aislop scan
+npx aislop ci                  # JSON output, exits 1 if score < threshold
 ```
 
 ### Other commands
 
 ```bash
-aislop init                # create .aislop/config.yml
-aislop doctor              # check which tools are available
-aislop rules               # list all built-in rules
-aislop badge               # print the public score badge URL + README snippet
-aislop hook install        # wire aislop into your coding agent
-aislop                     # interactive menu
+npx aislop init                # create .aislop/config.yml
+npx aislop rules               # list rules
+npx aislop badge               # print badge URL
+npx aislop                     # interactive menu
 ```
 
-See [all commands and flags](docs/commands.md).
+Docs: [commands](docs/commands.md)
 
 ---
 
-## Use in your project
+## CI integration
 
-### Pre-commit hook
+### Pre-commit
 
 ```bash
 npx aislop scan --staged
@@ -305,9 +191,7 @@ npx aislop scan --staged
 
 ### GitHub Actions
 
-Fastest path: run `npx aislop init` and say yes to "Add a GitHub Actions workflow?". It drops a working `.github/workflows/aislop.yml` for you.
-
-Manual form:
+Run `npx aislop init` and accept the workflow prompt, or add manually:
 
 ```yaml
 - uses: actions/checkout@v4
@@ -317,82 +201,78 @@ Manual form:
 - run: npx aislop@latest ci .
 ```
 
-Or use the composite action (one-liner):
+**Composite action**:
 
 ```yaml
 - uses: actions/checkout@v4
-- uses: scanaislop/aislop@v0.5
+- uses: scanaislop/aislop@v0.8
 ```
 
 ### Quality gate
 
-Set a minimum score in `.aislop/config.yml`:
+Set minimum score in `.aislop/config.yml`:
 
 ```yaml
 ci:
   failBelow: 70
 ```
 
-`aislop ci` exits with code 1 when the score drops below the threshold. See [CI/CD docs](docs/ci.md) for more.
+`aislop ci` exits 1 when score < threshold. Docs: [CI/CD](docs/ci.md)
 
 ---
 
-## Documentation
+## For teams
 
-| Topic | Link |
-|---|---|
-| Installation | [docs/installation.md](docs/installation.md) |
-| Commands & flags | [docs/commands.md](docs/commands.md) |
-| Rules reference | [docs/rules.md](docs/rules.md) |
-| Configuration | [docs/configuration.md](docs/configuration.md) |
-| Scoring | [docs/scoring.md](docs/scoring.md) |
-| CI / CD | [docs/ci.md](docs/ci.md) |
-| Telemetry | [docs/telemetry.md](docs/telemetry.md) |
+[scanaislop](https://scanaislop.com) is the hosted platform for teams:
+
+- PR gates with score thresholds
+- Standards hierarchy (org → team → project)
+- Dashboards and agent attribution
+- Visual rules manager
+
+Same engines, same scores. CLI is MIT-licensed. [Learn more →](https://scanaislop.com)
 
 ---
 
-## For engineering teams
+## Why aislop
 
-`aislop` runs locally and in your CI. [scanaislop](https://scanaislop.com) is the hosted platform built on top of it for teams that want enforcement without wiring every workflow themselves.
+AI coding tools generate code that compiles and passes tests but ships with patterns no engineer would write. `aislop` gives you one score, one gate, and auto-fixes what it can.
 
-- **PR gates on every repo** with a score threshold and block-to-merge
-- **Standards hierarchy**: org baseline, team overrides, project config
-- **Per-team dashboards** and agent attribution over time
-- **Visual rules manager** so engineering leads set standards without editing YAML
-- **Same engines, same rule IDs, same score**. The CLI remains the source of truth.
+- **One score**: 0-100, enforced in CI. Weighted so sloppy patterns hit harder than style noise.
+- **Auto-fix first**: Clears formatters, unused imports, dead code mechanically. Hands off the rest to your agent with full context.
+- **Deterministic**: Regex + AST + standard tooling. No LLMs, no API calls. Same code in, same score out.
+- **Zero-config start**: `npx aislop scan` works on any repo. Add `.aislop/config.yml` to tune.
 
-The CLI is MIT-licensed and always will be. [Learn more about the platform →](https://scanaislop.com)
+## What it catches
 
-## Public score badge
+Six deterministic engines run in parallel:
 
-Show your aislop score on a README. Free for any project that opts in on [scanaislop.com](https://scanaislop.com).
+| Engine | What it checks | How |
+|---|---|---|
+| **Formatting** | Code style consistency | Biome, ruff, gofmt, cargo fmt, rubocop, php-cs-fixer |
+| **Linting** | Language-specific issues | oxlint, ruff, golangci-lint, clippy, expo-doctor |
+| **Code Quality** | Complexity and dead code | Function/file size limits, deep nesting, unused files/deps (knip), AST-based unused-declaration removal |
+| **AI Slop** | AI-authored code patterns | Narrative comments, trivial comments, dead patterns, unused imports, `as any`, `console.log` leftovers, TODO stubs, generic names |
+| **Security** | Vulnerabilities and risky code | eval, innerHTML, SQL/shell injection, dependency audits (npm/pip/cargo/govulncheck) |
+| **Architecture** | Structural rules (opt-in) | Custom import bans, layering rules, required patterns |
 
-```markdown
-[![aislop](https://badges.scanaislop.com/score/<owner>/<repo>.svg)](https://scanaislop.com)
-```
+See the full [rules reference](docs/rules.md).
 
-Shields-compatible SVG, edge-cached on Cloudflare. Colour-coded: green ≥ 85, amber 70-84, red < 70, grey if no scans yet.
+---
 
-Run `aislop badge` to print the snippet pre-filled with your repo's owner/name, auto-detected from `git remote get-url origin`.
+## Docs
+
+[Installation](docs/installation.md) · [Commands](docs/commands.md) · [Rules](docs/rules.md) · [Config](docs/configuration.md) · [Scoring](docs/scoring.md) · [CI/CD](docs/ci.md) · [Telemetry](docs/telemetry.md)
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and how to add new rules. AI coding assistants can find project context in [AGENTS.md](AGENTS.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md). AI assistants: [AGENTS.md](AGENTS.md).
 
 ## Acknowledgments
 
-`aislop` is built on top of excellent open-source projects:
-
-- [Biome](https://biomejs.dev/) for formatting and linting JS/TS
-- [oxlint](https://oxc.rs/) for fast JS/TS linting
-- [knip](https://knip.dev/) for unused files, exports, and dependencies
-- [ruff](https://docs.astral.sh/ruff/) for Python linting and formatting
-- [golangci-lint](https://golangci-lint.run/) for Go linting
-- [expo-doctor](https://docs.expo.dev/) for Expo/React Native project health
+Built on: [Biome](https://biomejs.dev/), [oxlint](https://oxc.rs/), [knip](https://knip.dev/), [ruff](https://docs.astral.sh/ruff/), [golangci-lint](https://golangci-lint.run/), [expo-doctor](https://docs.expo.dev/)
 
 ## Contributors
-
-Thanks to everyone who has shipped code, ideas, docs, or bug reports.
 
 <!-- CONTRIBUTORS-START -->
 - [@heavykenny](https://github.com/heavykenny)
@@ -400,7 +280,7 @@ Thanks to everyone who has shipped code, ideas, docs, or bug reports.
 - [@yashrajoria](https://github.com/yashrajoria)
 <!-- CONTRIBUTORS-END -->
 
-This list is regenerated by `.github/workflows/contributors.yml` after every push to `develop` or `main`. The workflow reads git log, resolves each author's GitHub login, and opens a PR with any diff. If your commits aren't being credited, either link your commit email under [GitHub Settings → Emails](https://github.com/settings/emails) or add a mapping to [`.github/contributors-overrides.json`](.github/contributors-overrides.json).
+Auto-updated by `.github/workflows/contributors.yml`. [Link commit email](https://github.com/settings/emails) or add to [`.github/contributors-overrides.json`](.github/contributors-overrides.json).
 
 ## License
 
