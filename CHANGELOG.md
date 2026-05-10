@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.8.1 (2026-05-10)
+
+Documentation update to improve first-run experience.
+
+### Documentation
+
+- **Condense README, prioritize instant scan (#97).** Restructured README to put instant scan command (`npx aislop scan`) at the top. Integrated badge snippet into Quick start section. Added `npx` prefix to all commands for consistency. Removed sample output, moved "Why aislop" and "What it catches" to bottom. Reduced README from 407 lines to 287 lines (-120 lines). Added context to Fix and Hand off to agent sections.
+
 ## 0.8.0 (2026-05-09)
 
 Major feature release with MCP server support, TypeScript typecheck engine, expanded multi-language AI slop coverage, and significant false-positive reduction via OSS validation.
