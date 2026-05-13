@@ -49,10 +49,83 @@ export const fixDependencyAudit = async (
 	);
 };
 
+const SEMVER_PREFIX_RE = /^[~^]?/;
+
+export const parseSemverMin = (spec: string): [number, number, number] | null => {
+	const stripped = spec.replace(SEMVER_PREFIX_RE, "");
+	const match = stripped.match(/^(\d+|x|X|\*)(?:\.(\d+|x|X|\*))?(?:\.(\d+|x|X|\*))?/);
+	if (!match) return null;
+	const head = match[1];
+	if (!/^\d+$/.test(head)) return null;
+	const toNum = (part: string | undefined): number => {
+		if (!part) return 0;
+		return /^\d+$/.test(part) ? Number(part) : 0;
+	};
+	return [Number(head), toNum(match[2]), toNum(match[3])];
+};
+
+export const isDowngrade = (oldSpec: string, newSpec: string): boolean => {
+	const oldV = parseSemverMin(oldSpec);
+	const newV = parseSemverMin(newSpec);
+	if (!oldV || !newV) return false;
+	for (let i = 0; i < 3; i++) {
+		if ((newV[i] ?? 0) < (oldV[i] ?? 0)) return true;
+		if ((newV[i] ?? 0) > (oldV[i] ?? 0)) return false;
+	}
+	return false;
+};
+
+type DepBucket = "dependencies" | "devDependencies" | "peerDependencies" | "optionalDependencies";
+const DEP_BUCKETS: DepBucket[] = [
+	"dependencies",
+	"devDependencies",
+	"peerDependencies",
+	"optionalDependencies",
+];
+
+const snapshotPackageVersions = (pkg: Record<string, unknown>): Map<string, string> => {
+	const map = new Map<string, string>();
+	for (const bucket of DEP_BUCKETS) {
+		const deps = pkg[bucket];
+		if (!deps || typeof deps !== "object") continue;
+		for (const [name, version] of Object.entries(deps as Record<string, string>)) {
+			if (typeof version === "string") map.set(`${bucket}:${name}`, version);
+		}
+	}
+	return map;
+};
+
+const revertDowngrades = (rootDir: string, before: Map<string, string>): string[] => {
+	const pkgPath = path.join(rootDir, "package.json");
+	const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8")) as Record<string, unknown>;
+	const reverted: string[] = [];
+	for (const bucket of DEP_BUCKETS) {
+		const deps = pkg[bucket] as Record<string, string> | undefined;
+		if (!deps) continue;
+		for (const [name, version] of Object.entries(deps)) {
+			const prior = before.get(`${bucket}:${name}`);
+			if (!prior) continue;
+			if (isDowngrade(prior, version)) {
+				deps[name] = prior;
+				reverted.push(`${name} ${version} → ${prior}`);
+			}
+		}
+	}
+	if (reverted.length > 0) {
+		fs.writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`);
+	}
+	return reverted;
+};
+
 const runNpmAuditFix = async (
 	rootDir: string,
 	onProgress?: (label: string) => void,
 ): Promise<void> => {
+	const pkgPath = path.join(rootDir, "package.json");
+	const before = snapshotPackageVersions(
+		JSON.parse(fs.readFileSync(pkgPath, "utf-8")) as Record<string, unknown>,
+	);
+
 	onProgress?.("Dependency audit fixes · running npm audit fix (can take a few minutes)");
 	const result = await runSubprocess("npm", ["audit", "fix"], {
 		cwd: rootDir,
@@ -62,6 +135,13 @@ const runNpmAuditFix = async (
 	// npm audit fix exits non-zero when vulns remain — that's expected.
 	if (result.exitCode !== 0 && !result.stdout && !result.stderr) {
 		throw new Error("npm audit fix failed");
+	}
+
+	const reverted = revertDowngrades(rootDir, before);
+	if (reverted.length > 0) {
+		onProgress?.(
+			`Dependency audit fixes · reverted ${reverted.length} downgrade(s): ${reverted.join(", ")}`,
+		);
 	}
 
 	onProgress?.("Dependency audit fixes · running npm install");

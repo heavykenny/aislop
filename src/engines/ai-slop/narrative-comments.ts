@@ -23,9 +23,7 @@ import {
 	SUPPORTED_EXTS,
 	TS_MEMBER_DECL_START,
 } from "./narrative-comments-patterns.js";
-
-const NON_PRODUCTION_DIR_PATTERN =
-	/(?:^|\/)(?:scripts|bin|examples?|demos?|bench|benches|benchmarks?|fixtures?|__fixtures__|__mocks__|__tests__|vendor|_vendor|vendored|third_party|blib2to3|lib2to3)\//i;
+import { isNonProductionPath } from "./non-production-paths.js";
 
 type BlockKind = "line" | "jsdoc";
 
@@ -251,7 +249,7 @@ const looksLikeGoDocComment = (block: CommentBlock, ext: string): boolean => {
 };
 
 const DOC_INDICATOR_RE =
-	/`[^`]+`|\|\s*[-:]+\s*\||```|\b(?:note|warning|warn|caveat|example|caution|see):/i;
+	/`[^`]+`|\|\s*[-:]+\s*\||```|\b(?:note|warning|warn|caveat|example|caution|see):|\(e\.g\.[^)]+\)|\(i\.e\.[^)]+\)/i;
 const hasDocIndicator = (block: CommentBlock): boolean => {
 	const joined = block.prose.join(" ");
 	if (DOC_INDICATOR_RE.test(joined)) return true;
@@ -259,6 +257,15 @@ const hasDocIndicator = (block: CommentBlock): boolean => {
 		if (/^[-]\s/.test(l)) return true;
 	}
 	return false;
+};
+
+const hasPreambleSlopSignal = (block: CommentBlock): boolean => {
+	const joined = block.prose.join(" ");
+	for (const l of block.prose) {
+		if (EXPLANATORY_OPENERS.test(l)) return true;
+		if (JUSTIFICATION_OPENERS.some((re) => re.test(l))) return true;
+	}
+	return CROSS_REFERENCE_PHRASES.some((re) => re.test(joined));
 };
 
 const detectNarrativeInBlock = (
@@ -298,14 +305,21 @@ const detectNarrativeInBlock = (
 		return { matched: false, reason: "" };
 	}
 
-	if (block.prose.length >= 3 && looksLikeDeclarationPreamble(block.nextNonBlankLine, ext)) {
-		return {
-			matched: true,
-			reason:
-				block.kind === "jsdoc"
-					? "JSDoc preamble before declaration"
-					: "multi-line preamble before declaration",
-		};
+	if (
+		block.kind === "line" &&
+		block.prose.length >= 3 &&
+		looksLikeDeclarationPreamble(block.nextNonBlankLine, ext)
+	) {
+		return { matched: true, reason: "multi-line preamble before declaration" };
+	}
+
+	if (
+		block.kind === "jsdoc" &&
+		block.prose.length >= 3 &&
+		looksLikeDeclarationPreamble(block.nextNonBlankLine, ext) &&
+		hasPreambleSlopSignal(block)
+	) {
+		return { matched: true, reason: "JSDoc preamble with slop signal" };
 	}
 
 	if (CROSS_REFERENCE_PHRASES.some((re) => re.test(joined))) {
@@ -354,7 +368,7 @@ export const detectNarrativeComments = async (context: EngineContext): Promise<D
 		if (!syntax) continue;
 
 		const relativePath = path.relative(context.rootDirectory, filePath);
-		if (NON_PRODUCTION_DIR_PATTERN.test(relativePath)) continue;
+		if (isNonProductionPath(relativePath)) continue;
 
 		let content: string;
 		try {

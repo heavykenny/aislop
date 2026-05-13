@@ -212,7 +212,7 @@ export const classify = (): void => { return; };
 		writeFile(
 			"jsdoc.ts",
 			`/**
- * Heuristic side-effect detection.
+ * Detects side-effect expressions.
  * Walks an expression subtree and flags
  * anything that could invoke code when the declaration initializes.
  */
@@ -225,6 +225,22 @@ export const hasSideEffect = (): boolean => false;
 		await fixNarrativeComments(ctx(tmpDir));
 		const after = fs.readFileSync(path.join(tmpDir, "jsdoc.ts"), "utf-8");
 		expect(after).toBe("export const hasSideEffect = (): boolean => false;\n");
+	});
+
+	it("preserves JSDoc that lacks a generic explanatory opener (real architecture notes)", async () => {
+		writeFile(
+			"middleware.ts",
+			`/**
+ * Middleware to track daily usage counts.
+ * Limit enforcement is handled client-side via RevenueCat subscription checks.
+ * Server-side enforcement requires a trusted subscription verification mechanism
+ * (e.g. RevenueCat webhook writing subscription status to the profiles table).
+ */
+export async function checkUsageLimit() {}
+`,
+		);
+		const diags = await detectNarrativeComments(ctx(tmpDir));
+		expect(diags).toHaveLength(0);
 	});
 
 	it("preserves JSDoc that contains meaningful tags (@param, @returns, @deprecated, @see, @example)", async () => {
@@ -275,7 +291,7 @@ export const DECORATIVE_SECTION_HEADER = /^$/;
 			"iface.ts",
 			`export interface Options {
 	/**
-	 * Explains when to use mode.
+	 * Describes when to use mode.
 	 * It does X in mode A and Y in mode B.
 	 * Defaults to mode A.
 	 */
