@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
 	collectPnpmOverrides,
+	isDowngrade,
 	overrideKey,
+	parseSemverMin,
 	patchedRangeToVersion,
 	type PnpmAdvisory,
 } from "../src/commands/fix-force.js";
@@ -78,5 +80,62 @@ describe("collectPnpmOverrides", () => {
 			"2": { patched_versions: ">=1.0.0" },
 		};
 		expect(collectPnpmOverrides(advisories)).toEqual({});
+	});
+});
+
+describe("parseSemverMin", () => {
+	it("strips leading ^/~ and parses major.minor.patch", () => {
+		expect(parseSemverMin("^13.6.0")).toEqual([13, 6, 0]);
+		expect(parseSemverMin("~7.2.0")).toEqual([7, 2, 0]);
+		expect(parseSemverMin("13.6.0")).toEqual([13, 6, 0]);
+	});
+
+	it("tolerates trailing pre-release tags", () => {
+		expect(parseSemverMin("^7.2.0-rc.1")).toEqual([7, 2, 0]);
+	});
+
+	it("treats x / X / * wildcards as 0 so `^11.x.x` is comparable", () => {
+		expect(parseSemverMin("^11.x.x")).toEqual([11, 0, 0]);
+		expect(parseSemverMin("^11.X")).toEqual([11, 0, 0]);
+		expect(parseSemverMin("^11.*")).toEqual([11, 0, 0]);
+		expect(parseSemverMin("11")).toEqual([11, 0, 0]);
+	});
+
+	it("returns null for non-semver shapes", () => {
+		expect(parseSemverMin("*")).toBeNull();
+		expect(parseSemverMin("workspace:*")).toBeNull();
+		expect(parseSemverMin("github:owner/repo")).toBeNull();
+	});
+});
+
+describe("isDowngrade", () => {
+	it("flags a major version drop (the real-world npm audit fix case)", () => {
+		expect(isDowngrade("^13.6.0", "^12.1.0")).toBe(true); // firebase-admin
+		expect(isDowngrade("^11.0.0", "^7.2.0")).toBe(true); // mocha
+	});
+
+	it("flags downgrades from x-wildcard specs (`^11.x.x` → `^7.2.0`)", () => {
+		expect(isDowngrade("^11.x.x", "^7.2.0")).toBe(true);
+		expect(isDowngrade("^4.x", "^3.0.0")).toBe(true);
+	});
+
+	it("flags minor + patch downgrades", () => {
+		expect(isDowngrade("^13.6.0", "^13.4.0")).toBe(true);
+		expect(isDowngrade("^13.6.5", "^13.6.0")).toBe(true);
+	});
+
+	it("does not flag legitimate upgrades", () => {
+		expect(isDowngrade("^12.1.0", "^13.6.0")).toBe(false);
+		expect(isDowngrade("^19.0.2", "^22.0.0")).toBe(false); // sinon
+		expect(isDowngrade("^1.0.0", "^1.0.1")).toBe(false);
+	});
+
+	it("does not flag identical versions", () => {
+		expect(isDowngrade("^1.2.3", "^1.2.3")).toBe(false);
+	});
+
+	it("returns false when either side is unparseable (no info, do nothing)", () => {
+		expect(isDowngrade("workspace:*", "^1.0.0")).toBe(false);
+		expect(isDowngrade("^1.0.0", "workspace:*")).toBe(false);
 	});
 });

@@ -209,6 +209,26 @@ describe("console leftovers", () => {
 		expect(consoleD).toHaveLength(0);
 	});
 
+	it("does not flag console in root-level scripts named benchmark-* / seed-* / smoke-* / etc.", async () => {
+		const files = [
+			writeFile("benchmark-railway.js", "console.log('running');"),
+			writeFile("bench-cobalt.mjs", "console.log('running');"),
+			writeFile("seed-db.ts", "console.log('seeding');"),
+			writeFile("smoke-test.js", "console.log('hello');"),
+			writeFile("api-benchmark.js", "console.log('suffix form');"),
+		];
+		const diagnostics = await detectDeadPatterns(makeContext(files));
+		const consoleD = diagnostics.filter((d) => d.rule === "ai-slop/console-leftover");
+		expect(consoleD).toHaveLength(0);
+	});
+
+	it("still flags console in regular root-level production files", async () => {
+		const filePath = writeFile("server.js", "console.log('production code');");
+		const diagnostics = await detectDeadPatterns(makeContext([filePath]));
+		const consoleD = diagnostics.filter((d) => d.rule === "ai-slop/console-leftover");
+		expect(consoleD).toHaveLength(1);
+	});
+
 	it("does not flag console in fixtures/ or demos/", async () => {
 		const a = writeFile("__fixtures__/sample.js", "console.log('fixture');");
 		const b = writeFile("demo/walkthrough.ts", "console.log('demo');");
