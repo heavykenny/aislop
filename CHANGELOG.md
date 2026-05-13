@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.8.3 (2026-05-13)
+
+Patch release fixing a hallucinated-import false positive on projects that use TypeScript `compilerOptions.paths` aliases.
+
+### Fixed
+
+- **Respect `tsconfig.json` / `jsconfig.json` path aliases in hallucinated-import detection.** Imports matching a declared path alias (e.g. `import x from "@/components/Foo"` when `paths: { "@/*": ["./src/*"] }` is set) are no longer flagged as hallucinated packages. Walks the root and every workspace package, reads `compilerOptions.paths`, and supports both wildcard (`@/*`) and exact (`#shared`) alias keys. Malformed tsconfig is skipped silently (degraded behavior — the detector still flags as before). Added 5 vitest cases covering wildcard, exact, workspace-scoped tsconfig, `jsconfig.json`, and the malformed-config fallback.
+
 ## 0.8.2 (2026-05-10)
 
 Patch release with false-positive reduction for narrative comments and dependency downgrade protection utilities.

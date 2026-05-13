@@ -231,6 +231,89 @@ const m2 = await import("ghost-package-esm")
 		expect(messages.some((m) => m.includes("ghost-package-cjs"))).toBe(true);
 		expect(messages.some((m) => m.includes("ghost-package-esm"))).toBe(true);
 	});
+
+	it("does not flag imports that match a tsconfig path alias with a wildcard", async () => {
+		writePkgJson({ react: "^19.0.0" });
+		writeFile(
+			"tsconfig.json",
+			JSON.stringify({
+				compilerOptions: { baseUrl: ".", paths: { "@/*": ["./src/*"] } },
+			}),
+		);
+		writeFile(
+			"src/app.ts",
+			`import { Button } from "@/components/Button";
+import { useThing } from "@/hooks/useThing";
+import { foo } from "@/lib/foo";
+import { Page } from "@/pages/Home";
+`,
+		);
+		const diags = await detectHallucinatedImports(buildContext());
+		expect(diags).toEqual([]);
+	});
+
+	it("does not flag an exact tsconfig path alias (no wildcard)", async () => {
+		writePkgJson({});
+		writeFile(
+			"tsconfig.json",
+			JSON.stringify({
+				compilerOptions: { baseUrl: ".", paths: { "#shared": ["./shared.ts"] } },
+			}),
+		);
+		writeFile("src/index.ts", `import { x } from "#shared";\n`);
+		const diags = await detectHallucinatedImports(buildContext());
+		expect(diags).toEqual([]);
+	});
+
+	it("reads tsconfig path aliases from each workspace package", async () => {
+		writeFile(
+			"package.json",
+			JSON.stringify({ name: "root", workspaces: ["packages/*"], dependencies: {} }),
+		);
+		writeFile(
+			"packages/web/package.json",
+			JSON.stringify({ name: "@scope/web", dependencies: { react: "^19.0.0" } }),
+		);
+		writeFile(
+			"packages/web/tsconfig.json",
+			JSON.stringify({
+				compilerOptions: { baseUrl: ".", paths: { "@/*": ["./src/*"] } },
+			}),
+		);
+		writeFile(
+			"packages/web/src/main.ts",
+			`import { Layout } from "@/components/Layout";\n`,
+		);
+		const diags = await detectHallucinatedImports(buildContext());
+		expect(diags).toEqual([]);
+	});
+
+	it("reads path aliases from jsconfig.json as well as tsconfig.json", async () => {
+		writePkgJson({});
+		writeFile(
+			"jsconfig.json",
+			JSON.stringify({
+				compilerOptions: { baseUrl: ".", paths: { "~/*": ["./src/*"] } },
+			}),
+		);
+		writeFile("src/index.js", `import { z } from "~/utils/z";\n`);
+		const diags = await detectHallucinatedImports(buildContext());
+		expect(diags).toEqual([]);
+	});
+
+	it("falls back gracefully when tsconfig.json is malformed (no crash, no alias support)", async () => {
+		writePkgJson({});
+		// Trailing comma — invalid strict JSON. readJson returns null; we proceed without aliases.
+		writeFile(
+			"tsconfig.json",
+			`{ "compilerOptions": { "paths": { "@/*": ["./src/*"], }, }, }`,
+		);
+		writeFile("src/index.ts", `import { x } from "@/lib/x";\n`);
+		const diags = await detectHallucinatedImports(buildContext());
+		// Without alias support, this DOES flag — that's the documented degraded behavior, not a regression.
+		expect(diags).toHaveLength(1);
+		expect(diags[0].message).toContain("@/lib");
+	});
 });
 
 describe("detectHallucinatedImports — Python", () => {
