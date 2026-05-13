@@ -144,6 +144,44 @@ const collectJsDeps = (rootDir: string, jsDeps: Set<string>): boolean => {
 	return true;
 };
 
+type AliasMatcher = (spec: string) => boolean;
+
+const TS_CONFIG_FILES = ["tsconfig.json", "jsconfig.json"];
+
+const buildAliasMatcher = (key: string): AliasMatcher => {
+	const starIdx = key.indexOf("*");
+	if (starIdx === -1) {
+		return (spec) => spec === key;
+	}
+	const before = key.slice(0, starIdx);
+	const after = key.slice(starIdx + 1);
+	return (spec) =>
+		spec.length >= before.length + after.length && spec.startsWith(before) && spec.endsWith(after);
+};
+
+const collectAliasMatchersFromConfig = (configPath: string, matchers: AliasMatcher[]): void => {
+	const config = readJson(configPath) as Record<string, unknown> | null;
+	const opts = config?.compilerOptions;
+	if (!opts || typeof opts !== "object") return;
+	const paths = (opts as Record<string, unknown>).paths;
+	if (!paths || typeof paths !== "object") return;
+	for (const key of Object.keys(paths as Record<string, unknown>)) {
+		matchers.push(buildAliasMatcher(key));
+	}
+};
+
+const collectTsPathAliases = (rootDir: string): AliasMatcher[] => {
+	const matchers: AliasMatcher[] = [];
+	const rootPkg = readJson(path.join(rootDir, "package.json"));
+	const dirs = [rootDir, ...expandWorkspaceDirs(rootDir, readWorkspaceGlobs(rootDir, rootPkg))];
+	for (const dir of dirs) {
+		for (const fname of TS_CONFIG_FILES) {
+			collectAliasMatchersFromConfig(path.join(dir, fname), matchers);
+		}
+	}
+	return matchers;
+};
+
 const addPyDep = (pyDeps: Set<string>, name: string): void => {
 	const normalized = name.toLowerCase().replace(/_/g, "-");
 	pyDeps.add(normalized);
@@ -321,10 +359,15 @@ const extractPyImports = (content: string): { spec: string; line: number }[] => 
 	return results;
 };
 
-const checkJsImport = (spec: string, manifest: PackageManifest): string | null => {
+const checkJsImport = (
+	spec: string,
+	manifest: PackageManifest,
+	tsAliasMatchers: AliasMatcher[],
+): string | null => {
 	if (isJsRelativeOrAbsolute(spec)) return null;
 	if (isJsBuiltin(spec)) return null;
 	if (isJsVirtualModule(spec)) return null;
+	if (tsAliasMatchers.some((m) => m(spec))) return null;
 	const pkg = packageNameFromImport(spec);
 	if (manifest.jsDeps.has(pkg)) return null;
 	// Allow @types/X if X itself is in deps (the runtime impl) — common pattern.
@@ -348,6 +391,7 @@ const checkPyImport = (spec: string, manifest: PackageManifest): string | null =
 export const detectHallucinatedImports = async (context: EngineContext): Promise<Diagnostic[]> => {
 	const manifest = loadManifest(context.rootDirectory);
 	if (!manifest.hasJsManifest && !manifest.hasPyManifest) return [];
+	const tsAliasMatchers = manifest.hasJsManifest ? collectTsPathAliases(context.rootDirectory) : [];
 
 	const diagnostics: Diagnostic[] = [];
 	const files = getSourceFiles(context);
@@ -371,7 +415,9 @@ export const detectHallucinatedImports = async (context: EngineContext): Promise
 
 		const imports = isJs ? extractJsImports(content) : extractPyImports(content);
 		for (const { spec, line } of imports) {
-			const hallucinated = isJs ? checkJsImport(spec, manifest) : checkPyImport(spec, manifest);
+			const hallucinated = isJs
+				? checkJsImport(spec, manifest, tsAliasMatchers)
+				: checkPyImport(spec, manifest);
 			if (!hallucinated) continue;
 			const manifestLabel = isJs ? "package.json" : "requirements.txt / pyproject.toml / Pipfile";
 			diagnostics.push({
