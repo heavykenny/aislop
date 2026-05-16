@@ -1,5 +1,5 @@
-import path from "node:path";
 import { spawn } from "node:child_process";
+import path from "node:path";
 import { z } from "zod";
 import { findConfigDir, loadConfig, RULES_FILE } from "../config/index.js";
 import { runEngines } from "../engines/orchestrator.js";
@@ -86,7 +86,18 @@ const runScan = async (cwd: string) => {
 		project.sourceFileCount,
 		config.scoring.smoothing,
 	);
-	return { project, diagnostics, score };
+	const errorCount = diagnostics.filter((d) => d.severity === "error").length;
+	const failBelow = config.ci.failBelow;
+	return {
+		project,
+		diagnostics,
+		score,
+		qualityGate: {
+			failBelow,
+			passed: errorCount === 0 && score >= failBelow,
+			errorCount,
+		},
+	};
 };
 
 export const aislopScanInputSchema = z.object({
@@ -105,10 +116,11 @@ export const aislopScanTool = {
 
 export const handleAislopScan = async (input: z.infer<typeof aislopScanInputSchema>) => {
 	const cwd = resolveCwd(input.path);
-	const { project, diagnostics, score } = await runScan(cwd);
+	const { project, diagnostics, score, qualityGate } = await runScan(cwd);
 	const summary = summariseDiagnostics(diagnostics, project.rootDirectory);
 	return {
 		score,
+		qualityGate,
 		fileCount: project.sourceFileCount,
 		languages: project.languages,
 		frameworks: project.frameworks,

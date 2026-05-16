@@ -69,6 +69,7 @@ const DEFAULT_ENGINE_SELECTION: EngineKey[] = (
 interface InitChoices {
 	engines: EngineKey[];
 	failBelow: number;
+	typecheck: boolean;
 	telemetryEnabled: boolean;
 	writeGithubWorkflow: boolean;
 }
@@ -140,10 +141,19 @@ const promptForConfigChoices = async (): Promise<InitChoices | null> => {
 	return {
 		engines: enginesSelection,
 		failBelow: Number(failBelowRaw),
+		typecheck: DEFAULT_CONFIG.lint.typecheck,
 		telemetryEnabled: telemetryChoice === "enabled",
 		writeGithubWorkflow: workflowChoice === "yes",
 	};
 };
+
+const strictChoices = (): InitChoices => ({
+	engines: Object.keys(DEFAULT_CONFIG.engines) as EngineKey[],
+	failBelow: 85,
+	typecheck: true,
+	telemetryEnabled: DEFAULT_CONFIG.telemetry.enabled,
+	writeGithubWorkflow: true,
+});
 
 const writeAislopConfig = (configDir: string, configPath: string, choices: InitChoices): void => {
 	const selected = new Set(choices.engines);
@@ -160,6 +170,9 @@ const writeAislopConfig = (configDir: string, configPath: string, choices: InitC
 		version: DEFAULT_CONFIG.version,
 		engines,
 		quality: { ...DEFAULT_CONFIG.quality },
+		lint: {
+			typecheck: choices.typecheck,
+		},
 		security: { ...DEFAULT_CONFIG.security },
 		scoring: {
 			weights: { ...DEFAULT_CONFIG.scoring.weights },
@@ -184,6 +197,7 @@ const writeAislopConfig = (configDir: string, configPath: string, choices: InitC
 
 interface InitOptions {
 	printBrand?: boolean;
+	strict?: boolean;
 }
 
 export const initCommand = async (directory: string, options: InitOptions = {}): Promise<void> => {
@@ -225,7 +239,7 @@ export const initCommand = async (directory: string, options: InitOptions = {}):
 		}
 	}
 
-	const choices = await promptForConfigChoices();
+	const choices = options.strict ? strictChoices() : await promptForConfigChoices();
 	if (!choices) return;
 
 	writeAislopConfig(configDir, configPath, choices);

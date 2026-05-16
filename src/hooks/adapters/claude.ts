@@ -106,6 +106,7 @@ export const runClaudeHook = async (
 			baseline
 				? { score: baseline.score, findingFingerprints: baseline.findingFingerprints }
 				: undefined,
+			{ agent: "claude", touchedFiles: files },
 		);
 		track({
 			event: "hook_scan_completed",
@@ -213,10 +214,16 @@ export const runClaudeStopHook = async (
 	if (!release) return 0;
 	try {
 		const { diagnostics, score, rootDirectory } = await runScopedScan(cwd, sessionFiles);
-		const feedback = buildFeedback(diagnostics, score, rootDirectory, {
-			score: baseline.score,
-			findingFingerprints: baseline.findingFingerprints,
-		});
+		const feedback = buildFeedback(
+			diagnostics,
+			score,
+			rootDirectory,
+			{
+				score: baseline.score,
+				findingFingerprints: baseline.findingFingerprints,
+			},
+			{ agent: "claude", touchedFiles: sessionFiles },
+		);
 		if (!feedback.regressed) {
 			clearSessionFiles(cwd);
 			return 0;

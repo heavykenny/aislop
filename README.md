@@ -172,6 +172,7 @@ npx aislop ci                  # JSON output, exits 1 if score < threshold
 
 ```bash
 npx aislop init                # create .aislop/config.yml
+npx aislop init --strict       # enterprise-grade gate: all engines, typecheck, failBelow 85
 npx aislop rules               # list rules
 npx aislop badge               # print badge URL
 npx aislop                     # interactive menu

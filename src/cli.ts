@@ -9,9 +9,6 @@ import { interactiveCommand } from "./commands/interactive.js";
 import { rulesCommand } from "./commands/rules.js";
 import { scanCommand } from "./commands/scan.js";
 import { loadConfig } from "./config/index.js";
-import { renderHeader } from "./ui/header.js";
-import { renderHintLine } from "./ui/logger.js";
-import { style, theme } from "./ui/theme.js";
 import {
 	ensureInstallId,
 	flushTelemetry,
@@ -20,6 +17,9 @@ import {
 	track,
 	withCommandLifecycle,
 } from "./telemetry/index.js";
+import { renderHeader } from "./ui/header.js";
+import { renderHintLine } from "./ui/logger.js";
+import { style, theme } from "./ui/theme.js";
 import { APP_VERSION } from "./version.js";
 
 process.on("SIGINT", () => process.exit(0));
@@ -193,11 +193,16 @@ fixProgram.action(async (directory = ".", _flags, command) => {
 program
 	.command("init [directory]")
 	.description("Initialize aislop config in project")
-	.action(async (directory = ".") => {
+	.option(
+		"--strict",
+		"write an enterprise-grade default config: all engines, typecheck on, CI failBelow 85, workflow included",
+	)
+	.action(async (directory = ".", _flags, command) => {
+		const flags = command.optsWithGlobals() as { strict?: boolean };
 		await withCommandLifecycle(
 			{ command: "init", config: loadConfig(directory).telemetry },
 			async () => {
-				await initCommand(directory);
+				await initCommand(directory, { strict: Boolean(flags.strict) });
 				return { exitCode: 0 };
 			},
 		);
@@ -270,8 +275,9 @@ program
 					return { exitCode: 0 };
 				},
 			);
-		} catch (err: any) {
-			process.stderr.write(`${err?.message ?? "Failed to print badge"}\n`);
+		} catch (err: unknown) {
+			const message = err instanceof Error ? err.message : "Failed to print badge";
+			process.stderr.write(`${message}\n`);
 			process.exit(1);
 		}
 	});

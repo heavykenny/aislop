@@ -59,6 +59,19 @@ describe("buildFeedback", () => {
 		const fb = buildFeedback([], 100, "/repo");
 		expect(fb.schema).toBe("aislop.hook.v2");
 	});
+
+	it("includes accountability metadata when hook adapters pass agent context", () => {
+		const fb = buildFeedback([diag({ severity: "error" })], 80, "/repo", undefined, {
+			agent: "claude",
+			touchedFiles: ["src/x.ts"],
+		});
+		expect(fb.accountability).toMatchObject({
+			agent: "claude",
+			touchedFiles: ["src/x.ts"],
+			mustFixBeforeDone: true,
+		});
+		expect(fb.accountability?.reason).toContain("Error-severity");
+	});
 });
 
 describe("buildFeedback v2 — delta + newSinceBaseline + suggestedActions", () => {

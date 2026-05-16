@@ -2,11 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import {
-	handleAislopBaseline,
-	handleAislopScan,
-	handleAislopWhy,
-} from "../src/mcp/tools.js";
+import { handleAislopBaseline, handleAislopScan, handleAislopWhy } from "../src/mcp/tools.js";
 
 let tmpDir: string;
 
@@ -35,10 +31,15 @@ describe("aislop_scan tool", () => {
 		expect(result.score).toBeGreaterThanOrEqual(0);
 		expect(result.score).toBeLessThanOrEqual(100);
 		expect(result.counts).toMatchObject({ error: expect.any(Number), warning: expect.any(Number) });
+		expect(result.qualityGate).toMatchObject({
+			failBelow: expect.any(Number),
+			passed: expect.any(Boolean),
+			errorCount: expect.any(Number),
+		});
 		expect(Array.isArray(result.findings)).toBe(true);
-		expect(
-			result.languages.includes("typescript") || result.languages.includes("javascript"),
-		).toBe(true);
+		expect(result.languages.includes("typescript") || result.languages.includes("javascript")).toBe(
+			true,
+		);
 	});
 
 	it("flags a real ai-slop pattern (`as any`) in the scan result", async () => {

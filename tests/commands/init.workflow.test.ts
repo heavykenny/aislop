@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { writeGithubWorkflow } from "../../src/commands/init.js";
+import { initCommand, writeGithubWorkflow } from "../../src/commands/init.js";
 
 let tmpDir: string;
 
@@ -39,5 +39,18 @@ describe("writeGithubWorkflow", () => {
 		const result = writeGithubWorkflow(tmpDir, true);
 		expect(result.status).toBe("skipped-exists");
 		expect(fs.readFileSync(workflowPath, "utf-8")).toBe("# user's own workflow\n");
+	});
+});
+
+describe("init --strict", () => {
+	it("writes a strict config, architecture rules, and CI workflow without prompting", async () => {
+		await initCommand(tmpDir, { strict: true, printBrand: false });
+
+		const config = fs.readFileSync(path.join(tmpDir, ".aislop/config.yml"), "utf-8");
+		expect(config).toContain("architecture: true");
+		expect(config).toContain("typecheck: true");
+		expect(config).toContain("failBelow: 85");
+		expect(fs.existsSync(path.join(tmpDir, ".aislop/rules.yml"))).toBe(true);
+		expect(fs.existsSync(path.join(tmpDir, ".github/workflows/aislop.yml"))).toBe(true);
 	});
 });

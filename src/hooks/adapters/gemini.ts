@@ -69,7 +69,10 @@ export const runGeminiHook = async (
 
 	try {
 		const { diagnostics, score, rootDirectory } = await runScopedScan(cwd, files);
-		const feedback = buildFeedback(diagnostics, score, rootDirectory);
+		const feedback = buildFeedback(diagnostics, score, rootDirectory, undefined, {
+			agent: "gemini",
+			touchedFiles: files,
+		});
 		track({
 			event: "hook_scan_completed",
 			properties: buildHookScanCompletedProps({

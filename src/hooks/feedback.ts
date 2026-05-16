@@ -35,6 +35,7 @@ interface AislopFeedback {
 	baseline?: number;
 	delta?: number;
 	regressed: boolean;
+	accountability?: Accountability;
 	counts: {
 		error: number;
 		warning: number;
@@ -51,6 +52,21 @@ interface AislopFeedback {
 interface BaselineSnapshot {
 	score: number;
 	findingFingerprints: string[];
+}
+
+type AgentName = "claude" | "cursor" | "gemini";
+
+interface FeedbackMeta {
+	agent?: AgentName;
+	touchedFiles?: string[];
+}
+
+interface Accountability {
+	agent?: AgentName;
+	touchedFiles: string[];
+	newFindingCount: number;
+	mustFixBeforeDone: boolean;
+	reason: string;
 }
 
 const fingerprintFinding = (f: Finding): string => `${f.file}:${f.line}:${f.ruleId}`;
@@ -163,11 +179,38 @@ const buildSuggestedActions = (
 	return actions;
 };
 
+const buildAccountability = (
+	meta: FeedbackMeta | undefined,
+	findings: Finding[],
+	regressed: boolean,
+	newSinceBaseline: Finding[] | undefined,
+): Accountability | undefined => {
+	if (!meta?.agent && (!meta?.touchedFiles || meta.touchedFiles.length === 0)) return undefined;
+
+	const touchedFiles = Array.from(new Set(meta.touchedFiles ?? []));
+	const newFindingCount = newSinceBaseline?.length ?? findings.length;
+	const mustFixBeforeDone = regressed || findings.some((f) => f.severity === "error");
+	const reason = mustFixBeforeDone
+		? regressed
+			? "Score regressed against the captured baseline. The agent should fix or justify the new findings before finishing."
+			: "Error-severity findings remain in files touched by this agent turn."
+		: "No blocking regression detected for this agent turn.";
+
+	return {
+		agent: meta.agent,
+		touchedFiles,
+		newFindingCount,
+		mustFixBeforeDone,
+		reason,
+	};
+};
+
 export const buildFeedback = (
 	diagnostics: Diagnostic[],
 	score: number,
 	rootDirectory: string,
 	baseline?: BaselineSnapshot | number,
+	meta?: FeedbackMeta,
 ): AislopFeedback => {
 	const all = diagnostics
 		.map((d) => toFinding(d, rootDirectory))
@@ -202,6 +245,7 @@ export const buildFeedback = (
 		baseline: baselineScore,
 		delta,
 		regressed,
+		accountability: buildAccountability(meta, capped, regressed, newSinceBaseline),
 		counts,
 		findings: capped,
 		elided,
