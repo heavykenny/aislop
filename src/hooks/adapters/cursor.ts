@@ -1,4 +1,5 @@
 import path from "node:path";
+import { buildHookScanCompletedProps, track } from "../../telemetry/index.js";
 import { buildFeedback } from "../feedback.js";
 import { acquireHookLock } from "../io/scan-lock.js";
 import { resolveHookFiles, runScopedScan } from "../io/scoped-scan.js";
@@ -96,9 +97,17 @@ export const runCursorHook = async (
 	try {
 		const { diagnostics, score, rootDirectory } = await runScopedScan(cwd, files);
 		const feedback = buildFeedback(diagnostics, score, rootDirectory);
+		track({
+			event: "hook_scan_completed",
+			properties: buildHookScanCompletedProps({
+				agent: "cursor",
+				score,
+				findingCount: diagnostics.length,
+				fileCount: files.length,
+			}),
+		});
 		const serialized = JSON.stringify(feedback);
 		write(JSON.stringify(renderCursorOutput(serialized)));
-		// Cursor's afterFileEdit is observational in some versions; mirror to stderr so the agent sees it either way.
 		writeErr(`${serialized}\n`);
 		return 0;
 	} catch {

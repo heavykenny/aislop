@@ -10,7 +10,7 @@ import { renderHeader } from "../ui/header.js";
 import { LiveRail } from "../ui/live-rail.js";
 import { log } from "../ui/logger.js";
 import { discoverProject } from "../utils/discover.js";
-import { isTelemetryDisabled, trackEvent } from "../utils/telemetry.js";
+import { withCommandLifecycle } from "../telemetry/index.js";
 import { APP_VERSION } from "../version.js";
 import { buildScanRender } from "./scan.js";
 import { launchAgent, printPrompt } from "./fix-code.js";
@@ -56,7 +56,6 @@ export const fixCommand = async (
 	config: AislopConfig,
 	options: FixOptions = { verbose: false, showHeader: true },
 ): Promise<void> => {
-	const startTime = performance.now();
 	const resolvedDir = path.resolve(directory);
 
 	if (!fs.existsSync(resolvedDir) || !fs.statSync(resolvedDir).isDirectory()) {
@@ -67,9 +66,27 @@ export const fixCommand = async (
 		return;
 	}
 
-	const showHeader = options.showHeader !== false;
-
 	const projectInfo = await discoverProject(resolvedDir);
+
+	await withCommandLifecycle(
+		{
+			command: "fix",
+			config: config.telemetry,
+			languages: projectInfo.languages,
+			fileCount: projectInfo.sourceFileCount,
+		},
+		() => runFixBody(resolvedDir, config, options, projectInfo),
+	);
+};
+
+const runFixBody = async (
+	resolvedDir: string,
+	config: AislopConfig,
+	options: FixOptions,
+	projectInfo: Awaited<ReturnType<typeof discoverProject>>,
+) => {
+	const startTime = performance.now();
+	const showHeader = options.showHeader !== false;
 	const projectName = projectInfo.projectName ?? "project";
 
 	if (showHeader) {
@@ -119,15 +136,6 @@ export const fixCommand = async (
 	await runForceSteps(pipelineDeps);
 
 	const totalResolved = steps.reduce((sum, s) => sum + s.resolvedIssues, 0);
-
-	if (!isTelemetryDisabled(config.telemetry?.enabled)) {
-		trackEvent({
-			command: "fix",
-			languages: projectInfo.languages,
-			fixSteps: steps.length,
-			fixResolved: totalResolved,
-		});
-	}
 
 	const configDir = findConfigDir(resolvedDir);
 	const rulesPath = configDir ? path.join(configDir, RULES_FILE) : undefined;
@@ -202,10 +210,30 @@ export const fixCommand = async (
 
 	if (options.agent) {
 		launchAgent(options.agent, resolvedDir, allDiagnostics, scoreResult.score);
-		return;
+		return {
+			exitCode: 0,
+			score: scoreResult.score,
+			fixSteps: steps.length,
+			fixResolved: totalResolved,
+		};
 	}
 	if (options.prompt) {
 		printPrompt(resolvedDir, allDiagnostics, scoreResult.score);
-		return;
+		return {
+			exitCode: 0,
+			score: scoreResult.score,
+			fixSteps: steps.length,
+			fixResolved: totalResolved,
+		};
 	}
+
+	return {
+		exitCode: 0,
+		score: scoreResult.score,
+		findingCount: allDiagnostics.length,
+		errorCount: errors,
+		warningCount: warnings,
+		fixSteps: steps.length,
+		fixResolved: totalResolved,
+	};
 };

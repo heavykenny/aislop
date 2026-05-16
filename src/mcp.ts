@@ -1,3 +1,4 @@
+import { performance } from "node:perf_hooks";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
@@ -14,7 +15,15 @@ import {
 	handleAislopScan,
 	handleAislopWhy,
 } from "./mcp/tools.js";
+import {
+	buildMcpToolCalledProps,
+	errorKindFromException,
+	flushTelemetry,
+	track,
+} from "./telemetry/index.js";
 import { APP_VERSION } from "./version.js";
+
+type ToolName = "aislop_scan" | "aislop_fix" | "aislop_why" | "aislop_baseline";
 
 const ok = (data: unknown) => ({
 	content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }],
@@ -25,10 +34,29 @@ const err = (message: string) => ({
 	isError: true,
 });
 
-const tryHandle = async <T>(fn: () => Promise<T> | T) => {
+const instrument = async <T>(tool: ToolName, fn: () => Promise<T> | T) => {
+	const startedAt = performance.now();
 	try {
-		return ok(await fn());
+		const value = await fn();
+		track({
+			event: "mcp_tool_called",
+			properties: buildMcpToolCalledProps({
+				tool,
+				durationMs: performance.now() - startedAt,
+				ok: true,
+			}),
+		});
+		return ok(value);
 	} catch (e) {
+		track({
+			event: "mcp_tool_called",
+			properties: buildMcpToolCalledProps({
+				tool,
+				durationMs: performance.now() - startedAt,
+				ok: false,
+				errorKind: errorKindFromException(e),
+			}),
+		});
 		const msg = e instanceof Error ? e.message : String(e);
 		return err(msg);
 	}
@@ -46,7 +74,7 @@ export const buildServer = (): McpServer => {
 			description: aislopScanTool.description,
 			inputSchema: aislopScanInputSchema.shape,
 		},
-		(input) => tryHandle(() => handleAislopScan(input)),
+		(input) => instrument("aislop_scan", () => handleAislopScan(input)),
 	);
 
 	server.registerTool(
@@ -55,7 +83,7 @@ export const buildServer = (): McpServer => {
 			description: aislopFixTool.description,
 			inputSchema: aislopFixInputSchema.shape,
 		},
-		(input) => tryHandle(() => handleAislopFix(input)),
+		(input) => instrument("aislop_fix", () => handleAislopFix(input)),
 	);
 
 	server.registerTool(
@@ -64,7 +92,7 @@ export const buildServer = (): McpServer => {
 			description: aislopWhyTool.description,
 			inputSchema: aislopWhyInputSchema.shape,
 		},
-		(input) => tryHandle(() => handleAislopWhy(input)),
+		(input) => instrument("aislop_why", () => handleAislopWhy(input)),
 	);
 
 	server.registerTool(
@@ -73,7 +101,7 @@ export const buildServer = (): McpServer => {
 			description: aislopBaselineTool.description,
 			inputSchema: aislopBaselineInputSchema.shape,
 		},
-		(input) => tryHandle(() => handleAislopBaseline(input)),
+		(input) => instrument("aislop_baseline", () => handleAislopBaseline(input)),
 	);
 
 	return server;
@@ -83,6 +111,8 @@ const main = async (): Promise<void> => {
 	const server = buildServer();
 	const transport = new StdioServerTransport();
 	await server.connect(transport);
+	track({ event: "mcp_server_started" });
+	await flushTelemetry();
 };
 
 main().catch((e) => {

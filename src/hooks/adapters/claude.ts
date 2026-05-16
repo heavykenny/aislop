@@ -1,4 +1,5 @@
 import path from "node:path";
+import { buildHookScanCompletedProps, track } from "../../telemetry/index.js";
 import { buildFeedback } from "../feedback.js";
 import { acquireHookLock } from "../io/scan-lock.js";
 import { resolveHookFiles, runScopedScan } from "../io/scoped-scan.js";
@@ -106,6 +107,16 @@ export const runClaudeHook = async (
 				? { score: baseline.score, findingFingerprints: baseline.findingFingerprints }
 				: undefined,
 		);
+		track({
+			event: "hook_scan_completed",
+			properties: buildHookScanCompletedProps({
+				agent: "claude",
+				score,
+				scoreDelta: baseline ? score - baseline.score : null,
+				findingCount: diagnostics.length,
+				fileCount: files.length,
+			}),
+		});
 		const envelope = renderClaudeOutput(JSON.stringify(feedback));
 		write(JSON.stringify(envelope));
 		return 0;

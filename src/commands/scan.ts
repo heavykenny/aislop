@@ -17,7 +17,7 @@ import { createTheme } from "../ui/theme.js";
 import { discoverProject } from "../utils/discover.js";
 import { getChangedFiles, getStagedFiles } from "../utils/git.js";
 import { filterProjectFiles, listProjectFiles } from "../utils/source-files.js";
-import { getScoreBucket, isTelemetryDisabled, trackEvent } from "../utils/telemetry.js";
+import { type EngineCounts, withCommandLifecycle } from "../telemetry/index.js";
 import { APP_VERSION } from "../version.js";
 
 interface ScanOptions {
@@ -135,7 +135,6 @@ export const scanCommand = async (
 	config: AislopConfig,
 	options: ScanOptions,
 ): Promise<{ exitCode: number }> => {
-	const startTime = performance.now();
 	const resolvedDir = path.resolve(directory);
 
 	if (!fs.existsSync(resolvedDir)) {
@@ -157,10 +156,28 @@ export const scanCommand = async (
 		return { exitCode: 1 };
 	}
 
+	const projectInfo = await discoverProject(resolvedDir);
+
+	return withCommandLifecycle(
+		{
+			command: options.command ?? "scan",
+			config: config.telemetry,
+			languages: projectInfo.languages,
+			fileCount: projectInfo.sourceFileCount,
+		},
+		() => runScanBody(resolvedDir, config, options, projectInfo),
+	);
+};
+
+const runScanBody = async (
+	resolvedDir: string,
+	config: AislopConfig,
+	options: ScanOptions,
+	projectInfo: Awaited<ReturnType<typeof discoverProject>>,
+) => {
+	const startTime = performance.now();
 	const showHeader = options.showHeader !== false;
 	const useLiveProgress = !options.json && shouldUseSpinner();
-
-	const projectInfo = await discoverProject(resolvedDir);
 
 	let files: string[] | undefined;
 	if (options.staged) {
@@ -256,30 +273,28 @@ export const scanCommand = async (
 	const hasErrors = allDiagnostics.some((d) => d.severity === "error");
 	const exitCode = hasErrors || scoreResult.score < config.ci.failBelow ? 1 : 0;
 
-	// Fire-and-forget anonymous telemetry (before output so it doesn't delay exit)
-	if (!isTelemetryDisabled(config.telemetry?.enabled)) {
-		const engineIssues: Record<string, number> = {};
-		const engineTimings: Record<string, number> = {};
-		for (const r of results) {
-			engineIssues[r.engine] = r.diagnostics.length;
-			engineTimings[r.engine] = Math.round(r.elapsed);
-		}
-		trackEvent({
-			command: options.command ?? "scan",
-			languages: projectInfo.languages,
-			scoreBucket: getScoreBucket(scoreResult.score),
-			engineIssues,
-			engineTimings,
-			elapsedMs: Math.round(elapsedMs),
-			fileCount: projectInfo.sourceFileCount,
-		});
+	const engineIssues: EngineCounts = {};
+	const engineTimings: EngineCounts = {};
+	for (const r of results) {
+		engineIssues[r.engine] = r.diagnostics.length;
+		engineTimings[r.engine] = Math.round(r.elapsed);
 	}
+	const completion = {
+		exitCode,
+		score: scoreResult.score,
+		findingCount: allDiagnostics.length,
+		errorCount: allDiagnostics.filter((d) => d.severity === "error").length,
+		warningCount: allDiagnostics.filter((d) => d.severity === "warning").length,
+		fixableCount: allDiagnostics.filter((d) => d.fixable).length,
+		engineIssues,
+		engineTimings,
+	};
 
 	if (options.json) {
 		const { buildJsonOutput } = await import("../output/json.js");
 		const jsonOut = buildJsonOutput(results, scoreResult, projectInfo.sourceFileCount, elapsedMs);
 		console.log(JSON.stringify(jsonOut, null, 2));
-		return { exitCode };
+		return completion;
 	}
 
 	const projectName = projectInfo.projectName ?? "project";
@@ -300,5 +315,5 @@ export const scanCommand = async (
 		}),
 	);
 
-	return { exitCode };
+	return completion;
 };

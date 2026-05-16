@@ -11,7 +11,9 @@ import {
 	promptAgentSelection,
 	resolveAgents,
 } from "../commands/hook.js";
+import { loadConfig } from "../config/index.js";
 import { type AgentName, detectInstalledAgents } from "../hooks/install/registry.js";
+import { withCommandLifecycle } from "../telemetry/index.js";
 
 type AgentFlagOpts = Partial<
 	Record<
@@ -127,13 +129,19 @@ const registerInstall = (hook: Command): void => {
 	install.action(async (positional: string[], opts: InstallOpts) => {
 		const agents = await pickAgents("install", opts, positional);
 		if (agents === null || agents.length === 0) return;
-		await hookInstall({
-			agents,
-			scope: resolveScope(opts),
-			dryRun: Boolean(opts.dryRun),
-			yes: Boolean(opts.yes),
-			qualityGate: Boolean(opts.qualityGate),
-		});
+		await withCommandLifecycle(
+			{ command: "hook_install", config: loadConfig(process.cwd()).telemetry },
+			async () => {
+				await hookInstall({
+					agents,
+					scope: resolveScope(opts),
+					dryRun: Boolean(opts.dryRun),
+					yes: Boolean(opts.yes),
+					qualityGate: Boolean(opts.qualityGate),
+				});
+				return { exitCode: 0 };
+			},
+		);
 	});
 };
 
@@ -151,13 +159,19 @@ const registerUninstall = (hook: Command): void => {
 	uninstall.action(async (positional: string[], opts: UninstallOpts) => {
 		const agents = await pickAgents("uninstall", opts, positional);
 		if (agents === null || agents.length === 0) return;
-		await hookUninstall({
-			agents,
-			scope: resolveScope(opts),
-			dryRun: Boolean(opts.dryRun),
-			yes: true,
-			qualityGate: false,
-		});
+		await withCommandLifecycle(
+			{ command: "hook_uninstall", config: loadConfig(process.cwd()).telemetry },
+			async () => {
+				await hookUninstall({
+					agents,
+					scope: resolveScope(opts),
+					dryRun: Boolean(opts.dryRun),
+					yes: true,
+					qualityGate: false,
+				});
+				return { exitCode: 0 };
+			},
+		);
 	});
 };
 
@@ -166,13 +180,25 @@ const registerCallbacks = (hook: Command): void => {
 		.command("status")
 		.description("Show which agent hooks are installed")
 		.action(async () => {
-			await hookStatus();
+			await withCommandLifecycle(
+				{ command: "hook_status", config: loadConfig(process.cwd()).telemetry },
+				async () => {
+					await hookStatus();
+					return { exitCode: 0 };
+				},
+			);
 		});
 	hook
 		.command("baseline")
 		.description("Capture the current project score as the quality-gate baseline")
 		.action(async () => {
-			await hookBaseline();
+			await withCommandLifecycle(
+				{ command: "hook_baseline", config: loadConfig(process.cwd()).telemetry },
+				async () => {
+					await hookBaseline();
+					return { exitCode: 0 };
+				},
+			);
 		});
 	hook
 		.command("claude")

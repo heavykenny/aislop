@@ -12,11 +12,26 @@ import { loadConfig } from "./config/index.js";
 import { renderHeader } from "./ui/header.js";
 import { renderHintLine } from "./ui/logger.js";
 import { style, theme } from "./ui/theme.js";
-import { flushTelemetry } from "./utils/telemetry.js";
+import {
+	ensureInstallId,
+	flushTelemetry,
+	isTelemetryDisabled,
+	resolveInstallIdPath,
+	track,
+	withCommandLifecycle,
+} from "./telemetry/index.js";
 import { APP_VERSION } from "./version.js";
 
 process.on("SIGINT", () => process.exit(0));
 process.on("SIGTERM", () => process.exit(0));
+
+const fireInstalledOnce = (): void => {
+	if (isTelemetryDisabled(loadConfig(process.cwd()).telemetry)) return;
+	const ensured = ensureInstallId(resolveInstallIdPath());
+	if (ensured.created) {
+		track({ event: "cli_installed", config: loadConfig(process.cwd()).telemetry });
+	}
+};
 
 interface ScanFlags {
 	changes?: boolean;
@@ -179,14 +194,26 @@ program
 	.command("init [directory]")
 	.description("Initialize aislop config in project")
 	.action(async (directory = ".") => {
-		await initCommand(directory);
+		await withCommandLifecycle(
+			{ command: "init", config: loadConfig(directory).telemetry },
+			async () => {
+				await initCommand(directory);
+				return { exitCode: 0 };
+			},
+		);
 	});
 
 program
 	.command("doctor [directory]")
 	.description("Check installed tools and environment")
 	.action(async (directory = ".") => {
-		await doctorCommand(directory);
+		await withCommandLifecycle(
+			{ command: "doctor", config: loadConfig(directory).telemetry },
+			async () => {
+				await doctorCommand(directory);
+				return { exitCode: 0 };
+			},
+		);
 	});
 
 program
@@ -209,7 +236,13 @@ program
 	.command("rules [directory]")
 	.description("List all available rules")
 	.action(async (directory = ".") => {
-		await rulesCommand(directory);
+		await withCommandLifecycle(
+			{ command: "rules", config: loadConfig(directory).telemetry },
+			async () => {
+				await rulesCommand(directory);
+				return { exitCode: 0 };
+			},
+		);
 	});
 
 program
@@ -225,12 +258,18 @@ program
 			json?: boolean;
 		};
 		try {
-			await badgeCommand({
-				directory,
-				owner: flags.owner,
-				repo: flags.repo,
-				json: Boolean(flags.json),
-			});
+			await withCommandLifecycle(
+				{ command: "badge", config: loadConfig(directory).telemetry },
+				async () => {
+					await badgeCommand({
+						directory,
+						owner: flags.owner,
+						repo: flags.repo,
+						json: Boolean(flags.json),
+					});
+					return { exitCode: 0 };
+				},
+			);
 		} catch (err: any) {
 			process.stderr.write(`${err?.message ?? "Failed to print badge"}\n`);
 			process.exit(1);
@@ -240,6 +279,7 @@ program
 registerHookCommand(program);
 
 const main = async () => {
+	fireInstalledOnce();
 	await program.parseAsync();
 	await flushTelemetry();
 };

@@ -1,4 +1,5 @@
 import path from "node:path";
+import { buildHookScanCompletedProps, track } from "../../telemetry/index.js";
 import { buildFeedback } from "../feedback.js";
 import { acquireHookLock } from "../io/scan-lock.js";
 import { resolveHookFiles, runScopedScan } from "../io/scoped-scan.js";
@@ -69,6 +70,15 @@ export const runGeminiHook = async (
 	try {
 		const { diagnostics, score, rootDirectory } = await runScopedScan(cwd, files);
 		const feedback = buildFeedback(diagnostics, score, rootDirectory);
+		track({
+			event: "hook_scan_completed",
+			properties: buildHookScanCompletedProps({
+				agent: "gemini",
+				score,
+				findingCount: diagnostics.length,
+				fileCount: files.length,
+			}),
+		});
 		write(JSON.stringify(renderGeminiOutput(JSON.stringify(feedback))));
 		return 0;
 	} catch {
