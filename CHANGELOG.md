@@ -4,6 +4,43 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.9.0 (2026-05-16)
+
+Minor release replacing the legacy telemetry with a structured, typed event scheme that covers every CLI command, the MCP server, and the agent hooks — without leaking PII. Includes a redaction allowlist guard, debug/dry-run modes, and a stable anonymous install ID.
+
+### Added
+
+- **Telemetry v2 event scheme (#107).** Six events replace the legacy `cli_scan` / `cli_fix` / `cli_ci`:
+  - `cli_installed` — fires once per machine, when `~/.aislop/install_id` is first created.
+  - `cli_command_started` / `cli_command_completed` — every command (`scan`, `fix`, `ci`, `init`, `doctor`, `rules`, `badge`, and `hook install/uninstall/status/baseline`).
+  - `mcp_server_started`, `mcp_tool_called` — the `aislop-mcp` stdio server and each `aislop_scan` / `aislop_fix` / `aislop_why` / `aislop_baseline` tool invocation.
+  - `hook_scan_completed` — after a Claude / Cursor / Gemini agent hook finishes its scoped scan.
+- **Indexable, flattened properties.** Every event carries `aislop_version`, `node_version`, `os`, `arch`, `schema_version="v2"`, `anonymous_install_id`, `package_manager` (npm / pnpm / yarn / bun / npx / unknown), `is_ci`. Command events add `command`, `language_summary`, per-language flags (`lang_typescript` / `lang_javascript` / `lang_python` / `lang_java`), `file_count_bucket`, `score`, `score_bucket`, `finding_count`, `error_count`, `warning_count`, `fixable_count`, `exit_code`, `duration_ms`, `error_kind`, and flattened per-engine counters (`engine_<name>_issues`, `engine_<name>_ms`). Previously nested `engine_issues`, `engine_timings`, and `languages` were not indexable and could not be broken down.
+- **Stable anonymous install ID.** Random UUIDv4 stored at `~/.aislop/install_id` (honors `XDG_STATE_HOME` on Linux), `0600` permissions, atomic write for concurrent-process safety. Replaces the prior `hostname-platform-arch` djb2 hash. Deleting the file re-rolls identity.
+- **Redaction allowlist.** Every outgoing property passes through a frozen allowlist at the transport boundary; anything not on the list is dropped. Explicitly never collected: file paths, project names, repo names, branch names, source text, raw diagnostics, secrets.
+- **Debug and dry-run modes.** `AISLOP_TELEMETRY_DEBUG=1` prints every outgoing event to stderr as JSON. Combine with `AISLOP_TELEMETRY_DRY_RUN=1` for "what would this command emit?" without sending.
+- **`withCommandLifecycle()` wrapper.** New helper that fires `_started` + `_completed` (even on throw) and awaits flush before returning. Replaces inlined `trackEvent({...})` blocks in `scan`, `fix`, `ci`, `init`, `doctor`, `rules`, `badge`, and the hook subcommands.
+
+### Changed
+
+- **Opt-out precedence tweak.** Explicit `telemetry.enabled: true` in `.aislop/config.yml` now overrides the `CI=true` default. Previously CI overrode config. Env vars (`AISLOP_NO_TELEMETRY=1`, `DO_NOT_TRACK=1`) still win over everything. This makes `is_ci=true` a meaningful property when teams explicitly opt in.
+- **PostHog `distinct_id` semantics.** Switches from the hostname-based djb2 hash to the new UUIDv4. Anonymous in both cases, but every existing user's identifier resets at next CLI run. Downstream dashboards built on v1 events still receive historical data.
+- **Telemetry module split.** Single-file `src/utils/telemetry.ts` (107 lines) replaced by a focused `src/telemetry/` module: `client`, `events`, `lifecycle`, `identity`, `redaction`, `language`, `env`, `index` — each unit with a single purpose and clear boundaries.
+
+### Removed
+
+- **Legacy `cli_scan` / `cli_fix` / `cli_ci` events.** No longer emitted. v1 dashboards continue to work for historical analysis.
+- **`src/utils/telemetry.ts`.** Replaced by the modular `src/telemetry/` layer.
+
+### Documentation
+
+- **`docs/telemetry.md` rewritten** to describe v2 events, properties, identity, opt-out precedence, and debug modes.
+
+### Internal
+
+- 6 new test files (36 tests) covering identity, redaction, lifecycle, language, env, and the opt-out precedence rules. Total: 791 tests passing (up from 755).
+- Self-scan: 100 / 100.
+
 ## 0.8.3 (2026-05-13)
 
 Patch release fixing a hallucinated-import false positive on projects that use TypeScript `compilerOptions.paths` aliases.
