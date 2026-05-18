@@ -76,4 +76,15 @@ describe("source file selection", () => {
 		]);
 		expect(result).toEqual([path.join(tmpDir, "src/a.ts")]);
 	});
+
+	it("skips common docs, tutorial, and sample code paths in zero-config scans", () => {
+		createFile(tmpDir, "src/app.py", "print('app')\n");
+		createFile(tmpDir, "tutorials/lesson.py", "print('tutorial')\n");
+		createFile(tmpDir, "code_samples/demo.py", "print('sample')\n");
+		createFile(tmpDir, ".agents/skills/example.py", "print('skill')\n");
+
+		const sourceFiles = getSourceFilesForRoot(tmpDir).sort();
+
+		expect(sourceFiles).toEqual([path.join(tmpDir, "src/app.py")]);
+	});
 });

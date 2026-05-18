@@ -40,7 +40,7 @@ export const DEFAULT_CONFIG: AislopConfig = {
 		smoothing: 20,
 	},
 	ci: {
-		failBelow: 0,
+		failBelow: 70,
 		format: "json",
 	},
 	telemetry: {
