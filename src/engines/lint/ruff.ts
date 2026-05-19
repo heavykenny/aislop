@@ -1,6 +1,6 @@
-import path from "node:path";
 import { runSubprocess } from "../../utils/subprocess.js";
 import { resolveToolBinary } from "../../utils/tooling.js";
+import { getPythonTargets, getRuffDiagnosticPath } from "../python-targets.js";
 import type { Diagnostic, EngineContext } from "../types.js";
 
 interface RuffDiagnostic {
@@ -13,22 +13,21 @@ interface RuffDiagnostic {
 
 export const runRuffLint = async (context: EngineContext): Promise<Diagnostic[]> => {
 	const ruffBinary = resolveToolBinary("ruff");
+	const targets = getPythonTargets(context);
+	if (targets.length === 0) return [];
+
 	try {
-		const result = await runSubprocess(
-			ruffBinary,
-			["check", "--output-format=json", context.rootDirectory],
-			{
-				cwd: context.rootDirectory,
-				timeout: 60000,
-			},
-		);
+		const result = await runSubprocess(ruffBinary, ["check", "--output-format=json", ...targets], {
+			cwd: context.rootDirectory,
+			timeout: 60000,
+		});
 
 		const output = result.stdout;
 		if (!output) return [];
 
 		const diagnostics: RuffDiagnostic[] = JSON.parse(output);
 		return diagnostics.map((d) => ({
-			filePath: path.relative(context.rootDirectory, d.filename),
+			filePath: getRuffDiagnosticPath(context.rootDirectory, d.filename),
 			engine: "lint" as const,
 			rule: `ruff/${d.code}`,
 			severity:

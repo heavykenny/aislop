@@ -1,19 +1,18 @@
-import path from "node:path";
 import { runSubprocess } from "../../utils/subprocess.js";
 import { resolveToolBinary } from "../../utils/tooling.js";
+import { getPythonTargets, getRuffDiagnosticPath } from "../python-targets.js";
 import type { Diagnostic, EngineContext } from "../types.js";
 
 export const runRuffFormat = async (context: EngineContext): Promise<Diagnostic[]> => {
 	const ruffBinary = resolveToolBinary("ruff");
+	const targets = getPythonTargets(context);
+	if (targets.length === 0) return [];
+
 	try {
-		const result = await runSubprocess(
-			ruffBinary,
-			["format", "--check", "--diff", context.rootDirectory],
-			{
-				cwd: context.rootDirectory,
-				timeout: 60000,
-			},
-		);
+		const result = await runSubprocess(ruffBinary, ["format", "--check", "--diff", ...targets], {
+			cwd: context.rootDirectory,
+			timeout: 60000,
+		});
 
 		if (result.exitCode === 0) return [];
 
@@ -31,9 +30,9 @@ const parseRuffFormatOutput = (output: string, rootDir: string): Diagnostic[] =>
 	let match: RegExpExecArray | null;
 
 	while ((match = filePattern.exec(output)) !== null) {
-		const filePath = match[1].replace(/^a\//, "");
+		const filePath = getRuffDiagnosticPath(rootDir, match[1]);
 		diagnostics.push({
-			filePath: path.relative(rootDir, filePath),
+			filePath,
 			engine: "format",
 			rule: "python-formatting",
 			severity: "warning",

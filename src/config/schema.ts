@@ -49,7 +49,7 @@ const ScoringSchema = z.object({
 });
 
 const CiSchema = z.object({
-	failBelow: z.number().default(0),
+	failBelow: z.number().default(70),
 	format: z.enum(["json"]).default("json"),
 });
 
@@ -89,7 +89,7 @@ const AislopConfigSchema = z.object({
 		smoothing: 20,
 	})),
 	ci: CiSchema.default(() => ({
-		failBelow: 0,
+		failBelow: 70,
 		format: "json" as const,
 	})),
 	telemetry: TelemetrySchema.default(() => ({
