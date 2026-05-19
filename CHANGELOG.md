@@ -4,6 +4,48 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.9.1 (2026-05-19)
+
+Patch release focused on accuracy and signal quality on real-world projects: fewer false positives on Vite, Next.js, SolidStart, SST, and Bun setups; smarter complexity thresholds per language and per role; vulnerable-dependency aggregation per package; a new top-rules breakdown in scan output; `--include` pattern support on `scan`; scan-stability hardening; and an enterprise-friendly `init --strict` mode.
+
+### Added
+
+- **`--include` pattern support on `aislop scan` (#47).** Limit scans to specific files or directories with glob patterns: `aislop scan --include "src/**"`. Multiple patterns supported via repeated flags or comma-separated values (`--include "src/**,docs/**"`). `--exclude` takes precedence when both match the same file; config-defined includes merge with CLI-provided ones. Thanks @myke-awoniran.
+- **`Top findings` breakdown in scan output (#113).** Between the score/stats line and the next-steps section, every scan now renders the top 10 rules by count with severity tags, fixable count, and a `+N more rules` footer when truncated. Rule IDs render as plain-English labels via a new `output/rule-labels.ts` registry (e.g. `complexity/function-too-long` → `Function too long`) with the canonical ID muted in parentheses.
+- **`Diagnostic.detail` field (#113).** Carries per-instance context (file size, function name, duplicate-block source line). Engines now emit a stable message per rule and the renderer naturally groups all instances into one block, with each location showing its own detail aligned next to the file path.
+- **`aislop init --strict` flag (#111).** Zero-prompt enterprise-grade config: all engines enabled, typecheck on, CI gate at 85, GitHub workflow scaffolded.
+- **Agent accountability metadata in hook feedback (#111).** Hook responses now thread the active agent identity (claude / cursor / gemini / etc.) and the touched files as structured `accountability` metadata.
+- **`qualityGate` exposed in MCP `aislop_scan` result (#111).** Agents can read the project's gate threshold directly without parsing config files.
+
+### Changed
+
+- **Vulnerable-dependency reporting aggregated per package (#113).** When an audit returns many advisories for the same package, they now collapse into a single diagnostic with the worst severity and the highest semver upgrade target — instead of one row per CVE plus repeated `package.json` location lines. Drops the redundant `Run aislop fix -f` boilerplate from each finding (already in next-steps), normalises `None` recommendations to `no fix available`, and moves the audit source (`pnpm` / `npm`) into the `detail` column.
+- **Per-language complexity thresholds (#113).** `complexity/file-too-large` now multiplies the base by `2.5×` for `.rs`, `1.5×` for `.go`, `1.5×` for `.tsx`/`.jsx`, and exempts `.d.ts` entirely. `complexity/function-too-long` multiplies by `2.0×` for PascalCase functions in `.tsx`/`.jsx` (components legitimately carry more lines than a utility function) and `1.5×` for Rust functions.
+- **Default CI quality gate aligned with public docs (#112).** `ci.failBelow` now defaults to `70`, matching the documented threshold.
+- **Ruff scoped to project files (#112).** Format/lint runs against the source files aislop selects, not the whole repo. Cuts noise and speed regressions on monorepos.
+- **Terminal wrap cap raised 100 → 120 columns (#113).** Long messages on modern terminals no longer wrap mid-line.
+
+### Fixed
+
+- **Vite virtual modules no longer flagged as hallucinated imports (#113).** Strips Vite import-query suffixes (`?worker`, `?sharedworker`, `?worker-url`, `?url`, `?raw`, `?inline`, `?init`) before checking; recognises `~icons/` virtual modules (unplugin-icons); whitelists `unfonts.css` when `unplugin-fonts` is in the manifest; whitelists the bare `bun` runtime specifier (parallel to `node:fs`).
+- **TypeScript `baseUrl`-resolved imports honored (#113).** `compilerOptions.baseUrl` is now read alongside `paths`; directories at baseUrl are treated as importable bare specifiers (`import x from "hooks/useFoo"` when `<baseUrl>/hooks/` exists), matching how the `bundler` resolver and Next.js behave.
+- **Auto-imported icon globals no longer flagged as undefined (#113).** When `unplugin-icons` is in any workspace `package.json`, identifiers matching `^Icon[A-Z]` are dropped from `eslint/no-undef`.
+- **`Bun` runtime global no longer flagged (#113).** Skipped when `@types/bun` or `bun-types` is in deps.
+- **SST platform globals honored in `sst.config.ts` (#113).** Files containing `/// <reference path="...sst/platform/config.d.ts" />` opt into a large ambient surface that oxlint can't follow via triple-slash references; `eslint/no-undef` is dropped for those files.
+- **`_`-prefixed unused vars no longer flagged (#113).** `eslint/no-unused-vars` skips identifiers starting with `_`, matching the standard intentionally-unused convention.
+- **`import/default` false positives on Vite worker imports cleared (#113).** Oxlint `import/*` diagnostics whose message references a Vite query suffix are dropped.
+- **Next.js `public/` and Vite cache files no longer scanned (#113).** `public/` (static-asset directory; vendored JS lives there) is excluded from the source walk. `*.timestamp-NNN-XXX.{js,mjs,cjs}` Vite config-bundle cache files are dropped. Oxlint output is post-filtered with the same rules so files it discovers via `oxlint .` are also skipped.
+- **Identical locations no longer duplicated in rule groups (#113).** Multiple diagnostics with the same `filePath:line:column` collapse to one entry under the rule header.
+- **Large failing scans flush JSON correctly (#112).** `process.exitCode` is set instead of calling `process.exit()` after JSON output, so big payloads land cleanly on stderr/stdout. 15/15 of the GitHub Trending daily top 15 repos now produce parseable JSON; previously several were truncated.
+- **Zero-config scope filters tutorial / sample / notebook / agent-skill paths (#112).** Common docs and example directories no longer add noise to fresh-clone scans.
+
+### Internal
+
+- **Python manifest collection extracted (#113).** `requirements.txt` / `pyproject.toml` / `Pipfile` parsing moved into `engines/ai-slop/python-manifest.ts`. Brings the hallucinated-imports engine back under the file-size cap and gives the Python manifest logic a single, focused home.
+- **Crash-free zero-config benchmark (#112).** Re-ran the GitHub Trending daily top 15: diagnostics 60,412 → 34,741; JSON output 25.6 MB → 16.1 MB; 0 crashes/timeouts; warning-only-score repos now exit 1.
+- 791 tests passing.
+- Self-scan: 100 / 100.
+
 ## 0.9.0 (2026-05-16)
 
 Minor release replacing the legacy telemetry with a structured, typed event scheme that covers every CLI command, the MCP server, and the agent hooks — without leaking PII. Includes a redaction allowlist guard, debug/dry-run modes, and a stable anonymous install ID.
