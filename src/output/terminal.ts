@@ -67,8 +67,82 @@ const wrapHelpText = (text: string, maxWidth: number, indent: string): string[] 
 
 const terminalWidth = (): number => {
 	const raw = process.stdout.columns;
-	if (typeof raw !== "number" || raw <= 0) return 100;
-	return Math.min(raw, 100);
+	if (typeof raw !== "number" || raw <= 0) return 120;
+	return Math.min(raw, 120);
+};
+
+const renderRuleHeader = (first: Diagnostic, count: number, lines: string[]): void => {
+	const level = toSeverityLabel(first.severity);
+	const countLabel = count > 1 ? ` (${count})` : "";
+	const status = colorBySeverity(level, first.severity);
+	const fixableTag = first.fixable ? ` ${style(theme, "muted", "[auto]")}` : "";
+	const fixableWidth = first.fixable ? " [auto]".length : 0;
+	const badgePrefix = `    [${status}]${fixableTag} `;
+	const badgePrefixWidth = 4 + 1 + level.length + 1 + fixableWidth + 1;
+	const wrapped = wrapText(
+		`${first.message}${countLabel}`,
+		terminalWidth(),
+		badgePrefixWidth,
+		"      ",
+	);
+	lines.push(`${badgePrefix}${wrapped[0]}`);
+	for (let i = 1; i < wrapped.length; i++) lines.push(wrapped[i]);
+};
+
+const renderLocations = (ruleDiags: Diagnostic[], verbose: boolean, lines: string[]): void => {
+	const unique: { label: string; detail: string }[] = [];
+	const seen = new Set<string>();
+	for (const d of ruleDiags) {
+		const label = toLocationLabel(d);
+		const detail = d.detail ?? "";
+		const key = `${label}|${detail}`;
+		if (seen.has(key)) continue;
+		seen.add(key);
+		unique.push({ label, detail });
+	}
+	const shown = verbose ? unique : unique.slice(0, 3);
+	const maxLabel = shown.reduce((w, l) => Math.max(w, l.label.length), 0);
+	for (const { label, detail } of shown) {
+		const padded = detail ? `${label.padEnd(maxLabel)}  ${detail}` : label;
+		lines.push(style(theme, "muted", `      ${padded}`));
+	}
+	if (!verbose && unique.length > shown.length) {
+		lines.push(
+			style(
+				theme,
+				"muted",
+				`      +${unique.length - shown.length} more location(s), use -d for full list`,
+			),
+		);
+	}
+};
+
+const renderHiddenFooter = (
+	sorted: [string, Diagnostic[]][],
+	maxRules: number,
+	lines: string[],
+): void => {
+	const hidden = sorted.slice(maxRules);
+	const hiddenErrors = hidden.reduce(
+		(acc, [, diags]) => acc + (diags[0].severity === "error" ? diags.length : 0),
+		0,
+	);
+	const hiddenWarnings = hidden.reduce(
+		(acc, [, diags]) => acc + (diags[0].severity === "warning" ? diags.length : 0),
+		0,
+	);
+	const parts: string[] = [];
+	if (hiddenErrors > 0) parts.push(`${hiddenErrors} error${hiddenErrors === 1 ? "" : "s"}`);
+	if (hiddenWarnings > 0) parts.push(`${hiddenWarnings} warning${hiddenWarnings === 1 ? "" : "s"}`);
+	const detail = parts.length > 0 ? ` (${parts.join(", ")})` : "";
+	lines.push(
+		style(
+			theme,
+			"muted",
+			`    ... and ${hidden.length} more rules hidden${detail}. Run with -v or --verbose to see full output.`,
+		),
+	);
+	lines.push("");
 };
 
 export const renderDiagnostics = (diagnostics: Diagnostic[], verbose: boolean): string => {
@@ -83,49 +157,23 @@ export const renderDiagnostics = (diagnostics: Diagnostic[], verbose: boolean): 
 		const sorted = [...byRule.entries()].sort(([, a], [, b]) => {
 			const sa = a[0].severity === "error" ? 0 : a[0].severity === "warning" ? 1 : 2;
 			const sb = b[0].severity === "error" ? 0 : b[0].severity === "warning" ? 1 : 2;
-			return sa - sb;
+			if (sa !== sb) return sa - sb;
+			return b.length - a.length;
 		});
 
-		for (const [, ruleDiags] of sorted) {
+		const maxRules = verbose ? Infinity : 40;
+		for (const [, ruleDiags] of sorted.slice(0, maxRules)) {
 			const first = ruleDiags[0];
-			const level = toSeverityLabel(first.severity);
-			const count = ruleDiags.length > 1 ? ` (${ruleDiags.length})` : "";
-			const status = colorBySeverity(level, first.severity);
-			const fixableTag = first.fixable ? ` ${style(theme, "muted", "[auto]")}` : "";
-			const fixableWidth = first.fixable ? " [auto]".length : 0;
-
-			const badgePrefix = `    [${status}]${fixableTag} `;
-			const badgePrefixWidth = 4 + 1 + level.length + 1 + fixableWidth + 1;
-			const messageText = `${first.message}${count}`;
-			const wrappedMsg = wrapText(messageText, terminalWidth(), badgePrefixWidth, "      ");
-			lines.push(`${badgePrefix}${wrappedMsg[0]}`);
-			for (let i = 1; i < wrappedMsg.length; i++) {
-				lines.push(wrappedMsg[i]);
-			}
-
-			const locations = verbose ? ruleDiags : ruleDiags.slice(0, 3);
-			for (const diagnostic of locations) {
-				lines.push(style(theme, "muted", `      ${toLocationLabel(diagnostic)}`));
-			}
-			if (!verbose && ruleDiags.length > locations.length) {
-				lines.push(
-					style(
-						theme,
-						"muted",
-						`      +${ruleDiags.length - locations.length} more location(s), use -d for full list`,
-					),
-				);
-			}
-
+			renderRuleHeader(first, ruleDiags.length, lines);
+			renderLocations(ruleDiags, verbose, lines);
 			if (first.help) {
 				const wrapped = wrapHelpText(first.help, terminalWidth(), "      ");
-				for (const line of wrapped) {
-					lines.push(style(theme, "muted", line));
-				}
+				for (const line of wrapped) lines.push(style(theme, "muted", line));
 			}
-
 			lines.push("");
 		}
+
+		if (sorted.length > maxRules) renderHiddenFooter(sorted, maxRules, lines);
 	}
 
 	return `${lines.join("\n")}\n`;

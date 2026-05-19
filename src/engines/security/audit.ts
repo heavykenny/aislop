@@ -97,17 +97,93 @@ const runPnpmAuditWithFallback = async (
 
 type JsAuditSource = "npm audit" | "pnpm audit";
 
+const SEVERITY_RANK: Record<string, number> = {
+	critical: 4,
+	high: 3,
+	moderate: 2,
+	low: 1,
+};
+
 const toSeverity = (value: string): "error" | "warning" =>
 	value === "critical" || value === "high" ? "error" : "warning";
 
-const defaultAuditFixCommand = (source: JsAuditSource): string =>
-	source === "pnpm audit" ? "pnpm audit --fix" : "npm audit fix";
+interface VulnAggregate {
+	packageName: string;
+	worstSeverity: string;
+	advisories: number;
+	recommendations: Set<string>;
+}
+
+const upsertVuln = (
+	bucket: Map<string, VulnAggregate>,
+	packageName: string,
+	severity: string,
+	recommendation: string,
+): void => {
+	const existing = bucket.get(packageName);
+	if (existing) {
+		existing.advisories++;
+		if ((SEVERITY_RANK[severity] ?? 0) > (SEVERITY_RANK[existing.worstSeverity] ?? 0)) {
+			existing.worstSeverity = severity;
+		}
+		if (recommendation) existing.recommendations.add(recommendation);
+	} else {
+		bucket.set(packageName, {
+			packageName,
+			worstSeverity: severity,
+			advisories: 1,
+			recommendations: recommendation ? new Set([recommendation]) : new Set(),
+		});
+	}
+};
+
+const SEMVER_RE = /(\d+)\.(\d+)\.(\d+)/;
+const cmpSemver = (a: string, b: string): number => {
+	const [, a1, a2, a3] = SEMVER_RE.exec(a) ?? ["", "0", "0", "0"];
+	const [, b1, b2, b3] = SEMVER_RE.exec(b) ?? ["", "0", "0", "0"];
+	if (Number(a1) !== Number(b1)) return Number(a1) - Number(b1);
+	if (Number(a2) !== Number(b2)) return Number(a2) - Number(b2);
+	return Number(a3) - Number(b3);
+};
+
+const pickBestRecommendation = (recs: string[]): string => {
+	if (recs.length <= 1) return recs[0] ?? "";
+	const versioned = recs.filter((r) => SEMVER_RE.test(r));
+	if (versioned.length === 0) return recs[0];
+	return versioned.reduce((best, r) => (cmpSemver(r, best) > 0 ? r : best));
+};
+
+const cleanRecommendation = (raw: string): string => {
+	const t = raw.trim();
+	if (!t || t.toLowerCase() === "none") return "no fix available";
+	return t;
+};
+
+const aggregateToDiagnostic = (agg: VulnAggregate, source: JsAuditSource): Diagnostic => {
+	const recs = [...agg.recommendations];
+	const best = cleanRecommendation(pickBestRecommendation(recs));
+	const countLabel = agg.advisories > 1 ? ` (${agg.advisories} advisories)` : "";
+	const recLabel = best ? ` — ${best}` : "";
+	return {
+		filePath: "package.json",
+		engine: "security",
+		rule: "security/vulnerable-dependency",
+		severity: toSeverity(agg.worstSeverity),
+		message: `${agg.packageName} (${agg.worstSeverity})${recLabel}${countLabel}`,
+		help: "",
+		line: 0,
+		column: 0,
+		category: "Security",
+		fixable: false,
+		detail: source === "npm audit" ? "npm" : "pnpm",
+	};
+};
 
 const parseLegacyAdvisories = (
 	advisories: Record<string, Record<string, unknown>>,
 	source: JsAuditSource,
 ): Diagnostic[] => {
-	const diagnostics: Diagnostic[] = [];
+	const bucket = new Map<string, VulnAggregate>();
 
 	for (const [key, advisory] of Object.entries(advisories)) {
 		const packageName =
@@ -116,46 +192,32 @@ const parseLegacyAdvisories = (
 			(advisory.package as string) ??
 			key;
 		const severity = ((advisory.severity as string) ?? "moderate").toLowerCase();
-		const recommendation =
-			(advisory.recommendation as string) ??
-			(advisory.title as string) ??
-			`Run \`${defaultAuditFixCommand(source)}\` to resolve`;
+		const recommendation = (advisory.recommendation as string) ?? (advisory.title as string) ?? "";
 
-		diagnostics.push({
-			filePath: "package.json",
-			engine: "security",
-			rule: "security/vulnerable-dependency",
-			severity: toSeverity(severity),
-			message: `Vulnerable dependency (${source}): ${packageName} (${severity})`,
-			help: withFixHint(recommendation),
-			line: 0,
-			column: 0,
-			category: "Security",
-			fixable: false,
-		});
+		upsertVuln(bucket, packageName, severity, recommendation);
 	}
 
-	return diagnostics;
+	return [...bucket.values()].map((agg) => aggregateToDiagnostic(agg, source));
 };
 
 const parseModernVulnerabilities = (
 	vulnerabilities: Record<string, Record<string, unknown>>,
 	source: JsAuditSource,
 ): Diagnostic[] => {
-	const diagnostics: Diagnostic[] = [];
+	const bucket = new Map<string, VulnAggregate>();
 
 	for (const [packageName, vulnerability] of Object.entries(vulnerabilities)) {
 		const severity = ((vulnerability.severity as string) ?? "moderate").toLowerCase();
-
 		const fixAvailable = vulnerability.fixAvailable;
 		const isDirect = vulnerability.isDirect === true;
-		let recommendation = `Run \`${defaultAuditFixCommand(source)}\` to resolve`;
+
+		let recommendation = "";
 		if (fixAvailable === false) {
 			recommendation = isDirect
-				? "No automatic fix — check for a newer major version"
-				: "Transitive with no fix — add an override or upgrade the parent";
+				? "no automatic fix"
+				: "transitive — needs override or parent upgrade";
 		} else if (!isDirect && fixAvailable === true) {
-			recommendation = "Transitive dep — may need an override or parent upgrade";
+			recommendation = "transitive — may need override or parent upgrade";
 		} else if (
 			fixAvailable &&
 			typeof fixAvailable === "object" &&
@@ -164,25 +226,14 @@ const parseModernVulnerabilities = (
 		) {
 			const target = fixAvailable as { name?: string; version?: string };
 			if (target.name && target.version) {
-				recommendation = `Upgrade to ${target.name}@${target.version}.`;
+				recommendation = `upgrade to ${target.name}@${target.version}`;
 			}
 		}
 
-		diagnostics.push({
-			filePath: "package.json",
-			engine: "security",
-			rule: "security/vulnerable-dependency",
-			severity: toSeverity(severity),
-			message: `Vulnerable dependency (${source}): ${packageName} (${severity})`,
-			help: withFixHint(recommendation),
-			line: 0,
-			column: 0,
-			category: "Security",
-			fixable: false,
-		});
+		upsertVuln(bucket, packageName, severity, recommendation);
 	}
 
-	return diagnostics;
+	return [...bucket.values()].map((agg) => aggregateToDiagnostic(agg, source));
 };
 
 const parseJsAudit = (output: string, source: JsAuditSource): Diagnostic[] => {

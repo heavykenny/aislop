@@ -126,7 +126,20 @@ interface QualityLimits {
 	maxParams: number;
 }
 
-const JSX_FILE_LOC_MULTIPLIER = 1.5;
+const FILE_LOC_MULTIPLIERS: Record<string, number> = {
+	".tsx": 1.5,
+	".jsx": 1.5,
+	".rs": 2.5,
+	".go": 1.5,
+};
+
+const DECLARATION_FILE_RE = /\.d\.ts$/i;
+
+const fileLocBudget = (ext: string, relativePath: string, base: number): number => {
+	if (DECLARATION_FILE_RE.test(relativePath)) return Number.POSITIVE_INFINITY;
+	const multiplier = FILE_LOC_MULTIPLIERS[ext] ?? 1;
+	return Math.ceil(base * multiplier);
+};
 
 const checkFileDiagnostics = (
 	relativePath: string,
@@ -137,13 +150,10 @@ const checkFileDiagnostics = (
 	const lineCount = content.split("\n").length;
 	const ext = path.extname(relativePath).toLowerCase();
 
-	// Skip data files entirely (JSON blobs, fixtures, seeds, generated maps).
 	if (isDataFile(content)) return results;
 
-	const isJsx = ext === ".jsx" || ext === ".tsx";
-	const configuredMax = isJsx
-		? Math.ceil(limits.maxFileLoc * JSX_FILE_LOC_MULTIPLIER)
-		: limits.maxFileLoc;
+	const configuredMax = fileLocBudget(ext, relativePath, limits.maxFileLoc);
+	if (!Number.isFinite(configuredMax)) return results;
 	const triggerAt = Math.ceil(configuredMax * 1.1);
 
 	if (lineCount > triggerAt) {
@@ -152,38 +162,52 @@ const checkFileDiagnostics = (
 			engine: "code-quality",
 			rule: "complexity/file-too-large",
 			severity: "warning",
-			message: `File has ${lineCount} lines (max: ${configuredMax})`,
+			message: `File too large (max: ${configuredMax})`,
 			help: "Consider splitting this file into smaller modules",
 			line: 0,
 			column: 0,
 			category: "Complexity",
 			fixable: false,
+			detail: `${lineCount} lines`,
 		});
 	}
 
 	return results;
 };
 
+const JSX_EXTENSIONS = new Set([".tsx", ".jsx"]);
+const isComponentFunction = (name: string, ext: string): boolean =>
+	JSX_EXTENSIONS.has(ext) && /^[A-Z]/.test(name);
+
+const functionLocBudget = (fn: FunctionInfo, ext: string, base: number): number => {
+	if (isComponentFunction(fn.name, ext)) return Math.ceil(base * 2.0);
+	if (ext === ".rs") return Math.ceil(base * 1.5);
+	return base;
+};
+
 const checkFunctionDiagnostics = (
 	relativePath: string,
 	fn: FunctionInfo,
 	limits: QualityLimits,
+	ext: string,
 ): Diagnostic[] => {
 	const results: Diagnostic[] = [];
 
+	const fnMax = functionLocBudget(fn, ext, limits.maxFunctionLoc);
 	const effectiveLineCount = fn.lineCount - fn.templateLines;
-	if (effectiveLineCount > Math.ceil(limits.maxFunctionLoc * 1.1)) {
+	if (effectiveLineCount > Math.ceil(fnMax * 1.1)) {
 		results.push({
 			filePath: relativePath,
 			engine: "code-quality",
 			rule: "complexity/function-too-long",
 			severity: "warning",
-			message: `Function '${fn.name}' has ${fn.lineCount} lines (max: ${limits.maxFunctionLoc})`,
+			message: `Function too long (max: ${fnMax})`,
 			help: "Consider breaking this function into smaller pieces",
 			line: fn.startLine,
 			column: 0,
 			category: "Complexity",
 			fixable: false,
+			detail: `${fn.name} · ${fn.lineCount} lines`,
 		});
 	}
 
@@ -193,12 +217,13 @@ const checkFunctionDiagnostics = (
 			engine: "code-quality",
 			rule: "complexity/deep-nesting",
 			severity: "warning",
-			message: `Function '${fn.name}' has nesting depth ${fn.maxNesting} (max: ${limits.maxNesting})`,
+			message: `Function nested too deeply (max: ${limits.maxNesting})`,
 			help: "Consider using early returns or extracting nested logic",
 			line: fn.startLine,
 			column: 0,
 			category: "Complexity",
 			fixable: false,
+			detail: `${fn.name} · depth ${fn.maxNesting}`,
 		});
 	}
 
@@ -208,12 +233,13 @@ const checkFunctionDiagnostics = (
 			engine: "code-quality",
 			rule: "complexity/too-many-params",
 			severity: "warning",
-			message: `Function '${fn.name}' has ${fn.paramCount} parameters (max: ${limits.maxParams})`,
+			message: `Function has too many parameters (max: ${limits.maxParams})`,
 			help: "Consider using an options object parameter",
 			line: fn.startLine,
 			column: 0,
 			category: "Complexity",
 			fixable: false,
+			detail: `${fn.name} · ${fn.paramCount} params`,
 		});
 	}
 
@@ -239,7 +265,7 @@ const checkFileComplexity = (
 	const diagnostics = checkFileDiagnostics(relativePath, content, limits);
 
 	for (const fn of analyzeFunctions(content, ext)) {
-		diagnostics.push(...checkFunctionDiagnostics(relativePath, fn, limits));
+		diagnostics.push(...checkFunctionDiagnostics(relativePath, fn, limits, ext));
 	}
 
 	return diagnostics;

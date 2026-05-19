@@ -66,7 +66,7 @@ export const runB = async (dir: string) => {
 		const diags = await detectDuplicateBlocks(ctx(tmpDir));
 		expect(diags.length).toBeGreaterThan(0);
 		expect(diags[0].rule).toBe("code-quality/duplicate-block");
-		expect(diags[0].message).toMatch(/duplicates a block/);
+		expect(diags[0].detail).toMatch(/duplicate block/);
 	});
 
 	it("does not flag a single non-duplicated block", async () => {
