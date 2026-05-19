@@ -1,4 +1,4 @@
-import type {AislopConfig} from "./schema.js";
+import type { AislopConfig } from "./schema.js";
 
 export const DEFAULT_CONFIG: AislopConfig = {
 	version: 1,
