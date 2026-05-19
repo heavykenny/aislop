@@ -1,4 +1,4 @@
-import {z} from "zod/v4";
+import { z } from "zod/v4";
 
 const DEFAULT_WEIGHTS: Record<string, number> = {
 	format: 0.3,
@@ -81,7 +81,7 @@ const AislopConfigSchema = z.object({
 		auditTimeout: 25000,
 	})),
 	scoring: ScoringSchema.default(() => ({
-		weights: {...DEFAULT_WEIGHTS},
+		weights: { ...DEFAULT_WEIGHTS },
 		thresholds: {
 			good: 75,
 			ok: 50,
@@ -114,7 +114,7 @@ const preMergeWeights = (raw: Record<string, unknown>): void => {
 	const userWeights = scoring.weights as Record<string, number> | undefined;
 	if (!userWeights || typeof userWeights !== "object") return;
 
-	scoring.weights = {...DEFAULT_WEIGHTS, ...userWeights};
+	scoring.weights = { ...DEFAULT_WEIGHTS, ...userWeights };
 };
 
 export const parseConfig = (raw: unknown): AislopConfig => {

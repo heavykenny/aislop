@@ -246,25 +246,27 @@ export const filterProjectFiles = (
 		});
 	};
 
-	return normalizedFiles.filter(({absolutePath, relativePath}) => {
-		if (
-			!fs.existsSync(absolutePath) ||
-			!isWithinProject(relativePath) ||
-			isExcludedPath(relativePath) ||
-			isTestFile(relativePath) ||
-			ignoredPaths.has(relativePath)
-		) {
-			return false;
-		}
-		if (!isUserIncluded(relativePath)) {
-			return false;
-		}
-		// exclude precedence over include
-		if (isUserExcluded(relativePath)) {
-			return false;
-		}
-		return hasAllowedExtension(relativePath, extraSet);
-	}).map(({absolutePath}) => absolutePath);
+	return normalizedFiles
+		.filter(({ absolutePath, relativePath }) => {
+			if (
+				!fs.existsSync(absolutePath) ||
+				!isWithinProject(relativePath) ||
+				isExcludedPath(relativePath) ||
+				isTestFile(relativePath) ||
+				ignoredPaths.has(relativePath)
+			) {
+				return false;
+			}
+			if (!isUserIncluded(relativePath)) {
+				return false;
+			}
+			// exclude precedence over include
+			if (isUserExcluded(relativePath)) {
+				return false;
+			}
+			return hasAllowedExtension(relativePath, extraSet);
+		})
+		.map(({ absolutePath }) => absolutePath);
 };
 
 const filterExplicitFiles = (
