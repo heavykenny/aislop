@@ -68,7 +68,7 @@ describe("checkComplexity — file too large", () => {
 		expect(fileDiags).toHaveLength(1);
 		expect(fileDiags[0].severity).toBe("warning");
 		expect(fileDiags[0].engine).toBe("code-quality");
-		expect(fileDiags[0].message).toContain("15");
+		expect(fileDiags[0].detail).toContain("15");
 		expect(fileDiags[0].message).toContain("10");
 	});
 
@@ -144,7 +144,7 @@ describe("checkComplexity — function too long", () => {
 		expect(fnDiags.length).toBeGreaterThanOrEqual(1);
 		expect(fnDiags[0].severity).toBe("warning");
 		expect(fnDiags[0].engine).toBe("code-quality");
-		expect(fnDiags[0].message).toContain("longFn");
+		expect(fnDiags[0].detail).toContain("longFn");
 		expect(fnDiags[0].message).toContain("5");
 	});
 
@@ -173,7 +173,7 @@ describe("checkComplexity — function too long", () => {
 		const diagnostics = await checkComplexity(makeContext([filePath], { maxFunctionLoc: 5 }));
 		const fnDiags = diagnostics.filter((d) => d.rule === "complexity/function-too-long");
 		expect(fnDiags.length).toBeGreaterThanOrEqual(1);
-		expect(fnDiags[0].message).toContain("asyncFn");
+		expect(fnDiags[0].detail).toContain("asyncFn");
 	});
 
 	it("does not flag a function dominated by a single template literal (e.g. llms.txt.ts GET)", async () => {
@@ -225,7 +225,7 @@ describe("checkComplexity — too many parameters", () => {
 		const paramDiags = diagnostics.filter((d) => d.rule === "complexity/too-many-params");
 		expect(paramDiags.length).toBeGreaterThanOrEqual(1);
 		expect(paramDiags[0].severity).toBe("warning");
-		expect(paramDiags[0].message).toContain("manyParams");
+		expect(paramDiags[0].detail).toContain("manyParams");
 		expect(paramDiags[0].message).toContain("3");
 	});
 
@@ -243,7 +243,7 @@ describe("checkComplexity — too many parameters", () => {
 		const diagnostics = await checkComplexity(makeContext([filePath], { maxParams: 4 }));
 		const paramDiags = diagnostics.filter((d) => d.rule === "complexity/too-many-params");
 		expect(paramDiags.length).toBeGreaterThanOrEqual(1);
-		expect(paramDiags[0].message).toContain("complex_func");
+		expect(paramDiags[0].detail).toContain("complex_func");
 	});
 });
 
@@ -285,7 +285,7 @@ describe("checkComplexity — deep nesting", () => {
 		const nestDiags = diagnostics.filter((d) => d.rule === "complexity/deep-nesting");
 		expect(nestDiags.length).toBeGreaterThanOrEqual(1);
 		expect(nestDiags[0].severity).toBe("warning");
-		expect(nestDiags[0].message).toContain("deepNest");
+		expect(nestDiags[0].detail).toContain("deepNest");
 	});
 });
 
@@ -419,6 +419,6 @@ describe("checkComplexity — general", () => {
 		const diagnostics = await checkComplexity(makeContext([filePath], { maxFunctionLoc: 5 }));
 		const fnDiags = diagnostics.filter((d) => d.rule === "complexity/function-too-long");
 		expect(fnDiags.length).toBeGreaterThanOrEqual(1);
-		expect(fnDiags[0].message).toContain("processData");
+		expect(fnDiags[0].detail).toContain("processData");
 	});
 });

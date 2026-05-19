@@ -21,6 +21,7 @@ export interface Diagnostic {
 	column: number;
 	category: string;
 	fixable: boolean;
+	detail?: string;
 }
 
 export interface EngineResult {

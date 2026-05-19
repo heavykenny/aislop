@@ -1,3 +1,4 @@
+import { labelForRule } from "../output/rule-labels.js";
 import { symbols as defaultSymbols, type Symbols } from "./symbols.js";
 import { style, theme as defaultTheme, type Theme, type Token } from "./theme.js";
 import { padEnd } from "./width.js";
@@ -5,6 +6,21 @@ import { padEnd } from "./width.js";
 export interface NextStep {
 	emphasis: "primary" | "muted";
 	text: string;
+}
+
+export interface BreakdownRow {
+	rule: string;
+	errors: number;
+	warnings: number;
+	info: number;
+	fixable: number;
+}
+
+export interface BreakdownSummary {
+	rows: BreakdownRow[];
+	hiddenRules: number;
+	hiddenErrors: number;
+	hiddenWarnings: number;
 }
 
 interface SummaryInput {
@@ -17,6 +33,7 @@ interface SummaryInput {
 	engines: number;
 	elapsedMs: number;
 	nextSteps: NextStep[];
+	breakdown?: BreakdownSummary;
 	thresholds?: { good: number; ok: number };
 }
 
@@ -56,6 +73,50 @@ export const renderSummary = (input: SummaryInput, deps: SummaryDeps = {}): stri
 	const statsLine = `   ${style(t, "muted", `${input.files} files`)}  ${sep}  ${style(t, "muted", `${input.engines} engines`)}  ${sep}  ${style(t, "muted", elapsed(input.elapsedMs))}`;
 
 	const lines = ["", scoreLine, statsLine, ""];
+
+	if (input.breakdown && input.breakdown.rows.length > 0) {
+		lines.push(` ${style(t, "bold", "Top findings")}`);
+		const maxCountWidth = input.breakdown.rows.reduce(
+			(w, r) => Math.max(w, String(r.errors + r.warnings + r.info).length),
+			0,
+		);
+		const labels = input.breakdown.rows.map((r) => labelForRule(r.rule));
+		const maxLabelWidth = labels.reduce((w, l) => Math.max(w, l.length), 0);
+		for (let i = 0; i < input.breakdown.rows.length; i++) {
+			const row = input.breakdown.rows[i];
+			const total = row.errors + row.warnings + row.info;
+			const count = String(total).padStart(maxCountWidth);
+			const label = padEnd(labels[i], maxLabelWidth);
+			const tags: string[] = [];
+			if (row.errors > 0) tags.push(style(t, "danger", `${row.errors} err`));
+			if (row.warnings > 0) tags.push(style(t, "warn", `${row.warnings} warn`));
+			if (row.info > 0) tags.push(style(t, "muted", `${row.info} info`));
+			if (row.fixable > 0) tags.push(style(t, "success", `${row.fixable} fix`));
+			const tagBlock = tags.length > 0 ? `  ${style(t, "muted", "·")}  ${tags.join("  ")}` : "";
+			const ruleHint = style(t, "muted", `(${row.rule})`);
+			lines.push(`   ${style(t, "muted", count)}  ${label}  ${ruleHint}${tagBlock}`);
+		}
+		if (input.breakdown.hiddenRules > 0) {
+			const hiddenParts: string[] = [];
+			if (input.breakdown.hiddenErrors > 0)
+				hiddenParts.push(
+					`${input.breakdown.hiddenErrors} error${input.breakdown.hiddenErrors === 1 ? "" : "s"}`,
+				);
+			if (input.breakdown.hiddenWarnings > 0)
+				hiddenParts.push(
+					`${input.breakdown.hiddenWarnings} warning${input.breakdown.hiddenWarnings === 1 ? "" : "s"}`,
+				);
+			const detail = hiddenParts.length > 0 ? ` (${hiddenParts.join(", ")})` : "";
+			lines.push(
+				style(
+					t,
+					"muted",
+					`   +${input.breakdown.hiddenRules} more rule${input.breakdown.hiddenRules === 1 ? "" : "s"}${detail}. Run with -v for the full list.`,
+				),
+			);
+		}
+		lines.push("");
+	}
 
 	if (input.nextSteps.length > 0) {
 		for (const step of input.nextSteps) {

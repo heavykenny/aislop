@@ -121,12 +121,13 @@ const findDuplicateBlocks = (content: string, relativePath: string): Diagnostic[
 			engine: "code-quality",
 			rule: "code-quality/duplicate-block",
 			severity: "warning",
-			message: `${span}-line block at line ${r.currentStart} duplicates a block starting at line ${r.priorStart}. Extract a shared helper.`,
+			message: "Duplicate code block — extract a shared helper",
 			help: `Pull the shared logic into a function both sites can call. Keeps one version of the truth and makes future changes one-shot instead of N-shot.`,
 			line: r.currentStart,
 			column: 0,
 			category: "Complexity",
 			fixable: false,
+			detail: `${span} lines duplicate block at L${r.priorStart}`,
 		};
 	});
 };

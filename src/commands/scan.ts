@@ -11,7 +11,12 @@ import { renderHeader } from "../ui/header.js";
 import { detectInvocation } from "../ui/invocation.js";
 import { type GridRow, type GridRowOutcome, LiveGrid } from "../ui/live-grid.js";
 import { log } from "../ui/logger.js";
-import { renderCleanRun, renderSummary, type NextStep } from "../ui/summary.js";
+import {
+	type BreakdownSummary,
+	renderCleanRun,
+	renderSummary,
+	type NextStep,
+} from "../ui/summary.js";
 import { createSymbols } from "../ui/symbols.js";
 import { createTheme } from "../ui/theme.js";
 import { discoverProject } from "../utils/discover.js";
@@ -36,6 +41,44 @@ const shouldUseSpinner = (): boolean =>
 	Boolean(process.stderr.isTTY) && process.env.CI !== "true" && process.env.CI !== "1";
 
 const ALL_ENGINE_NAMES = Object.keys(ENGINE_INFO) as EngineName[];
+
+const BREAKDOWN_TOP_N = 10;
+
+const computeBreakdown = (diagnostics: Diagnostic[]): BreakdownSummary => {
+	const byRule = new Map<
+		string,
+		{ rule: string; errors: number; warnings: number; info: number; fixable: number }
+	>();
+	for (const d of diagnostics) {
+		const row = byRule.get(d.rule) ?? {
+			rule: d.rule,
+			errors: 0,
+			warnings: 0,
+			info: 0,
+			fixable: 0,
+		};
+		if (d.severity === "error") row.errors++;
+		else if (d.severity === "warning") row.warnings++;
+		else row.info++;
+		if (d.fixable) row.fixable++;
+		byRule.set(d.rule, row);
+	}
+	const sorted = [...byRule.values()].sort((a, b) => {
+		const aTotal = a.errors + a.warnings + a.info;
+		const bTotal = b.errors + b.warnings + b.info;
+		if (aTotal !== bTotal) return bTotal - aTotal;
+		if (a.errors !== b.errors) return b.errors - a.errors;
+		return a.rule.localeCompare(b.rule);
+	});
+	const rows = sorted.slice(0, BREAKDOWN_TOP_N);
+	const hidden = sorted.slice(BREAKDOWN_TOP_N);
+	return {
+		rows,
+		hiddenRules: hidden.length,
+		hiddenErrors: hidden.reduce((acc, r) => acc + r.errors, 0),
+		hiddenWarnings: hidden.reduce((acc, r) => acc + r.warnings, 0),
+	};
+};
 
 interface BuildScanRenderInput {
 	projectName: string;
@@ -122,6 +165,7 @@ export const buildScanRender = (input: BuildScanRenderInput): string => {
 			engines: input.results.length,
 			elapsedMs: input.elapsedMs,
 			nextSteps,
+			breakdown: computeBreakdown(input.diagnostics),
 			thresholds: input.thresholds,
 		},
 		deps,
