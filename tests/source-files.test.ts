@@ -87,4 +87,44 @@ describe("source file selection", () => {
 
 		expect(sourceFiles).toEqual([path.join(tmpDir, "src/app.py")]);
 	});
+
+	it("excludes Vite config-bundle timestamp cache files even when tracked", () => {
+		createFile(tmpDir, "src/app.ts", "export const app = true;\n");
+		createFile(
+			tmpDir,
+			"apps/storybook/vite.config.ts.timestamp-1735325995918-46a167c39672.mjs",
+			"// vite cache\n",
+		);
+		createFile(
+			tmpDir,
+			"apps/web/vite.config.ts.timestamp-1700000000000-abc123def456.cjs",
+			"// vite cache\n",
+		);
+		createFile(tmpDir, "src/normal.timestamp-1.mjs", "// not a cache file\n");
+
+		git(tmpDir, [
+			"add",
+			"-f",
+			"src/app.ts",
+			"apps/storybook/vite.config.ts.timestamp-1735325995918-46a167c39672.mjs",
+			"apps/web/vite.config.ts.timestamp-1700000000000-abc123def456.cjs",
+			"src/normal.timestamp-1.mjs",
+		]);
+		git(tmpDir, [
+			"-c",
+			"user.email=t@t",
+			"-c",
+			"user.name=t",
+			"commit",
+			"-m",
+			"seed",
+		]);
+
+		const sourceFiles = getSourceFilesForRoot(tmpDir).sort();
+
+		expect(sourceFiles).toEqual([
+			path.join(tmpDir, "src/app.ts"),
+			path.join(tmpDir, "src/normal.timestamp-1.mjs"),
+		]);
+	});
 });

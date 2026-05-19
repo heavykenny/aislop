@@ -253,6 +253,7 @@ export const filterProjectFiles = (
 				!isWithinProject(relativePath) ||
 				isExcludedPath(relativePath) ||
 				isTestFile(relativePath) ||
+				isBuildCacheFile(relativePath) ||
 				ignoredPaths.has(relativePath)
 			) {
 				return false;
