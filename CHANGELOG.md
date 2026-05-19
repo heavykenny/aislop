@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.9.2 (2026-05-19)
+
+Patch fix for a regression introduced during the 0.9.1 merge.
+
+### Fixed
+
+- **Restore `isBuildCacheFile` in the source-file filter (#117).** PR #113 added an exclusion for Vite config-bundle cache artifacts (`*.timestamp-NNN-XXX.{js,mjs,cjs}`); PR #47's `--include` rewrite of the filter chain dropped the call. The helper survived in code but stopped being consulted by the source-file walk, so repos that commit those cache files (e.g. via Storybook's `vite.config.ts.timestamp-…mjs`) saw three spurious `ai-slop/hallucinated-import` errors per scan. Restored the call and added a regression test that creates real Vite cache filenames plus one false-match to guard against future filter rewrites.
+
 ## 0.9.1 (2026-05-19)
 
 Patch release focused on accuracy and signal quality on real-world projects: fewer false positives on Vite, Next.js, SolidStart, SST, and Bun setups; smarter complexity thresholds per language and per role; vulnerable-dependency aggregation per package; a new top-rules breakdown in scan output; `--include` pattern support on `scan`; scan-stability hardening; and an enterprise-friendly `init --strict` mode.
