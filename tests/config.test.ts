@@ -141,8 +141,8 @@ describe("DEFAULT_CONFIG", () => {
 		expect(DEFAULT_CONFIG.ci.format).toBe("json");
 	});
 
-	it("ci failBelow defaults to 0", () => {
-		expect(DEFAULT_CONFIG.ci.failBelow).toBe(0);
+	it("ci failBelow defaults to the public quality gate", () => {
+		expect(DEFAULT_CONFIG.ci.failBelow).toBe(70);
 	});
 });
 

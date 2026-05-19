@@ -39,7 +39,7 @@ scoring:
   smoothing: 20
 
 ci:
-  failBelow: 0           # set to e.g. 70 to fail CI below that score
+  failBelow: 70          # fail CI below this score
   format: json
 
 telemetry:

@@ -63,7 +63,7 @@ const runScan = async (directory: string, flags: ScanFlags): Promise<void> => {
 	});
 	if (exitCode !== 0) {
 		await flushTelemetry();
-		process.exit(exitCode);
+		process.exitCode = exitCode;
 	}
 };
 
@@ -228,7 +228,7 @@ program
 		});
 		if (exitCode !== 0) {
 			await flushTelemetry();
-			process.exit(exitCode);
+			process.exitCode = exitCode;
 		}
 	});
 
