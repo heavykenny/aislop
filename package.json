@@ -1,6 +1,6 @@
 {
 	"name": "aislop",
-	"version": "0.9.2",
+	"version": "0.9.3",
 	"description": "The engineering standards layer and quality gate for AI-written code. Define your standard once. Every agent — Claude Code, Cursor, Codex — is held to it automatically, on every edit and every PR. Catches the slop they leave behind, enforces the rules your team sets. 8+ languages. Deterministic.",
 	"type": "module",
 	"bin": {

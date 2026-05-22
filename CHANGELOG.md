@@ -4,6 +4,42 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.9.3 (2026-05-22)
+
+Patch release focused on rule precision. Tightens detection across the ai-slop, security, lint, and source-file engines so common language and ecosystem conventions are no longer flagged as slop. No new rules; existing rules now discriminate genuine documentation, intentional patterns, and build-time injections from the AI-written patterns they were designed to catch.
+
+### Fixed
+
+- **`ai-slop/narrative-comment` and `ai-slop/trivial-comment` no longer fire on language-idiomatic documentation (#121).** Recognizes JSDoc/Javadoc/PHPDoc descriptions above declarations, Ruby YARD/RDoc blocks (`@param`, `@return`, `:call-seq:`, `##` markers), Go struct-field docs (comment-word matches field name), and `// summary` / `# summary` lines directly above a Ruby/Java/PHP declaration. Extends the WHY-marker vocabulary (`to avoid`, `to ensure`, `in order to`, `for example`, `e.g.`, `useful for`, `intended to`, `by design`, …) and lets the escape hatch apply to line-kind blocks, not just JSDoc. Replaces the length-only catch-all with explicit AI-narration slop signals (`^This function/method/class`, `^It does/handles/...`, `^First/Then/Finally it`); the canonical AI-slop patterns still fire.
+- **`ai-slop/hallucinated-import` understands Python project layouts and PEP 484 re-exports (#121).** Discovers local Python packages by scanning `<root>/`, `src/`, `lib/` for directories containing `__init__.py` — fixes large-scale false positives on projects whose internal packages (e.g. `_pytest`) were treated as missing dependencies. The PEP 484 re-export convention `from X import Y as Y` is no longer flagged as unused.
+- **`security/eval` lookbehind skips method-call forms (#121).** `(?<![\w.>:\\])` prevents matches on `.eval(`, `->eval(`, `::eval(`, and `\eval(` (Predis Lua scripts, `binding.eval`, custom-class methods). Top-level `eval()` still fires.
+- **`ai-slop/thin-wrapper` patterns ext-gated to JS/Python (#121).** The JS function-shape regex was accidentally matching PHP `public function valid(): bool { return isset(...); }` and Java methods. Patterns now apply only to `.ts/.tsx/.js/.jsx/.mjs/.cjs` (JS) and `.py` (Python).
+- **`ai-slop/swallowed-exception` allows intentional-ignore convention (#121).** Catch parameters named `tolerated`, `ignored`, `expected`, `unused`, `_`, `_e`, `_err`, `_ex`, `_t` are recognized as documented intent. Same for Ruby `rescue ... => ignored`.
+- **`ai-slop/rust-non-test-unwrap` skips doc-comment example blocks (#121).** Tracks `/*! ... */` and `/** ... */` ranges so `.unwrap()` inside crate-level doc examples (e.g. `regex/src/lib.rs`) is no longer flagged. Singular `xxx_test.rs` filenames are now recognized as test files alongside the existing `xxx_tests.rs`.
+- **`security/dangerously-set-innerhtml` respects `aislop-ignore` / `biome-ignore` / `eslint-disable` comments and JSON-LD structured data (#121).** Two-line lookback for ignore directives, and skips `dangerouslySetInnerHTML` paired with `type="application/ld+json"` or `__html: JSON.stringify(...)` (safe by construction).
+- **`code-quality/duplicate-block` no longer flags repeated import groups (#121).** Block hashing skips contiguous `import`/`from` lines so semantically identical import blocks across files don't surface as duplicates.
+- **`ai-slop/dead-code` recognizes more idiomatic patterns (#121).** Improved discrimination on patterns that previously misfired.
+
+### Improved
+
+- **Oxlint config registers conventional bundler-injected globals (#121).** `__DEV__`, `__TEST__`, `__BROWSER__`, `__NODE__`, `__GLOBAL__`, `__SSR__`, `__ESM_BROWSER__`, `__ESM_BUNDLER__`, `__VERSION__`, `__COMMIT__`, `__BUILD__` are now registered as `readonly` globals on every project — eliminates `no-undef` noise on Rollup/Vite/Webpack `define` flags (e.g. Vue source). A new `OxlintConfigOptions.globals` parameter lets callers pass additional globals.
+- **Oxlint discovers ambient globals from project `.d.ts` files (#121).** Top-level `declare const|let|var|function|class` declarations are registered as globals. Bun (`@types/bun` or `bun-types` in deps) adds `Bun`; SST projects (`sst.config.ts`) register `$app`, `$config`, `$dev`, `$interpolate`, `aws`, `cloudflare`, `docker`, `sst`, `pulumi`, and similar.
+- **Oxlint context-aware filters (#121).** New filter layer suppresses oxlint diagnostics that are correct for general JS but wrong in specific framework contexts (e.g. Astro `<script>` IIFEs, Next.js metadata exports).
+- **`scan` filters minified and bundled JS (#121).** `*.min.js`, `*.bundle.js`, `*.min.css` are excluded alongside the existing build-cache patterns; stops surfacing vendored minified assets in non-JS projects.
+- **`scan` honors Biome `files.includes` exclusions (#121).** Negated patterns from `biome.json` are merged into the source-file filter so projects that scope Biome to a subset of files automatically get the same scope for aislop.
+- **`scan` ignores `.pnpm-store/` (#121).** Joins the existing `node_modules`, `dist`, `build`, etc. prune list.
+- **TS-config path alias and workspace discovery extracted (#121).** Moved into `js-import-aliases.ts` and `js-workspaces.ts` for reuse beyond the hallucinated-import engine.
+- **Block-collection extracted from narrative-comments (#121).** New `comment-blocks.ts` module reused by `narrative-comments.ts` and `narrative-comments-fix.ts`.
+
+### Pattern fixes
+
+- `GO_DECL_START` matches grouped declarations (`const (`, `var (`, `type (`).
+- `PHP_DECL_START` accepts whitespace between visibility modifiers and `function`.
+
+### Tests
+
+32 new regression tests covering the new exemptions and slop signals; total suite at 835/835 passing.
+
 ## 0.9.2 (2026-05-19)
 
 Patch fix for a regression introduced during the 0.9.1 merge.
