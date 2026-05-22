@@ -27,6 +27,7 @@ const EXCLUDED_DIRS = [
 	"build",
 	".git",
 	".agents",
+	".pnpm-store",
 	"vendor",
 	"examples",
 	"example",
@@ -64,6 +65,7 @@ const FIND_PRUNE_DIRS = [
 	"build",
 	".git",
 	".agents",
+	".pnpm-store",
 	"vendor",
 	"examples",
 	"example",
@@ -136,6 +138,26 @@ export const isExcludedFromScan = (relativePath: string): boolean =>
 
 const isTestFile = (filePath: string): boolean =>
 	TEST_FILE_PATTERNS.some((pattern) => pattern.test(filePath));
+
+const readBiomeExcludePatterns = (rootDirectory: string): string[] => {
+	const biomePath = path.join(rootDirectory, "biome.json");
+	if (!fs.existsSync(biomePath)) return [];
+
+	try {
+		const config = JSON.parse(fs.readFileSync(biomePath, "utf-8")) as {
+			files?: { includes?: unknown };
+		};
+		const includes = config.files?.includes;
+		if (!Array.isArray(includes)) return [];
+
+		return includes
+			.filter((entry): entry is string => typeof entry === "string")
+			.filter((entry) => entry.startsWith("!") && entry.length > 1)
+			.map((entry) => entry.slice(1));
+	} catch {
+		return [];
+	}
+};
 
 const getIgnoredPaths = (rootDirectory: string, files: string[]): Set<string> => {
 	if (files.length === 0) return new Set<string>();
@@ -232,7 +254,10 @@ export const filterProjectFiles = (
 	const relativePaths = normalizedFiles.map(({ relativePath }) => relativePath);
 
 	const ignoredPaths = getIgnoredPaths(rootDirectory, relativePaths);
-	const normalizedExcludePatterns = exclude.length ? normalizeExcludePatterns(exclude) : [];
+	const excludePatterns = [...readBiomeExcludePatterns(rootDirectory), ...exclude];
+	const normalizedExcludePatterns = excludePatterns.length
+		? normalizeExcludePatterns(excludePatterns)
+		: [];
 	const isUserExcluded = (relativePath: string) => {
 		if (!normalizedExcludePatterns.length) return false;
 		return micromatch.isMatch(relativePath, normalizedExcludePatterns, {

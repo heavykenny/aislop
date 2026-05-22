@@ -7,6 +7,7 @@ interface OxlintConfigOptions {
 	hasReactCompiler?: boolean;
 	testFramework?: TestFramework;
 	mode?: "detect" | "fix";
+	globals?: string[];
 }
 
 const buildBaseRules = (): Record<string, string> => ({
@@ -98,6 +99,9 @@ export const createOxlintConfig = (options: OxlintConfigOptions): Record<string,
 		"__BUILD__",
 	]) {
 		globals[name] = "readonly";
+	}
+	for (const globalName of options.globals ?? []) {
+		globals[globalName] = "readonly";
 	}
 	if (options.framework === "astro") {
 		globals.Astro = "readonly";

@@ -25,6 +25,12 @@ const isTrivialLine = (line: string): boolean => {
 	return false;
 };
 
+const SVG_MARKUP_RE =
+	/<\/?(?:svg|path|polyline|line|circle|rect|g)\b|(?:xmlns|viewBox|stroke(?:-width|-linecap|-linejoin)?|fill|fill-opacity|d|points|x1|x2|y1|y2)=/;
+
+const DATA_LITERAL_RE =
+	/^\s*(?:[A-Za-z_$][\w$-]*:\s*(?:["'`[{]|\d|true\b|false\b|null\b)|["'`][^"'`]*["'`],?\s*$|[{}\]],?\s*$|\),?\s*$)/;
+
 interface BlockHit {
 	startLine: number;
 	normalised: string[];
@@ -37,6 +43,16 @@ const FILE_SUPPRESS_RE =
 	/aislop[- ]ignore-file\b.*\b(?:duplicate-block|code-quality\/duplicate-block)\b/;
 
 const fileHasSuppression = (content: string): boolean => FILE_SUPPRESS_RE.test(content);
+
+const isLowSignalMarkupWindow = (lines: string[]): boolean => {
+	const markupLines = lines.filter((line) => SVG_MARKUP_RE.test(line)).length;
+	return markupLines >= Math.ceil(WINDOW_SIZE / 2);
+};
+
+const isLowSignalDataWindow = (lines: string[]): boolean => {
+	const dataLines = lines.filter((line) => DATA_LITERAL_RE.test(line)).length;
+	return dataLines >= WINDOW_SIZE - 1;
+};
 
 const findSuppressedLines = (lines: string[]): Set<number> => {
 	const suppressed = new Set<number>();
@@ -65,6 +81,8 @@ const collectMeaningfulLines = (content: string): BlockHit[] => {
 		if (suppressed.has(i + 1)) continue;
 		const window = lines.slice(i, i + WINDOW_SIZE);
 		if (window.some((l) => !MEANINGFUL_LINE.test(l))) continue;
+		if (isLowSignalMarkupWindow(window)) continue;
+		if (isLowSignalDataWindow(window)) continue;
 		if (window.every(isTrivialLine)) continue;
 		const normalised = window.map(normaliseLine);
 		const meaningfulCount = normalised.filter((n) => n.length > 0 && n !== "}" && n !== "{").length;

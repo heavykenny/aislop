@@ -78,6 +78,30 @@ const TODO_PATTERN = new RegExp(
 	`\\b(?:${todoKeywords.join("|")})\\b[:\\s]|\\b(?:${markerKeywords.join("|")})[:\\s]`,
 );
 
+const isBlockCloserAfterReturn = (line: string): boolean =>
+	line.startsWith("}") ||
+	line.startsWith("};") ||
+	line.startsWith("),") ||
+	line.startsWith(");") ||
+	line.startsWith("],") ||
+	line.startsWith("]);");
+
+const isGuardedSingleLineExit = (lines: string[], lineIndex: number): boolean => {
+	const contextLines: string[] = [];
+	for (let i = lineIndex - 1; i >= 0 && contextLines.length < 16; i--) {
+		const trimmed = lines[i].trim();
+		if (!trimmed || trimmed.startsWith("//")) continue;
+		contextLines.unshift(trimmed);
+		if (/^(?:if|else\s+if|for|while)\b/.test(trimmed) || /^}\s*else\s+if\b/.test(trimmed)) {
+			break;
+		}
+		if (/;\s*$/.test(trimmed)) break;
+	}
+
+	const control = contextLines.join(" ");
+	return /(?:^|[}\s])(?:if|else\s+if|for|while)\s*\(/.test(control) && !/{\s*$/.test(control);
+};
+
 const detectTodoStubs = (content: string, relativePath: string): Diagnostic[] => {
 	const diagnostics: Diagnostic[] = [];
 	const lines = content.split("\n");
@@ -130,7 +154,8 @@ const detectDeadCodePatterns = (
 			trimmed.endsWith(";") &&
 			nextLine &&
 			nextLine.length > 0 &&
-			!nextLine.startsWith("}") &&
+			!isGuardedSingleLineExit(lines, i) &&
+			!isBlockCloserAfterReturn(nextLine) &&
 			!nextLine.startsWith("//") &&
 			!nextLine.startsWith("/*") &&
 			!nextLine.startsWith("case ") &&

@@ -305,6 +305,85 @@ describe("dead code patterns", () => {
 		expect(unreachable).toHaveLength(0);
 	});
 
+	it("does not flag the closure terminator after a return inside an arrow callback", async () => {
+		const filePath = writeFile(
+			"closure-return.ts",
+			[
+				"const getValue = () => {",
+				"  if (kind === 'a') return first;",
+				"  if (kind === 'b') return second;",
+				"  return undefined;",
+				"};",
+				"const value = getValue();",
+			].join("\n"),
+		);
+		const diagnostics = await detectDeadPatterns(makeContext([filePath]));
+		const unreachable = diagnostics.filter((d) => d.rule === "ai-slop/unreachable-code");
+		expect(unreachable).toHaveLength(0);
+	});
+
+	it("does not treat one-line guarded returns as unconditional exits", async () => {
+		const filePath = writeFile(
+			"guarded-return.ts",
+			[
+				"function pick(kind: string) {",
+				"  if (kind === 'a')",
+				"    return first;",
+				"  if (kind === 'b') return second;",
+				"  const fallback = computeFallback();",
+				"  return fallback;",
+				"}",
+			].join("\n"),
+		);
+		const diagnostics = await detectDeadPatterns(makeContext([filePath]));
+		const unreachable = diagnostics.filter((d) => d.rule === "ai-slop/unreachable-code");
+		expect(unreachable).toHaveLength(0);
+	});
+
+	it("does not treat exits after multiline guard conditions as unconditional", async () => {
+		const filePath = writeFile(
+			"multiline-guard.ts",
+			[
+				"function parse(resp: { body: unknown }) {",
+				"  if (",
+				'    typeof resp.body === "object" &&',
+				"    resp.body &&",
+				'    "message" in resp.body',
+				"  )",
+				"    throw resp.body.message;",
+				"  throw new Error(String(resp.body));",
+				"}",
+			].join("\n"),
+		);
+		const diagnostics = await detectDeadPatterns(makeContext([filePath]));
+		const unreachable = diagnostics.filter((d) => d.rule === "ai-slop/unreachable-code");
+		expect(unreachable).toHaveLength(0);
+	});
+
+	it("does not stop multiline guard detection at object literals inside conditions", async () => {
+		const filePath = writeFile(
+			"object-guard.ts",
+			[
+				"async function open(confirm: (message: string, options: unknown) => Promise<boolean>) {",
+				"  if (",
+				"    !(await confirm(",
+				'      "Open item?",',
+				"      {",
+				'        title: "Needs review",',
+				'        kind: "warning",',
+				"      },",
+				"    ))",
+				"  )",
+				"    return;",
+				"  openEditor();",
+				"}",
+			].join("\n"),
+		);
+		const diagnostics = await detectDeadPatterns(makeContext([filePath]));
+		const unreachable = diagnostics.filter((d) => d.rule === "ai-slop/unreachable-code");
+		expect(unreachable).toHaveLength(0);
+	});
+
 	it("detects constant condition if (false)", async () => {
 		const filePath = writeFile("constant.ts", ["if (false) {", "  doSomething();", "}"].join("\n"));
 		const diagnostics = await detectDeadPatterns(makeContext([filePath]));
