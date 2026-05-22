@@ -95,6 +95,25 @@ const RISKY_PATTERNS: RiskyPattern[] = [
 	},
 ];
 
+const hasDangerouslySetInnerHtmlIgnore = (lines: string[], lineIndex: number): boolean => {
+	const start = Math.max(0, lineIndex - 2);
+	return lines
+		.slice(start, lineIndex + 1)
+		.some((line) =>
+			/(?:biome-ignore|eslint-disable|aislop-ignore).*(?:noDangerouslySetInnerHtml|dangerouslySetInnerHTML|dangerously-set-innerhtml)/i.test(
+				line,
+			),
+		);
+};
+
+const isStructuredDataScript = (content: string, matchIndex: number): boolean => {
+	const before = content.slice(Math.max(0, matchIndex - 300), matchIndex);
+	if (/type=["']application\/ld\+json["']/.test(before)) return true;
+
+	const after = content.slice(matchIndex, Math.min(content.length, matchIndex + 180));
+	return /__html\s*:\s*JSON\.stringify\s*\(/.test(after);
+};
+
 export const detectRiskyConstructs = async (context: EngineContext): Promise<Diagnostic[]> => {
 	const files = getSourceFiles(context);
 	const diagnostics: Diagnostic[] = [];
@@ -113,6 +132,7 @@ export const detectRiskyConstructs = async (context: EngineContext): Promise<Dia
 		const normalizedPath = relativePath.split(path.sep).join("/");
 		const isMigrationOrSeeder = /(?:^|\/)(migrations|seeders|seeds|migrate)\//.test(normalizedPath);
 		const masked = maskStringsAndComments(content, ext);
+		const lines = content.split("\n");
 
 		for (const { pattern, extensions, name, message, help } of RISKY_PATTERNS) {
 			if (!extensions.includes(ext)) continue;
@@ -133,6 +153,11 @@ export const detectRiskyConstructs = async (context: EngineContext): Promise<Dia
 					) {
 						continue;
 					}
+				}
+
+				if (name === "dangerously-set-innerhtml") {
+					if (hasDangerouslySetInnerHtmlIgnore(lines, line - 1)) continue;
+					if (isStructuredDataScript(content, match.index)) continue;
 				}
 
 				diagnostics.push({

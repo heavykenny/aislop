@@ -106,6 +106,64 @@ two.abort();
 		expect(diags).toHaveLength(0);
 	});
 
+	it("does not flag repeated SVG path markup as duplicate logic", async () => {
+		write(
+			"icons.tsx",
+			`export const IconA = () => (
+	<svg viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
+		<path d="M0 0h10v10H0z" fill="currentColor" fill-opacity="0.9" />
+		<path d="M1 1h8v8H1z" stroke="currentColor" stroke-width="2" />
+		<line x1="0" x2="10" y1="5" y2="5" stroke="currentColor" />
+		<polyline points="1 1 5 5 9 1" stroke-linecap="round" stroke-linejoin="round" />
+	</svg>
+);
+
+export const IconB = () => (
+	<svg viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
+		<path d="M0 0h10v10H0z" fill="currentColor" fill-opacity="0.9" />
+		<path d="M1 1h8v8H1z" stroke="currentColor" stroke-width="2" />
+		<line x1="0" x2="10" y1="5" y2="5" stroke="currentColor" />
+		<polyline points="1 1 5 5 9 1" stroke-linecap="round" stroke-linejoin="round" />
+	</svg>
+);
+`,
+		);
+		const diags = await detectDuplicateBlocks(ctx(tmpDir));
+		expect(diags).toHaveLength(0);
+	});
+
+	it("does not flag repeated data literal records as duplicate logic", async () => {
+		write(
+			"data.ts",
+			`export const testimonials = [
+	{
+		name: "Steven",
+		handle: "@steven",
+		image: "/steven.jpg",
+		content: "Great product",
+		url: "https://example.com/a",
+	},
+	{
+		name: "Olivia",
+		handle: "@olivia",
+		image: "/olivia.jpg",
+		content: "Still great",
+		url: "https://example.com/b",
+	},
+	{
+		name: "Jaisal",
+		handle: "@jaisal",
+		image: "/jaisal.jpg",
+		content: "Useful tool",
+		url: "https://example.com/c",
+	},
+];
+`,
+		);
+		const diags = await detectDuplicateBlocks(ctx(tmpDir));
+		expect(diags).toHaveLength(0);
+	});
+
 	it("does not flag purely boilerplate trivial lines like closing braces", async () => {
 		write(
 			"d.ts",

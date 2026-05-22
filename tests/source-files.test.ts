@@ -82,6 +82,7 @@ describe("source file selection", () => {
 		createFile(tmpDir, "tutorials/lesson.py", "print('tutorial')\n");
 		createFile(tmpDir, "code_samples/demo.py", "print('sample')\n");
 		createFile(tmpDir, ".agents/skills/example.py", "print('skill')\n");
+		createFile(tmpDir, ".pnpm-store/v10/files/aa/package.ts", "export const cached = true;\n");
 
 		const sourceFiles = getSourceFilesForRoot(tmpDir).sort();
 
@@ -110,15 +111,7 @@ describe("source file selection", () => {
 			"apps/web/vite.config.ts.timestamp-1700000000000-abc123def456.cjs",
 			"src/normal.timestamp-1.mjs",
 		]);
-		git(tmpDir, [
-			"-c",
-			"user.email=t@t",
-			"-c",
-			"user.name=t",
-			"commit",
-			"-m",
-			"seed",
-		]);
+		git(tmpDir, ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-m", "seed"]);
 
 		const sourceFiles = getSourceFilesForRoot(tmpDir).sort();
 
@@ -126,5 +119,23 @@ describe("source file selection", () => {
 			path.join(tmpDir, "src/app.ts"),
 			path.join(tmpDir, "src/normal.timestamp-1.mjs"),
 		]);
+	});
+
+	it("honors Biome file exclusions in zero-config scans", () => {
+		createFile(
+			tmpDir,
+			"biome.json",
+			JSON.stringify({
+				files: {
+					includes: ["**", "!packages/ui/src/auto-imports.d.ts"],
+				},
+			}),
+		);
+		createFile(tmpDir, "src/app.ts", "export const app = true;\n");
+		createFile(tmpDir, "packages/ui/src/auto-imports.d.ts", "declare const IconThing: unknown;\n");
+
+		const sourceFiles = getSourceFilesForRoot(tmpDir).sort();
+
+		expect(sourceFiles).toEqual([path.join(tmpDir, "src/app.ts")]);
 	});
 });

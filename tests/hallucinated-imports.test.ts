@@ -25,10 +25,18 @@ const buildContext = (): EngineContext => ({
 	},
 });
 
-const writePkgJson = (deps: Record<string, string> = {}, devDeps: Record<string, string> = {}): void => {
+const writePkgJson = (
+	deps: Record<string, string> = {},
+	devDeps: Record<string, string> = {},
+): void => {
 	writeFile(
 		"package.json",
-		JSON.stringify({ name: "test", version: "1.0.0", dependencies: deps, devDependencies: devDeps }),
+		JSON.stringify({
+			name: "test",
+			version: "1.0.0",
+			dependencies: deps,
+			devDependencies: devDeps,
+		}),
 	);
 };
 
@@ -97,7 +105,7 @@ export type Node = ReactNode
 		expect(diagnostics).toEqual([]);
 	});
 
-	it("does not false-positive on `import ... from \"x\"` written inside a string literal in source (e.g. help text)", async () => {
+	it('does not false-positive on `import ... from "x"` written inside a string literal in source (e.g. help text)', async () => {
 		writePkgJson({ lodash: "^4.0.0" });
 		// Mirrors the FP found when scanning aislop on itself — the duplicate-import rule's
 		// help string contained the literal text `import { A, type B } from "x"` as an
@@ -141,6 +149,32 @@ export { msg, example, tpl }
 			`import { getCollection } from "astro:content";
 import sw from "virtual:pwa-register";
 import { serve } from "bun:test";
+`,
+		);
+		const diags = await detectHallucinatedImports(buildContext());
+		expect(diags).toHaveLength(0);
+	});
+
+	it("does not flag Bun runtime and file URL modules", async () => {
+		writePkgJson({});
+		writeFile(
+			"src/runtime.ts",
+			`import { spawn } from "bun";
+import config from "file:///tmp/generated-config.mjs";
+export { spawn, config };
+`,
+		);
+		const diags = await detectHallucinatedImports(buildContext());
+		expect(diags).toHaveLength(0);
+	});
+
+	it("does not flag unplugin virtual icon and font modules when their plugins are installed", async () => {
+		writePkgJson({}, { "unplugin-icons": "^0.19.0", "unplugin-fonts": "^1.1.0" });
+		writeFile(
+			"src/app.tsx",
+			`import IconCheck from "~icons/lucide/check";
+import "unfonts.css";
+export const App = () => <IconCheck />;
 `,
 		);
 		const diags = await detectHallucinatedImports(buildContext());
@@ -224,10 +258,7 @@ const m2 = await import("ghost-package-esm")
 		const ruleIds = diagnostics.map((d) => d.rule);
 		const messages = diagnostics.map((d) => d.message);
 
-		expect(ruleIds).toEqual([
-			"ai-slop/hallucinated-import",
-			"ai-slop/hallucinated-import",
-		]);
+		expect(ruleIds).toEqual(["ai-slop/hallucinated-import", "ai-slop/hallucinated-import"]);
 		expect(messages.some((m) => m.includes("ghost-package-cjs"))).toBe(true);
 		expect(messages.some((m) => m.includes("ghost-package-esm"))).toBe(true);
 	});
@@ -280,10 +311,7 @@ import { Page } from "@/pages/Home";
 				compilerOptions: { baseUrl: ".", paths: { "@/*": ["./src/*"] } },
 			}),
 		);
-		writeFile(
-			"packages/web/src/main.ts",
-			`import { Layout } from "@/components/Layout";\n`,
-		);
+		writeFile("packages/web/src/main.ts", `import { Layout } from "@/components/Layout";\n`);
 		const diags = await detectHallucinatedImports(buildContext());
 		expect(diags).toEqual([]);
 	});
@@ -301,13 +329,28 @@ import { Page } from "@/pages/Home";
 		expect(diags).toEqual([]);
 	});
 
+	it("resolves bare imports through tsconfig baseUrl directories", async () => {
+		writePkgJson({});
+		writeFile("pnpm-workspace.yaml", `packages:\n  - "apps/*"\n`);
+		writeFile("apps/web/package.json", JSON.stringify({ name: "@scope/web" }));
+		writeFile(
+			"apps/web/tsconfig.json",
+			JSON.stringify({
+				compilerOptions: { baseUrl: "." },
+			}),
+		);
+		writeFile("apps/web/hooks/useThing.ts", "export const useThing = () => true;\n");
+		writeFile("apps/web/components/Header.ts", `import { useThing } from "hooks/useThing";\n`);
+
+		const diags = await detectHallucinatedImports(buildContext());
+
+		expect(diags).toEqual([]);
+	});
+
 	it("falls back gracefully when tsconfig.json is malformed (no crash, no alias support)", async () => {
 		writePkgJson({});
 		// Trailing comma — invalid strict JSON. readJson returns null; we proceed without aliases.
-		writeFile(
-			"tsconfig.json",
-			`{ "compilerOptions": { "paths": { "@/*": ["./src/*"], }, }, }`,
-		);
+		writeFile("tsconfig.json", `{ "compilerOptions": { "paths": { "@/*": ["./src/*"], }, }, }`);
 		writeFile("src/index.ts", `import { x } from "@/lib/x";\n`);
 		const diags = await detectHallucinatedImports(buildContext());
 		// Without alias support, this DOES flag — that's the documented degraded behavior, not a regression.

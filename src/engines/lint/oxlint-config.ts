@@ -7,6 +7,7 @@ interface OxlintConfigOptions {
 	hasReactCompiler?: boolean;
 	testFramework?: TestFramework;
 	mode?: "detect" | "fix";
+	globals?: string[];
 }
 
 const buildBaseRules = (): Record<string, string> => ({
@@ -84,6 +85,9 @@ export const createOxlintConfig = (options: OxlintConfigOptions): Record<string,
 	const plugins = ["import", "unicorn", "typescript", ...buildFrameworkPlugins(options.framework)];
 
 	const globals = buildTestGlobals(options.testFramework ?? null);
+	for (const globalName of options.globals ?? []) {
+		globals[globalName] = "readonly";
+	}
 	if (options.framework === "expo" || options.framework === "react") {
 		globals.__DEV__ = "readonly";
 	}
