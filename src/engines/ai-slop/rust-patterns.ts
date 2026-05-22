@@ -27,7 +27,30 @@ const isTestFile = (relPath: string): boolean => {
 	if (segments.some((s) => TEST_CRATE_SEGMENT_RE.test(s))) return true;
 	const basename = segments[segments.length - 1] ?? "";
 	if (TEST_BASENAMES.has(basename)) return true;
-	return basename.endsWith("_tests.rs") || basename.endsWith("_testutil.rs");
+	return (
+		basename.endsWith("_tests.rs") ||
+		basename.endsWith("_test.rs") ||
+		basename.endsWith("_testutil.rs")
+	);
+};
+
+const buildBlockCommentRanges = (lines: string[]): Array<[number, number]> => {
+	const ranges: Array<[number, number]> = [];
+	let openLine = -1;
+	for (let i = 0; i < lines.length; i++) {
+		const line = lines[i];
+		if (openLine === -1) {
+			const openIdx = line.indexOf("/*");
+			if (openIdx !== -1 && line.indexOf("*/", openIdx + 2) === -1) {
+				openLine = i;
+			}
+		} else if (line.indexOf("*/") !== -1) {
+			ranges.push([openLine, i]);
+			openLine = -1;
+		}
+	}
+	if (openLine !== -1) ranges.push([openLine, lines.length - 1]);
+	return ranges;
 };
 
 const isExampleFile = (relPath: string): boolean =>
@@ -76,12 +99,14 @@ const flagNonTestUnwrap = (
 	lines: string[],
 	relPath: string,
 	testRanges: Array<[number, number]>,
+	blockCommentRanges: Array<[number, number]>,
 	out: Diagnostic[],
 ): void => {
 	for (let i = 0; i < lines.length; i++) {
 		const line = lines[i];
 		if (COMMENT_LINE_RE.test(line)) continue;
 		if (isInRange(testRanges, i)) continue;
+		if (isInRange(blockCommentRanges, i)) continue;
 		if (!UNWRAP_CALL_RE.test(line)) continue;
 		if (WRITELN_UNWRAP_RE.test(line)) continue;
 		if (hasIntentComment(lines, i)) continue;
@@ -150,7 +175,8 @@ export const detectRustPatterns = async (context: EngineContext): Promise<Diagno
 		}
 
 		const testRanges = buildTestRanges(lines);
-		flagNonTestUnwrap(lines, relPath, testRanges, diagnostics);
+		const blockCommentRanges = buildBlockCommentRanges(lines);
+		flagNonTestUnwrap(lines, relPath, testRanges, blockCommentRanges, diagnostics);
 		flagTodoMacro(lines, relPath, diagnostics);
 	}
 

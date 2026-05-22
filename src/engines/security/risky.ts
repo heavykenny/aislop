@@ -23,7 +23,9 @@ const DB_METHOD =
 
 const RISKY_PATTERNS: RiskyPattern[] = [
 	{
-		pattern: new RegExp(`\\b${ev}\\s*\\(`, "g"),
+		// Negative lookbehind skips method-call forms (`.eval(`, `->eval(`, `::eval(`, `\eval(`)
+		// which are not the global eval — common in PHP (Redis Lua), Ruby (binding.eval), JS (custom methods).
+		pattern: new RegExp(`(?<![\\w.>:\\\\])\\b${ev}\\s*\\(`, "g"),
 		extensions: [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".py", ".rb", ".php"],
 		name: "eval",
 		message: `Use of ${ev}() is a security risk`,

@@ -526,4 +526,117 @@ pub fn handle() {}
 		const diags = await detectNarrativeComments(ctx(tmpDir));
 		expect(diags.length).toBeGreaterThan(0);
 	});
+
+	it("exempts long Javadoc/PHPDoc description blocks above a declaration (no slop signal)", async () => {
+		writeFile(
+			"src/Box.java",
+			`/**
+ * A small data structure used throughout the runtime. Provides a
+ * predictable lifecycle for inspection and update operations during
+ * test runs and production paths alike. Subclasses may override the
+ * default comparison strategy. Thread safety guarantees follow the
+ * package conventions documented at the namespace level.
+ */
+public class Box {}
+`,
+		);
+		writeFile(
+			"src/Box.php",
+			`<?php
+/**
+ * Provides a small surface for reading and updating a stored value.
+ * Subclasses may extend the default comparison strategy. Documentation
+ * for the lifecycle is published alongside the framework manual.
+ * Implementations are expected to follow the package conventions for
+ * locking, naming, and error propagation.
+ */
+class Box {}
+`,
+		);
+		const diags = await detectNarrativeComments(ctx(tmpDir));
+		expect(diags).toHaveLength(0);
+	});
+
+	it("exempts Ruby YARD-tagged comment blocks", async () => {
+		writeFile(
+			"lib/auth.rb",
+			`# Authenticates a user against the configured backend.
+#
+# @param username [String] the login
+# @param password [String] the secret
+# @return [Boolean] whether authentication succeeded
+# @example
+#   Auth.login("alice", "s3cret")
+def login(username, password); end
+`,
+		);
+		const diags = await detectNarrativeComments(ctx(tmpDir));
+		expect(diags).toHaveLength(0);
+	});
+
+	it("exempts Ruby RDoc `##` marker blocks", async () => {
+		writeFile(
+			"lib/runner.rb",
+			`##
+# Runs a task by name with the given arguments and returns
+# the captured output. Raises if the task is not registered.
+# Used by the CLI front-end and the test harness.
+def run_task(name, *args); end
+`,
+		);
+		const diags = await detectNarrativeComments(ctx(tmpDir));
+		expect(diags).toHaveLength(0);
+	});
+
+	it("exempts Ruby `#` doc blocks above a def that contain a WHY marker", async () => {
+		writeFile(
+			"lib/cache.rb",
+			`# Lightweight cache root computation that reads the toplevel config.
+# This method can be used before loading configuration files because
+# the full ConfigStore is not available yet, otherwise we would have
+# a chicken-and-egg problem during boot.
+def self.root_dir_from_toplevel_config(cache_root_override = nil); end
+`,
+		);
+		const diags = await detectNarrativeComments(ctx(tmpDir));
+		expect(diags).toHaveLength(0);
+	});
+
+	it("exempts Go struct field doc comments (comment first word matches the field name)", async () => {
+		writeFile(
+			"key.go",
+			`package x
+
+type Key struct {
+	// Text contains the actual characters received. This usually the same as
+	// [Key.Code]. When [Key.Text] is non-empty, it indicates that the key
+	// pressed represents printable character(s).
+	Text string
+}
+`,
+		);
+		const diags = await detectNarrativeComments(ctx(tmpDir));
+		expect(diags).toHaveLength(0);
+	});
+
+	it("does NOT flag short imperative-verb step comments in Go function bodies", async () => {
+		writeFile(
+			"renderer.go",
+			`package x
+
+func render() {
+	// Render top
+	doStuff()
+
+	// Render sides
+	doMore()
+
+	// Render bottom
+	doEnd()
+}
+`,
+		);
+		const diags = await detectNarrativeComments(ctx(tmpDir));
+		expect(diags).toHaveLength(0);
+	});
 });

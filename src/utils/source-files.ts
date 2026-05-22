@@ -88,7 +88,11 @@ const FIND_PRUNE_DIRS = [
 	"public",
 ];
 
-const BUILD_CACHE_FILE_PATTERNS = [/\.timestamp-\d+-[a-z0-9]+\.[mc]?js$/i];
+const BUILD_CACHE_FILE_PATTERNS = [
+	/\.timestamp-\d+-[a-z0-9]+\.[mc]?js$/i,
+	/\.min\.(?:js|css|mjs|cjs)$/i,
+	/\.bundle\.(?:js|css|mjs|cjs)$/i,
+];
 
 const isBuildCacheFile = (filePath: string): boolean =>
 	BUILD_CACHE_FILE_PATTERNS.some((pattern) => pattern.test(filePath));

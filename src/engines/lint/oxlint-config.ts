@@ -84,8 +84,20 @@ export const createOxlintConfig = (options: OxlintConfigOptions): Record<string,
 	const plugins = ["import", "unicorn", "typescript", ...buildFrameworkPlugins(options.framework)];
 
 	const globals = buildTestGlobals(options.testFramework ?? null);
-	if (options.framework === "expo" || options.framework === "react") {
-		globals.__DEV__ = "readonly";
+	for (const name of [
+		"__DEV__",
+		"__TEST__",
+		"__BROWSER__",
+		"__NODE__",
+		"__GLOBAL__",
+		"__SSR__",
+		"__ESM_BROWSER__",
+		"__ESM_BUNDLER__",
+		"__VERSION__",
+		"__COMMIT__",
+		"__BUILD__",
+	]) {
+		globals[name] = "readonly";
 	}
 	if (options.framework === "astro") {
 		globals.Astro = "readonly";

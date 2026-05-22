@@ -400,6 +400,93 @@ import made_up_orm
 		expect(diagnostics).toHaveLength(1);
 		expect(diagnostics[0].message).toContain("made_up_orm");
 	});
+
+	it("does not flag imports of the project's own internal package laid out under src/<pkg>/", async () => {
+		writeFile(
+			"pyproject.toml",
+			`[project]
+name = "pytest"
+dependencies = ["pluggy>=1.5"]
+`,
+		);
+		writeFile("src/_pytest/__init__.py", "");
+		writeFile("src/_pytest/runner.py", "");
+		writeFile(
+			"src/_pytest/main.py",
+			`from _pytest.runner import run
+from _pytest import runner
+`,
+		);
+
+		const diagnostics = await detectHallucinatedImports(buildContext());
+		expect(diagnostics).toHaveLength(0);
+	});
+
+	it("does not flag imports of a top-level package directory at the repo root", async () => {
+		writeFile("pyproject.toml", `[project]\nname = "demo"\n`);
+		writeFile("mypkg/__init__.py", "");
+		writeFile("mypkg/sub.py", "");
+		writeFile("app/main.py", `from mypkg.sub import something\n`);
+		writeFile("app/__init__.py", "");
+		const diagnostics = await detectHallucinatedImports(buildContext());
+		expect(diagnostics).toHaveLength(0);
+	});
+});
+
+describe("ai-slop/unused-import — Python re-export convention", () => {
+	let tmpDir: string;
+	let writeFile: (relPath: string, content: string) => string;
+
+	beforeEach(() => {
+		tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "aislop-reexport-"));
+		writeFile = (relPath, content) => {
+			const full = path.join(tmpDir, relPath);
+			fs.mkdirSync(path.dirname(full), { recursive: true });
+			fs.writeFileSync(full, content);
+			return full;
+		};
+	});
+
+	afterEach(() => {
+		fs.rmSync(tmpDir, { recursive: true, force: true });
+	});
+
+	it("does not flag PEP 484 `from X import Y as Y` re-export pattern in __init__.py", async () => {
+		const initPath = writeFile(
+			"src/myapp/__init__.py",
+			[
+				"from .app import App as App",
+				"from .config import Config as Config",
+				"from .ctx import after_this_request as after_this_request",
+				"",
+			].join("\n"),
+		);
+
+		const { analyzeFile, getUnusedSymbols } = await import(
+			"../src/engines/ai-slop/unused-imports.js"
+		);
+		const analyzed = analyzeFile(initPath);
+		expect(analyzed).not.toBeNull();
+		if (!analyzed) return;
+		const unused = getUnusedSymbols(analyzed.lines, analyzed.symbols, analyzed.importLines);
+		expect(unused).toHaveLength(0);
+	});
+
+	it("still flags `from X import Y` when Y is genuinely unused", async () => {
+		const filePath = writeFile(
+			"src/main.py",
+			["from collections import OrderedDict", "print('hello')", ""].join("\n"),
+		);
+
+		const { analyzeFile, getUnusedSymbols } = await import(
+			"../src/engines/ai-slop/unused-imports.js"
+		);
+		const analyzed = analyzeFile(filePath);
+		expect(analyzed).not.toBeNull();
+		if (!analyzed) return;
+		const unused = getUnusedSymbols(analyzed.lines, analyzed.symbols, analyzed.importLines);
+		expect(unused.some((s) => s.name === "OrderedDict")).toBe(true);
+	});
 });
 
 describe("detectHallucinatedImports — guards", () => {

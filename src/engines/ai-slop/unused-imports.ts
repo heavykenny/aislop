@@ -100,7 +100,10 @@ const extractPyImportedSymbols = (
 			const cleaned = importPart.replace(/[()]/g, "");
 			for (const item of cleaned.split(",")) {
 				const parts = item.trim().split(/\s+as\s+/);
-				const localName = parts.length > 1 ? parts[1].trim() : parts[0].trim();
+				const original = parts[0].trim();
+				const localName = parts.length > 1 ? parts[1].trim() : original;
+				// PEP 484 re-export convention: `from X import Y as Y` explicitly publishes Y.
+				if (parts.length > 1 && original === localName) continue;
 				if (localName && /^\w+$/.test(localName)) {
 					symbols.push({
 						name: localName,
@@ -116,7 +119,10 @@ const extractPyImportedSymbols = (
 		const importMatch = trimmed.match(/^import\s+([\w.]+)(?:\s+as\s+(\w+))?/);
 		if (importMatch) {
 			importLines.add(i);
-			const localName = importMatch[2] ?? importMatch[1];
+			const alias = importMatch[2];
+			// `import X as X` is also a re-export marker.
+			if (alias && alias === importMatch[1]) continue;
+			const localName = alias ?? importMatch[1];
 			const simpleName = localName.split(".")[0];
 			if (simpleName && /^\w+$/.test(simpleName)) {
 				symbols.push({

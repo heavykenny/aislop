@@ -74,6 +74,27 @@ const collectFromPipfile = (rootDir: string, pyDeps: Set<string>): boolean => {
 	}
 };
 
+const LOCAL_PACKAGE_ROOTS = ["", "src", "lib"];
+
+const collectLocalPythonPackages = (rootDir: string, pyDeps: Set<string>): void => {
+	for (const sub of LOCAL_PACKAGE_ROOTS) {
+		const dir = sub ? path.join(rootDir, sub) : rootDir;
+		let entries: import("node:fs").Dirent[];
+		try {
+			entries = fs.readdirSync(dir, { withFileTypes: true });
+		} catch {
+			continue;
+		}
+		for (const entry of entries) {
+			if (!entry.isDirectory()) continue;
+			if (entry.name.startsWith(".")) continue;
+			if (entry.name === "node_modules" || entry.name === "__pycache__") continue;
+			const initPath = path.join(dir, entry.name, "__init__.py");
+			if (fs.existsSync(initPath)) addPyDep(pyDeps, entry.name);
+		}
+	}
+};
+
 export const collectPythonDeps = (
 	rootDir: string,
 ): { pyDeps: Set<string>; hasPyManifest: boolean } => {
@@ -81,5 +102,6 @@ export const collectPythonDeps = (
 	const hasReq = collectFromRequirementsTxt(rootDir, pyDeps);
 	const hasPyproject = collectFromPyproject(rootDir, pyDeps);
 	const hasPipfile = collectFromPipfile(rootDir, pyDeps);
+	collectLocalPythonPackages(rootDir, pyDeps);
 	return { pyDeps, hasPyManifest: hasReq || hasPyproject || hasPipfile };
 };

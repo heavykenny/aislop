@@ -259,3 +259,37 @@ describe("rust: todo-stub", () => {
 		expect(diagnostics).toEqual([]);
 	});
 });
+
+describe("rust: doc-comment example unwraps", () => {
+	it("does NOT flag `.unwrap()` inside a `/*! ... */` module-level doc comment with code examples", async () => {
+		writeFile(
+			"src/lib.rs",
+			[
+				"/*!",
+				"This crate does things. Example:",
+				"",
+				"```rust",
+				'let re = Regex::new(r"^x$").unwrap();',
+				'assert!(re.is_match("x"));',
+				"```",
+				"*/",
+				"",
+				"pub fn run() {}",
+				"",
+			].join("\n"),
+		);
+		const diagnostics = await detectRustPatterns(buildContext());
+		const matches = diagnostics.filter((d) => d.rule === "ai-slop/rust-non-test-unwrap");
+		expect(matches).toHaveLength(0);
+	});
+
+	it("treats `xxx_test.rs` (singular) as a test file too", async () => {
+		writeFile(
+			"src/compile_test.rs",
+			["fn check() {", '    let v: i32 = "1".parse().unwrap();', "}", ""].join("\n"),
+		);
+		const diagnostics = await detectRustPatterns(buildContext());
+		const matches = diagnostics.filter((d) => d.rule === "ai-slop/rust-non-test-unwrap");
+		expect(matches).toHaveLength(0);
+	});
+});

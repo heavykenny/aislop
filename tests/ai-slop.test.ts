@@ -277,6 +277,49 @@ describe("detectTrivialComments", () => {
 		const diagnostics = await detectTrivialComments(makeContext([a, b, c, d]));
 		expect(diagnostics).toHaveLength(0);
 	});
+
+	it("does NOT flag Ruby `# summary` lines immediately above a def/class/module", async () => {
+		const a = writeFile(
+			"lib/auth.rb",
+			"# Returns the current user.\ndef current_user\n  @user\nend\n",
+		);
+		const b = writeFile(
+			"lib/box.rb",
+			"# Creates a small wrapper around a value.\nclass Box\nend\n",
+		);
+		const c = writeFile(
+			"lib/runner.rb",
+			"# Executes the task.\n#\n# @return [Integer]\ndef run; end\n",
+		);
+		const diagnostics = await detectTrivialComments(makeContext([a, b, c]));
+		expect(diagnostics).toHaveLength(0);
+	});
+
+	it("does NOT flag PHP/Java `// summary` lines immediately above a method declaration", async () => {
+		const phpPath = writeFile(
+			"src/Service.php",
+			"<?php\nclass Service {\n  // Returns the cached value.\n  public function get() { return $this->cache; }\n}\n",
+		);
+		const javaPath = writeFile(
+			"src/Box.java",
+			"class Box {\n  // Returns the value.\n  public int get() { return value; }\n}\n",
+		);
+		const diagnostics = await detectTrivialComments(makeContext([phpPath, javaPath]));
+		expect(diagnostics).toHaveLength(0);
+	});
+
+	it("still flags inline trivial comments inside Ruby/Java/PHP method bodies", async () => {
+		const rbPath = writeFile(
+			"lib/walk.rb",
+			"def walk\n  # Loop through items\n  items.each { |x| do_thing(x) }\nend\n",
+		);
+		const phpPath = writeFile(
+			"src/Service.php",
+			"<?php\nclass Service {\n  public function process() {\n    // Initialize the counter\n    $count = 0;\n    $count++;\n  }\n}\n",
+		);
+		const diagnostics = await detectTrivialComments(makeContext([rbPath, phpPath]));
+		expect(diagnostics.length).toBeGreaterThanOrEqual(2);
+	});
 });
 
 // ─── detectSwallowedExceptions ────────────────────────────────────────────────
@@ -373,6 +416,30 @@ describe("detectSwallowedExceptions", () => {
 		const diagnostics = await detectSwallowedExceptions(makeContext([]));
 		expect(diagnostics).toHaveLength(0);
 	});
+
+	it("does not flag Java catch blocks using the intentional-ignore convention (tolerated/ignored/expected)", async () => {
+		const javaPath = writeFile(
+			"Demo.java",
+			[
+				"void run() {",
+				"  try { thing(); } catch (NullPointerException tolerated) { }",
+				"  try { thing(); } catch (RuntimeException ignored) { }",
+				"  try { thing(); } catch (Exception expected) { /* test setup */ }",
+				"}",
+			].join("\n"),
+		);
+		const diagnostics = await detectSwallowedExceptions(makeContext([javaPath]));
+		expect(diagnostics).toHaveLength(0);
+	});
+
+	it("still flags Java catch blocks with an unconventional parameter name", async () => {
+		const javaPath = writeFile(
+			"Demo.java",
+			"void run() { try { thing(); } catch (Exception e) { } }",
+		);
+		const diagnostics = await detectSwallowedExceptions(makeContext([javaPath]));
+		expect(diagnostics.length).toBeGreaterThanOrEqual(1);
+	});
 });
 
 // ─── detectOverAbstraction ────────────────────────────────────────────────────
@@ -458,6 +525,26 @@ describe("detectOverAbstraction", () => {
 	it("returns empty array when files list is empty", async () => {
 		const diagnostics = await detectOverAbstraction(makeContext([]));
 		expect(diagnostics).toHaveLength(0);
+	});
+
+	it("does NOT flag PHP class methods as thin wrappers (JS-shaped pattern leaked into PHP)", async () => {
+		const phpPath = writeFile(
+			"src/RuleSetIterator.php",
+			[
+				"<?php",
+				"class RuleSetIterator {",
+				"  public function valid(): bool {",
+				"    return isset($this->rules[$this->offset]);",
+				"  }",
+				"  public function hasAuthentication($name) {",
+				"    return isset($this->auth[$name]);",
+				"  }",
+				"}",
+			].join("\n"),
+		);
+		const diagnostics = await detectOverAbstraction(makeContext([phpPath]));
+		const wrapperDiags = diagnostics.filter((d) => d.rule === "ai-slop/thin-wrapper");
+		expect(wrapperDiags).toHaveLength(0);
 	});
 });
 

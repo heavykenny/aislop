@@ -264,6 +264,28 @@ describe("detectRiskyConstructs", () => {
 		expect(evalDiags).toHaveLength(0);
 	});
 
+	it("does not flag method-call eval forms ('->eval', '::eval', '.eval')", async () => {
+		const phpPath = writeFile(
+			"redis-queue.php",
+			"<?php $this->getConnection()->eval(LuaScripts::push(), 2, $queue);",
+		);
+		const rubyPath = writeFile("repl.rb", "binding.eval(line)");
+		const jsPath = writeFile("obj.js", "self.eval(input);");
+		const phpStaticPath = writeFile("class.php", "<?php Container::eval($code);");
+		const diagnostics = await detectRiskyConstructs(
+			makeContext([phpPath, rubyPath, jsPath, phpStaticPath]),
+		);
+		const evalDiags = diagnostics.filter((d) => d.rule === "security/eval");
+		expect(evalDiags).toHaveLength(0);
+	});
+
+	it("still flags top-level eval() in PHP", async () => {
+		const filePath = writeFile("dynamic.php", "<?php eval($userCode);");
+		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));
+		const evalDiags = diagnostics.filter((d) => d.rule === "security/eval");
+		expect(evalDiags.length).toBeGreaterThanOrEqual(1);
+	});
+
 	it("detects new Function() in TypeScript", async () => {
 		const filePath = writeFile("fn.ts", "const fn = new Function('x', 'return x * 2');");
 		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));

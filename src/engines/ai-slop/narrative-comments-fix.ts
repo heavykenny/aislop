@@ -1,7 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { Diagnostic, EngineContext } from "../types.js";
-import { collectBlocks, detectNarrativeComments, getCommentSyntax } from "./narrative-comments.js";
+import { collectBlocks, getCommentSyntax } from "./comment-blocks.js";
+import { detectNarrativeComments } from "./narrative-comments.js";
 
 export const fixNarrativeComments = async (context: EngineContext): Promise<void> => {
 	const diagnostics = await detectNarrativeComments(context);

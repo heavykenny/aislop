@@ -53,6 +53,30 @@ const SWALLOWED_EXCEPTION_PATTERNS: Array<{
 	},
 ];
 
+// Conventional names that document an intentionally-ignored exception.
+const INTENTIONAL_IGNORE_NAMES = new Set([
+	"ignored",
+	"ignore",
+	"tolerated",
+	"expected",
+	"unused",
+	"_",
+	"_e",
+	"_err",
+	"_ex",
+	"_t",
+]);
+
+const CATCH_PARAM_RE = /catch\s*\(\s*(?:\w+\s+)?([\w$]+)/;
+const RESCUE_PARAM_RE = /rescue(?:\s+[\w:]+)?\s*=>\s*([\w$]+)/;
+
+const isIntentionalIgnore = (matchText: string, ext: string): boolean => {
+	const re = ext === ".rb" ? RESCUE_PARAM_RE : CATCH_PARAM_RE;
+	const m = re.exec(matchText);
+	if (!m) return false;
+	return INTENTIONAL_IGNORE_NAMES.has(m[1].toLowerCase());
+};
+
 export const detectSwallowedExceptions = async (context: EngineContext): Promise<Diagnostic[]> => {
 	const files = getSourceFiles(context);
 	const diagnostics: Diagnostic[] = [];
@@ -79,6 +103,7 @@ export const detectSwallowedExceptions = async (context: EngineContext): Promise
 			);
 
 			while ((match = regex.exec(content)) !== null) {
+				if (isIntentionalIgnore(match[0], ext)) continue;
 				const line = content.slice(0, match.index).split("\n").length;
 				diagnostics.push({
 					filePath: relativePath,
