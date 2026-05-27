@@ -14,6 +14,7 @@ import { log } from "../ui/logger.js";
 import {
 	type BreakdownSummary,
 	renderCleanRun,
+	renderStarCta,
 	renderSummary,
 	type NextStep,
 } from "../ui/summary.js";
@@ -125,11 +126,13 @@ export const buildScanRender = (input: BuildScanRenderInput): string => {
 		(d) => d.rule === "security/vulnerable-dependency",
 	);
 
+	const starCta = input.printBrand !== false ? renderStarCta(deps) : "";
+
 	if (input.diagnostics.length === 0 && input.score.score === 100) {
 		return `${header}${renderCleanRun(
 			{ score: input.score.score, label: input.score.label, elapsedMs: input.elapsedMs },
 			deps,
-		)}`;
+		)}${starCta}`;
 	}
 
 	const diagBlock =
@@ -172,7 +175,7 @@ export const buildScanRender = (input: BuildScanRenderInput): string => {
 		deps,
 	);
 
-	return `${header}${diagBlock}${summary}`;
+	return `${header}${diagBlock}${summary}${starCta}`;
 };
 
 export const scanCommand = async (

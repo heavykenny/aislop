@@ -130,6 +130,11 @@ export const renderSummary = (input: SummaryInput, deps: SummaryDeps = {}): stri
 	return lines.join("\n");
 };
 
+export const renderStarCta = (deps: SummaryDeps = {}): string => {
+	const t = deps.theme ?? defaultTheme;
+	return `\n ${style(t, "muted", "★ Found this useful? Star us at github.com/scanaislop/aislop")}\n`;
+};
+
 export const renderCleanRun = (
 	input: { score?: number; label?: string; elapsedMs: number },
 	deps: SummaryDeps = {},
