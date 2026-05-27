@@ -1,0 +1,34 @@
+title: "[FP] "
+labels: ["false-positive"]
+body:
+  - type: input
+    id: rule
+    attributes:
+      label: Rule name
+      description: e.g. ai-slop/narrative-comment, code-quality/duplicate-block
+      placeholder: ai-slop/narrative-comment
+    validations:
+      required: true
+  - type: textarea
+    id: snippet
+    attributes:
+      label: Code snippet
+      description: The code aislop flagged. 3-5 lines of context is plenty.
+      render: typescript
+    validations:
+      required: true
+  - type: textarea
+    id: reasoning
+    attributes:
+      label: Why you think it's a false positive
+      placeholder: e.g. The comment isn't narrative, it's documenting a non-obvious invariant.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: aislop version
+      description: Output of `aislop --version`
+      placeholder: 0.9.3
+    validations:
+      required: true

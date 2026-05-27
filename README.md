@@ -265,6 +265,10 @@ See the full [rules reference](docs/rules.md).
 
 [Installation](docs/installation.md) · [Commands](docs/commands.md) · [Rules](docs/rules.md) · [Config](docs/configuration.md) · [Scoring](docs/scoring.md) · [CI/CD](docs/ci.md) · [Telemetry](docs/telemetry.md)
 
+## Community
+
+[Discussions](https://github.com/scanaislop/aislop/discussions) for questions, rule requests, and false-positive triage · [Issues](https://github.com/scanaislop/aislop/issues) for bugs
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). AI assistants: [AGENTS.md](AGENTS.md).

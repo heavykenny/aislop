@@ -1,0 +1,35 @@
+title: "[Rule] "
+labels: ["rule-request"]
+body:
+  - type: textarea
+    id: pattern
+    attributes:
+      label: The pattern you want flagged
+      description: Show the kind of code you think aislop should catch.
+      render: typescript
+    validations:
+      required: true
+  - type: textarea
+    id: should-pass
+    attributes:
+      label: Code that should NOT trigger the rule
+      description: Help us distinguish the slop from the legitimate version of the same shape.
+      render: typescript
+  - type: input
+    id: name-suggestion
+    attributes:
+      label: Suggested rule name (optional)
+      placeholder: ai-slop/redundant-validation
+  - type: dropdown
+    id: language
+    attributes:
+      label: Language
+      options:
+        - TypeScript / JavaScript
+        - Python
+        - Go
+        - Rust
+        - Ruby
+        - PHP
+        - Java
+        - Multiple
