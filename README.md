@@ -1,6 +1,6 @@
 # aislop
 
-**The engineering standards layer and quality gate for AI-written code.**
+**Catch the slop AI coding agents leave in your code.**
 
 [![npm version](https://img.shields.io/npm/v/aislop.svg)](https://www.npmjs.com/package/aislop)
 [![npm downloads](https://img.shields.io/npm/dm/aislop.svg)](https://www.npmjs.com/package/aislop)
@@ -9,7 +9,9 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Node >= 20](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](https://nodejs.org)
 
-Catches the slop AI agents leave behind: dead code, oversized functions and files, unused imports, `as any` casts, swallowed errors, hallucinated imports, todo stubs, narrative comments. Scores 0–100. Deterministic (regex + AST, no LLMs). 8+ languages.
+The patterns Claude Code, Cursor, Codex, and OpenCode leave behind: narrative comments above self-explanatory code, swallowed exceptions, `as any` casts, hallucinated imports, duplicated helpers, dead code, todo stubs, oversized functions. Tests pass. Lint passes. The code rots anyway.
+
+aislop catches them. 40+ rules across 7 languages (TS/JS, Python, Go, Rust, Ruby, PHP, Java). Scores every change 0–100. Sub-second. Deterministic — no LLM in the runtime path, same code in, same score out. MIT-licensed, free CLI.
 
 ## Quick start
 
