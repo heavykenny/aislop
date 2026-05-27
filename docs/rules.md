@@ -66,6 +66,10 @@ The rules that make aislop unique. These catch the patterns AI assistants leave 
 | `ai-slop/unsafe-type-assertion` | warning | `as any` in TypeScript |
 | `ai-slop/double-type-assertion` | warning | `as unknown as X` pattern |
 | `ai-slop/ts-directive` | info | `@ts-ignore` / `@ts-expect-error` usage |
+| `ai-slop/python-range-len-loop` | info | Python `for i in range(len(items))` loops that usually want direct iteration or `enumerate()` |
+| `ai-slop/python-chained-dict-get` | warning | Python `.get(..., {}).get(...)` fallback chains that hide missing-data cases |
+| `ai-slop/python-repetitive-dispatch` | warning | Repeated Python equality branch ladders that should usually become a table/set/handler map |
+| `ai-slop/python-isinstance-ladder` | warning | Repeated Python `isinstance(...)` ladders that should usually become a handler map or normalized representation |
 
 ## Security
 

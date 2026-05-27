@@ -10,6 +10,13 @@ const BROAD_EXCEPT_RE = /^\s*except\s+(Exception|BaseException)\s*(?:as\s+\w+)?\
 const PRINT_RE = /^\s*print\s*\(/;
 const DEF_RE = /^\s*(?:async\s+)?def\s+\w+\s*\(/;
 const MUTABLE_DEFAULT_RE = /(\w+)\s*(?::\s*[^,)=]+)?\s*=\s*(\[\s*\]|\{\s*\}|set\(\s*\))/;
+const RANGE_LEN_LOOP_RE =
+	/^\s*for\s+([A-Za-z_]\w*)\s+in\s+range\s*\(\s*len\s*\(\s*([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)\s*\)\s*\)\s*:\s*(?:#.*)?$/;
+const CHAINED_DICT_GET_RE = /\.get\s*\([^)]*,\s*\{\s*\}\s*\)\s*\.get\s*\(/;
+const SAME_VALUE_BRANCH_RE =
+	/^(\s*)(?:if|elif)\s+([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)\s*==\s*["'][^"']+["']\s*:/;
+const INSTANCE_BRANCH_RE = /^(\s*)(?:if|elif)\s+isinstance\s*\(\s*([A-Za-z_]\w*)\s*,\s*[^)]+\)\s*:/;
+const BRANCH_LADDER_THRESHOLD = 4;
 
 const isTestFile = (relPath: string, basename: string): boolean =>
 	basename.startsWith("test_") ||
@@ -69,7 +76,7 @@ const buildDocstringRanges = (lines: string[]): Set<number> => {
 interface FlagArgs {
 	relPath: string;
 	rule: string;
-	severity: "warning" | "error";
+	severity: "warning" | "error" | "info";
 	message: string;
 	help: string;
 	line: number;
@@ -88,6 +95,17 @@ const pushFinding = (out: Diagnostic[], a: FlagArgs): void => {
 		category: "AI Slop",
 		fixable: false,
 	});
+};
+
+type FindingTemplate = Omit<FlagArgs, "relPath" | "line">;
+
+const pushLineFinding = (
+	out: Diagnostic[],
+	relPath: string,
+	line: number,
+	finding: FindingTemplate,
+): void => {
+	pushFinding(out, { relPath, line, ...finding });
 };
 
 const flagBareExcept = (lines: string[], relPath: string, out: Diagnostic[]): void => {
@@ -199,6 +217,98 @@ const flagPrintInProduction = (
 	}
 };
 
+const flagRangeLenLoops = (lines: string[], relPath: string, out: Diagnostic[]): void => {
+	for (let i = 0; i < lines.length; i++) {
+		const match = RANGE_LEN_LOOP_RE.exec(lines[i]);
+		if (!match) continue;
+		pushLineFinding(out, relPath, i + 1, {
+			rule: "ai-slop/python-range-len-loop",
+			severity: "info",
+			message: `\`range(len(${match[2]}))\` loop — usually a hand-rolled iteration pattern.`,
+			help: "Prefer direct iteration (`for item in items`) or `enumerate(items)` when the index is needed. Keeping index plumbing out of the loop reduces checkpoint-to-checkpoint bloat.",
+		});
+	}
+};
+
+const flagChainedDictGets = (lines: string[], relPath: string, out: Diagnostic[]): void => {
+	for (let i = 0; i < lines.length; i++) {
+		if (!CHAINED_DICT_GET_RE.test(lines[i])) continue;
+		pushLineFinding(out, relPath, i + 1, {
+			rule: "ai-slop/python-chained-dict-get",
+			severity: "warning",
+			message: "Chained `.get(..., {})` defaults hide missing-data cases.",
+			help: "Normalize the input at the boundary, use a typed object, or split the lookup into explicit steps. Empty-dict fallback chains are a common agent shortcut that becomes brittle as schemas evolve.",
+		});
+	}
+};
+
+const countBranchLadder = (
+	lines: string[],
+	start: number,
+	pattern: RegExp,
+	selector: string,
+	indent: string,
+): number => {
+	let count = 1;
+	for (let i = start + 1; i < lines.length; i++) {
+		const line = lines[i];
+		const trimmed = line.trim();
+		if (trimmed === "" || trimmed.startsWith("#")) continue;
+		const match = pattern.exec(line);
+		if (match?.[1] === indent && match[2] === selector) {
+			count++;
+			continue;
+		}
+		if (line.startsWith(`${indent}elif `)) break;
+		if (
+			line.length - line.trimStart().length <= indent.length &&
+			!line.startsWith(`${indent}else`)
+		) {
+			break;
+		}
+	}
+	return count;
+};
+
+const flagBranchLadders = (lines: string[], relPath: string, out: Diagnostic[]): void => {
+	const reported = new Set<number>();
+	for (let i = 0; i < lines.length; i++) {
+		if (reported.has(i)) continue;
+		const valueMatch = SAME_VALUE_BRANCH_RE.exec(lines[i]);
+		if (valueMatch) {
+			const count = countBranchLadder(lines, i, SAME_VALUE_BRANCH_RE, valueMatch[2], valueMatch[1]);
+			if (count >= BRANCH_LADDER_THRESHOLD) {
+				reported.add(i);
+				pushLineFinding(out, relPath, i + 1, {
+					rule: "ai-slop/python-repetitive-dispatch",
+					severity: "warning",
+					message: `${count} repeated branches dispatch on \`${valueMatch[2]}\`.`,
+					help: "Use a table, set membership, or handler map when branches share the same shape. SlopCodeBench highlights these selector ladders as code that keeps growing instead of absorbing new cases cleanly.",
+				});
+			}
+			continue;
+		}
+
+		const instanceMatch = INSTANCE_BRANCH_RE.exec(lines[i]);
+		if (!instanceMatch) continue;
+		const count = countBranchLadder(
+			lines,
+			i,
+			INSTANCE_BRANCH_RE,
+			instanceMatch[2],
+			instanceMatch[1],
+		);
+		if (count < BRANCH_LADDER_THRESHOLD) continue;
+		reported.add(i);
+		pushLineFinding(out, relPath, i + 1, {
+			rule: "ai-slop/python-isinstance-ladder",
+			severity: "warning",
+			message: `${count} repeated \`isinstance(${instanceMatch[2]}, ...)\` branches.`,
+			help: "Prefer a handler map, protocol, or normalized intermediate representation when each type branch has the same role. Repeated type ladders are one of the maintainability smells SCBench-style checks look for.",
+		});
+	}
+};
+
 export const detectPythonPatterns = async (context: EngineContext): Promise<Diagnostic[]> => {
 	const diagnostics: Diagnostic[] = [];
 	const files = getSourceFiles(context);
@@ -222,6 +332,9 @@ export const detectPythonPatterns = async (context: EngineContext): Promise<Diag
 		flagBroadExceptWithSilentBody(lines, relPath, diagnostics);
 		flagMutableDefaults(lines, relPath, diagnostics);
 		flagPrintInProduction(lines, relPath, basename, diagnostics);
+		flagRangeLenLoops(lines, relPath, diagnostics);
+		flagChainedDictGets(lines, relPath, diagnostics);
+		flagBranchLadders(lines, relPath, diagnostics);
 	}
 
 	return diagnostics;

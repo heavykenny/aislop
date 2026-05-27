@@ -282,3 +282,142 @@ describe("python: print-debug", () => {
 		expect(matches[0].line).toBe(5);
 	});
 });
+
+describe("python: SCBench-inspired verbosity patterns", () => {
+	it("flags `range(len(...))` loops", async () => {
+		writeFile(
+			"src/range_len.py",
+			[
+				"def names(users):",
+				"    out = []",
+				"    for i in range(len(users)):",
+				"        out.append(users[i].name)",
+				"    return out",
+				"",
+			].join("\n"),
+		);
+		const diagnostics = await detectPythonPatterns(buildContext());
+		const matches = diagnostics.filter((d) => d.rule === "ai-slop/python-range-len-loop");
+		expect(matches).toHaveLength(1);
+		expect(matches[0].line).toBe(3);
+		expect(matches[0].severity).toBe("info");
+	});
+
+	it("does NOT flag direct iteration or enumerate", async () => {
+		writeFile(
+			"src/iterate.py",
+			[
+				"def names(users):",
+				"    for user in users:",
+				"        yield user.name",
+				"",
+				"def indexed(users):",
+				"    for i, user in enumerate(users):",
+				"        yield i, user.name",
+				"",
+			].join("\n"),
+		);
+		const diagnostics = await detectPythonPatterns(buildContext());
+		const matches = diagnostics.filter((d) => d.rule === "ai-slop/python-range-len-loop");
+		expect(matches).toEqual([]);
+	});
+
+	it("flags chained `.get(..., {})` fallback lookups", async () => {
+		writeFile(
+			"src/config.py",
+			[
+				"def timeout(config):",
+				"    return config.get('service', {}).get('http', {}).get('timeout', 30)",
+				"",
+			].join("\n"),
+		);
+		const diagnostics = await detectPythonPatterns(buildContext());
+		const matches = diagnostics.filter((d) => d.rule === "ai-slop/python-chained-dict-get");
+		expect(matches).toHaveLength(1);
+		expect(matches[0].line).toBe(2);
+	});
+
+	it("does NOT flag explicit nested lookup steps", async () => {
+		writeFile(
+			"src/config_clean.py",
+			[
+				"def timeout(config):",
+				"    service = config.get('service')",
+				"    if service is None:",
+				"        return 30",
+				"    http = service.get('http')",
+				"    if http is None:",
+				"        return 30",
+				"    return http.get('timeout', 30)",
+				"",
+			].join("\n"),
+		);
+		const diagnostics = await detectPythonPatterns(buildContext());
+		const matches = diagnostics.filter((d) => d.rule === "ai-slop/python-chained-dict-get");
+		expect(matches).toEqual([]);
+	});
+
+	it("flags repeated selector dispatch ladders", async () => {
+		writeFile(
+			"src/selector.py",
+			[
+				"def normalize(selector, node):",
+				"    if selector == 'string_literal':",
+				"        return node.kind in ('string', 'raw_string')",
+				"    elif selector == 'numeric_literal':",
+				"        return node.kind in ('number', 'integer', 'float')",
+				"    elif selector == 'boolean_literal':",
+				"        return node.kind in ('true', 'false')",
+				"    elif selector == 'null_literal':",
+				"        return node.kind in ('null', 'none')",
+				"    return False",
+				"",
+			].join("\n"),
+		);
+		const diagnostics = await detectPythonPatterns(buildContext());
+		const matches = diagnostics.filter((d) => d.rule === "ai-slop/python-repetitive-dispatch");
+		expect(matches).toHaveLength(1);
+		expect(matches[0].line).toBe(2);
+	});
+
+	it("flags repeated isinstance ladders", async () => {
+		writeFile(
+			"src/types.py",
+			[
+				"def encode(value):",
+				"    if isinstance(value, str):",
+				"        return value",
+				"    elif isinstance(value, int):",
+				"        return str(value)",
+				"    elif isinstance(value, float):",
+				"        return str(value)",
+				"    elif isinstance(value, bool):",
+				"        return 'true' if value else 'false'",
+				"    return ''",
+				"",
+			].join("\n"),
+		);
+		const diagnostics = await detectPythonPatterns(buildContext());
+		const matches = diagnostics.filter((d) => d.rule === "ai-slop/python-isinstance-ladder");
+		expect(matches).toHaveLength(1);
+		expect(matches[0].line).toBe(2);
+	});
+
+	it("does NOT flag short branch ladders", async () => {
+		writeFile(
+			"src/short.py",
+			[
+				"def encode(value):",
+				"    if isinstance(value, str):",
+				"        return value",
+				"    elif isinstance(value, int):",
+				"        return str(value)",
+				"    return ''",
+				"",
+			].join("\n"),
+		);
+		const diagnostics = await detectPythonPatterns(buildContext());
+		expect(diagnostics.filter((d) => d.rule === "ai-slop/python-isinstance-ladder")).toEqual([]);
+		expect(diagnostics.filter((d) => d.rule === "ai-slop/python-repetitive-dispatch")).toEqual([]);
+	});
+});
