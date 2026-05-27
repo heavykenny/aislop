@@ -1,93 +1,94 @@
 {
-	"name": "aislop",
-	"version": "0.9.3",
-	"description": "The engineering standards layer and quality gate for AI-written code. Define your standard once. Every agent — Claude Code, Cursor, Codex — is held to it automatically, on every edit and every PR. Catches the slop they leave behind, enforces the rules your team sets. 8+ languages. Deterministic.",
-	"type": "module",
-	"bin": {
-		"aislop": "./dist/cli.js",
-		"aislop-mcp": "./dist/mcp.js"
-	},
-	"files": [
-		"dist",
-		"scripts"
-	],
-	"exports": {
-		".": {
-			"types": "./dist/index.d.ts",
-			"default": "./dist/index.js"
-		}
-	},
-	"scripts": {
-		"dev": "tsdown --watch",
-		"build": "rm -rf dist && NODE_ENV=production tsdown",
-		"postinstall": "node scripts/postinstall-tools.mjs",
-		"typecheck": "tsc --noEmit",
-		"test": "pnpm build && vitest run",
-		"scan": "pnpm build && node dist/cli.js scan .",
-		"scan:exclude": "pnpm build && node dist/cli.js scan . --exclude .idea --exclude .gitnore --exclude node_modules",
-		"scan:include": "pnpm build && node dist/cli.js scan . --include src --include tests",
-		"scan:json": "pnpm build && node dist/cli.js scan . --json",
-		"quality": "pnpm typecheck && pnpm test && node dist/cli.js scan . --json"
-	},
-	"keywords": [
-		"aislop",
-		"ai-slop",
-		"code-quality",
-		"linter",
-		"formatter",
-		"cli",
-		"ai",
-		"copilot",
-		"code-review",
-		"static-analysis",
-		"typescript",
-		"javascript",
-		"python",
-		"go",
-		"rust",
-		"ruby",
-		"php"
-	],
-	"author": "heavykenny",
-	"license": "MIT",
-	"homepage": "https://github.com/scanaislop/aislop#readme",
-	"repository": {
-		"type": "git",
-		"url": "git+https://github.com/scanaislop/aislop.git"
-	},
-	"bugs": {
-		"url": "https://github.com/scanaislop/aislop/issues"
-	},
-	"engines": {
-		"node": ">=20"
-	},
-	"packageManager": "pnpm@10.28.0",
-	"dependencies": {
-		"@biomejs/biome": "^2.4.5",
-		"@clack/prompts": "^1.2.0",
-		"@modelcontextprotocol/sdk": "^1.29.0",
-		"adm-zip": "^0.5.16",
-		"commander": "^14.0.3",
-		"expo-doctor": "^1.18.10",
-		"knip": "^5.85.0",
-		"micromatch": "^4.0.8",
-		"oxlint": "^1.51.0",
-		"picocolors": "^1.1.1",
-		"tar": "^7.5.11",
-		"typescript": "^5.9.3",
-		"wcwidth": "^1.0.1",
-		"yaml": "^2.8.2",
-		"zod": "^4.3.6"
-	},
-	"devDependencies": {
-		"@types/micromatch": "^4.0.10",
-		"@types/node": "^25.6.0",
-		"tsdown": "^0.20.3",
-		"vitest": "^4.0.18"
-	},
-	"pnpm": {
-		"overrides": {
-			"postcss@<8.5.10": "^8.5.10"
-		}
-	}
+  "name": "aislop",
+  "version": "0.9.3",
+  "description": "The engineering standards layer and quality gate for AI-written code. Define your standard once. Every agent — Claude Code, Cursor, Codex — is held to it automatically, on every edit and every PR. Catches the slop they leave behind, enforces the rules your team sets. 8+ languages. Deterministic.",
+  "type": "module",
+  "bin": {
+    "aislop": "./dist/cli.js",
+    "aislop-mcp": "./dist/mcp.js"
+  },
+  "files": [
+    "dist",
+    "scripts"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "dev": "tsdown --watch",
+    "build": "rm -rf dist && NODE_ENV=production tsdown",
+    "postinstall": "node scripts/postinstall-tools.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "pnpm build && vitest run",
+    "scan": "pnpm build && node dist/cli.js scan .",
+    "scan:exclude": "pnpm build && node dist/cli.js scan . --exclude .idea --exclude .gitnore --exclude node_modules",
+    "scan:include": "pnpm build && node dist/cli.js scan . --include src --include tests",
+    "scan:json": "pnpm build && node dist/cli.js scan . --json",
+    "quality": "pnpm typecheck && pnpm test && node dist/cli.js scan . --json"
+  },
+  "keywords": [
+    "aislop",
+    "ai-slop",
+    "code-quality",
+    "linter",
+    "formatter",
+    "cli",
+    "ai",
+    "copilot",
+    "code-review",
+    "static-analysis",
+    "typescript",
+    "javascript",
+    "python",
+    "go",
+    "rust",
+    "ruby",
+    "php"
+  ],
+  "author": "heavykenny",
+  "license": "MIT",
+  "homepage": "https://github.com/scanaislop/aislop#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/scanaislop/aislop.git"
+  },
+  "bugs": {
+    "url": "https://github.com/scanaislop/aislop/issues"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@10.28.0",
+  "dependencies": {
+    "@biomejs/biome": "^2.4.5",
+    "@clack/prompts": "^1.2.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "adm-zip": "^0.5.16",
+    "commander": "^14.0.3",
+    "expo-doctor": "^1.18.10",
+    "knip": "^5.85.0",
+    "micromatch": "^4.0.8",
+    "oxlint": "^1.51.0",
+    "picocolors": "^1.1.1",
+    "tar": "^7.5.11",
+    "typescript": "^5.9.3",
+    "wcwidth": "^1.0.1",
+    "yaml": "^2.8.2",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/micromatch": "^4.0.10",
+    "@types/node": "^25.6.0",
+    "tsdown": "^0.20.3",
+    "vitest": "^4.0.18"
+  },
+  "pnpm": {
+    "overrides": {
+      "postcss@<8.5.10": "^8.5.10",
+      "qs@>=6.11.1 <=6.15.1": "^6.15.2"
+    }
+  }
 }
