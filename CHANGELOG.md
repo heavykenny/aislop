@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.9.4 (2026-05-28)
+
+Four new Python rules drawn from the verbosity signal in SlopCodeBench (SCBench, arXiv 2603.24755). Scan output now ends with a one-line nudge back to the GitHub repo. GitHub Discussions is open with structured templates for false-positive reports and rule requests.
+
+### Added
+
+- **`ai-slop/python-range-len-loop` (info, #134).** Flags `for i in range(len(items))` loops that usually want `enumerate(items)` or direct iteration. Hand-rolled index plumbing is a recurring agent shortcut; SCBench's Python track surfaces it as a verbosity contributor.
+- **`ai-slop/python-chained-dict-get` (warning, #134).** Flags `.get(..., {}).get(...)` fallback chains. The empty-dict default hides missing-data cases and turns brittle as schemas evolve. Help text points to boundary normalization or typed objects.
+- **`ai-slop/python-repetitive-dispatch` (warning, #134).** Flags ladders of 4+ `if x == "..." / elif x == "..."` branches sharing the same selector. Recommends a handler map / dispatch table. Threshold is configurable in code (`BRANCH_LADDER_THRESHOLD`).
+- **`ai-slop/python-isinstance-ladder` (warning, #134).** Flags 4+ chained `isinstance(...)` branches on the same value. Recommends a handler map or normalized representation.
+- **CLI star CTA (#132).** `aislop scan` ends with one muted line: `★ Found this useful? Star us at github.com/scanaislop/aislop`. Suppressed in JSON output, in `aislop ci`, and for any caller that passes `printBrand: false` (hook integrations).
+- **GitHub Discussions surface (#126).** Discussions enabled on the repo with two issue-form templates: `false-positive.yml` (rule name, snippet, reasoning, version) and `rule-request.yml` (pattern, what should pass, suggested name, language). README links to Discussions and Issues from a new `## Community` section.
+
+### Improved
+
+- **README headline and lead description (#131).** Replaces enterprise-flavoured copy with a direct verb. The lead names the agents (Claude Code, Cursor, Codex, OpenCode) and the patterns they leave behind; the second paragraph names rule count, languages, determinism, and licence so the proof and the hook sit together at the top.
+
+### Tests
+
+35 new tests covering the four Python rules (positive and negative cases each). `tests/python-patterns.test.ts` now has 24 tests; full suite 842 passing.
+
 ## 0.9.3 (2026-05-22)
 
 Patch release focused on rule precision. Tightens detection across the ai-slop, security, lint, and source-file engines so common language and ecosystem conventions are no longer flagged as slop. No new rules; existing rules now discriminate genuine documentation, intentional patterns, and build-time injections from the AI-written patterns they were designed to catch.
