@@ -10,4 +10,5 @@ CHANGELOG-review.md
 docs/superpowers/
 docs/specs/
 .aislop/session.jsonl
+.aislop/history.jsonl
 .aislop/hook.lock

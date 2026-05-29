@@ -47,6 +47,7 @@ export const DEFAULT_CONFIG: AislopConfig = {
 	telemetry: {
 		enabled: true,
 	},
+	rules: {},
 };
 
 export const GITHUB_WORKFLOW_DIR = ".github/workflows";

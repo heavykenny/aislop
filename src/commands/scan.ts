@@ -7,6 +7,7 @@ import type { Diagnostic, EngineConfig, EngineName, EngineResult } from "../engi
 import { ENGINE_INFO, getEngineLabel } from "../output/engine-info.js";
 import { printEngineStatus, renderDiagnostics } from "../output/terminal.js";
 import { calculateScore } from "../scoring/index.js";
+import { applyRuleSeverities } from "../scoring/rule-severity.js";
 import { renderHeader } from "../ui/header.js";
 import { detectInvocation } from "../ui/invocation.js";
 import { type GridRow, type GridRowOutcome, LiveGrid } from "../ui/live-grid.js";
@@ -22,7 +23,9 @@ import { createSymbols } from "../ui/symbols.js";
 import { createTheme } from "../ui/theme.js";
 import { discoverProject } from "../utils/discover.js";
 import { getChangedFiles, getStagedFiles } from "../utils/git.js";
+import { appendHistory } from "../utils/history.js";
 import { filterProjectFiles, listProjectFiles } from "../utils/source-files.js";
+import { isCiEnv } from "../telemetry/env.js";
 import { type EngineCounts, withCommandLifecycle } from "../telemetry/index.js";
 import { APP_VERSION } from "../version.js";
 
@@ -31,6 +34,7 @@ interface ScanOptions {
 	staged: boolean;
 	verbose: boolean;
 	json: boolean;
+	sarif?: boolean;
 	showHeader?: boolean;
 	printBrand?: boolean;
 	exclude?: string[];
@@ -38,6 +42,10 @@ interface ScanOptions {
 	/** Used for telemetry to distinguish scan vs ci invocation */
 	command?: "scan" | "ci";
 }
+
+// SARIF and JSON are machine outputs: suppress all human chrome on stdout.
+const isMachineOutput = (options: ScanOptions): boolean =>
+	Boolean(options.json) || Boolean(options.sarif);
 
 const shouldUseSpinner = (): boolean =>
 	Boolean(process.stderr.isTTY) && process.env.CI !== "true" && process.env.CI !== "1";
@@ -225,23 +233,24 @@ const runScanBody = async (
 ) => {
 	const startTime = performance.now();
 	const showHeader = options.showHeader !== false;
-	const useLiveProgress = !options.json && shouldUseSpinner();
+	const machineOutput = isMachineOutput(options);
+	const useLiveProgress = !machineOutput && shouldUseSpinner();
 
 	let files: string[] | undefined;
 	if (options.staged) {
 		files = filterProjectFiles(resolvedDir, getStagedFiles(resolvedDir), [], config.exclude);
-		if (!options.json) {
+		if (!machineOutput) {
 			log.muted(`Scope: ${files.length} staged file(s)`);
 		}
 	} else if (options.changes) {
 		files = filterProjectFiles(resolvedDir, getChangedFiles(resolvedDir), [], config.exclude);
-		if (!options.json) {
+		if (!machineOutput) {
 			log.muted(`Scope: ${files.length} changed file(s)`);
 		}
 	} else {
 		const allFiles = listProjectFiles(resolvedDir);
 		files = filterProjectFiles(resolvedDir, allFiles, [], config.exclude);
-		if (!options.json) {
+		if (!machineOutput) {
 			log.muted(`Scope: ${files.length} file(s) after exclusions`);
 		}
 	}
@@ -266,7 +275,7 @@ const runScanBody = async (
 
 	progressRenderer?.start();
 
-	const results = await runEngines(
+	const rawResults = await runEngines(
 		{
 			rootDirectory: resolvedDir,
 			languages: projectInfo.languages,
@@ -301,12 +310,17 @@ const runScanBody = async (
 					elapsedMs: result.elapsed,
 				});
 			}
-			if (!options.json && !progressRenderer) {
+			if (!machineOutput && !progressRenderer) {
 				printEngineStatus(result);
 			}
 		},
 	);
 	progressRenderer?.stop();
+
+	const results = rawResults.map((result) => ({
+		...result,
+		diagnostics: applyRuleSeverities(result.diagnostics, config.rules),
+	}));
 
 	const allDiagnostics = results.flatMap((r) => r.diagnostics);
 	const elapsedMs = performance.now() - startTime;
@@ -338,11 +352,30 @@ const runScanBody = async (
 		engineTimings,
 	};
 
+	if (options.sarif) {
+		const { buildSarifLog } = await import("../output/sarif.js");
+		console.log(JSON.stringify(buildSarifLog(results), null, 2));
+		return completion;
+	}
+
 	if (options.json) {
 		const { buildJsonOutput } = await import("../output/json.js");
 		const jsonOut = buildJsonOutput(results, scoreResult, projectInfo.sourceFileCount, elapsedMs);
 		console.log(JSON.stringify(jsonOut, null, 2));
 		return completion;
+	}
+
+	// Only record full-project human scans: scoped (--staged/--changes) scores
+	// aren't comparable across runs, and CI runs would pollute local trends.
+	const isFullScopeScan = !options.staged && !options.changes && options.command !== "ci";
+	if (isFullScopeScan && !isCiEnv()) {
+		appendHistory({
+			directory: resolvedDir,
+			score: scoreResult.score,
+			errors: completion.errorCount,
+			warnings: completion.warningCount,
+			files: projectInfo.sourceFileCount,
+		});
 	}
 
 	const projectName = projectInfo.projectName ?? "project";

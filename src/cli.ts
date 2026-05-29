@@ -8,6 +8,7 @@ import { initCommand } from "./commands/init.js";
 import { interactiveCommand } from "./commands/interactive.js";
 import { rulesCommand } from "./commands/rules.js";
 import { scanCommand } from "./commands/scan.js";
+import { trendCommand } from "./commands/trend.js";
 import { loadConfig } from "./config/index.js";
 import {
 	ensureInstallId,
@@ -38,6 +39,8 @@ interface ScanFlags {
 	staged?: boolean;
 	verbose?: boolean;
 	json?: boolean;
+	sarif?: boolean;
+	format?: string;
 	exclude?: string[];
 	include?: string[];
 }
@@ -50,6 +53,10 @@ const commaSeparatedParser = (value: string, previous: string[] = []): string[] 
 	return [...previous, ...parts];
 };
 
+const wantsSarif = (flags: ScanFlags): boolean => Boolean(flags.sarif) || flags.format === "sarif";
+
+const wantsJson = (flags: ScanFlags): boolean => Boolean(flags.json) || flags.format === "json";
+
 const runScan = async (directory: string, flags: ScanFlags): Promise<void> => {
 	const config = loadConfig(directory);
 	const finalConfig = {
@@ -57,11 +64,13 @@ const runScan = async (directory: string, flags: ScanFlags): Promise<void> => {
 		exclude: [...(config.exclude ?? []), ...(flags.exclude ?? [])],
 		include: [...(config.include ?? []), ...(flags.include ?? [])],
 	};
+	const sarif = wantsSarif(flags);
 	const { exitCode } = await scanCommand(directory, finalConfig, {
 		changes: Boolean(flags.changes),
 		staged: Boolean(flags.staged),
 		verbose: Boolean(flags.verbose),
-		json: Boolean(flags.json),
+		json: !sarif && wantsJson(flags),
+		sarif,
 		exclude: flags.exclude,
 		include: flags.include,
 	});
@@ -76,6 +85,8 @@ const noFlagsPassed = (flags: ScanFlags): boolean =>
 	!flags.staged &&
 	!flags.verbose &&
 	!flags.json &&
+	!flags.sarif &&
+	!flags.format &&
 	!(flags.exclude && flags.exclude.length > 0) &&
 	!(flags.include && flags.include.length > 0);
 
@@ -88,6 +99,8 @@ const program = new Command()
 	.option("--staged", "only scan staged files")
 	.option("-d, --verbose", "show file details per rule")
 	.option("--json", "output JSON instead of terminal UI")
+	.option("--sarif", "output SARIF 2.1.0 (for GitHub code scanning)")
+	.option("--format <format>", "output format: json or sarif")
 	.option(
 		"--exclude <patterns>",
 		"comma-separated or repeatable list of paths and files to exclude",
@@ -122,6 +135,7 @@ ${style(theme, "dim", "Commands:")}
   npx aislop doctor [dir]    Check installed tools
   npx aislop ci [dir]        CI-friendly JSON output
   npx aislop rules [dir]     List all rules
+  npx aislop trend [dir]     Show score history trend
 
 ${style(theme, "dim", "Examples:")}
   npx aislop                 Interactive menu
@@ -135,6 +149,8 @@ ${style(theme, "dim", "Examples:")}
   npx aislop fix --cursor    Open Cursor + copy prompt to clipboard
   npx aislop fix -p          Print a prompt to paste into any coding agent
   npx aislop ci              JSON output for CI pipelines
+  npx aislop scan --sarif    SARIF 2.1.0 for GitHub code scanning
+  npx aislop trend           Show score history over time
   npx aislop scan --exclude node_modules
   npx aislop scan --exclude node_modules,dist,file.txt
   npx aislop scan --exclude node_modules --exclude dist --exclude **/*.ts
@@ -149,6 +165,8 @@ program
 	.option("--staged", "only scan staged files")
 	.option("-d, --verbose", "show file details per rule")
 	.option("--json", "output JSON")
+	.option("--sarif", "output SARIF 2.1.0 (for GitHub code scanning)")
+	.option("--format <format>", "output format: json or sarif")
 	.option(
 		"--exclude <patterns>",
 		"comma-separated or repeatable list of paths and files to exclude",
@@ -242,11 +260,18 @@ program
 	.command("ci [directory]")
 	.description("CI-friendly JSON output with exit codes")
 	.option("--human", "render the human-friendly scan design instead of JSON")
+	.option("--sarif", "output SARIF 2.1.0 (for GitHub code scanning)")
+	.option("--format <format>", "output format: json or sarif")
 	.action(async (directory = ".", _flags, command) => {
-		const flags = command.optsWithGlobals() as { human?: boolean };
+		const flags = command.optsWithGlobals() as {
+			human?: boolean;
+			sarif?: boolean;
+			format?: string;
+		};
 		const config = loadConfig(directory);
 		const { exitCode } = await ciCommand(directory, config, {
 			human: Boolean(flags.human),
+			sarif: Boolean(flags.sarif) || flags.format === "sarif",
 		});
 		if (exitCode !== 0) {
 			await flushTelemetry();
@@ -297,6 +322,21 @@ program
 			process.stderr.write(`${message}\n`);
 			process.exit(1);
 		}
+	});
+
+program
+	.command("trend [directory]")
+	.description("Show score history trend from .aislop/history.jsonl")
+	.option("--limit <n>", "number of recent runs to show", (v) => Number.parseInt(v, 10))
+	.action(async (directory = ".", _flags, command) => {
+		const flags = command.optsWithGlobals() as { limit?: number };
+		await withCommandLifecycle(
+			{ command: "trend", config: loadConfig(directory).telemetry },
+			async () => {
+				trendCommand(directory, flags.limit);
+				return { exitCode: 0 };
+			},
+		);
 	});
 
 registerHookCommand(program);

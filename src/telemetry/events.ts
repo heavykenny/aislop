@@ -9,6 +9,7 @@ export type CommandName =
 	| "doctor"
 	| "rules"
 	| "badge"
+	| "trend"
 	| "hook_install"
 	| "hook_uninstall"
 	| "hook_status"

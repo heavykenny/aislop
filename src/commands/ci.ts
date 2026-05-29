@@ -4,6 +4,7 @@ import { scanCommand } from "./scan.js";
 
 interface CiOptions {
 	human?: boolean;
+	sarif?: boolean;
 }
 
 export const ciCommand = async (
@@ -16,7 +17,8 @@ export const ciCommand = async (
 			changes: false,
 			staged: false,
 			verbose: false,
-			json: !options.human,
+			json: !options.human && !options.sarif,
+			sarif: options.sarif,
 			command: "ci",
 		});
 	} catch (error) {

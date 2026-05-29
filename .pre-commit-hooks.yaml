@@ -1,0 +1,7 @@
+- id: aislop
+  name: aislop
+  description: Catch AI slop in staged files before they are committed.
+  entry: aislop scan --staged
+  language: node
+  pass_filenames: false
+  require_serial: true

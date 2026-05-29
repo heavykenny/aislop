@@ -57,6 +57,10 @@ const TelemetrySchema = z.object({
 	enabled: z.boolean().default(true),
 });
 
+const RuleSeverityOverride = z.enum(["error", "warning", "off"]);
+
+const RulesSchema = z.record(z.string(), RuleSeverityOverride).default(() => ({}));
+
 const AislopConfigSchema = z.object({
 	version: z.number().default(1),
 	engines: EnginesSchema.default(() => ({
@@ -95,9 +99,14 @@ const AislopConfigSchema = z.object({
 	telemetry: TelemetrySchema.default(() => ({
 		enabled: true,
 	})),
+	rules: RulesSchema,
 	exclude: z.array(z.string()).default(() => ["node_modules", ".git", "dist", "build", "coverage"]),
 	include: z.array(z.string()).default(() => []),
 });
+
+export type RuleSeverity = z.infer<typeof RuleSeverityOverride>;
+
+export { AislopConfigSchema };
 
 export type AislopConfig = z.infer<typeof AislopConfigSchema>;
 

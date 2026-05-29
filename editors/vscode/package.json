@@ -1,0 +1,50 @@
+{
+  "name": "aislop-vscode",
+  "displayName": "aislop",
+  "description": "Surface aislop code-quality findings as diagnostics in VS Code by shelling out to your installed aislop CLI.",
+  "version": "0.1.0",
+  "publisher": "scanaislop",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Linters"
+  ],
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "aislop.scanWorkspace",
+        "title": "aislop: Scan Workspace"
+      }
+    ],
+    "configuration": {
+      "title": "aislop",
+      "properties": {
+        "aislop.path": {
+          "type": "string",
+          "default": "aislop",
+          "description": "Path to the aislop CLI executable."
+        },
+        "aislop.scanOnSave": {
+          "type": "boolean",
+          "default": true,
+          "description": "Re-scan a file when it is saved."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.4.0"
+  }
+}

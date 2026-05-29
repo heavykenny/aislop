@@ -1,0 +1,241 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"properties": {
+		"version": {
+			"default": 1,
+			"type": "number"
+		},
+		"engines": {
+			"default": {
+				"format": true,
+				"lint": true,
+				"code-quality": true,
+				"ai-slop": true,
+				"architecture": false,
+				"security": true
+			},
+			"type": "object",
+			"properties": {
+				"format": {
+					"default": true,
+					"type": "boolean"
+				},
+				"lint": {
+					"default": true,
+					"type": "boolean"
+				},
+				"code-quality": {
+					"default": true,
+					"type": "boolean"
+				},
+				"ai-slop": {
+					"default": true,
+					"type": "boolean"
+				},
+				"architecture": {
+					"default": false,
+					"type": "boolean"
+				},
+				"security": {
+					"default": true,
+					"type": "boolean"
+				}
+			}
+		},
+		"quality": {
+			"default": {
+				"maxFunctionLoc": 80,
+				"maxFileLoc": 400,
+				"maxNesting": 5,
+				"maxParams": 6
+			},
+			"type": "object",
+			"properties": {
+				"maxFunctionLoc": {
+					"default": 80,
+					"type": "number",
+					"exclusiveMinimum": 0
+				},
+				"maxFileLoc": {
+					"default": 400,
+					"type": "number",
+					"exclusiveMinimum": 0
+				},
+				"maxNesting": {
+					"default": 5,
+					"type": "number",
+					"exclusiveMinimum": 0
+				},
+				"maxParams": {
+					"default": 6,
+					"type": "number",
+					"exclusiveMinimum": 0
+				}
+			}
+		},
+		"lint": {
+			"default": {
+				"typecheck": false
+			},
+			"type": "object",
+			"properties": {
+				"typecheck": {
+					"default": false,
+					"type": "boolean"
+				}
+			}
+		},
+		"security": {
+			"default": {
+				"audit": true,
+				"auditTimeout": 25000
+			},
+			"type": "object",
+			"properties": {
+				"audit": {
+					"default": true,
+					"type": "boolean"
+				},
+				"auditTimeout": {
+					"default": 25000,
+					"type": "number",
+					"exclusiveMinimum": 0
+				}
+			}
+		},
+		"scoring": {
+			"default": {
+				"weights": {
+					"format": 0.3,
+					"lint": 0.6,
+					"code-quality": 0.8,
+					"ai-slop": 2.5,
+					"architecture": 1,
+					"security": 1.5
+				},
+				"thresholds": {
+					"good": 75,
+					"ok": 50
+				},
+				"smoothing": 20
+			},
+			"type": "object",
+			"properties": {
+				"weights": {
+					"default": {
+						"format": 0.3,
+						"lint": 0.6,
+						"code-quality": 0.8,
+						"ai-slop": 2.5,
+						"architecture": 1,
+						"security": 1.5
+					},
+					"type": "object",
+					"propertyNames": {
+						"type": "string"
+					},
+					"additionalProperties": {
+						"type": "number"
+					}
+				},
+				"thresholds": {
+					"default": {
+						"good": 75,
+						"ok": 50
+					},
+					"type": "object",
+					"properties": {
+						"good": {
+							"default": 75,
+							"type": "number"
+						},
+						"ok": {
+							"default": 50,
+							"type": "number"
+						}
+					}
+				},
+				"smoothing": {
+					"default": 20,
+					"type": "number",
+					"minimum": 0
+				}
+			}
+		},
+		"ci": {
+			"default": {
+				"failBelow": 70,
+				"format": "json"
+			},
+			"type": "object",
+			"properties": {
+				"failBelow": {
+					"default": 70,
+					"type": "number"
+				},
+				"format": {
+					"default": "json",
+					"type": "string",
+					"enum": [
+						"json"
+					]
+				}
+			}
+		},
+		"telemetry": {
+			"default": {
+				"enabled": true
+			},
+			"type": "object",
+			"properties": {
+				"enabled": {
+					"default": true,
+					"type": "boolean"
+				}
+			}
+		},
+		"rules": {
+			"default": {},
+			"type": "object",
+			"propertyNames": {
+				"type": "string"
+			},
+			"additionalProperties": {
+				"type": "string",
+				"enum": [
+					"error",
+					"warning",
+					"off"
+				]
+			}
+		},
+		"exclude": {
+			"default": [
+				"node_modules",
+				".git",
+				"dist",
+				"build",
+				"coverage"
+			],
+			"type": "array",
+			"items": {
+				"type": "string"
+			}
+		},
+		"include": {
+			"default": [],
+			"type": "array",
+			"items": {
+				"type": "string"
+			}
+		},
+		"extends": {
+			"type": "string",
+			"description": "Path to a parent .aislop config to extend."
+		}
+	},
+	"$id": "https://scanaislop.com/schema/aislop.config.schema.json",
+	"title": "aislop configuration (.aislop/config.yml)",
+	"description": "Configuration schema for the aislop code-quality CLI."
+}
