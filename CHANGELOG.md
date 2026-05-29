@@ -4,6 +4,37 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.9.5 (2026-05-30)
+
+First release since the Hacker News launch. Fixes the Python import false positives reported there, adds two precision-first rules, ships the SARIF / per-rule-severity / `trend` tooling from #140, and extends agent support to pi (both the `fix` hand-off and an auto-running hook).
+
+### Added
+
+- **pi agent support (#144, #145).** `aislop fix --pi` hands off non-interactively (`pi -p "<prompt>"`), and `aislop hook install --pi` installs an auto-running pi extension that scans each edit and feeds the findings back to the model. `--crush` added alongside for `fix`.
+- **`ai-slop/silent-recovery` (warning, #144).** Flags catch blocks that only log and then continue, swallowing the error.
+- **`ai-slop/meta-comment` (warning, #144).** Flags AI plan/process narration comments (e.g. "Stage N of the...").
+- **SARIF output (#140).** `aislop scan --sarif` for code-scanning integrations.
+- **`trend` command (#140).** `aislop trend` tracks score over time from scan history.
+- **Per-rule severity overrides + config JSON schema (#140).** Tune rule severities in config with editor autocompletion and validation.
+- **Pre-commit hook integration (#140).**
+- **Hardcoded-config and defensive-pattern rules (#139):** `ai-slop/hardcoded-id`, `ai-slop/hardcoded-url`, `ai-slop/redundant-try-catch`, `ai-slop/redundant-type-coercion`, `ai-slop/duplicate-type-declaration`.
+
+### Fixed
+
+- **Python import false positives (#144).** Install-name vs import-name divergences (`yaml`→pyyaml, `PIL`→pillow, `cv2`→opencv-python, and the rest) now resolve via an alias map, and packages declared only in `[project.optional-dependencies]` are recognised. Reported on HN.
+- **TypeScript `@types` resolution (#144).** A type-only import backed solely by `@types/X` (including scoped `@scope/pkg` → `@types/scope__pkg`) no longer reports as undeclared.
+- **`ai-slop/duplicate-import` on type imports (#144).** `import type {...}` alongside `import {...}` from the same module is no longer flagged as a duplicate; a genuine duplicate still is.
+- **`security/eval` exec guard (#144).** Member/qualified calls like `foo.exec(...)` no longer match the bare `exec(` rule.
+- **Trivial comments (#144).** Trivial single-line comments inside a contiguous `//` block are no longer counted.
+
+### Changed
+
+- **npm package description (#138)** aligned with the README and GitHub About.
+
+### Tests
+
+Full suite at 928 passing, including pi adapter/install coverage and the false-positive regression tests.
+
 ## 0.9.4 (2026-05-28)
 
 Four new Python rules drawn from the verbosity signal in SlopCodeBench (SCBench, arXiv 2603.24755). Scan output now ends with a one-line nudge back to the GitHub repo. GitHub Discussions is open with structured templates for false-positive reports and rule requests.
