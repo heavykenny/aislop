@@ -1,5 +1,15 @@
 version: 1
 
+# editors/ is an isolated VS Code extension package with its own manifest;
+# it imports the host-provided `vscode` module, so exclude it from the root scan.
+exclude:
+  - node_modules
+  - .git
+  - dist
+  - build
+  - coverage
+  - editors
+
 engines:
   format: true
   lint: true
