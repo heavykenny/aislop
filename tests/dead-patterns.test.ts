@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { detectDeadPatterns } from "../src/engines/ai-slop/dead-patterns.js";
+import { detectHardcodedConfigLiterals } from "../src/engines/ai-slop/hardcoded-config.js";
 import { detectUnusedImports } from "../src/engines/ai-slop/unused-imports.js";
 import type { EngineContext } from "../src/engines/types.js";
 
@@ -278,6 +279,68 @@ describe("todo stubs", () => {
 		const diagnostics = await detectDeadPatterns(makeContext([filePath]));
 		const todos = diagnostics.filter((d) => d.rule === "ai-slop/todo-stub");
 		expect(todos).toHaveLength(0);
+	});
+});
+
+// ─── Hardcoded Config Literals ───────────────────────────────────────────────
+
+describe("hardcoded config literals", () => {
+	it("detects hardcoded environment URLs in production code", async () => {
+		const filePath = writeFile(
+			"client.ts",
+			[
+				'const API_BASE_URL = "https://api.acme.com/v1";',
+				"export const fetchUser = (id: string) => fetch(`${API_BASE_URL}/users/${id}`);",
+			].join("\n"),
+		);
+		const diagnostics = await detectHardcodedConfigLiterals(makeContext([filePath]));
+		const matches = diagnostics.filter((d) => d.rule === "ai-slop/hardcoded-url");
+		expect(matches).toHaveLength(1);
+		expect(matches[0].line).toBe(1);
+	});
+
+	it("does not flag URLs that are already env-backed", async () => {
+		const filePath = writeFile(
+			"client-env.ts",
+			'const API_BASE_URL = process.env.API_BASE_URL ?? "https://api.acme.com/v1";',
+		);
+		const diagnostics = await detectHardcodedConfigLiterals(makeContext([filePath]));
+		expect(diagnostics.filter((d) => d.rule === "ai-slop/hardcoded-url")).toEqual([]);
+	});
+
+	it("does not flag documentation links", async () => {
+		const filePath = writeFile(
+			"docs-link.ts",
+			'const docsUrl = "https://scanaislop.com/patterns";',
+		);
+		const diagnostics = await detectHardcodedConfigLiterals(makeContext([filePath]));
+		expect(diagnostics.filter((d) => d.rule === "ai-slop/hardcoded-url")).toEqual([]);
+	});
+
+	it("does not flag hardcoded URLs in non-production examples", async () => {
+		const filePath = writeFile(
+			"examples/demo.ts",
+			'const API_BASE_URL = "https://api.acme.com/v1";',
+		);
+		const diagnostics = await detectHardcodedConfigLiterals(makeContext([filePath]));
+		expect(diagnostics.filter((d) => d.rule === "ai-slop/hardcoded-url")).toEqual([]);
+	});
+
+	it("detects hardcoded provider IDs in production code", async () => {
+		const filePath = writeFile("billing.ts", 'const STRIPE_PRICE_ID = "price_123456789abcdef";');
+		const diagnostics = await detectHardcodedConfigLiterals(makeContext([filePath]));
+		const matches = diagnostics.filter((d) => d.rule === "ai-slop/hardcoded-id");
+		expect(matches).toHaveLength(1);
+		expect(matches[0].line).toBe(1);
+	});
+
+	it("does not flag provider IDs that are already env-backed", async () => {
+		const filePath = writeFile(
+			"billing-env.ts",
+			'const STRIPE_PRICE_ID = process.env.STRIPE_PRICE_ID ?? "price_123456789abcdef";',
+		);
+		const diagnostics = await detectHardcodedConfigLiterals(makeContext([filePath]));
+		expect(diagnostics.filter((d) => d.rule === "ai-slop/hardcoded-id")).toEqual([]);
 	});
 });
 

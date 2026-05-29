@@ -55,6 +55,9 @@ The rules that make aislop unique. These catch the patterns AI assistants leave 
 | `ai-slop/trivial-comment` | warning | Comments restating the code (`// Import React`, `// Return the value`) |
 | `ai-slop/narrative-comment` | warning | Decorative separators, phase/section headers, JSDoc preambles without meaningful tags (caught on top-level *and* interface/type members), cross-reference commentary, 5+ line prose blocks anywhere |
 | `ai-slop/swallowed-exception` | error | Empty catch blocks, catch blocks that only log (JS/TS/Python/Go/Ruby/Java) |
+| `ai-slop/redundant-try-catch` | warning | JS/TS catch blocks that only rethrow the same error without adding context, cleanup, or recovery |
+| `ai-slop/redundant-type-coercion` | warning | TypeScript primitive parameters re-coerced with `String(...)`, `Number(...)`, or `Boolean(...)` |
+| `ai-slop/duplicate-type-declaration` | warning | Exported TypeScript type/interface declarations repeated with the same name and shape across files |
 | `ai-slop/thin-wrapper` | warning | Functions that only delegate to another function |
 | `ai-slop/generic-naming` | info | AI-generated names: `helper_1`, `data2`, `temp1` |
 | `ai-slop/unused-import` | warning | Unused imports (JS/TS and Python) |
@@ -66,6 +69,8 @@ The rules that make aislop unique. These catch the patterns AI assistants leave 
 | `ai-slop/unsafe-type-assertion` | warning | `as any` in TypeScript |
 | `ai-slop/double-type-assertion` | warning | `as unknown as X` pattern |
 | `ai-slop/ts-directive` | info | `@ts-ignore` / `@ts-expect-error` usage |
+| `ai-slop/hardcoded-url` | warning | Environment-specific URLs hardcoded in production code instead of env/config |
+| `ai-slop/hardcoded-id` | warning | Provider/project IDs hardcoded in production code instead of env/config |
 | `ai-slop/python-range-len-loop` | info | Python `for i in range(len(items))` loops that usually want direct iteration or `enumerate()` |
 | `ai-slop/python-chained-dict-get` | warning | Python `.get(..., {}).get(...)` fallback chains that hide missing-data cases |
 | `ai-slop/python-repetitive-dispatch` | warning | Repeated Python equality branch ladders that should usually become a table/set/handler map |

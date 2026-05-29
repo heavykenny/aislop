@@ -4,8 +4,9 @@ import { detectPackageManager, isCiEnv } from "./env.js";
 import { ensureInstallId, resolveInstallIdPath } from "./identity.js";
 import { redactProperties } from "./redaction.js";
 
-const POSTHOG_HOST = "https://eu.i.posthog.com";
-const POSTHOG_KEY = "phc_eY2cOMFva9q24GrWeOuvuVIOhCIdjOALxeAR3ItrqbJ";
+const POSTHOG_HOST = process.env.AISLOP_POSTHOG_HOST ?? "https://eu.i.posthog.com";
+const POSTHOG_KEY =
+	process.env.AISLOP_POSTHOG_KEY ?? "phc_eY2cOMFva9q24GrWeOuvuVIOhCIdjOALxeAR3ItrqbJ";
 const SCHEMA_VERSION = "v2";
 const REQUEST_TIMEOUT_MS = 3000;
 

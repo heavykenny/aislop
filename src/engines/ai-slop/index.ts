@@ -2,9 +2,11 @@ import type { Diagnostic, Engine, EngineContext, EngineResult } from "../types.j
 import { detectOverAbstraction } from "./abstractions.js";
 import { detectTrivialComments } from "./comments.js";
 import { detectDeadPatterns } from "./dead-patterns.js";
+import { detectDefensivePatterns } from "./defensive-patterns.js";
 import { detectDuplicateImports } from "./duplicate-imports.js";
 import { detectSwallowedExceptions } from "./exceptions.js";
 import { detectGoPatterns } from "./go-patterns.js";
+import { detectHardcodedConfigLiterals } from "./hardcoded-config.js";
 import { detectHallucinatedImports } from "./hallucinated-imports.js";
 import { detectNarrativeComments } from "./narrative-comments.js";
 import { detectPythonPatterns } from "./python-patterns.js";
@@ -20,11 +22,13 @@ export const aiSlopEngine: Engine = {
 		const results = await Promise.allSettled([
 			detectTrivialComments(context),
 			detectSwallowedExceptions(context),
+			detectDefensivePatterns(context),
 			detectOverAbstraction(context),
 			detectDeadPatterns(context),
 			detectUnusedImports(context),
 			detectNarrativeComments(context),
 			detectDuplicateImports(context),
+			detectHardcodedConfigLiterals(context),
 			detectPythonPatterns(context),
 			detectGoPatterns(context),
 			detectRustPatterns(context),

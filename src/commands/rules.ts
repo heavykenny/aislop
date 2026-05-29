@@ -112,6 +112,9 @@ const BUILTIN_RULES: { engine: string; rules: string[] }[] = [
 		rules: [
 			"ai-slop/trivial-comment",
 			"ai-slop/swallowed-exception",
+			"ai-slop/redundant-try-catch",
+			"ai-slop/redundant-type-coercion",
+			"ai-slop/duplicate-type-declaration",
 			"ai-slop/thin-wrapper",
 			"ai-slop/generic-naming",
 			"ai-slop/unused-import",
@@ -125,6 +128,8 @@ const BUILTIN_RULES: { engine: string; rules: string[] }[] = [
 			"ai-slop/ts-directive",
 			"ai-slop/narrative-comment",
 			"ai-slop/duplicate-import",
+			"ai-slop/hardcoded-url",
+			"ai-slop/hardcoded-id",
 			"ai-slop/python-bare-except",
 			"ai-slop/python-broad-except",
 			"ai-slop/python-mutable-default",
