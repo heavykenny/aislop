@@ -112,6 +112,8 @@ const BUILTIN_RULES: { engine: string; rules: string[] }[] = [
 		rules: [
 			"ai-slop/trivial-comment",
 			"ai-slop/swallowed-exception",
+			"ai-slop/silent-recovery",
+			"ai-slop/meta-comment",
 			"ai-slop/redundant-try-catch",
 			"ai-slop/redundant-type-coercion",
 			"ai-slop/duplicate-type-declaration",
