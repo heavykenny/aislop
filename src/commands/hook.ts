@@ -7,6 +7,7 @@ import {
 } from "../hooks/adapters/claude.js";
 import { runCursorHook } from "../hooks/adapters/cursor.js";
 import { runGeminiHook } from "../hooks/adapters/gemini.js";
+import { runPiHook } from "../hooks/adapters/pi.js";
 import {
 	AGENTS_PROJECT_ONLY,
 	AGENTS_SUPPORTING_BOTH_SCOPES,
@@ -25,6 +26,7 @@ const AGENT_LABELS: Record<AgentName, { label: string; hint: string }> = {
 	claude: { label: "Claude Code", hint: "PostToolUse, runtime" },
 	cursor: { label: "Cursor", hint: "afterFileEdit, runtime" },
 	gemini: { label: "Gemini CLI", hint: "AfterTool, runtime" },
+	pi: { label: "pi", hint: "extension, runtime" },
 	codex: { label: "Codex CLI", hint: "rules-only" },
 	windsurf: { label: "Windsurf", hint: "rules-only, project" },
 	cline: { label: "Cline + Roo", hint: "rules-only, project" },
@@ -144,6 +146,8 @@ export const hookRun = async (
 		exitCode = await runCursorHook();
 	} else if (agent === "gemini") {
 		exitCode = await runGeminiHook();
+	} else if (agent === "pi") {
+		exitCode = await runPiHook();
 	} else {
 		process.stderr.write(`hook: agent "${agent}" has no runtime adapter (rules-file-only)\n`);
 		process.exit(0);

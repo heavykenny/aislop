@@ -13,7 +13,7 @@ Six events:
 | `cli_command_completed` | End of any command — success or failure (carries `exit_code`, `duration_ms`, score, finding counts, engine stats) |
 | `mcp_server_started` | After the `aislop-mcp` stdio transport connects |
 | `mcp_tool_called` | Each `aislop_scan` / `aislop_fix` / `aislop_why` / `aislop_baseline` invocation |
-| `hook_scan_completed` | After a Claude / Cursor / Gemini agent hook finishes a scoped scan |
+| `hook_scan_completed` | After a Claude / Cursor / Gemini / pi agent hook finishes a scoped scan |
 
 Each event carries:
 

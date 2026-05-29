@@ -20,6 +20,7 @@ type AgentFlagOpts = Partial<
 		| "claude"
 		| "cursor"
 		| "gemini"
+		| "pi"
 		| "codex"
 		| "windsurf"
 		| "cline"
@@ -34,6 +35,7 @@ const AGENT_NAMES = [
 	"claude",
 	"cursor",
 	"gemini",
+	"pi",
 	"codex",
 	"windsurf",
 	"cline",
@@ -225,6 +227,12 @@ const registerCallbacks = (hook: Command): void => {
 		.description("Internal: Gemini CLI AfterTool callback (reads stdin)")
 		.action(async () => {
 			await hookRun("gemini");
+		});
+	hook
+		.command("pi")
+		.description("Internal: pi extension tool_result callback (reads stdin)")
+		.action(async () => {
+			await hookRun("pi");
 		});
 };
 

@@ -143,11 +143,12 @@ Runs after every agent edit. Feedback flows back immediately.
 npx aislop hook install --claude           # Claude Code
 npx aislop hook install --cursor           # Cursor
 npx aislop hook install --gemini           # Gemini CLI
+npx aislop hook install --pi               # pi
 npx aislop hook install                    # all supported agents
 npx aislop hook install claude cursor      # specific agents
 ```
 
-**Runtime adapters** (scan + feedback): `claude`, `cursor`, `gemini`.  
+**Runtime adapters** (scan + feedback): `claude`, `cursor`, `gemini`, `pi`.  
 **Rules-only** (agent reads rules): `codex`, `windsurf`, `cline`, `kilocode`, `antigravity`, `copilot`.
 
 **Quality-gate mode**: Blocks if score regresses below baseline.

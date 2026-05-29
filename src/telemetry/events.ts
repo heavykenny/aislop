@@ -126,7 +126,7 @@ export const buildMcpToolCalledProps = (input: McpToolCalledInput): Record<strin
 };
 
 interface HookScanCompletedInput {
-	agent: "claude" | "cursor" | "gemini";
+	agent: "claude" | "cursor" | "gemini" | "pi";
 	score: number;
 	scoreDelta?: number | null;
 	findingCount: number;

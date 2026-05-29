@@ -11,6 +11,7 @@ import { installCopilot, resolveCopilotPaths, uninstallCopilot } from "./copilot
 import { installCursor, resolveCursorPaths, uninstallCursor } from "./cursor.js";
 import { installGemini, resolveGeminiPaths, uninstallGemini } from "./gemini.js";
 import { installKilocode, resolveKilocodePaths, uninstallKilocode } from "./kilocode.js";
+import { installPi, resolvePiPaths, uninstallPi } from "./pi.js";
 import type { HookInstallOpts, HookInstallResult, HookUninstallResult } from "./types.js";
 import { installWindsurf, resolveWindsurfPaths, uninstallWindsurf } from "./windsurf.js";
 
@@ -18,6 +19,7 @@ export type AgentName =
 	| "claude"
 	| "cursor"
 	| "gemini"
+	| "pi"
 	| "codex"
 	| "windsurf"
 	| "cline"
@@ -29,6 +31,7 @@ export const ALL_AGENTS: AgentName[] = [
 	"claude",
 	"cursor",
 	"gemini",
+	"pi",
 	"codex",
 	"windsurf",
 	"cline",
@@ -44,7 +47,13 @@ export const AGENTS_PROJECT_ONLY: AgentName[] = [
 	"antigravity",
 	"copilot",
 ];
-export const AGENTS_SUPPORTING_BOTH_SCOPES: AgentName[] = ["claude", "cursor", "gemini", "codex"];
+export const AGENTS_SUPPORTING_BOTH_SCOPES: AgentName[] = [
+	"claude",
+	"cursor",
+	"gemini",
+	"pi",
+	"codex",
+];
 
 interface AgentEntry {
 	install: (opts: HookInstallOpts) => HookInstallResult;
@@ -65,6 +74,7 @@ const paths = {
 		const p = resolveGeminiPaths(opts);
 		return [p.settings, p.aislopMd, p.geminiMd];
 	},
+	pi: (opts: HookInstallOpts): string[] => [resolvePiPaths(opts).extension],
 	codex: (opts: HookInstallOpts): string[] => [resolveCodexPaths(opts).rules],
 	windsurf: (opts: HookInstallOpts): string[] => [resolveWindsurfPaths(opts).rules],
 	cline: (opts: HookInstallOpts): string[] => [
@@ -80,6 +90,7 @@ export const REGISTRY: Record<AgentName, AgentEntry> = {
 	claude: { install: installClaude, uninstall: uninstallClaude, paths: paths.claude },
 	cursor: { install: installCursor, uninstall: uninstallCursor, paths: paths.cursor },
 	gemini: { install: installGemini, uninstall: uninstallGemini, paths: paths.gemini },
+	pi: { install: installPi, uninstall: uninstallPi, paths: paths.pi },
 	codex: { install: installCodex, uninstall: uninstallCodex, paths: paths.codex },
 	windsurf: { install: installWindsurf, uninstall: uninstallWindsurf, paths: paths.windsurf },
 	cline: { install: installCline, uninstall: uninstallCline, paths: paths.cline },

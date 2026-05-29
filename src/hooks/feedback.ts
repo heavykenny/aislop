@@ -29,7 +29,7 @@ interface SuggestedAction {
 	ruleIds?: string[];
 }
 
-interface AislopFeedback {
+export interface AislopFeedback {
 	schema: "aislop.hook.v2";
 	score: number;
 	baseline?: number;
@@ -54,7 +54,7 @@ interface BaselineSnapshot {
 	findingFingerprints: string[];
 }
 
-type AgentName = "claude" | "cursor" | "gemini";
+type AgentName = "claude" | "cursor" | "gemini" | "pi";
 
 interface FeedbackMeta {
 	agent?: AgentName;
