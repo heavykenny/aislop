@@ -131,7 +131,7 @@ npx aislop fix --claude        # Claude Code
 npx aislop fix --cursor        # Cursor (copies to clipboard)
 npx aislop fix --gemini        # Gemini CLI
 npx aislop fix --codex         # Codex CLI
-# Also: --windsurf, --amp, --aider, --goose, --opencode, --warp, --kimi, --antigravity, --deep-agents, --vscode
+# Also: --windsurf, --amp, --aider, --goose, --pi, --crush, --opencode, --warp, --kimi, --antigravity, --deep-agents, --vscode
 npx aislop fix --prompt        # print prompt (agent-agnostic)
 ```
 

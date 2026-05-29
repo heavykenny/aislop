@@ -91,6 +91,39 @@ import { magic } from "totally-made-up-package"
 		expect(diag.message).toContain("totally-made-up-package");
 	});
 
+	it("does not false-positive on a type-only import of X when only @types/X is declared", async () => {
+		writePkgJson({}, { "@types/mdast": "^4.0.0" });
+		writeFile(
+			"src/nodes.ts",
+			`import type { Blockquote } from "mdast"
+export type B = Blockquote
+`,
+		);
+
+		const diagnostics = await detectHallucinatedImports(buildContext());
+
+		expect(diagnostics).toEqual([]);
+	});
+
+	it("resolves scoped imports to their DefinitelyTyped @types name (@scope/pkg -> @types/scope__pkg)", async () => {
+		writePkgJson({}, { "@types/scope__pkg": "^1.0.0" });
+		writeFile("src/scoped.ts", `import type { Thing } from "@scope/pkg"\nexport type T = Thing\n`);
+
+		const diagnostics = await detectHallucinatedImports(buildContext());
+
+		expect(diagnostics).toEqual([]);
+	});
+
+	it("still flags a truly missing package even when it has no @types backing", async () => {
+		writePkgJson({}, { "@types/mdast": "^4.0.0" });
+		writeFile("src/x.ts", `import { thing } from "totally-not-real-pkg"\n`);
+
+		const diagnostics = await detectHallucinatedImports(buildContext());
+
+		expect(diagnostics).toHaveLength(1);
+		expect(diagnostics[0].message).toContain("totally-not-real-pkg");
+	});
+
 	it("does not false-positive on @types/X when X is in deps", async () => {
 		writePkgJson({ react: "^18.0.0" }, { "@types/react": "^18.0.0" });
 		writeFile(
@@ -413,6 +446,66 @@ import sklearn.cluster as cluster
 		expect(diagnostics).toEqual([]);
 	});
 
+	it("resolves install-name vs import-name divergences from the HN/issue-143 report", async () => {
+		writeFile(
+			"requirements.txt",
+			[
+				"python-dotenv==1.0.0",
+				"google-genai==0.3.0",
+				"pillow==10.0.0",
+				"opencv-python==4.9.0",
+				"pyyaml==6.0",
+				"beautifulsoup4==4.12.0",
+				"scikit-learn==1.4.0",
+				"python-dateutil==2.9.0",
+				"pyjwt==2.8.0",
+				"",
+			].join("\n"),
+		);
+		writeFile(
+			"src/main.py",
+			[
+				"from dotenv import load_dotenv",
+				"from google import genai",
+				"from PIL import Image",
+				"import cv2",
+				"import yaml",
+				"import bs4",
+				"import sklearn",
+				"from dateutil import parser",
+				"import jwt",
+				"",
+			].join("\n"),
+		);
+
+		const diagnostics = await detectHallucinatedImports(buildContext());
+
+		expect(diagnostics).toEqual([]);
+	});
+
+	it("resolves google-genai for `from google import genai` and still flags a garbage import alongside", async () => {
+		writeFile("requirements.txt", "google-genai==0.3.0\n");
+		writeFile(
+			"src/main.py",
+			`from google import genai\nimport made_up_garbage_pkg\n`,
+		);
+
+		const diagnostics = await detectHallucinatedImports(buildContext());
+
+		expect(diagnostics).toHaveLength(1);
+		expect(diagnostics[0].message).toContain("made_up_garbage_pkg");
+	});
+
+	it("still flags an aliased module when its distribution is NOT declared", async () => {
+		writeFile("requirements.txt", "requests==2.31.0\n");
+		writeFile("src/main.py", `import cv2\n`);
+
+		const diagnostics = await detectHallucinatedImports(buildContext());
+
+		expect(diagnostics).toHaveLength(1);
+		expect(diagnostics[0].message).toContain("cv2");
+	});
+
 	it("reads pyproject.toml [project] dependencies and poetry deps", async () => {
 		writeFile(
 			"pyproject.toml",
@@ -473,6 +566,32 @@ from _pytest import runner
 		writeFile("app/__init__.py", "");
 		const diagnostics = await detectHallucinatedImports(buildContext());
 		expect(diagnostics).toHaveLength(0);
+	});
+
+	it("resolves deps declared only in [project.optional-dependencies] extras", async () => {
+		writeFile(
+			"pyproject.toml",
+			`[project]
+name = "demo"
+dependencies = ["requests>=2.0"]
+
+[project.optional-dependencies]
+yaml = ["pyyaml>=6.0"]
+img = ["pillow>=10.0", "opencv-python>=4.9"]
+`,
+		);
+		writeFile(
+			"src/main.py",
+			`import requests
+import yaml
+from PIL import Image
+import cv2
+`,
+		);
+
+		const diagnostics = await detectHallucinatedImports(buildContext());
+
+		expect(diagnostics).toEqual([]);
 	});
 });
 

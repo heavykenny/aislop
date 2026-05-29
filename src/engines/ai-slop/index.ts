@@ -8,9 +8,11 @@ import { detectSwallowedExceptions } from "./exceptions.js";
 import { detectGoPatterns } from "./go-patterns.js";
 import { detectHardcodedConfigLiterals } from "./hardcoded-config.js";
 import { detectHallucinatedImports } from "./hallucinated-imports.js";
+import { detectMetaComments } from "./meta-comment.js";
 import { detectNarrativeComments } from "./narrative-comments.js";
 import { detectPythonPatterns } from "./python-patterns.js";
 import { detectRustPatterns } from "./rust-patterns.js";
+import { detectSilentRecovery } from "./silent-recovery.js";
 import { detectUnusedImports } from "./unused-imports.js";
 
 export const aiSlopEngine: Engine = {
@@ -33,6 +35,8 @@ export const aiSlopEngine: Engine = {
 			detectGoPatterns(context),
 			detectRustPatterns(context),
 			detectHallucinatedImports(context),
+			detectSilentRecovery(context),
+			detectMetaComments(context),
 		]);
 
 		for (const result of results) {

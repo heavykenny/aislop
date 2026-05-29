@@ -39,6 +39,16 @@ const isJsComment = (trimmed: string): boolean =>
 const isPythonComment = (trimmed: string): boolean =>
 	trimmed.startsWith("#") && !trimmed.startsWith("#!");
 
+const isLineComment = (trimmed: string): boolean =>
+	isJsComment(trimmed) || isPythonComment(trimmed);
+
+// Removing one line out of a consecutive comment run would mangle the surrounding prose.
+const isInMultiLineCommentRun = (lines: string[], index: number): boolean => {
+	const prev = index > 0 ? lines[index - 1].trim() : "";
+	const next = index + 1 < lines.length ? lines[index + 1].trim() : "";
+	return isLineComment(prev) || isLineComment(next);
+};
+
 /**
  * Extract just the comment text after the comment marker.
  */
@@ -122,6 +132,7 @@ const scanFileForTrivialComments = (
 		const trimmed = lines[i].trim();
 		const nextLine = i + 1 < lines.length ? lines[i + 1] : undefined;
 		if (!isTrivialComment(trimmed, nextLine)) continue;
+		if (isInMultiLineCommentRun(lines, i)) continue;
 		if (isDocCommentForDeclaration(lines, i, ext)) continue;
 		diagnostics.push({
 			filePath: relativePath,

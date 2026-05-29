@@ -39,6 +39,13 @@ const collectFromPyproject = (rootDir: string, pyDeps: Set<string>): boolean => 
 				if (m) addPyDep(pyDeps, m[1]);
 			}
 		}
+		// PEP 621 extras: [project.optional-dependencies] holds arrays of requirements.
+		const extras = content.match(/\[project\.optional-dependencies\]([\s\S]*?)(?=\n\[|$)/);
+		if (extras) {
+			for (const m of extras[1].matchAll(/["']\s*([a-zA-Z][a-zA-Z0-9_\-.]+)/g)) {
+				addPyDep(pyDeps, m[1]);
+			}
+		}
 		const poetryRe = /\[tool\.poetry(?:\.group\.[a-z]+)?\.dependencies\]([\s\S]*?)(?=\n\[|$)/g;
 		let match: RegExpExecArray | null = poetryRe.exec(content);
 		while (match !== null) {

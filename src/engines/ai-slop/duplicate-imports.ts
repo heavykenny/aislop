@@ -6,12 +6,30 @@ import type { Diagnostic, EngineContext } from "../types.js";
 const JS_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"]);
 
 // Top-level ES module imports only — side-effect / require / dynamic-import legitimately repeat and are excluded.
-const IMPORT_FROM_RE = /^\s*import\s+[^;]*?from\s+["']([^"']+)["']/;
+const IMPORT_FROM_RE = /^\s*import\s+([^;]*?)\s+from\s+["']([^"']+)["']/;
+
+// A leading `import type {...}` is a type-only statement.
+const TYPE_ONLY_RE = /^\s*type\b/;
+
+// `import { type Foo, type Bar }` with no value bindings is also type-only under consistent-type-imports.
+const VALUE_BINDING_RE = /\{([^}]*)\}/;
 
 interface ImportLine {
 	spec: string;
 	line: number;
+	typeOnly: boolean;
 }
+
+const isTypeOnly = (clause: string): boolean => {
+	if (TYPE_ONLY_RE.test(clause)) return true;
+	const braces = VALUE_BINDING_RE.exec(clause);
+	if (!braces) return false;
+	const members = braces[1]
+		.split(",")
+		.map((member) => member.trim())
+		.filter((member) => member.length > 0);
+	return members.length > 0 && members.every((member) => /^type\b/.test(member));
+};
 
 const extractImportLines = (content: string): ImportLine[] => {
 	const lines = content.split("\n");
@@ -20,7 +38,7 @@ const extractImportLines = (content: string): ImportLine[] => {
 		const line = lines[i];
 		const match = IMPORT_FROM_RE.exec(line);
 		if (!match) continue;
-		results.push({ spec: match[1], line: i + 1 });
+		results.push({ spec: match[2], line: i + 1, typeOnly: isTypeOnly(match[1]) });
 	}
 	return results;
 };
@@ -43,15 +61,19 @@ export const detectDuplicateImports = async (context: EngineContext): Promise<Di
 		const imports = extractImportLines(content);
 		if (imports.length < 2) continue;
 
-		const bySpec = new Map<string, ImportLine[]>();
+		// Bucket value imports and type-only imports separately: a value+type pair from the
+		// same module is the intended shape under typescript-eslint's consistent-type-imports.
+		const byBucket = new Map<string, ImportLine[]>();
 		for (const imp of imports) {
-			const list = bySpec.get(imp.spec) ?? [];
+			const key = `${imp.typeOnly ? "type" : "value"}\0${imp.spec}`;
+			const list = byBucket.get(key) ?? [];
 			list.push(imp);
-			bySpec.set(imp.spec, list);
+			byBucket.set(key, list);
 		}
 
 		const relPath = path.relative(context.rootDirectory, filePath);
-		for (const [spec, occurrences] of bySpec) {
+		for (const occurrences of byBucket.values()) {
+			const { spec } = occurrences[0];
 			if (occurrences.length < 2) continue;
 			// Flag the second-and-later occurrences; the first one is the canonical home.
 			for (const dup of occurrences.slice(1)) {
