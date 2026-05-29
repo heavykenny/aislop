@@ -567,6 +567,32 @@ from _pytest import runner
 		const diagnostics = await detectHallucinatedImports(buildContext());
 		expect(diagnostics).toHaveLength(0);
 	});
+
+	it("resolves deps declared only in [project.optional-dependencies] extras", async () => {
+		writeFile(
+			"pyproject.toml",
+			`[project]
+name = "demo"
+dependencies = ["requests>=2.0"]
+
+[project.optional-dependencies]
+yaml = ["pyyaml>=6.0"]
+img = ["pillow>=10.0", "opencv-python>=4.9"]
+`,
+		);
+		writeFile(
+			"src/main.py",
+			`import requests
+import yaml
+from PIL import Image
+import cv2
+`,
+		);
+
+		const diagnostics = await detectHallucinatedImports(buildContext());
+
+		expect(diagnostics).toEqual([]);
+	});
 });
 
 describe("ai-slop/unused-import — Python re-export convention", () => {

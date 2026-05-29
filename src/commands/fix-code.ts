@@ -35,7 +35,7 @@ const AGENT_CONFIGS: Record<string, AgentConfig> = {
 	warp: { type: "cli", bin: "warp", args: (p) => [p] },
 	aider: { type: "cli", bin: "aider", args: (p) => ["--message", p] },
 	goose: { type: "cli", bin: "goose", args: (p) => ["run", p] },
-	pi: { type: "cli", bin: "pi", args: (p) => [p] },
+	pi: { type: "cli", bin: "pi", args: (p) => ["-p", p] },
 	crush: { type: "cli", bin: "crush", args: (p) => ["run", p] },
 
 	// Editor agents — open editor + copy prompt to clipboard
