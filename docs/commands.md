@@ -45,6 +45,8 @@
 | `--warp` | Warp |
 | `--aider` | Aider |
 | `--goose` | Goose |
+| `--pi` | pi |
+| `--crush` | Crush |
 
 #### Agent flags: editor agents (open editor + copy prompt to clipboard)
 

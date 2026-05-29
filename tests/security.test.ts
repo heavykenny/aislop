@@ -357,6 +357,26 @@ describe("detectRiskyConstructs", () => {
 		expect(diagnostics[0].rule).toBe("security/python-exec");
 	});
 
+	it("does not flag method-call exec forms ('session.exec', 'obj.eval')", async () => {
+		const sqlmodelPath = writeFile("query.py", "results = session.exec(stmt).all()");
+		const dottedExecPath = writeFile("regex_test.py", "match = re.compile(p).exec(text)");
+		const dottedEvalPath = writeFile("repl.py", "value = obj.eval(expr)");
+		const diagnostics = await detectRiskyConstructs(
+			makeContext([sqlmodelPath, dottedExecPath, dottedEvalPath]),
+		);
+		const flagged = diagnostics.filter(
+			(d) => d.rule === "security/python-exec" || d.rule === "security/eval",
+		);
+		expect(flagged).toHaveLength(0);
+	});
+
+	it("still flags bare exec() in Python after the method-call guard", async () => {
+		const filePath = writeFile("bare_exec.py", 'exec("import os")');
+		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));
+		const execDiags = diagnostics.filter((d) => d.rule === "security/python-exec");
+		expect(execDiags.length).toBeGreaterThanOrEqual(1);
+	});
+
 	it("detects SQL injection via template literal", async () => {
 		const filePath = writeFile(
 			"sql.ts",

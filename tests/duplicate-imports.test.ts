@@ -104,6 +104,50 @@ export {}
 		expect(diagnostics).toEqual([]);
 	});
 
+	it("does not flag a value import alongside a type-only import from the same module", async () => {
+		writeFile(
+			"src/consistent-type.ts",
+			`import { foo } from "./foo"
+import type { FooObj } from "./foo"
+export const value = foo
+`,
+		);
+
+		const diagnostics = await detectDuplicateImports(buildContext());
+
+		expect(diagnostics).toEqual([]);
+	});
+
+	it("does not flag a value import alongside an inline type-only import from the same module", async () => {
+		writeFile(
+			"src/inline-type.ts",
+			`import { foo } from "./foo"
+import { type FooObj } from "./foo"
+export const value = foo
+`,
+		);
+
+		const diagnostics = await detectDuplicateImports(buildContext());
+
+		expect(diagnostics).toEqual([]);
+	});
+
+	it("still flags two value imports from the same module (regression preserved)", async () => {
+		writeFile(
+			"src/two-values.ts",
+			`import { a } from "./x"
+import { b } from "./x"
+export const sum = a
+`,
+		);
+
+		const diagnostics = await detectDuplicateImports(buildContext());
+
+		expect(diagnostics).toHaveLength(1);
+		expect(diagnostics[0].line).toBe(2);
+		expect(diagnostics[0].message).toContain("./x");
+	});
+
 	it("works only on JS/TS extensions; ignores .py and similar", async () => {
 		writeFile(
 			"src/py.py",

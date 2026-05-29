@@ -141,6 +141,14 @@ const packageNameFromImport = (spec: string): string => {
 	return spec.split("/")[0];
 };
 
+// The @types/* package providing types for a runtime package: `foo` -> `@types/foo`,
+// `@scope/pkg` -> `@types/scope__pkg` (DefinitelyTyped scoped-name convention).
+const typesPackageName = (pkg: string): string => {
+	if (pkg.startsWith("@types/")) return pkg;
+	if (pkg.startsWith("@")) return `@types/${pkg.slice(1).replace("/", "__")}`;
+	return `@types/${pkg}`;
+};
+
 // Static `import ... from "spec"` anchored to start-of-line so it never matches
 // `import { ... } from "x"` written *inside* a string literal in source.
 const STATIC_IMPORT_RE = /^\s*import\s+(?:[\w*{},\s]+\s+from\s+)?["']([^"']+)["']/;
@@ -216,16 +224,20 @@ const checkJsImport = (
 		const realPkg = pkg.slice("@types/".length);
 		if (manifest.jsDeps.has(realPkg)) return null;
 	}
+	// Type-only imports backed by a declared @types/* package are not hallucinated.
+	if (manifest.jsDeps.has(typesPackageName(pkg))) return null;
 	return pkg;
 };
+
+const normalizePyName = (name: string): string => name.toLowerCase().replace(/_/g, "-");
 
 const checkPyImport = (spec: string, manifest: PackageManifest): string | null => {
 	const root = spec.split(".")[0];
 	if (PYTHON_STDLIB.has(root)) return null;
-	const normalized = root.toLowerCase().replace(/_/g, "-");
+	const normalized = normalizePyName(root);
 	if (manifest.pyDeps.has(normalized)) return null;
-	const pipName = PYTHON_IMPORT_TO_PIP[root];
-	if (pipName && manifest.pyDeps.has(pipName)) return null;
+	const distributions = PYTHON_IMPORT_TO_PIP[root] ?? PYTHON_IMPORT_TO_PIP[normalized];
+	if (distributions?.some((dist) => manifest.pyDeps.has(normalizePyName(dist)))) return null;
 	return root;
 };
 

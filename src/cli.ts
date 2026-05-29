@@ -199,6 +199,8 @@ const FIX_AGENT_FLAGS: { flag: string; name: string; help: string }[] = [
 	{ flag: "warp", name: "warp", help: "open Warp to fix remaining issues" },
 	{ flag: "aider", name: "aider", help: "open Aider to fix remaining issues" },
 	{ flag: "goose", name: "goose", help: "open Goose to fix remaining issues" },
+	{ flag: "pi", name: "pi", help: "open pi to fix remaining issues" },
+	{ flag: "crush", name: "crush", help: "open Crush to fix remaining issues" },
 ];
 
 const matchFixAgent = (flags: Record<string, boolean | undefined>): string | undefined => {

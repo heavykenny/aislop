@@ -60,7 +60,9 @@ const RISKY_PATTERNS: RiskyPattern[] = [
 		help: "Use JSON, MessagePack, or other safe serialization formats for untrusted data",
 	},
 	{
-		pattern: new RegExp(`\\b${"ex" + "ec"}\\s*\\(`, "g"),
+		// Negative lookbehind skips method-call forms (`.exec(`, `->exec(`, `::exec(`, `\exec(`)
+		// which are not the builtin exec — e.g. SQLModel's session.exec(stmt) or RegExp.exec.
+		pattern: new RegExp(`(?<![\\w.>:\\\\])\\b${"ex" + "ec"}\\s*\\(`, "g"),
 		extensions: [".py"],
 		name: "python-exec",
 		message: "Use of exec() can execute arbitrary code",
