@@ -6,18 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## 0.10.0 (2026-05-30)
 
-A precision release. A sweep through the ai-slop rules to cut false positives on real human-written code, validated against open-source libraries surfaced at the HN launch — one dropped from 426 findings to 92, every removed finding a false positive, with clean code still scoring 100. Plus a scoring change so genuine slop drives the number over house style.
+A precision release. A sweep through the ai-slop rules to cut false positives on real human-written code, validated against open-source libraries surfaced at the HN launch. One dropped from 426 findings to 92, every removed finding a false positive, with clean code still scoring 100. Plus a scoring change so genuine slop drives the number over house style.
 
 ### Fixed (false positives)
 
 - **`ai-slop/thin-wrapper`** only flags a true passthrough (a function forwarding its own parameters unchanged); a call that transforms its arguments is real work, not a wrapper (#153).
-- **`ai-slop/narrative-comment`** drops the bare-section-label branch, recognises reasoning markers ("ideally… however", "even though", "first need"), and the length-based branches now require an actual AI-narration signal rather than length alone — so long, well-written explanatory comments are kept (#153).
-- **`ai-slop/unused-import`** no longer flags `from __future__ import …` (a parser directive, not a usable name) (#153).
+- **`ai-slop/narrative-comment`** drops the bare-section-label branch, recognises reasoning markers ("ideally / however", "even though", "first need"), and the length-based branches now require an actual AI-narration signal rather than length alone, so long, well-written explanatory comments are kept (#153).
+- **`ai-slop/unused-import`** no longer flags `from __future__ import` (a parser directive, not a usable name) (#153).
 - **`ai-slop/trivial-comment`** only fires when the comment restates the next line; comments that add a condition or reason are kept (#153).
-- **`ai-slop/silent-recovery`** only fires when the caught error is dropped, not when it is logged — observable recovery is intentional, not a swallow (#153).
+- **`ai-slop/silent-recovery`** only fires when the caught error is dropped, not when it is logged. Observable recovery is intentional, not a swallow (#153).
 - **`ai-slop/meta-comment`** only flags leading plan markers, not UI "step N" wizard prose (#153).
 - **`ai-slop/hardcoded-id` / `hardcoded-url`** exempt env-var-name literals, migration files, and stable vendor API hosts (`api.github.com` and friends) (#153).
-- **`ai-slop/todo-stub`** spares TODOs that reference a tracking issue — documented debt, not an abandoned stub (#153).
+- **`ai-slop/todo-stub`** spares TODOs that reference a tracking issue, which is documented debt, not an abandoned stub (#153).
 - **`ai-slop/hallucinated-import`** parses PEP 735 `[dependency-groups]`, recognises `psycopg2` as provided by `psycopg2-binary`, and no longer flags import-shaped text inside docstrings, imports under `if TYPE_CHECKING:`, the `code`/`codeop`/`rlcompleter` stdlib modules, or non-production paths (validated on flask: 19 → 0) (#151, #153).
 - **`docs/`** build tooling is treated as non-production, like `scripts/` and `examples/` (#153).
 
@@ -27,7 +27,7 @@ A precision release. A sweep through the ai-slop rules to cut false positives on
 
 ### Tests
 
-Full suite at 939 passing.
+Full suite at 945 passing.
 
 ## 0.9.6 (2026-05-30)
 
