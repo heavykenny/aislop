@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.10.0 (2026-05-30)
+
+A precision release. A sweep through the ai-slop rules to cut false positives on real human-written code, validated against open-source libraries surfaced at the HN launch — one dropped from 426 findings to 92, every removed finding a false positive, with clean code still scoring 100. Plus a scoring change so genuine slop drives the number over house style.
+
+### Fixed (false positives)
+
+- **`ai-slop/thin-wrapper`** only flags a true passthrough (a function forwarding its own parameters unchanged); a call that transforms its arguments is real work, not a wrapper (#153).
+- **`ai-slop/narrative-comment`** drops the bare-section-label branch and recognises reasoning markers ("ideally… however", "even though", "first need") as the explanatory comments they are (#153).
+- **`ai-slop/trivial-comment`** only fires when the comment restates the next line; comments that add a condition or reason are kept (#153).
+- **`ai-slop/silent-recovery`** only fires when the caught error is dropped, not when it is logged — observable recovery is intentional, not a swallow (#153).
+- **`ai-slop/meta-comment`** only flags leading plan markers, not UI "step N" wizard prose (#153).
+- **`ai-slop/hardcoded-id` / `hardcoded-url`** exempt env-var-name literals, migration files, and stable vendor API hosts (`api.github.com` and friends) (#153).
+- **`ai-slop/todo-stub`** spares TODOs that reference a tracking issue — documented debt, not an abandoned stub (#153).
+- **`ai-slop/hallucinated-import`** parses PEP 735 `[dependency-groups]`, and recognises `psycopg2` as provided by `psycopg2-binary` (#151, #153).
+- **`docs/`** build tooling is treated as non-production, like `scripts/` and `examples/` (#153).
+
+### Changed
+
+- **Scoring:** style rules (comments, file size) weigh 0.5× so the score is driven by genuine slop rather than house style. The volume-based curve is unchanged (#153).
+
+### Tests
+
+Full suite at 939 passing.
+
 ## 0.9.6 (2026-05-30)
 
 Precision fix for the `hardcoded-id` / `hardcoded-url` rules shipped in 0.9.5, which over-flagged on real codebases (surfaced by dogfooding the rules on our own dashboard).
