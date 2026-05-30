@@ -160,4 +160,36 @@ from x import b
 
 		expect(diagnostics).toEqual([]);
 	});
+
+	it("ignores import lines inside a JSDoc @example block", async () => {
+		writeFile(
+			"src/doc.ts",
+			`import {And} from "type-fest"
+/**
+ * @example
+ * import {And} from "type-fest";
+ * type T = And<true, true>;
+ */
+export type T = And<true, true>
+`,
+		);
+
+		const diagnostics = await detectDuplicateImports(buildContext());
+
+		expect(diagnostics).toEqual([]);
+	});
+
+	it("does not flag a namespace import alongside a named import from the same module", async () => {
+		writeFile(
+			"src/ns.ts",
+			`import * as core from "../core/index.js"
+import { ZodError } from "../core/index.js"
+export const x = core
+`,
+		);
+
+		const diagnostics = await detectDuplicateImports(buildContext());
+
+		expect(diagnostics).toEqual([]);
+	});
 });

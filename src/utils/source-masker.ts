@@ -16,8 +16,16 @@ const familyForExt = (ext: string): LangFamily => {
 export const maskStringsAndComments = (content: string, ext: string): string => {
 	const family = familyForExt(ext);
 	if (family === "none") return content;
-	if (family === "js") return maskJs(content);
-	return maskSimple(content, family);
+	if (family === "js") return maskJs(content, true);
+	return maskSimple(content, family, true);
+};
+
+// Mask comment bodies only; string and template contents stay readable.
+export const maskComments = (content: string, ext: string): string => {
+	const family = familyForExt(ext);
+	if (family === "none") return content;
+	if (family === "js") return maskJs(content, false);
+	return maskSimple(content, family, false);
 };
 
 interface MaskHandler {
@@ -30,6 +38,7 @@ const handleQuotesAndComments = (
 	i: number,
 	tplStack: number[],
 	mask: (start: number, end: number) => void,
+	maskStrings: boolean,
 ): MaskHandler => {
 	const len = content.length;
 	const c = content[i];
@@ -37,12 +46,12 @@ const handleQuotesAndComments = (
 	if (c === '"' || c === "'") {
 		const strStart = i;
 		const end = consumeQuotedString(content, i, c);
-		mask(strStart + 1, end - 1);
+		if (maskStrings) mask(strStart + 1, end - 1);
 		return { handled: true, nextI: end };
 	}
 	if (c === "`") {
 		const scan = consumeTemplateString(content, i + 1);
-		mask(i + 1, scan.maskEnd);
+		if (maskStrings) mask(i + 1, scan.maskEnd);
 		if (scan.openedInterp) tplStack.push(0);
 		return { handled: true, nextI: scan.resumeAt };
 	}
@@ -64,7 +73,7 @@ const handleQuotesAndComments = (
 	return { handled: false, nextI: i };
 };
 
-const maskJs = (content: string): string => {
+const maskJs = (content: string, maskStrings: boolean): string => {
 	const out = content.split("");
 	const len = content.length;
 	const tplStack: number[] = [];
@@ -90,7 +99,7 @@ const maskJs = (content: string): string => {
 				if (depth === 0) {
 					tplStack.pop();
 					const scan = consumeTemplateString(content, i + 1);
-					mask(i + 1, scan.maskEnd);
+					if (maskStrings) mask(i + 1, scan.maskEnd);
 					if (scan.openedInterp) tplStack.push(0);
 					i = scan.resumeAt;
 					continue;
@@ -101,7 +110,7 @@ const maskJs = (content: string): string => {
 			}
 		}
 
-		const handled = handleQuotesAndComments(content, i, tplStack, mask);
+		const handled = handleQuotesAndComments(content, i, tplStack, mask, maskStrings);
 		if (handled.handled) {
 			i = handled.nextI;
 			continue;
@@ -155,7 +164,7 @@ const consumeTemplateString = (content: string, start: number): TemplateScan => 
 	return { maskEnd: i, resumeAt: i, openedInterp: false };
 };
 
-const maskSimple = (content: string, family: LangFamily): string => {
+const maskSimple = (content: string, family: LangFamily, maskStrings: boolean): string => {
 	const out = content.split("");
 	const len = content.length;
 	let i = 0;
@@ -176,7 +185,7 @@ const maskSimple = (content: string, family: LangFamily): string => {
 				const triple = c + c + c;
 				const end = content.indexOf(triple, i + 3);
 				const stop = end === -1 ? len : end + 3;
-				mask(i + 3, stop - 3);
+				if (maskStrings) mask(i + 3, stop - 3);
 				i = stop;
 				continue;
 			}
@@ -185,7 +194,7 @@ const maskSimple = (content: string, family: LangFamily): string => {
 		if (c === '"' || c === "'") {
 			const strStart = i;
 			i = consumeQuotedString(content, i, c);
-			mask(strStart + 1, i - 1);
+			if (maskStrings) mask(strStart + 1, i - 1);
 			continue;
 		}
 
