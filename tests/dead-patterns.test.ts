@@ -320,6 +320,25 @@ describe("hardcoded config literals", () => {
 		expect(diagnostics.filter((d) => d.rule === "ai-slop/hardcoded-url")).toEqual([]);
 	});
 
+	it("does not flag stable third-party vendor API hosts", async () => {
+		const filePath = writeFile(
+			"github.ts",
+			[
+				'const res = await fetch("https://api.github.com/user");',
+				'const orgs = await fetch("https://api.github.com/user/orgs");',
+				'res.redirect("https://github.com/login/oauth/authorize");',
+			].join("\n"),
+		);
+		const diagnostics = await detectHardcodedConfigLiterals(makeContext([filePath]));
+		expect(diagnostics.filter((d) => d.rule === "ai-slop/hardcoded-url")).toEqual([]);
+	});
+
+	it("still flags a deployment/own environment URL", async () => {
+		const filePath = writeFile("redirect.ts", 'res.redirect(301, "https://app.acme-prod.com");');
+		const diagnostics = await detectHardcodedConfigLiterals(makeContext([filePath]));
+		expect(diagnostics.filter((d) => d.rule === "ai-slop/hardcoded-url")).toHaveLength(1);
+	});
+
 	it("does not flag documentation links", async () => {
 		const filePath = writeFile(
 			"docs-link.ts",

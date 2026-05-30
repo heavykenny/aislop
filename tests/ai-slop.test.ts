@@ -106,13 +106,14 @@ describe("detectTrivialComments", () => {
 		expect(diagnostics.length).toBeGreaterThanOrEqual(1);
 	});
 
-	it("detects 'Check if X' comment", async () => {
+	it("does NOT flag a comment that states a condition (references 'if')", async () => {
+		// A comment naming the condition adds context the bare `if (user.isAuth)` doesn't spell out.
 		const filePath = writeFile(
 			"check.ts",
 			"// Check if user is authenticated\nif (user.isAuth) { doSomething(); }",
 		);
 		const diagnostics = await detectTrivialComments(makeContext([filePath]));
-		expect(diagnostics.length).toBeGreaterThanOrEqual(1);
+		expect(diagnostics).toHaveLength(0);
 	});
 
 	it("detects 'Loop through X' comment", async () => {

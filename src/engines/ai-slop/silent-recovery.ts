@@ -6,7 +6,17 @@ import { isNonProductionPath } from "./non-production-paths.js";
 
 const JS_EXTS = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"]);
 
-const CATCH_HEAD_RE = /\bcatch\s*(?:\([^)]*\))?\s*\{/g;
+const CATCH_HEAD_RE = /\bcatch\s*(?:\(\s*([^)]*?)\s*\))?\s*\{/g;
+
+const isIdentifier = (s: string): boolean => /^[A-Za-z_$][\w$]*$/.test(s);
+
+// Logging the caught error is observable recovery; only a dropped error is a silent swallow.
+const recoveryDropsError = (binding: string | undefined, body: string): boolean => {
+	const name = binding?.trim() ?? "";
+	if (name === "") return true;
+	if (!isIdentifier(name)) return false; // destructured/aliased binding keeps the detail
+	return !new RegExp(`\\b${name}\\b`).test(body);
+};
 
 // A statement that only emits a log line: console.* or <ident>.{warn,info,error,log,debug}(...).
 const LOG_STATEMENT_RE =
@@ -78,6 +88,7 @@ const detectJsSilentRecovery = (content: string, relPath: string): Diagnostic[] 
 		const body = extractCatchBody(content, braceIndex);
 		if (body === null) continue;
 		if (!isLogOnlyBody(body)) continue;
+		if (!recoveryDropsError(match[1], body)) continue;
 
 		const line = content.slice(0, match.index).split("\n").length;
 		out.push({
@@ -85,8 +96,8 @@ const detectJsSilentRecovery = (content: string, relPath: string): Diagnostic[] 
 			engine: "ai-slop",
 			rule: "ai-slop/silent-recovery",
 			severity: "warning",
-			message: "Catch only logs then continues, leaving execution in a possibly broken state",
-			help: "Handle the error: rethrow, return an error value, or recover explicitly. Logging alone lets the program proceed as if nothing failed.",
+			message: "Catch logs without the caught error then continues; the failure cause is lost",
+			help: "Include the caught error in the log, or rethrow / recover explicitly, so the failure stays diagnosable.",
 			line,
 			column: 0,
 			category: "AI Slop",
@@ -97,6 +108,7 @@ const detectJsSilentRecovery = (content: string, relPath: string): Diagnostic[] 
 };
 
 const PY_EXCEPT_RE = /^(\s*)except\b[^\n]*:\s*(?:#.*)?$/;
+const PY_EXCEPT_BINDING_RE = /\bas\s+(\w+)\s*:/;
 const PY_LOG_STATEMENT_RE =
 	/^(?:logging|logger|log|self\.log|self\.logger|print)(?:\.(?:debug|info|warning|warn|error|exception|critical))?\s*\(/;
 const PY_HANDLING_TOKEN_RE = /^(?:raise\b|return\b|continue\b|break\b|self\.|[\w.]+\s*=)/;
@@ -129,14 +141,16 @@ const detectPySilentRecovery = (content: string, relPath: string): Diagnostic[] 
 		);
 		const sawLog = bodyLines.some((line) => PY_LOG_STATEMENT_RE.test(line));
 		if (!allLogs || !sawLog) continue;
+		if (!recoveryDropsError(PY_EXCEPT_BINDING_RE.exec(lines[i])?.[1], bodyLines.join(" ")))
+			continue;
 
 		out.push({
 			filePath: relPath,
 			engine: "ai-slop",
 			rule: "ai-slop/silent-recovery",
 			severity: "warning",
-			message: "except only logs then continues, leaving execution in a possibly broken state",
-			help: "Handle the error: re-raise, return an error value, or recover explicitly. Logging alone lets the program proceed as if nothing failed.",
+			message: "except logs without the caught error then continues; the failure cause is lost",
+			help: "Include the caught error in the log, or re-raise / recover explicitly, so the failure stays diagnosable.",
 			line: i + 1,
 			column: 0,
 			category: "AI Slop",

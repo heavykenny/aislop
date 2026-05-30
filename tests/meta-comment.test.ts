@@ -131,4 +131,22 @@ describe("meta-comment: negative fixtures (precision)", () => {
 		);
 		expect(await metaDiags()).toHaveLength(0);
 	});
+
+	it("does NOT flag UI wizard step references in normal prose", async () => {
+		writeFile(
+			"src/wizard.ts",
+			[
+				"// Step 2 polling + auto-sync when the user returns",
+				"// Make sure step 3 has projects loaded",
+				"// always start at step 1 — that submit call stamps onboardedAt",
+				"export const x = 1;",
+			].join("\n"),
+		);
+		expect(await metaDiags()).toHaveLength(0);
+	});
+
+	it("still flags a leading plan marker with a delimiter (`Step 1 -`)", async () => {
+		writeFile("src/plan.ts", `// Step 1 - validate the incoming payload\nexport const y = 2;\n`);
+		expect(await metaDiags()).toHaveLength(1);
+	});
 });

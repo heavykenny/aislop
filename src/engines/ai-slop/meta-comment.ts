@@ -8,7 +8,9 @@ import { isNonProductionPath } from "./non-production-paths.js";
 
 // References to the AI's own plan/process or to a task/spec/ticket it was working from.
 const PLAN_REFERENCE_RES: RegExp[] = [
-	/\b(?:stage|step|phase)\s+\d+\b(?!\s*[:.]?\s*(?:bytes|ms|seconds|of\s+\d))/i,
+	// Plan-list narration leads with the marker + a delimiter ("Step 1: …"); a bare "step N"
+	// mid-sentence is domain usage (UI wizard step), not AI narration.
+	/^(?:stage|step|phase)\s+\d+\s*[:.\-–—]/i,
 	/\bstep\s+\d+\s+of\s+the\s+plan\b/i,
 	/\bas\s+(?:per|requested)\s+(?:the\s+)?(?:requirements?|spec|task|ticket|prompt|instructions?)\b/i,
 	/\bper\s+the\s+(?:spec|requirements?|task|ticket|plan|prompt|instructions?)\b/i,

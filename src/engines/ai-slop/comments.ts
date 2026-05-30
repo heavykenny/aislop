@@ -25,9 +25,10 @@ const TRIVIAL_PYTHON_COMMENT_PATTERNS = [
 	new RegExp(`^#\\s*(?:${TRIVIAL_VERB_STEMS})(?:e|es|ing|s)?\\b`, "i"),
 ];
 
-// Keywords that indicate a comment is explanatory / meaningful
+// Keywords that indicate a comment adds context (a reason or condition), not just restating the
+// code: explanatory markers plus conditionals/necessity words ("... if X", "needs to ...").
 const EXPLANATORY_KEYWORDS =
-	/\b(?:because|since|note|todo|fixme|hack|warn|warning|workaround|caveat|important|assumes?)\b/i;
+	/\b(?:because|since|note|todo|fixme|hack|warn|warning|workaround|caveat|important|assumes?|if|when|unless|until|only|except|otherwise|needs?|must|should|ensure|avoid|prevent|requires?)\b/i;
 
 // Characters that suggest commented-out code rather than prose
 const COMMENTED_CODE_CHARS = /[({=;}\]>]/;

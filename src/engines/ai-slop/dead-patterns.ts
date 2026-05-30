@@ -77,6 +77,8 @@ const markerKeywords = ["TE" + "MP", "PLACEHO" + "LDER", "ST" + "UB"];
 const TODO_PATTERN = new RegExp(
 	`\\b(?:${todoKeywords.join("|")})\\b[:\\s]|\\b(?:${markerKeywords.join("|")})[:\\s]`,
 );
+const TODO_TRACKING_RE =
+	/https?:\/\/|#\d+|\bgh-\d+\b|\b[A-Z][A-Z0-9]+-\d+\b|\b(?:issue|ticket|jira)\b/i;
 
 const isBlockCloserAfterReturn = (line: string): boolean =>
 	line.startsWith("}") ||
@@ -118,6 +120,8 @@ const detectTodoStubs = (content: string, relativePath: string): Diagnostic[] =>
 		}
 
 		if (TODO_PATTERN.test(trimmed)) {
+			// A TODO that references a tracking issue is documented debt, not an unfinished stub.
+			if (TODO_TRACKING_RE.test(trimmed)) continue;
 			diagnostics.push(
 				slop(
 					relativePath,

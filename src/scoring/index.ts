@@ -7,6 +7,15 @@ export interface ScoreResult {
 
 const PERFECT_SCORE = 100;
 
+// Style rules weigh half on the score so genuine slop drives it, not house style.
+const STYLE_RULES = new Set([
+	"ai-slop/trivial-comment",
+	"ai-slop/narrative-comment",
+	"complexity/file-too-large",
+	"complexity/function-too-long",
+]);
+const STYLE_WEIGHT = 0.5;
+
 const getEffectiveFileCount = (diagnostics: Diagnostic[], sourceFileCount?: number): number => {
 	if (typeof sourceFileCount === "number" && sourceFileCount > 0) {
 		return sourceFileCount;
@@ -33,7 +42,8 @@ export const calculateScore = (
 	for (const d of diagnostics) {
 		const engineWeight = weights[d.engine] ?? 1.0;
 		const severityPenalty = d.severity === "error" ? 3 : d.severity === "warning" ? 1 : 0.25;
-		deductions += severityPenalty * engineWeight;
+		const styleFactor = STYLE_RULES.has(d.rule) ? STYLE_WEIGHT : 1;
+		deductions += severityPenalty * engineWeight * styleFactor;
 	}
 
 	const effectiveFileCount = getEffectiveFileCount(diagnostics, sourceFileCount);

@@ -28,13 +28,8 @@ export const JUSTIFICATION_OPENERS = [
 export const EXPLANATORY_OPENERS =
 	/^(Matches|Detects|Represents|Holds|Stores|Tracks|Handles|Manages|Controls|Contains|Captures|Encapsulates|Wraps|Describes)\s+[A-Za-z`'"]/;
 
-// Imperative verbs that introduce step comments inside function bodies (idiomatic Go/Rust/Java),
-// distinct from organizational "noun-label" headers.
-export const STEP_COMMENT_VERB_RE =
-	/^(?:Render|Enable|Disable|Initialize|Init|Setup|Set|Get|Fetch|Load|Save|Build|Create|Delete|Remove|Add|Update|Process|Execute|Run|Start|Stop|Clean|Cleanup|Configure|Validate|Check|Verify|Parse|Extract|Apply|Wait|Sleep|Skip|Allow|Deny|Lock|Unlock|Refresh|Reload|Reset|Clear|Send|Receive|Read|Write|Print|Log|Emit|Dispatch|Fire|Open|Close|Bind|Connect|Disconnect|Register|Unregister|Push|Pop|Insert|Append|Prepend|Sort|Filter|Find|Search|Replace|Encode|Decode|Convert|Transform|Map|Reduce|Iterate|Loop|Walk|Visit|Mark|Unmark|Toggle|Switch|Restart|Resume|Pause|Abort|Cancel|Compute|Calculate|Resolve|Reject|Ignore|Handle|Track|Trace|Increment|Decrement|Round|Truncate|Resize|Move|Copy|Clone|Merge|Split|Join|Wrap|Unwrap|Bump|Drain|Flush|Sync|Persist|Commit|Rollback|Yield|Return|Discard|Defer|Pin|Unpin|Mount|Unmount|Spawn|Kill|Restore)(?:\s|$)/;
-
 export const EXPLANATORY_WHY_MARKERS =
-	/\b(?:because|since|otherwise|workaround|caveat|warning|important|assumes?|note:|bug|issue|see\s+(?:issue|above|below)|in\s+prod|in\s+production|breaks?\s+when|fails?\s+when|must\s+run|must\s+be|has\s+to\s+be|hack\s+for|fix\s+for|reason:|to\s+avoid|to\s+ensure|to\s+prevent|in\s+order\s+to|necessary|guarantee[sd]?|prevents?|regardless\s+of|required\s+(?:for|to|by)|for\s+example|e\.g\.|i\.e\.|useful\s+(?:for|when)|intended\s+to|on\s+purpose|by\s+design)\b/i;
+	/\b(?:because|since|otherwise|workaround|caveat|warning|important|assumes?|note:|bug|issue|see\s+(?:issue|above|below)|in\s+prod|in\s+production|breaks?\s+when|fails?\s+when|must\s+run|must\s+be|has\s+to\s+be|hack\s+for|fix\s+for|reason:|to\s+avoid|to\s+ensure|to\s+prevent|in\s+order\s+to|necessary|guarantee[sd]?|prevents?|regardless\s+of|required\s+(?:for|to|by)|for\s+example|e\.g\.|i\.e\.|useful\s+(?:for|when)|intended\s+to|on\s+purpose|by\s+design|ideally|however|although|even\s+though|despite|whereas|unfortunately|trade-?off|first\s+need)\b/i;
 
 export const MEANINGFUL_JSDOC_TAGS = new Set([
 	"deprecated",

@@ -20,7 +20,6 @@ import {
 	RUBY_DECL_START,
 	RUST_DECL_START,
 	SECTION_HEADER,
-	STEP_COMMENT_VERB_RE,
 	SUPPORTED_EXTS,
 	TS_MEMBER_DECL_START,
 } from "./narrative-comments-patterns.js";
@@ -63,34 +62,6 @@ const looksLikeLicenseHeader = (block: CommentBlock): boolean => {
 		text.includes("license") ||
 		text.includes("spdx-license-identifier")
 	);
-};
-
-const BARE_LABEL_RE = /^[A-Z][A-Za-z0-9 ]{1,28}$/;
-const isBareSectionLabel = (prose: string): boolean => {
-	if (!BARE_LABEL_RE.test(prose)) return false;
-	if (prose.endsWith(".")) return false;
-	const words = prose.split(/\s+/);
-	if (words.length > 3) return false;
-	if (STEP_COMMENT_VERB_RE.test(prose)) return false;
-	return true;
-};
-
-const DATA_ENTRY_START = /^\s*(?:\{|\[|["'`]|\d|\w+:\s|case\s)/;
-const nextLineLooksLikeDataEntry = (nextLine: string | null): boolean => {
-	if (nextLine === null) return false;
-	if (!DATA_ENTRY_START.test(nextLine)) return false;
-	const trimmed = nextLine.trim();
-	if (trimmed.startsWith("case ")) return true;
-	if (
-		trimmed.startsWith("{") ||
-		trimmed.startsWith("[") ||
-		trimmed.startsWith('"') ||
-		trimmed.startsWith("'") ||
-		trimmed.startsWith("`")
-	)
-		return true;
-	if (/^\w+\s*:/.test(trimmed)) return true;
-	return false;
 };
 
 const looksLikeSuppressDirective = (block: CommentBlock): boolean =>
@@ -187,16 +158,6 @@ const detectNarrativeInBlock = (
 
 	if (block.kind === "line" && block.prose.some((l) => SECTION_HEADER.test(l))) {
 		return { matched: true, reason: "phase/section header" };
-	}
-
-	if (
-		block.kind === "line" &&
-		block.prose.length === 1 &&
-		isBareSectionLabel(block.prose[0]) &&
-		!nextLineLooksLikeDataEntry(block.nextNonBlankLine) &&
-		!looksLikeDeclarationPreamble(block.nextNonBlankLine, ext)
-	) {
-		return { matched: true, reason: "bare section label" };
 	}
 
 	const joined = block.prose.join(" ");

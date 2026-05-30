@@ -46,6 +46,13 @@ const collectFromPyproject = (rootDir: string, pyDeps: Set<string>): boolean => 
 				addPyDep(pyDeps, m[1]);
 			}
 		}
+		// PEP 735 dependency groups: [dependency-groups] holds named arrays of requirements.
+		const groups = content.match(/\[dependency-groups\]([\s\S]*?)(?=\n\[[^[]|$)/);
+		if (groups) {
+			for (const m of groups[1].matchAll(/["']\s*([a-zA-Z][a-zA-Z0-9_\-.]+)/g)) {
+				addPyDep(pyDeps, m[1]);
+			}
+		}
 		const poetryRe = /\[tool\.poetry(?:\.group\.[a-z]+)?\.dependencies\]([\s\S]*?)(?=\n\[|$)/g;
 		let match: RegExpExecArray | null = poetryRe.exec(content);
 		while (match !== null) {

@@ -37,14 +37,14 @@ const silentRecoveryDiags = async () => {
 };
 
 describe("silent-recovery (JS/TS)", () => {
-	it("flags catch that only console.warn then continues", async () => {
+	it("flags catch that logs a message but drops the caught error", async () => {
 		writeFile(
 			"src/a.ts",
 			`export function load() {
 	try {
 		risky();
 	} catch (e) {
-		console.warn("failed", e);
+		console.warn("load failed");
 	}
 	return next();
 }
@@ -54,6 +54,22 @@ describe("silent-recovery (JS/TS)", () => {
 		expect(diags).toHaveLength(1);
 		expect(diags[0].severity).toBe("warning");
 		expect(diags[0].fixable).toBe(false);
+	});
+
+	it("does NOT flag a catch that logs the caught error (observable recovery)", async () => {
+		writeFile(
+			"src/a2.ts",
+			`export function load() {
+	try {
+		risky();
+	} catch (e) {
+		console.warn("load failed", e);
+	}
+	return next();
+}
+`,
+		);
+		expect(await silentRecoveryDiags()).toHaveLength(0);
 	});
 
 	it("flags optional-binding catch with only a logger call", async () => {
@@ -72,7 +88,7 @@ describe("silent-recovery (JS/TS)", () => {
 		expect(diags).toHaveLength(1);
 	});
 
-	it("flags multi-line log-only catch body", async () => {
+	it("flags multi-line log-only catch body that drops the error", async () => {
 		writeFile(
 			"src/c.ts",
 			`export function run() {
@@ -80,8 +96,7 @@ describe("silent-recovery (JS/TS)", () => {
 		go();
 	} catch (err) {
 		console.error(
-			"could not complete",
-			err,
+			"could not complete the operation",
 		);
 	}
 }
@@ -173,13 +188,21 @@ describe("silent-recovery (JS/TS)", () => {
 });
 
 describe("silent-recovery (Python)", () => {
-	it("flags except that only logs then continues", async () => {
+	it("flags except that logs a message but drops the caught error", async () => {
 		writeFile(
 			"src/a.py",
-			["def load():", "    try:", "        risky()", "    except Exception as e:", "        logging.warning('failed: %s', e)", "    return next()", ""].join("\n"),
+			["def load():", "    try:", "        risky()", "    except Exception as e:", "        logging.warning('load failed')", "    return next()", ""].join("\n"),
 		);
 		const diags = await silentRecoveryDiags();
 		expect(diags).toHaveLength(1);
+	});
+
+	it("does NOT flag except that logs the caught error (observable recovery)", async () => {
+		writeFile(
+			"src/a2.py",
+			["def load():", "    try:", "        risky()", "    except Exception as e:", "        logging.warning('failed: %s', e)", "    return next()", ""].join("\n"),
+		);
+		expect(await silentRecoveryDiags()).toHaveLength(0);
 	});
 
 	it("does NOT flag except that re-raises after logging", async () => {

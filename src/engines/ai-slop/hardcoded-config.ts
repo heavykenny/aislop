@@ -34,6 +34,32 @@ const ID_CONTEXT_RE =
 const MIGRATION_PATH_RE = /(?:^|[\\/])(?:migrations?|db[\\/]migrate)[\\/]/i;
 const PLACEHOLDER_HOSTS = new Set(["example.com", "example.org", "example.net"]);
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "0.0.0.0", "::1"]);
+// Stable third-party API / OAuth hosts are fixed vendor endpoints, not deployment-specific config.
+const VENDOR_API_DOMAINS = [
+	"github.com",
+	"githubusercontent.com",
+	"googleapis.com",
+	"accounts.google.com",
+	"stripe.com",
+	"openai.com",
+	"anthropic.com",
+	"slack.com",
+	"twilio.com",
+	"sendgrid.com",
+	"mailgun.net",
+	"cloudflare.com",
+	"discord.com",
+	"telegram.org",
+	"login.microsoftonline.com",
+	"graph.microsoft.com",
+	"twitter.com",
+	"x.com",
+	"twimg.com",
+	"t.co",
+	"api.telegram.org",
+];
+const isVendorApiHost = (host: string): boolean =>
+	VENDOR_API_DOMAINS.some((d) => host === d || host.endsWith(`.${d}`));
 const PLACEHOLDER_ID_RE = /^(?:changeme|replace[_-]?me|your[_-]|example|placeholder|todo)/i;
 
 interface FindingSpec {
@@ -96,6 +122,7 @@ const shouldFlagUrlLiteral = (line: string, urlText: string): boolean => {
 	if (!host) return false;
 	if (PLACEHOLDER_HOSTS.has(host)) return false;
 	if (LOOPBACK_HOSTS.has(host)) return false;
+	if (isVendorApiHost(host)) return false;
 	if (DOC_URL_CONTEXT_RE.test(line) && !ENVIRONMENT_HOST_RE.test(host)) return false;
 	return URL_CONFIG_CONTEXT_RE.test(line) || ENVIRONMENT_HOST_RE.test(host);
 };

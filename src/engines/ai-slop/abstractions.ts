@@ -37,14 +37,34 @@ const FRAMEWORK_METHOD_NAMES =
 
 const DUNDER_PATTERN = /^__\w+__$/;
 
-const hasHardcodedArgs = (matchText: string): boolean => {
-	const innerCallMatch = matchText.match(/=>\s*\w+\(([^)]*)\)\s*;?\s*$/);
-	if (!innerCallMatch) {
-		const returnCallMatch = matchText.match(/return\s+\w+\(([^)]*)\)\s*;?\s*\}/);
-		if (!returnCallMatch) return false;
-		return /['"`]\w+['"`]|(?<!\w)\d+(?!\w)/.test(returnCallMatch[1]);
-	}
-	return /['"`]\w+['"`]|(?<!\w)\d+(?!\w)/.test(innerCallMatch[1]);
+const stripParam = (p: string): string =>
+	p
+		.trim()
+		.split(/[:=]/)[0]
+		.trim()
+		.replace(/^[*&]+/, "");
+
+const paramNames = (paramsText: string): Set<string> =>
+	new Set(
+		paramsText
+			.split(",")
+			.map(stripParam)
+			.filter((p) => p && p !== "self" && p !== "cls"),
+	);
+
+// A thin wrapper forwards its own parameters unchanged. Transforming the args (member access,
+// literals, expressions) or forwarding non-parameters is real work, not a passthrough.
+const isIdentityForward = (matchText: string): boolean => {
+	const paramsMatch = matchText.match(/\(([^)]*)\)/);
+	const innerMatch = matchText.match(/(?:return\s+\w+|=>\s*\w+)\s*\(([^)]*)\)/);
+	if (!paramsMatch || !innerMatch) return false;
+	const params = paramNames(paramsMatch[1]);
+	const args = innerMatch[1]
+		.split(",")
+		.map((a) => a.trim())
+		.filter((a) => a.length > 0);
+	if (args.length === 0) return false;
+	return args.every((a) => /^[A-Za-z_$][\w$]*$/.test(a) && params.has(a));
 };
 
 // React useContext wrapper pattern — idiomatic, not slop
@@ -76,8 +96,8 @@ const detectThinWrappers = (content: string, relativePath: string, ext: string):
 				if (prevLine && prevLine.startsWith("@")) continue;
 			}
 
-			// Skip partial application (inner call has hardcoded string/number args)
-			if (hasHardcodedArgs(matchText)) continue;
+			// Only flag a true passthrough; transforming/forwarding non-params is real work.
+			if (!isIdentityForward(matchText)) continue;
 
 			// Skip React useContext wrappers (idiomatic pattern)
 			if (isUseContextWrapper(matchText)) continue;
