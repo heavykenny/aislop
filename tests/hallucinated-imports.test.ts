@@ -446,6 +446,20 @@ import sklearn.cluster as cluster
 		expect(diagnostics).toEqual([]);
 	});
 
+	it("resolves psycopg2 provided by psycopg2-binary (discussion #130)", async () => {
+		writeFile("pyproject.toml", `[project]\ndependencies = ["psycopg2-binary>=2.9"]\n`);
+		writeFile(
+			"src/export_db.py",
+			`import psycopg2
+from psycopg2 import extras
+`,
+		);
+
+		const diagnostics = await detectHallucinatedImports(buildContext());
+
+		expect(diagnostics).toEqual([]);
+	});
+
 	it("resolves install-name vs import-name divergences from the HN/issue-143 report", async () => {
 		writeFile(
 			"requirements.txt",

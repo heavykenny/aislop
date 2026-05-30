@@ -184,6 +184,7 @@ export const PYTHON_IMPORT_TO_PIP: Record<string, string[]> = {
 	pptx: ["python-pptx"],
 	git: ["gitpython"],
 	socks: ["pysocks"],
+	psycopg2: ["psycopg2-binary", "psycopg2"],
 	redis: ["redis"],
 	cairo: ["pycairo"],
 	serial: ["pyserial"],
