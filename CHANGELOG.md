@@ -12,6 +12,7 @@ Precision fix for the `hardcoded-id` / `hardcoded-url` rules shipped in 0.9.5, w
 
 - **`ai-slop/hardcoded-id` false positives.** No longer flags: env-var-name literals passed to config helpers (e.g. `optional("STRIPE_PRICE_ID", "")`), readable kebab/snake slugs and storage keys (rule keys, `STORAGE_KEY` values, CSS class strings), or identifiers inside DB migration files. The rule now requires an opaque, digit-bearing token, so genuine provider/project IDs (`price_1Oabc…`, AWS keys, OAuth client IDs) are still caught.
 - **`ai-slop/hardcoded-url` false positives.** No longer flags `localhost` / loopback URLs (`http://localhost:…`, `127.0.0.1`, `0.0.0.0`), which are dev defaults rather than deployment configuration.
+- **`ai-slop/hallucinated-import` on `psycopg2`.** The `psycopg2` import is now recognised as provided by `psycopg2-binary` (community-reported). Adds the missing alias.
 
 ### Tests
 
