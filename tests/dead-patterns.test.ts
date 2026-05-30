@@ -308,6 +308,18 @@ describe("hardcoded config literals", () => {
 		expect(diagnostics.filter((d) => d.rule === "ai-slop/hardcoded-url")).toEqual([]);
 	});
 
+	it("does not flag localhost / loopback URLs (dev defaults)", async () => {
+		const filePath = writeFile(
+			"dev-config.ts",
+			[
+				'const origin = optional("CORS_ORIGIN", "http://localhost:5173");',
+				'const proxyTarget = "http://127.0.0.1:3001";',
+			].join("\n"),
+		);
+		const diagnostics = await detectHardcodedConfigLiterals(makeContext([filePath]));
+		expect(diagnostics.filter((d) => d.rule === "ai-slop/hardcoded-url")).toEqual([]);
+	});
+
 	it("does not flag documentation links", async () => {
 		const filePath = writeFile(
 			"docs-link.ts",
@@ -338,6 +350,46 @@ describe("hardcoded config literals", () => {
 		const filePath = writeFile(
 			"billing-env.ts",
 			'const STRIPE_PRICE_ID = process.env.STRIPE_PRICE_ID ?? "price_123456789abcdef";',
+		);
+		const diagnostics = await detectHardcodedConfigLiterals(makeContext([filePath]));
+		expect(diagnostics.filter((d) => d.rule === "ai-slop/hardcoded-id")).toEqual([]);
+	});
+
+	it("does not flag env-var-name literals passed to a config helper", async () => {
+		const filePath = writeFile(
+			"config.ts",
+			[
+				'const github = { clientId: optional("GITHUB_CLIENT_ID", "") };',
+				'const stripe = { priceProMonthly: optional("STRIPE_PRICE_PRO_MONTHLY", "") };',
+			].join("\n"),
+		);
+		const diagnostics = await detectHardcodedConfigLiterals(makeContext([filePath]));
+		expect(diagnostics.filter((d) => d.rule === "ai-slop/hardcoded-id")).toEqual([]);
+	});
+
+	it("still flags a real provider ID even on a SCREAMING_SNAKE-named const", async () => {
+		const filePath = writeFile("real-id.ts", 'const STRIPE_PRICE_ID = "price_1OabcdEFghijKLmn";');
+		const diagnostics = await detectHardcodedConfigLiterals(makeContext([filePath]));
+		expect(diagnostics.filter((d) => d.rule === "ai-slop/hardcoded-id")).toHaveLength(1);
+	});
+
+	it("does not flag readable kebab/snake slugs and storage keys", async () => {
+		const filePath = writeFile(
+			"slugs.ts",
+			[
+				'const STORAGE_KEY = "scanaislop_theme";',
+				'const entry = { key: "swallowed-exception" };',
+				'const map = { "hardcoded-secret": ["security/hardcoded-secret"] };',
+			].join("\n"),
+		);
+		const diagnostics = await detectHardcodedConfigLiterals(makeContext([filePath]));
+		expect(diagnostics.filter((d) => d.rule === "ai-slop/hardcoded-id")).toEqual([]);
+	});
+
+	it("does not flag hardcoded IDs in DB migration files", async () => {
+		const filePath = writeFile(
+			"packages/api/src/db/migrations/0001-indexes.ts",
+			'export const up = () => createIndex("idx_scans_org_created_at_desc", "price_123456789abcdef");',
 		);
 		const diagnostics = await detectHardcodedConfigLiterals(makeContext([filePath]));
 		expect(diagnostics.filter((d) => d.rule === "ai-slop/hardcoded-id")).toEqual([]);

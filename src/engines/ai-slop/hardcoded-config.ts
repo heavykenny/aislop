@@ -31,7 +31,9 @@ const ENVIRONMENT_HOST_RE =
 	/(?:^|[.-])(?:api|app|admin|auth|staging|stage|prod|dev|sandbox|webhook|internal)(?:[.-]|$)|^(?:localhost|127\.0\.0\.1|0\.0\.0\.0)$/i;
 const ID_CONTEXT_RE =
 	/(?:^|[^A-Za-z0-9])(?:api[_-]?key|client[_-]?id|project[_-]?id|org(?:anization)?[_-]?id|workspace[_-]?id|tenant[_-]?id|price[_-]?id|product[_-]?id|customer[_-]?id|subscription[_-]?id|account[_-]?id|app[_-]?id|key|token|secret)(?:$|[^A-Za-z0-9])/i;
+const MIGRATION_PATH_RE = /(?:^|[\\/])(?:migrations?|db[\\/]migrate)[\\/]/i;
 const PLACEHOLDER_HOSTS = new Set(["example.com", "example.org", "example.net"]);
+const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "0.0.0.0", "::1"]);
 const PLACEHOLDER_ID_RE = /^(?:changeme|replace[_-]?me|your[_-]|example|placeholder|todo)/i;
 
 interface FindingSpec {
@@ -93,15 +95,20 @@ const shouldFlagUrlLiteral = (line: string, urlText: string): boolean => {
 	const host = safeUrlHost(urlText);
 	if (!host) return false;
 	if (PLACEHOLDER_HOSTS.has(host)) return false;
+	if (LOOPBACK_HOSTS.has(host)) return false;
 	if (DOC_URL_CONTEXT_RE.test(line) && !ENVIRONMENT_HOST_RE.test(host)) return false;
 	return URL_CONFIG_CONTEXT_RE.test(line) || ENVIRONMENT_HOST_RE.test(host);
 };
 
+const ENV_VAR_NAME_RE = /^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+$/;
+
 const hasUsefulIdShape = (value: string): boolean => {
 	if (PLACEHOLDER_ID_RE.test(value)) return false;
+	if (ENV_VAR_NAME_RE.test(value)) return false;
 	if (/^https?:\/\//i.test(value)) return false;
 	if (/^[A-Za-z]+$/.test(value)) return false;
-	return /[0-9_-]/.test(value);
+	// A digit separates an opaque ID from a readable slug/storage key.
+	return /[0-9]/.test(value);
 };
 
 const scanLineForConfigLiterals = (
@@ -146,6 +153,7 @@ const scanFileForConfigLiterals = (
 ): Diagnostic[] => {
 	if (!SOURCE_EXTENSIONS.has(ext)) return [];
 	if (isNonProductionPath(relativePath)) return [];
+	if (MIGRATION_PATH_RE.test(relativePath)) return [];
 
 	return content
 		.split("\n")
