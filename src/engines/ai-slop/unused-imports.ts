@@ -92,10 +92,12 @@ const extractPyImportedSymbols = (
 	for (let i = 0; i < lines.length; i++) {
 		const trimmed = lines[i].trim();
 
-		const fromMatch = trimmed.match(/^from\s+[\w.]+\s+import\s+(.+)/);
+		const fromMatch = trimmed.match(/^from\s+([\w.]+)\s+import\s+(.+)/);
 		if (fromMatch) {
 			importLines.add(i);
-			const importPart = fromMatch[1].replace(/#.*$/, "").trim();
+			// `from __future__ import ...` is a parser directive, not a name that gets used.
+			if (fromMatch[1] === "__future__") continue;
+			const importPart = fromMatch[2].replace(/#.*$/, "").trim();
 			if (importPart === "*") continue;
 			const cleaned = importPart.replace(/[()]/g, "");
 			for (const item of cleaned.split(",")) {

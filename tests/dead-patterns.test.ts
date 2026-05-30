@@ -46,6 +46,15 @@ afterEach(() => {
 // ─── Unused Imports ──────────────────────────────────────────────────────────
 
 describe("unused imports", () => {
+	it("does not flag `from __future__ import` (a parser directive, not a name)", async () => {
+		const filePath = writeFile(
+			"future.py",
+			"from __future__ import annotations\n\nx: int = 1\n",
+		);
+		const diagnostics = await detectUnusedImports(makeContext([filePath]));
+		expect(diagnostics.filter((d) => d.rule === "ai-slop/unused-import")).toEqual([]);
+	});
+
 	it("detects an unused named import", async () => {
 		const filePath = writeFile(
 			"unused.ts",

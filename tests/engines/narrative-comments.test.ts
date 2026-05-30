@@ -304,15 +304,15 @@ export const DECORATIVE_SECTION_HEADER = /^$/;
 		expect(diags[0].message).toContain("JSDoc preamble");
 	});
 
-	it("flags a long (5+ line) prose block inside a function body", async () => {
+	it("flags a long (5+ line) narration block with a slop signal inside a function body", async () => {
 		writeFile(
 			"long.ts",
 			`function run() {
-	// First paragraph describing what we do.
-	// There are several reasons for this shape.
-	// It interacts with the caller's assumptions.
-	// After the earlier refactor we kept the shape.
-	// The downstream tests depend on this order.
+	// Represents the parsed configuration after merging defaults.
+	// Holds the resolved values for each configuration key.
+	// Tracks which keys came from the environment overrides.
+	// Manages the lifecycle of the cached lookups.
+	// Controls how often the resolved values refresh.
 	return 1;
 }
 `,
@@ -320,6 +320,22 @@ export const DECORATIVE_SECTION_HEADER = /^$/;
 		const diags = await detectNarrativeComments(ctx(tmpDir));
 		expect(diags).toHaveLength(1);
 		expect(diags[0].message).toContain("long narrative block");
+	});
+
+	it("does NOT flag a long explanatory block with no narration signal", async () => {
+		writeFile(
+			"explain.ts",
+			`function run() {
+	// Werkzeug doesn't implement subdomain matching yet, so we fall back to
+	// host matching here. Until that lands upstream we keep this shim, which
+	// the routing layer relies on to resolve the correct endpoint. The order
+	// of these checks also matters for the development server's reloader.
+	// Downstream callers depend on the host being normalised first.
+	return 1;
+}
+`,
+		);
+		expect(await detectNarrativeComments(ctx(tmpDir))).toHaveLength(0);
 	});
 
 	it("does NOT flag a short 2-3 line WHY comment inside a function", async () => {
@@ -425,14 +441,14 @@ router.get('/api/auth/me', handler);
 		expect(diags).toHaveLength(0);
 	});
 
-	it("flags 3+ line prose blocks inside function bodies with no WHY marker", async () => {
+	it("flags 3+ line narration blocks (with a slop signal) inside function bodies", async () => {
 		writeFile(
 			"inside.ts",
 			`export const run = () => {
 	initState();
-	// Build the next-step list from counts, the elided count, and regression
-	// status. Structured so the agent can act on it without re-parsing prose.
-	// Each string is a single actionable sentence.
+	// Represents the next-step list built from the counts.
+	// Holds the elided count and the regression status.
+	// Tracks each actionable sentence separately.
 	buildSteps();
 	return;
 };

@@ -11,7 +11,8 @@ A precision release. A sweep through the ai-slop rules to cut false positives on
 ### Fixed (false positives)
 
 - **`ai-slop/thin-wrapper`** only flags a true passthrough (a function forwarding its own parameters unchanged); a call that transforms its arguments is real work, not a wrapper (#153).
-- **`ai-slop/narrative-comment`** drops the bare-section-label branch and recognises reasoning markers ("ideally… however", "even though", "first need") as the explanatory comments they are (#153).
+- **`ai-slop/narrative-comment`** drops the bare-section-label branch, recognises reasoning markers ("ideally… however", "even though", "first need"), and the length-based branches now require an actual AI-narration signal rather than length alone — so long, well-written explanatory comments are kept (#153).
+- **`ai-slop/unused-import`** no longer flags `from __future__ import …` (a parser directive, not a usable name) (#153).
 - **`ai-slop/trivial-comment`** only fires when the comment restates the next line; comments that add a condition or reason are kept (#153).
 - **`ai-slop/silent-recovery`** only fires when the caught error is dropped, not when it is logged — observable recovery is intentional, not a swallow (#153).
 - **`ai-slop/meta-comment`** only flags leading plan markers, not UI "step N" wizard prose (#153).

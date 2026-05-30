@@ -209,14 +209,17 @@ const detectNarrativeInBlock = (
 	const nonEmptyProseCount = block.prose.filter((l) => l.length > 0).length;
 	const isAboveDeclaration = looksLikeDeclarationPreamble(block.nextNonBlankLine, ext);
 
-	if (nonEmptyProseCount >= 5) {
-		if (isAboveDeclaration) {
-			return { matched: false, reason: "" };
-		}
+	if (nonEmptyProseCount >= 5 && !isAboveDeclaration && hasPreambleSlopSignal(block)) {
 		return { matched: true, reason: "long narrative block" };
 	}
 
-	if (nonEmptyProseCount >= 3 && !hasWhyMarker && block.kind === "line" && !isAboveDeclaration) {
+	if (
+		nonEmptyProseCount >= 3 &&
+		!hasWhyMarker &&
+		block.kind === "line" &&
+		!isAboveDeclaration &&
+		hasPreambleSlopSignal(block)
+	) {
 		return { matched: true, reason: "multi-line narrative prose" };
 	}
 
