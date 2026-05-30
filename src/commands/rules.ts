@@ -73,6 +73,8 @@ const AI_SLOP_FIXABLE = new Set<string>([
 
 const AI_SLOP_ERRORS = new Set<string>(["ai-slop/hallucinated-import"]);
 
+const SECURITY_INFO = new Set<string>(["security/dependency-audit-skipped"]);
+
 const BUILTIN_RULES: { engine: string; rules: string[] }[] = [
 	{
 		engine: "format",
@@ -101,6 +103,10 @@ const BUILTIN_RULES: { engine: string; rules: string[] }[] = [
 			"knip/binaries",
 			"knip/exports",
 			"knip/types",
+			"knip/duplicates",
+			"code-quality/duplicate-block",
+			"code-quality/repeated-chained-call",
+			"code-quality/unused-declaration",
 			"complexity/file-too-large",
 			"complexity/function-too-long",
 			"complexity/deep-nesting",
@@ -153,18 +159,31 @@ const BUILTIN_RULES: { engine: string; rules: string[] }[] = [
 			"security/vulnerable-dependency",
 			"security/eval",
 			"security/innerhtml",
+			"security/dangerously-set-innerhtml",
 			"security/sql-injection",
 			"security/shell-injection",
+			"security/dependency-audit-skipped",
 		],
 	},
 ];
+
+// The native rule IDs the catalog advertises (excludes lint/format wildcards).
+export const catalogRuleIds = (): string[] =>
+	BUILTIN_RULES.flatMap((b) => b.rules).filter((id) =>
+		/^(?:ai-slop|complexity|security|code-quality|knip)\/[a-z0-9-]+$/.test(id),
+	);
 
 const toRuleEntry = (engine: string, ruleId: string): RuleEntry => {
 	if (engine === "format") {
 		return { id: ruleId, engine, severity: "warning", fixable: true };
 	}
 	if (engine === "security") {
-		return { id: ruleId, engine, severity: "error", fixable: false };
+		return {
+			id: ruleId,
+			engine,
+			severity: SECURITY_INFO.has(ruleId) ? "info" : "error",
+			fixable: false,
+		};
 	}
 	if (engine === "ai-slop") {
 		return {
