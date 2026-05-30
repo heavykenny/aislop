@@ -120,7 +120,7 @@ const detectTodoStubs = (content: string, relativePath: string): Diagnostic[] =>
 		}
 
 		if (TODO_PATTERN.test(trimmed)) {
-			// A TODO that references a tracking issue is documented debt, not an unfinished stub.
+			// An item that references a tracking issue is documented debt, not an unfinished stub.
 			if (TODO_TRACKING_RE.test(trimmed)) continue;
 			diagnostics.push(
 				slop(
