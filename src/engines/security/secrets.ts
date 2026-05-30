@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { maskComments } from "../../utils/source-masker.js";
 import { getSourceFilesWithExtras } from "../../utils/source-files.js";
 import type { Diagnostic, EngineContext } from "../types.js";
 
@@ -100,6 +101,9 @@ export const scanSecrets = async (context: EngineContext): Promise<Diagnostic[]>
 		} catch {
 			continue;
 		}
+
+		// A secret inside a JSDoc @example is documentation, not a leak.
+		content = maskComments(content, path.extname(filePath));
 
 		const relativePath = path.relative(context.rootDirectory, filePath);
 

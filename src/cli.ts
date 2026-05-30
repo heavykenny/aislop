@@ -21,6 +21,7 @@ import {
 import { renderHeader } from "./ui/header.js";
 import { renderHintLine } from "./ui/logger.js";
 import { style, theme } from "./ui/theme.js";
+import { maybeNotifyUpdate } from "./update-notifier.js";
 import { APP_VERSION } from "./version.js";
 
 process.on("SIGINT", () => process.exit(0));
@@ -347,6 +348,7 @@ const main = async () => {
 	fireInstalledOnce();
 	await program.parseAsync();
 	await flushTelemetry();
+	await maybeNotifyUpdate();
 };
 
 main();
