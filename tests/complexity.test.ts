@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { checkComplexity } from "../src/engines/code-quality/complexity.js";
+import { analyzeFunctions, checkComplexity } from "../src/engines/code-quality/complexity.js";
 import type { EngineContext } from "../src/engines/types.js";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -244,6 +244,165 @@ describe("checkComplexity — too many parameters", () => {
 		const paramDiags = diagnostics.filter((d) => d.rule === "complexity/too-many-params");
 		expect(paramDiags.length).toBeGreaterThanOrEqual(1);
 		expect(paramDiags[0].detail).toContain("complex_func");
+	});
+
+	it("counts only required params, ignoring self, defaults, and *args/**kwargs", async () => {
+		const content =
+			"def send(self, chat_id, text, *args, parse_mode=None, reply=None, **kwargs):\n    return chat_id\n";
+		const filePath = writeFile("api_method.py", content);
+		const diagnostics = await checkComplexity(makeContext([filePath], { maxParams: 3 }));
+		const paramDiags = diagnostics.filter((d) => d.rule === "complexity/too-many-params");
+		expect(paramDiags).toHaveLength(0);
+	});
+
+	it("flags a function with many required params even when wrapped", async () => {
+		const content = "def f(\n    a,\n    b,\n    c,\n    d,\n    e,\n):\n    return a\n";
+		const filePath = writeFile("many_required.py", content);
+		const diagnostics = await checkComplexity(makeContext([filePath], { maxParams: 3 }));
+		const paramDiags = diagnostics.filter((d) => d.rule === "complexity/too-many-params");
+		expect(paramDiags.length).toBeGreaterThanOrEqual(1);
+		expect(paramDiags[0].detail).toContain("f");
+	});
+});
+
+describe("checkComplexity — Python async and wrapped signatures", () => {
+	it("detects a long async def", async () => {
+		const body = makeLines(100, "    x = 1");
+		const content = `async def handler(self):\n${body}\n`;
+		const filePath = writeFile("async_fn.py", content);
+		const diagnostics = await checkComplexity(makeContext([filePath], { maxFunctionLoc: 80 }));
+		const fnDiags = diagnostics.filter((d) => d.rule === "complexity/function-too-long");
+		expect(fnDiags.length).toBeGreaterThanOrEqual(1);
+		expect(fnDiags[0].detail).toContain("handler");
+	});
+
+	it("detects a long function with a wrapped multi-line signature", async () => {
+		const params = Array.from({ length: 5 }, (_, k) => `    p${k},`).join("\n");
+		const body = makeLines(100, "    y = 2");
+		const content = `def build(\n${params}\n):\n${body}\n`;
+		const filePath = writeFile("wrapped_fn.py", content);
+		const diagnostics = await checkComplexity(makeContext([filePath], { maxFunctionLoc: 80 }));
+		const fnDiags = diagnostics.filter((d) => d.rule === "complexity/function-too-long");
+		expect(fnDiags.length).toBeGreaterThanOrEqual(1);
+		expect(fnDiags[0].detail).toContain("build");
+	});
+
+	it("does not flag a documented function with a short body", async () => {
+		const doc = makeLines(120, "    word word word");
+		const content = `def documented(self):\n    """\n${doc}\n    """\n    return 1\n`;
+		const filePath = writeFile("documented.py", content);
+		const diagnostics = await checkComplexity(makeContext([filePath], { maxFunctionLoc: 80 }));
+		const fnDiags = diagnostics.filter((d) => d.rule === "complexity/function-too-long");
+		expect(fnDiags).toHaveLength(0);
+	});
+});
+
+// A realistic module that mirrors the constructs which slipped past the old
+// detector: an async method, a wrapped multi-line signature, a heavily
+// documented short function, and a many-required-param method. These assertions
+// fail on the pre-0.10.1 code, which is the point of a regression net.
+const REALISTIC_PY = `"""Realistic module exercising complexity detection."""
+from __future__ import annotations
+
+
+class Client:
+    def __init__(
+        self,
+        token,
+        base_url,
+        request=None,
+        rate_limiter=None,
+    ):
+        self.token = token
+        self.base_url = base_url
+        self.request = request
+        self.rate_limiter = rate_limiter
+        self.session = None
+        self.headers = {}
+        self.retries = 3
+        self.timeout = 30
+        self.connected = False
+        self.pool = []
+        self.cache = {}
+        self.metrics = {}
+        self.started = 0
+        self.last_error = None
+        self.agent = "client"
+        self.proxy = None
+        self.verify = True
+        self.closed = False
+
+    async def send_message(
+        self,
+        chat_id,
+        text,
+        *,
+        parse_mode=None,
+        reply_markup=None,
+        disable_notification=None,
+        protect_content=None,
+        reply_to_message_id=None,
+    ):
+        """Send a text message.
+
+        Args:
+            chat_id: Target chat.
+            text: Message body.
+            parse_mode: Optional formatting.
+            reply_markup: Optional markup.
+            disable_notification: Optional silent flag.
+            protect_content: Optional protection flag.
+            reply_to_message_id: Optional reply target.
+        """
+        payload = {"chat_id": chat_id, "text": text}
+        return await self._post("sendMessage", payload)
+
+    def parse(self):
+        """
+        A long, well-documented helper.
+
+        This docstring is intentionally long to prove that documentation does
+        not count toward function length. It describes behavior in detail, line
+        after line, so the physical span is large while the logical body stays
+        tiny. None of these lines are code, and the function is not too long.
+        """
+        return None
+
+    def configure(self, a, b, c, d, e, f, g):
+        return (a, b, c, d, e, f, g)
+`;
+
+describe("checkComplexity — realistic Python corpus (regression net)", () => {
+	const ctx = (filePath: string) =>
+		makeContext([filePath], {
+			maxFunctionLoc: 15,
+			maxFileLoc: 4000,
+			maxParams: 6,
+			maxNesting: 10,
+		});
+
+	it("detects every def and async def (no silent under-detection)", () => {
+		const defCount = REALISTIC_PY.split("\n").filter((l) =>
+			/^\s*(?:async\s+)?def\s/.test(l),
+		).length;
+		expect(defCount).toBe(4);
+		expect(analyzeFunctions(REALISTIC_PY, ".py")).toHaveLength(defCount);
+	});
+
+	it("flags only the genuinely long body, not the documented or async ones", async () => {
+		const filePath = writeFile("client.py", REALISTIC_PY);
+		const diagnostics = await checkComplexity(ctx(filePath));
+		const fn = diagnostics.filter((d) => d.rule === "complexity/function-too-long");
+		expect(fn).toHaveLength(1);
+		expect(fn[0].detail).toContain("__init__");
+	});
+
+	it("flags only the many-required-param method, not the optional-kwarg API", async () => {
+		const filePath = writeFile("client.py", REALISTIC_PY);
+		const diagnostics = await checkComplexity(ctx(filePath));
+		const params = diagnostics.filter((d) => d.rule === "complexity/too-many-params");
+		expect(params).toHaveLength(1);
+		expect(params[0].detail).toContain("configure");
 	});
 });
 

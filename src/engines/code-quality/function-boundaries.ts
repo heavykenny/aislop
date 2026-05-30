@@ -64,17 +64,110 @@ const findBraceFunctionEnd = (
 	return { endLine, maxNesting };
 };
 
-const findPythonFunctionEnd = (
+// Walks a multi-line def signature to its matching close paren.
+export const extractPythonSignature = (
 	lines: string[],
 	startIndex: number,
+): { params: string; sigEndIndex: number } => {
+	let depth = 0;
+	let started = false;
+	let params = "";
+
+	for (let j = startIndex; j < lines.length; j++) {
+		const l = lines[j];
+		for (let ci = 0; ci < l.length; ci++) {
+			const ch = l[ci];
+			if (ch === "(") {
+				depth++;
+				if (depth === 1 && !started) {
+					started = true;
+					continue;
+				}
+			} else if (ch === ")") {
+				depth--;
+				if (depth === 0) return { params, sigEndIndex: j };
+			}
+			if (started) params += ch;
+		}
+		if (started) params += " ";
+	}
+
+	return { params, sigEndIndex: startIndex };
+};
+
+// Required params only: optional kwargs in an API wrapper are not a smell.
+export const countPythonParams = (signature: string): number => {
+	let depth = 0;
+	const parts: string[] = [];
+	let current = "";
+
+	for (const ch of signature) {
+		if (ch === "(" || ch === "[" || ch === "{") depth++;
+		else if (ch === ")" || ch === "]" || ch === "}") depth--;
+		if (ch === "," && depth === 0) {
+			parts.push(current);
+			current = "";
+			continue;
+		}
+		current += ch;
+	}
+	parts.push(current);
+
+	let count = 0;
+	for (const raw of parts) {
+		const p = raw.trim();
+		if (p.length === 0 || p === "*" || p === "/") continue;
+		if (p.startsWith("*")) continue;
+		if (p.includes("=")) continue;
+		const name = p.split(":")[0].trim();
+		if (name === "self" || name === "cls") continue;
+		count++;
+	}
+	return count;
+};
+
+// Logical body only; docstrings and comments are not length.
+export const countPythonBodyCodeLines = (
+	lines: string[],
+	sigEndIndex: number,
+	endLine: number,
+): number => {
+	let count = 0;
+	let inDoc = false;
+	let delim = "";
+
+	for (let j = sigEndIndex + 1; j <= endLine && j < lines.length; j++) {
+		const t = lines[j].trim();
+		if (inDoc) {
+			if (t.includes(delim)) inDoc = false;
+			continue;
+		}
+		if (t === "" || t.startsWith("#")) continue;
+		const opener = t.startsWith('"""') ? '"""' : t.startsWith("'''") ? "'''" : "";
+		if (opener) {
+			const rest = t.slice(3);
+			if (!rest.includes(opener)) {
+				inDoc = true;
+				delim = opener;
+			}
+			continue;
+		}
+		count++;
+	}
+	return count;
+};
+
+const findPythonFunctionEnd = (
+	lines: string[],
+	defIndex: number,
+	bodyStartIndex: number,
 ): { endLine: number; maxNesting: number } => {
-	const startLine = lines[startIndex];
-	const baseIndent = startLine.match(/^(\s*)/)?.[1].length ?? 0;
-	let endLine = startIndex;
+	const baseIndent = lines[defIndex].match(/^(\s*)/)?.[1].length ?? 0;
+	let endLine = bodyStartIndex;
 	let maxNesting = 0;
 	const controlIndentStack: number[] = [];
 
-	for (let j = startIndex + 1; j < lines.length; j++) {
+	for (let j = bodyStartIndex + 1; j < lines.length; j++) {
 		const l = lines[j];
 		if (l.trim() === "") {
 			endLine = j;
@@ -107,7 +200,10 @@ export const findFunctionEnd = (
 	startIndex: number,
 	isPython: boolean,
 ): { endLine: number; maxNesting: number } => {
-	if (isPython) return findPythonFunctionEnd(lines, startIndex);
+	if (isPython) {
+		const { sigEndIndex } = extractPythonSignature(lines, startIndex);
+		return findPythonFunctionEnd(lines, startIndex, sigEndIndex);
+	}
 	return findBraceFunctionEnd(lines, startIndex);
 };
 

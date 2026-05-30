@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.10.1 (2026-05-30)
+
+A complexity-accuracy release. The Python function detector was only seeing single-line synchronous `def`s, so async functions and wrapped multi-line signatures (about 58% of a large library like python-telegram-bot) were invisible to `function-too-long`, `too-many-params`, and `deep-nesting`. Fixing detection alone over-corrected, so the length and parameter metrics were sharpened to measure real complexity rather than documentation or optional API surface.
+
+### Fixed
+
+- **Python function detection** now recognises `async def` and multi-line wrapped signatures (where `):` sits on its own line). Previously these functions were skipped entirely by the code-quality engine.
+
+### Changed
+
+- **`complexity/function-too-long`** measures a Python function by its logical body (code statements only), excluding the signature, docstrings, comments, and blank lines. A heavily documented function is not a long one, so a function is judged by what it does, not how well it is described.
+- **`complexity/too-many-params`** counts required parameters only, ignoring `self`/`cls`, `*args`/`**kwargs`, the `*` / `/` separators, and any parameter with a default. An API wrapper with many optional keyword arguments is idiomatic, not a smell.
+
+### Tests
+
+Full suite at 953 passing. New coverage for async detection, wrapped signatures, required-only parameter counting, and docstring-aware length, plus a regression net: a realistic Python corpus with golden per-rule assertions and a detection-invariant check (functions detected vs `def`/`async def` count) that fails on the pre-0.10.1 detector.
+
 ## 0.10.0 (2026-05-30)
 
 A precision release. A sweep through the ai-slop rules to cut false positives on real human-written code, validated against open-source libraries surfaced at the HN launch. One dropped from 426 findings to 92, every removed finding a false positive, with clean code still scoring 100. Plus a scoring change so genuine slop drives the number over house style.
