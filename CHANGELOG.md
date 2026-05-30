@@ -17,7 +17,7 @@ A precision release. A sweep through the ai-slop rules to cut false positives on
 - **`ai-slop/meta-comment`** only flags leading plan markers, not UI "step N" wizard prose (#153).
 - **`ai-slop/hardcoded-id` / `hardcoded-url`** exempt env-var-name literals, migration files, and stable vendor API hosts (`api.github.com` and friends) (#153).
 - **`ai-slop/todo-stub`** spares TODOs that reference a tracking issue — documented debt, not an abandoned stub (#153).
-- **`ai-slop/hallucinated-import`** parses PEP 735 `[dependency-groups]`, and recognises `psycopg2` as provided by `psycopg2-binary` (#151, #153).
+- **`ai-slop/hallucinated-import`** parses PEP 735 `[dependency-groups]`, recognises `psycopg2` as provided by `psycopg2-binary`, and no longer flags import-shaped text inside docstrings, imports under `if TYPE_CHECKING:`, the `code`/`codeop`/`rlcompleter` stdlib modules, or non-production paths (validated on flask: 19 → 0) (#151, #153).
 - **`docs/`** build tooling is treated as non-production, like `scripts/` and `examples/` (#153).
 
 ### Changed

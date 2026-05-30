@@ -460,6 +460,54 @@ from psycopg2 import extras
 		expect(diagnostics).toEqual([]);
 	});
 
+	it("does not flag import-shaped text inside docstrings (flask example)", async () => {
+		writeFile("pyproject.toml", `[project]\ndependencies = ["click"]\n`);
+		writeFile(
+			"src/config.py",
+			`import click
+
+
+def from_object(obj):
+    """Load config from an object.
+
+    Example::
+
+        from yourapplication import default_config
+        app.config.from_object(default_config)
+
+    Guessed from the run file if the import name is main.
+    """
+    return obj
+`,
+		);
+		const diagnostics = await detectHallucinatedImports(buildContext());
+		expect(diagnostics).toEqual([]);
+	});
+
+	it("does not flag imports under `if TYPE_CHECKING:`", async () => {
+		writeFile("pyproject.toml", `[project]\ndependencies = ["click"]\n`);
+		writeFile(
+			"src/app.py",
+			`import typing as t
+
+if t.TYPE_CHECKING:
+    from _typeshed.wsgi import StartResponse
+    from typing_extensions import ParamSpec
+
+x = 1
+`,
+		);
+		const diagnostics = await detectHallucinatedImports(buildContext());
+		expect(diagnostics).toEqual([]);
+	});
+
+	it("recognizes stdlib modules code / codeop / rlcompleter", async () => {
+		writeFile("pyproject.toml", `[project]\ndependencies = ["click"]\n`);
+		writeFile("src/shell.py", `import code\nimport rlcompleter\nfrom codeop import compile_command\n`);
+		const diagnostics = await detectHallucinatedImports(buildContext());
+		expect(diagnostics).toEqual([]);
+	});
+
 	it("resolves install-name vs import-name divergences from the HN/issue-143 report", async () => {
 		writeFile(
 			"requirements.txt",
