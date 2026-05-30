@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.9.6 (2026-05-30)
+
+Precision fix for the `hardcoded-id` / `hardcoded-url` rules shipped in 0.9.5, which over-flagged on real codebases (surfaced by dogfooding the rules on our own dashboard).
+
+### Fixed
+
+- **`ai-slop/hardcoded-id` false positives.** No longer flags: env-var-name literals passed to config helpers (e.g. `optional("STRIPE_PRICE_ID", "")`), readable kebab/snake slugs and storage keys (rule keys, `STORAGE_KEY` values, CSS class strings), or identifiers inside DB migration files. The rule now requires an opaque, digit-bearing token, so genuine provider/project IDs (`price_1Oabc…`, AWS keys, OAuth client IDs) are still caught.
+- **`ai-slop/hardcoded-url` false positives.** No longer flags `localhost` / loopback URLs (`http://localhost:…`, `127.0.0.1`, `0.0.0.0`), which are dev defaults rather than deployment configuration.
+
+### Tests
+
+Full suite at 933 passing, including regression coverage for each false-positive class above.
+
 ## 0.9.5 (2026-05-30)
 
 First release since the Hacker News launch. Fixes the Python import false positives reported there, adds two precision-first rules, ships the SARIF / per-rule-severity / `trend` tooling from #140, and extends agent support to pi (both the `fix` hand-off and an auto-running hook).
