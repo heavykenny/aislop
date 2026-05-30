@@ -113,4 +113,3 @@ See [examples/architecture-rules.yml](../examples/architecture-rules.yml) for a 
 | Rust | cargo fmt | clippy | complexity | Comments | Secrets, audit |
 | Ruby | rubocop | rubocop | complexity | Exceptions, comments | Secrets |
 | PHP | php-cs-fixer | -- | complexity | Comments | Secrets |
-| Java | -- | -- | complexity | Exceptions, comments | Secrets |
