@@ -53,16 +53,16 @@ The rules that make aislop unique. These catch the patterns AI assistants leave 
 | Rule | Severity | What it catches |
 |---|---|---|
 | `ai-slop/trivial-comment` | warning | Comments restating the code (`// Import React`, `// Return the value`) |
-| `ai-slop/narrative-comment` | warning | Decorative separators, phase/section headers, JSDoc preambles without meaningful tags (caught on top-level *and* interface/type members), cross-reference commentary, 5+ line prose blocks anywhere |
+| `ai-slop/narrative-comment` | warning | Decorative separators, phase/section headers, JSDoc preambles without meaningful tags (caught on top-level *and* interface/type members), cross-reference commentary, and longer prose blocks that carry an AI-narration signal (a restatement opener or step-by-step narration). Length alone is not flagged. |
 | `ai-slop/swallowed-exception` | error | Empty catch blocks, catch blocks that only log (JS/TS/Python/Go/Ruby/Java) |
 | `ai-slop/redundant-try-catch` | warning | JS/TS catch blocks that only rethrow the same error without adding context, cleanup, or recovery |
 | `ai-slop/redundant-type-coercion` | warning | TypeScript primitive parameters re-coerced with `String(...)`, `Number(...)`, or `Boolean(...)` |
 | `ai-slop/duplicate-type-declaration` | warning | Exported TypeScript type/interface declarations repeated with the same name and shape across files |
-| `ai-slop/thin-wrapper` | warning | Functions that only delegate to another function |
+| `ai-slop/thin-wrapper` | warning | Functions that only forward their own parameters unchanged to another function (a call that transforms its arguments is not flagged) |
 | `ai-slop/generic-naming` | info | AI-generated names: `helper_1`, `data2`, `temp1` |
 | `ai-slop/unused-import` | warning | Unused imports (JS/TS and Python) |
 | `ai-slop/console-leftover` | warning | `console.log`/`debug`/`info` left in production code |
-| `ai-slop/todo-stub` | info | Unresolved TODO/FIXME/HACK comments |
+| `ai-slop/todo-stub` | info | Unresolved, untracked TODO/FIXME/HACK comments (a TODO that links a tracking issue is spared) |
 | `ai-slop/unreachable-code` | warning | Code after `return`/`throw` statements |
 | `ai-slop/constant-condition` | warning | `if (true)`, `if (false)`, `if (0)` |
 | `ai-slop/empty-function` | info | Empty function bodies |

@@ -31,6 +31,13 @@ scoring:
 This means AI-slop findings are weighted more heavily than generic lint/format noise,
 while security still carries significant impact.
 
+## Style findings count for half
+
+Style and maintainability rules (`trivial-comment`, `narrative-comment`, `file-too-large`,
+`function-too-long`) still surface as findings, but contribute half their normal weight to the
+score. This keeps the number driven by genuine slop (swallowed errors, dead code, hallucinated
+imports) rather than house style, without hiding the style findings themselves.
+
 ## Density normalization
 
 The final score uses **logarithmic scaling with issue-density normalization**. Penalties are measured relative to the number of source files in the project, so:
