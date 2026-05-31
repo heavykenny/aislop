@@ -4,8 +4,8 @@ import { detectDeadPatterns } from "../engines/ai-slop/dead-patterns.js";
 import { fixDeadPatterns } from "../engines/ai-slop/dead-patterns-fix.js";
 import { detectDuplicateImports } from "../engines/ai-slop/duplicate-imports.js";
 import { fixDuplicateImports } from "../engines/ai-slop/duplicate-imports-fix.js";
-import { fixNarrativeComments } from "../engines/ai-slop/narrative-comments-fix.js";
 import { detectNarrativeComments } from "../engines/ai-slop/narrative-comments.js";
+import { fixNarrativeComments } from "../engines/ai-slop/narrative-comments-fix.js";
 import { detectUnusedImports } from "../engines/ai-slop/unused-imports.js";
 import { fixUnusedImports } from "../engines/ai-slop/unused-imports-fix.js";
 import {
@@ -24,14 +24,15 @@ import { fixGenericFormatter, runGenericFormatter } from "../engines/format/gene
 import { fixGofmt, runGofmt } from "../engines/format/gofmt.js";
 import { fixRuffFormat, runRuffFormat } from "../engines/format/ruff-format.js";
 import { runExpoDoctor } from "../engines/lint/expo-doctor.js";
-import { fixOxlint, runOxlint } from "../engines/lint/oxlint.js";
 import { fixRubyLint } from "../engines/lint/generic.js";
+import { fixOxlint, runOxlint } from "../engines/lint/oxlint.js";
 import { fixRuffLint, fixRuffLintForce, runRuffLint } from "../engines/lint/ruff.js";
 import { runDependencyAudit } from "../engines/security/audit.js";
 import type { Diagnostic, EngineContext } from "../engines/types.js";
 import { log } from "../ui/logger.js";
 import type { discoverProject } from "../utils/discover.js";
-import { fixDependencyAudit, fixExpoDependencies } from "./fix-force.js";
+import { fixExpoDependencies } from "./fix-expo.js";
+import { fixDependencyAudit } from "./fix-force.js";
 import type { FixStepResult } from "./fix-steps.js";
 
 export type ProjectInfo = Awaited<ReturnType<typeof discoverProject>>;

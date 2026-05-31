@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Fixed
+
+- **No-downgrade guard on dependency fixes.** `aislop fix -f` no longer writes a dependency override that pins a package below the version already installed. Before applying npm/pnpm overrides it reads the installed version and drops any that would be a downgrade, reporting them as "skipped downgrade(s), verify intent" instead of silently regressing a dependency the way `npm audit fix --force` does.
+- **CVE root-cause collapse.** The dependency audit now attributes a transitive vulnerability to the package that actually carries the advisory rather than emitting a near-duplicate finding for every intermediate package in the chain, so one root CVE reads as one issue instead of ten.
+
 ## 0.10.1 (2026-05-30)
 
 An accuracy release across Python and TypeScript, plus a small quality-of-life feature. The Python function detector was only seeing single-line synchronous `def`s, so async functions and wrapped multi-line signatures (about 58% of a large library like python-telegram-bot) were invisible to the complexity rules. In TypeScript, text-pattern rules were matching code inside JSDoc `@example` blocks as if it were live source. Both are fixed, and the complexity metrics were sharpened to measure real complexity rather than documentation or optional API surface.

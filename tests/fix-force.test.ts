@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
 	collectPnpmOverrides,
+	guardOverrides,
 	isDowngrade,
 	overrideKey,
+	type PnpmAdvisory,
 	parseSemverMin,
 	patchedRangeToVersion,
-	type PnpmAdvisory,
 } from "../src/commands/fix-force.js";
 
 describe("patchedRangeToVersion", () => {
@@ -137,5 +138,34 @@ describe("isDowngrade", () => {
 	it("returns false when either side is unparseable (no info, do nothing)", () => {
 		expect(isDowngrade("workspace:*", "^1.0.0")).toBe(false);
 		expect(isDowngrade("^1.0.0", "workspace:*")).toBe(false);
+	});
+});
+
+describe("guardOverrides", () => {
+	it("drops an override that pins a package below the installed version", () => {
+		const installed = new Map([["firebase", "7.1.0"]]);
+		const { safe, skipped } = guardOverrides({ "firebase@<4.9.0": "^4.9.0" }, installed);
+		expect(safe).toEqual({});
+		expect(skipped).toEqual(["firebase 7.1.0 → ^4.9.0"]);
+	});
+
+	it("keeps an override that is a genuine upgrade", () => {
+		const installed = new Map([["ajv", "8.10.0"]]);
+		const { safe, skipped } = guardOverrides({ "ajv@<8.18.0": "^8.18.0" }, installed);
+		expect(safe).toEqual({ "ajv@<8.18.0": "^8.18.0" });
+		expect(skipped).toEqual([]);
+	});
+
+	it("applies overrides for packages whose installed version is unknown", () => {
+		const { safe, skipped } = guardOverrides({ "left-pad@<1.3.0": "^1.3.0" }, new Map());
+		expect(safe).toEqual({ "left-pad@<1.3.0": "^1.3.0" });
+		expect(skipped).toEqual([]);
+	});
+
+	it("resolves the package name from a scoped override key", () => {
+		const installed = new Map([["@scope/pkg", "5.0.0"]]);
+		const { safe, skipped } = guardOverrides({ "@scope/pkg@<2.0.0": "^2.0.0" }, installed);
+		expect(safe).toEqual({});
+		expect(skipped).toEqual(["@scope/pkg 5.0.0 → ^2.0.0"]);
 	});
 });
