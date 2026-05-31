@@ -345,3 +345,76 @@ describe("fixDeadPatterns — mixed console handling", () => {
 		expect(result).not.toContain("Remove me");
 	});
 });
+
+// ─── Safety: do not gut side-effect-only functions or diagnostic scripts ──────
+
+describe("fixDeadPatterns — does not create silent regressions", () => {
+	it("leaves a console that is the only statement in its block", async () => {
+		const file = writeFile(
+			"logger.ts",
+			[
+				"export const logIfEnabled = (message: string, tag = 'app') => {",
+				"    if (loggingEnabled()) {",
+				"        console.log(`[${tag}] ${message}`);",
+				"    }",
+				"};",
+			].join("\n"),
+		);
+
+		await fixDeadPatterns(makeContext([file]));
+		const result = readFile("logger.ts");
+
+		// Removing it would leave an empty function body, so it must be left for a human.
+		expect(result).toContain("console.log(`[${tag}] ${message}`)");
+	});
+
+	it("leaves a block whose only statements are several consoles", async () => {
+		const file = writeFile(
+			"log.ts",
+			[
+				"export function log(a: string, b: string) {",
+				"    console.log(a);",
+				"    console.log(b);",
+				"}",
+			].join("\n"),
+		);
+
+		await fixDeadPatterns(makeContext([file]));
+		const result = readFile("log.ts");
+
+		// Removing both would still empty the function, so both stay.
+		expect(result).toContain("console.log(a)");
+		expect(result).toContain("console.log(b)");
+	});
+
+	it("leaves console output in diagnostic scripts (Pattern 4)", async () => {
+		const file = writeFile(
+			"tools/test-tools.ts",
+			[
+				"export function diagnose() {",
+				"    const results = collect();",
+				"    console.log(results);",
+				"    return results;",
+				"}",
+			].join("\n"),
+		);
+
+		await fixDeadPatterns(makeContext([file]));
+		const result = readFile("tools/test-tools.ts");
+
+		expect(result).toContain("console.log(results)");
+	});
+
+	it("still removes ordinary debug console in regular source", async () => {
+		const file = writeFile(
+			"app.ts",
+			["export function run() {", '    console.log("debug");', "    return 1;", "}"].join("\n"),
+		);
+
+		await fixDeadPatterns(makeContext([file]));
+		const result = readFile("app.ts");
+
+		expect(result).not.toContain("console.log");
+		expect(result).toContain("return 1;");
+	});
+});
