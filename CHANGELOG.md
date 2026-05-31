@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Added
+
+- **Suppression.** Silence a finding you have judged intentional with an inline directive: `// aislop-ignore-next-line [rule...]` (line below), `// aislop-ignore-line [rule...]` (same line), or `// aislop-ignore-file [rule...]` (whole file). Name one or more rules to scope it, or omit them to silence every rule on that line, and add a reason after `--`. Works in any comment syntax (`//`, `#`, `<!-- -->`). Directive lines are invisible to the comment engines, so they never join a comment block or get flagged themselves. Suppressed findings are dropped before scoring, and the run reports how many were silenced.
+- **`.aislopignore`.** A root-level ignore file (same glob semantics as the `exclude` config, with `#` comments) to keep whole paths out of every scan.
+
 ## 0.10.1 (2026-05-30)
 
 An accuracy release across Python and TypeScript, plus a small quality-of-life feature. The Python function detector was only seeing single-line synchronous `def`s, so async functions and wrapped multi-line signatures (about 58% of a large library like python-telegram-bot) were invisible to the complexity rules. In TypeScript, text-pattern rules were matching code inside JSDoc `@example` blocks as if it were live source. Both are fixed, and the complexity metrics were sharpened to measure real complexity rather than documentation or optional API surface.

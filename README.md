@@ -102,6 +102,25 @@ rules:
 
 `off` drops matching diagnostics; `error`/`warning` rewrites severity before scoring and reporting. Absent map keeps default behavior.
 
+**Suppress findings inline**: Silence a specific line when you know better, with an optional reason after `--`:
+
+```ts
+// aislop-ignore-next-line ai-slop/empty-fallback -- options is validated upstream
+const opts = { ...defaults, ...(input || {}) };
+
+const legacy = doThing(); // aislop-ignore-line
+```
+
+`aislop-ignore-next-line` covers the line below, `aislop-ignore-line` the line it sits on, and `aislop-ignore-file` (place anywhere in the file) the whole file. Name one or more rules to scope the suppression, or omit them to silence every rule on that line. The directive works in any comment syntax (`//`, `#`, `<!-- -->`). Suppressed findings are removed before scoring, and the run reports how many were silenced.
+
+**Ignore whole paths**: Add an `.aislopignore` at the project root (same glob semantics as `exclude`, `#` comments allowed):
+
+```
+src/generated
+**/*.snap
+legacy
+```
+
 **Extend config**: Project config can extend a parent:
 
 ```yaml

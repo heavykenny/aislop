@@ -1,3 +1,4 @@
+import { isAislopDirectiveLine } from "../../utils/suppress.js";
 import { MEANINGFUL_JSDOC_TAGS } from "./narrative-comments-patterns.js";
 
 export type BlockKind = "line" | "jsdoc";
@@ -46,6 +47,7 @@ export const getCommentSyntax = (ext: string): { linePrefixes: string[] } | null
 
 const getMatchedLinePrefix = (line: string, syntax: { linePrefixes: string[] }): string | null => {
 	const trimmed = line.trimStart();
+	if (isAislopDirectiveLine(trimmed)) return null;
 	for (const prefix of syntax.linePrefixes) {
 		if (!trimmed.startsWith(prefix)) continue;
 		if (prefix === "#" && trimmed.startsWith("#!")) return null;
