@@ -284,17 +284,56 @@ export const guardOverrides = (
 	return { safe, skipped };
 };
 
-const readInstalledVersions = (rootDir: string, names: string[]): Map<string, string> => {
+const readRootNodeModulesVersion = (rootDir: string, name: string): string | null => {
+	try {
+		const manifest = path.join(rootDir, "node_modules", name, "package.json");
+		const version = (JSON.parse(fs.readFileSync(manifest, "utf-8")) as { version?: unknown })
+			.version;
+		return typeof version === "string" ? version : null;
+	} catch {
+		return null;
+	}
+};
+
+const PNPM_STORE_VERSION_RE = /^(\d+\.\d+\.\d+[^_(]*)/;
+
+const isHigherVersion = (candidate: string, current: string | null): boolean => {
+	if (!current) return true;
+	const a = parseSemverMin(candidate);
+	const b = parseSemverMin(current);
+	if (!a || !b) return false;
+	for (let i = 0; i < 3; i++) {
+		if ((a[i] ?? 0) > (b[i] ?? 0)) return true;
+		if ((a[i] ?? 0) < (b[i] ?? 0)) return false;
+	}
+	return false;
+};
+
+// pnpm stores non-hoisted packages as node_modules/.pnpm/<name>@<version> (scoped
+// slash becomes a plus); take the highest version since pinning below it downgrades.
+const readPnpmStoreVersion = (rootDir: string, name: string): string | null => {
+	let entries: string[];
+	try {
+		entries = fs.readdirSync(path.join(rootDir, "node_modules", ".pnpm"));
+	} catch {
+		return null;
+	}
+	const prefix = `${name.replace(/\//g, "+")}@`;
+	let best: string | null = null;
+	for (const entry of entries) {
+		if (!entry.startsWith(prefix)) continue;
+		const match = PNPM_STORE_VERSION_RE.exec(entry.slice(prefix.length));
+		if (match && isHigherVersion(match[1], best)) best = match[1];
+	}
+	return best;
+};
+
+export const readInstalledVersions = (rootDir: string, names: string[]): Map<string, string> => {
 	const map = new Map<string, string>();
 	for (const name of names) {
-		try {
-			const manifest = path.join(rootDir, "node_modules", name, "package.json");
-			const version = (JSON.parse(fs.readFileSync(manifest, "utf-8")) as { version?: unknown })
-				.version;
-			if (typeof version === "string") map.set(name, version);
-		} catch {
-			// not resolvable on disk — leave unguarded rather than block a real fix
-		}
+		const version =
+			readRootNodeModulesVersion(rootDir, name) ?? readPnpmStoreVersion(rootDir, name);
+		if (version) map.set(name, version);
 	}
 	return map;
 };

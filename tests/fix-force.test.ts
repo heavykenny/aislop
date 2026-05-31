@@ -1,4 +1,7 @@
-import { describe, expect, it } from "vitest";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
 	collectPnpmOverrides,
 	guardOverrides,
@@ -7,6 +10,7 @@ import {
 	type PnpmAdvisory,
 	parseSemverMin,
 	patchedRangeToVersion,
+	readInstalledVersions,
 } from "../src/commands/fix-force.js";
 
 describe("patchedRangeToVersion", () => {
@@ -167,5 +171,49 @@ describe("guardOverrides", () => {
 		const { safe, skipped } = guardOverrides({ "@scope/pkg@<2.0.0": "^2.0.0" }, installed);
 		expect(safe).toEqual({});
 		expect(skipped).toEqual(["@scope/pkg 5.0.0 → ^2.0.0"]);
+	});
+});
+
+describe("readInstalledVersions", () => {
+	let tmpDir: string;
+
+	const writeManifest = (relDir: string, version: string) => {
+		const dir = path.join(tmpDir, relDir);
+		fs.mkdirSync(dir, { recursive: true });
+		fs.writeFileSync(path.join(dir, "package.json"), JSON.stringify({ version }), "utf-8");
+	};
+
+	beforeEach(() => {
+		tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "aislop-installed-"));
+	});
+
+	afterEach(() => {
+		fs.rmSync(tmpDir, { recursive: true, force: true });
+	});
+
+	it("reads a hoisted package from root node_modules", () => {
+		writeManifest("node_modules/firebase", "7.1.0");
+		expect(readInstalledVersions(tmpDir, ["firebase"]).get("firebase")).toBe("7.1.0");
+	});
+
+	it("falls back to the highest version in pnpm's virtual store", () => {
+		fs.mkdirSync(path.join(tmpDir, "node_modules/.pnpm/uuid@3.4.0/node_modules/uuid"), {
+			recursive: true,
+		});
+		fs.mkdirSync(path.join(tmpDir, "node_modules/.pnpm/uuid@7.0.0_react@18/node_modules/uuid"), {
+			recursive: true,
+		});
+		expect(readInstalledVersions(tmpDir, ["uuid"]).get("uuid")).toBe("7.0.0");
+	});
+
+	it("resolves a scoped package from the pnpm store (slash becomes plus)", () => {
+		fs.mkdirSync(path.join(tmpDir, "node_modules/.pnpm/@scope+pkg@5.0.0/node_modules/@scope/pkg"), {
+			recursive: true,
+		});
+		expect(readInstalledVersions(tmpDir, ["@scope/pkg"]).get("@scope/pkg")).toBe("5.0.0");
+	});
+
+	it("omits packages that are not installed anywhere", () => {
+		expect(readInstalledVersions(tmpDir, ["missing"]).has("missing")).toBe(false);
 	});
 });
