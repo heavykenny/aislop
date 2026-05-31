@@ -368,6 +368,25 @@ describe("fixDeadPatterns — does not create silent regressions", () => {
 		expect(result).toContain("console.log(`[${tag}] ${message}`)");
 	});
 
+	it("leaves a block whose only statements are several consoles", async () => {
+		const file = writeFile(
+			"log.ts",
+			[
+				"export function log(a: string, b: string) {",
+				"    console.log(a);",
+				"    console.log(b);",
+				"}",
+			].join("\n"),
+		);
+
+		await fixDeadPatterns(makeContext([file]));
+		const result = readFile("log.ts");
+
+		// Removing both would still empty the function, so both stay.
+		expect(result).toContain("console.log(a)");
+		expect(result).toContain("console.log(b)");
+	});
+
 	it("leaves console output in diagnostic scripts (Pattern 4)", async () => {
 		const file = writeFile(
 			"tools/test-tools.ts",
