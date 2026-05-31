@@ -15,7 +15,7 @@ aislop is a unified code-quality CLI that catches the lazy patterns AI coding to
 
 ```bash
 pnpm install           # Install dependencies
-pnpm build             # Build with tsdown (rm -rf dist first)
+pnpm build             # Build with tsdown (tsdown cleans dist itself)
 pnpm typecheck         # tsc --noEmit
 pnpm test              # Build + vitest run
 pnpm vitest run        # Run tests without rebuilding (faster iteration)

@@ -19,7 +19,7 @@
   },
   "scripts": {
     "dev": "tsdown --watch",
-    "build": "rm -rf dist && NODE_ENV=production tsdown",
+    "build": "tsdown",
     "postinstall": "node scripts/postinstall-tools.mjs",
     "typecheck": "tsc --noEmit",
     "gen:schema": "node --experimental-strip-types scripts/gen-config-schema.mjs",
