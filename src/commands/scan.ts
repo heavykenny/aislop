@@ -1,32 +1,37 @@
 import fs from "node:fs";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
-import { findConfigDir, RULES_FILE, type AislopConfig } from "../config/index.js";
+import { type AislopConfig, findConfigDir, RULES_FILE } from "../config/index.js";
 import { runEngines } from "../engines/orchestrator.js";
 import type { Diagnostic, EngineConfig, EngineName, EngineResult } from "../engines/types.js";
 import { ENGINE_INFO, getEngineLabel } from "../output/engine-info.js";
 import { printEngineStatus, renderDiagnostics } from "../output/terminal.js";
 import { calculateScore } from "../scoring/index.js";
 import { applyRuleSeverities } from "../scoring/rule-severity.js";
+import { isCiEnv } from "../telemetry/env.js";
+import { type EngineCounts, withCommandLifecycle } from "../telemetry/index.js";
 import { renderHeader } from "../ui/header.js";
 import { detectInvocation } from "../ui/invocation.js";
 import { type GridRow, type GridRowOutcome, LiveGrid } from "../ui/live-grid.js";
 import { log } from "../ui/logger.js";
 import {
 	type BreakdownSummary,
+	type NextStep,
 	renderCleanRun,
 	renderStarCta,
 	renderSummary,
-	type NextStep,
 } from "../ui/summary.js";
 import { createSymbols } from "../ui/symbols.js";
 import { createTheme } from "../ui/theme.js";
 import { discoverProject } from "../utils/discover.js";
 import { getChangedFiles, getStagedFiles } from "../utils/git.js";
 import { appendHistory } from "../utils/history.js";
-import { filterProjectFiles, listProjectFiles } from "../utils/source-files.js";
-import { isCiEnv } from "../telemetry/env.js";
-import { type EngineCounts, withCommandLifecycle } from "../telemetry/index.js";
+import {
+	filterProjectFiles,
+	listProjectFiles,
+	readAislopIgnorePatterns,
+} from "../utils/source-files.js";
+import { applySuppressions } from "../utils/suppress.js";
 import { APP_VERSION } from "../version.js";
 
 interface ScanOptions {
@@ -236,20 +241,22 @@ const runScanBody = async (
 	const machineOutput = isMachineOutput(options);
 	const useLiveProgress = !machineOutput && shouldUseSpinner();
 
+	const excludePatterns = [...config.exclude, ...readAislopIgnorePatterns(resolvedDir)];
+
 	let files: string[] | undefined;
 	if (options.staged) {
-		files = filterProjectFiles(resolvedDir, getStagedFiles(resolvedDir), [], config.exclude);
+		files = filterProjectFiles(resolvedDir, getStagedFiles(resolvedDir), [], excludePatterns);
 		if (!machineOutput) {
 			log.muted(`Scope: ${files.length} staged file(s)`);
 		}
 	} else if (options.changes) {
-		files = filterProjectFiles(resolvedDir, getChangedFiles(resolvedDir), [], config.exclude);
+		files = filterProjectFiles(resolvedDir, getChangedFiles(resolvedDir), [], excludePatterns);
 		if (!machineOutput) {
 			log.muted(`Scope: ${files.length} changed file(s)`);
 		}
 	} else {
 		const allFiles = listProjectFiles(resolvedDir);
-		files = filterProjectFiles(resolvedDir, allFiles, [], config.exclude);
+		files = filterProjectFiles(resolvedDir, allFiles, [], excludePatterns);
 		if (!machineOutput) {
 			log.muted(`Scope: ${files.length} file(s) after exclusions`);
 		}
@@ -317,10 +324,14 @@ const runScanBody = async (
 	);
 	progressRenderer?.stop();
 
-	const results = rawResults.map((result) => ({
+	const severityAdjusted = rawResults.map((result) => ({
 		...result,
 		diagnostics: applyRuleSeverities(result.diagnostics, config.rules),
 	}));
+	const { results, suppressedCount } = applySuppressions(severityAdjusted, resolvedDir);
+	if (suppressedCount > 0 && !machineOutput) {
+		log.muted(`Suppressed ${suppressedCount} finding(s) via aislop-ignore directives`);
+	}
 
 	const allDiagnostics = results.flatMap((r) => r.diagnostics);
 	const elapsedMs = performance.now() - startTime;

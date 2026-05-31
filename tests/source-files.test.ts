@@ -4,7 +4,11 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { discoverProject } from "../src/utils/discover.js";
-import { filterProjectFiles, getSourceFilesForRoot } from "../src/utils/source-files.js";
+import {
+	filterProjectFiles,
+	getSourceFilesForRoot,
+	readAislopIgnorePatterns,
+} from "../src/utils/source-files.js";
 
 const createFile = (rootDir: string, filePath: string, content = "") => {
 	const absolutePath = path.join(rootDir, filePath);
@@ -137,5 +141,31 @@ describe("source file selection", () => {
 		const sourceFiles = getSourceFilesForRoot(tmpDir).sort();
 
 		expect(sourceFiles).toEqual([path.join(tmpDir, "src/app.ts")]);
+	});
+
+	it("reads .aislopignore patterns, skipping blanks and comments", () => {
+		createFile(tmpDir, ".aislopignore", "# generated code\nlegacy\n\nsrc/api.generated.ts\n");
+
+		expect(readAislopIgnorePatterns(tmpDir)).toEqual(["legacy", "src/api.generated.ts"]);
+	});
+
+	it("excludes files matched by .aislopignore patterns", () => {
+		createFile(tmpDir, ".aislopignore", "legacy\nsrc/api.generated.ts\n");
+		createFile(tmpDir, "src/app.ts", "export const app = true;\n");
+		createFile(tmpDir, "legacy/old.ts", "export const old = true;\n");
+		createFile(tmpDir, "src/api.generated.ts", "export const gen = true;\n");
+
+		const filtered = filterProjectFiles(
+			tmpDir,
+			[
+				path.join(tmpDir, "src/app.ts"),
+				path.join(tmpDir, "legacy/old.ts"),
+				path.join(tmpDir, "src/api.generated.ts"),
+			],
+			[],
+			readAislopIgnorePatterns(tmpDir),
+		);
+
+		expect(filtered).toEqual([path.join(tmpDir, "src/app.ts")]);
 	});
 });

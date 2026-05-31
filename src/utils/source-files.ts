@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
-import micromatch from "micromatch";
 import fs from "node:fs";
 import path from "node:path";
+import micromatch from "micromatch";
 import type { EngineContext } from "../engines/types.js";
 
 const MAX_BUFFER = 50 * 1024 * 1024;
@@ -220,6 +220,20 @@ export const listProjectFiles = (rootDirectory: string): string[] => {
 		.split("\n")
 		.filter((file) => file.length > 0)
 		.map((file) => file.replace(/^\.\//, ""));
+};
+
+export const readAislopIgnorePatterns = (rootDirectory: string): string[] => {
+	const ignorePath = path.join(rootDirectory, ".aislopignore");
+	if (!fs.existsSync(ignorePath)) return [];
+	try {
+		return fs
+			.readFileSync(ignorePath, "utf-8")
+			.split(/\r?\n/)
+			.map((line) => line.trim())
+			.filter((line) => line.length > 0 && !line.startsWith("#"));
+	} catch {
+		return [];
+	}
 };
 
 const normalizeExcludePatterns = (patterns: string[]): string[] => {

@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## Unreleased
 
+### Added
+
+- **Suppression.** Silence a finding you have judged intentional with an inline directive: `// aislop-ignore-next-line [rule...]` (line below), `// aislop-ignore-line [rule...]` (same line), or `// aislop-ignore-file [rule...]` (whole file). Name one or more rules to scope it, or omit them to silence every rule on that line, and add a reason after `--`. Works in any comment syntax (`//`, `#`, `<!-- -->`). Directive lines are invisible to the comment engines, so they never join a comment block or get flagged themselves. Suppressed findings are dropped before scoring, and the run reports how many were silenced.
+- **`.aislopignore`.** A root-level ignore file (same glob semantics as the `exclude` config, with `#` comments) to keep whole paths out of every scan.
+
 ### Fixed
 
 - **No-downgrade guard on dependency fixes.** `aislop fix -f` no longer writes a dependency override that pins a package below the version already installed. Before applying npm/pnpm overrides it reads the installed version and drops any that would be a downgrade, reporting them as "skipped downgrade(s), verify intent" instead of silently regressing a dependency the way `npm audit fix --force` does.
