@@ -4,8 +4,8 @@ import { detectDeadPatterns } from "../engines/ai-slop/dead-patterns.js";
 import { fixDeadPatterns } from "../engines/ai-slop/dead-patterns-fix.js";
 import { detectDuplicateImports } from "../engines/ai-slop/duplicate-imports.js";
 import { fixDuplicateImports } from "../engines/ai-slop/duplicate-imports-fix.js";
-import { fixNarrativeComments } from "../engines/ai-slop/narrative-comments-fix.js";
 import { detectNarrativeComments } from "../engines/ai-slop/narrative-comments.js";
+import { fixNarrativeComments } from "../engines/ai-slop/narrative-comments-fix.js";
 import { detectUnusedImports } from "../engines/ai-slop/unused-imports.js";
 import { fixUnusedImports } from "../engines/ai-slop/unused-imports-fix.js";
 import {
@@ -24,8 +24,8 @@ import { fixGenericFormatter, runGenericFormatter } from "../engines/format/gene
 import { fixGofmt, runGofmt } from "../engines/format/gofmt.js";
 import { fixRuffFormat, runRuffFormat } from "../engines/format/ruff-format.js";
 import { runExpoDoctor } from "../engines/lint/expo-doctor.js";
-import { fixOxlint, runOxlint } from "../engines/lint/oxlint.js";
 import { fixRubyLint } from "../engines/lint/generic.js";
+import { fixOxlint, runOxlint } from "../engines/lint/oxlint.js";
 import { fixRuffLint, fixRuffLintForce, runRuffLint } from "../engines/lint/ruff.js";
 import { runDependencyAudit } from "../engines/security/audit.js";
 import type { Diagnostic, EngineContext } from "../engines/types.js";
@@ -52,6 +52,8 @@ export interface PipelineDeps {
 	resolvedDir: string;
 	projectInfo: ProjectInfo;
 	force: boolean;
+	// Restrict to reversible fixes only (imports, comment removal, formatting).
+	safe: boolean;
 	runStep: RunStepFn;
 }
 
@@ -72,6 +74,17 @@ export const runAiSlopSteps = async (deps: PipelineDeps): Promise<void> => {
 		() => detectDuplicateImports(deps.context),
 		() => fixDuplicateImports(deps.context),
 	);
+
+	// Dead-pattern removal deletes code (console statements, dead branches), so in
+	// safe mode we keep only narrative-comment removal, which is reversible.
+	if (deps.safe) {
+		await deps.runStep(
+			"Narrative comments",
+			async () => (await detectNarrativeComments(deps.context)).filter((d) => d.fixable),
+			() => fixNarrativeComments(deps.context),
+		);
+		return;
+	}
 
 	const detectFixableSlop = async () => {
 		const [comments, dead, narrative] = await Promise.all([

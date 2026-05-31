@@ -214,6 +214,10 @@ const fixProgram = program
 	.description("Auto-fix ai slop in codebase")
 	.option("-d, --verbose", "show detailed fix progress")
 	.option("-f, --force", "run aggressive fixes (audit and framework dependency alignment)")
+	.option(
+		"--safe",
+		"only apply reversible fixes (imports, comment removal, formatting); skip anything that deletes code or rewrites behaviour",
+	)
 	.option("-p, --prompt", "print a prompt for your coding agent to fix remaining issues");
 
 for (const a of FIX_AGENT_FLAGS) fixProgram.option(`--${a.flag}`, a.help);
@@ -223,6 +227,7 @@ fixProgram.action(async (directory = ".", _flags, command) => {
 	await fixCommand(directory, loadConfig(directory), {
 		verbose: Boolean(flags.verbose),
 		force: Boolean(flags.force),
+		safe: Boolean(flags.safe),
 		prompt: Boolean(flags.prompt),
 		agent: matchFixAgent(flags),
 	});

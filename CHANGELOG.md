@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Added
+
+- **`aislop fix --safe`.** An opt-in mode that restricts the run to fixes that cannot change behaviour — unused-import removal, import merging, narrative-comment removal, and formatting. Anything that deletes code or rewrites behaviour/attributes (console and dead-code removal, lint autofixes, unused-declaration and dependency pruning, and all `-f` force steps) is skipped, so a `--safe` run is genuinely safe to apply and commit. The default `fix` is unchanged.
+
 ## 0.10.1 (2026-05-30)
 
 An accuracy release across Python and TypeScript, plus a small quality-of-life feature. The Python function detector was only seeing single-line synchronous `def`s, so async functions and wrapped multi-line signatures (about 58% of a large library like python-telegram-bot) were invisible to the complexity rules. In TypeScript, text-pattern rules were matching code inside JSDoc `@example` blocks as if it were live source. Both are fixed, and the complexity metrics were sharpened to measure real complexity rather than documentation or optional API surface.

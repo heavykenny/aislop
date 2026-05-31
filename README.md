@@ -118,9 +118,12 @@ ci:
 Auto-fix what's mechanical (formatters, unused imports, dead code). For issues that need context, hand off to your agent with full diagnostic info.
 
 ```bash
-npx aislop fix                 # safe auto-fixes
+npx aislop fix                 # auto-fixes
+npx aislop fix --safe          # only reversible fixes (imports, comment removal, formatting)
 npx aislop fix -f              # aggressive: deps, unused files
 ```
+
+`--safe` restricts the run to fixes that cannot change behaviour — unused-import removal, import merging, narrative-comment removal, and formatting. Anything that deletes code or rewrites behaviour/attributes (console/dead-code removal, lint autofixes, unused-declaration and dependency pruning) is skipped, so a `--safe` run is genuinely "apply and commit".
 
 ### Hand off to agent
 
