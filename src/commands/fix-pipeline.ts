@@ -31,7 +31,8 @@ import { runDependencyAudit } from "../engines/security/audit.js";
 import type { Diagnostic, EngineContext } from "../engines/types.js";
 import { log } from "../ui/logger.js";
 import type { discoverProject } from "../utils/discover.js";
-import { fixDependencyAudit, fixExpoDependencies } from "./fix-force.js";
+import { fixExpoDependencies } from "./fix-expo.js";
+import { fixDependencyAudit } from "./fix-force.js";
 import type { FixStepResult } from "./fix-steps.js";
 
 export type ProjectInfo = Awaited<ReturnType<typeof discoverProject>>;

@@ -1,11 +1,16 @@
-import { describe, expect, it } from "vitest";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
 	collectPnpmOverrides,
+	guardOverrides,
 	isDowngrade,
 	overrideKey,
+	type PnpmAdvisory,
 	parseSemverMin,
 	patchedRangeToVersion,
-	type PnpmAdvisory,
+	readInstalledVersions,
 } from "../src/commands/fix-force.js";
 
 describe("patchedRangeToVersion", () => {
@@ -137,5 +142,78 @@ describe("isDowngrade", () => {
 	it("returns false when either side is unparseable (no info, do nothing)", () => {
 		expect(isDowngrade("workspace:*", "^1.0.0")).toBe(false);
 		expect(isDowngrade("^1.0.0", "workspace:*")).toBe(false);
+	});
+});
+
+describe("guardOverrides", () => {
+	it("drops an override that pins a package below the installed version", () => {
+		const installed = new Map([["firebase", "7.1.0"]]);
+		const { safe, skipped } = guardOverrides({ "firebase@<4.9.0": "^4.9.0" }, installed);
+		expect(safe).toEqual({});
+		expect(skipped).toEqual(["firebase 7.1.0 → ^4.9.0"]);
+	});
+
+	it("keeps an override that is a genuine upgrade", () => {
+		const installed = new Map([["ajv", "8.10.0"]]);
+		const { safe, skipped } = guardOverrides({ "ajv@<8.18.0": "^8.18.0" }, installed);
+		expect(safe).toEqual({ "ajv@<8.18.0": "^8.18.0" });
+		expect(skipped).toEqual([]);
+	});
+
+	it("applies overrides for packages whose installed version is unknown", () => {
+		const { safe, skipped } = guardOverrides({ "left-pad@<1.3.0": "^1.3.0" }, new Map());
+		expect(safe).toEqual({ "left-pad@<1.3.0": "^1.3.0" });
+		expect(skipped).toEqual([]);
+	});
+
+	it("resolves the package name from a scoped override key", () => {
+		const installed = new Map([["@scope/pkg", "5.0.0"]]);
+		const { safe, skipped } = guardOverrides({ "@scope/pkg@<2.0.0": "^2.0.0" }, installed);
+		expect(safe).toEqual({});
+		expect(skipped).toEqual(["@scope/pkg 5.0.0 → ^2.0.0"]);
+	});
+});
+
+describe("readInstalledVersions", () => {
+	let tmpDir: string;
+
+	const writeManifest = (relDir: string, version: string) => {
+		const dir = path.join(tmpDir, relDir);
+		fs.mkdirSync(dir, { recursive: true });
+		fs.writeFileSync(path.join(dir, "package.json"), JSON.stringify({ version }), "utf-8");
+	};
+
+	beforeEach(() => {
+		tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "aislop-installed-"));
+	});
+
+	afterEach(() => {
+		fs.rmSync(tmpDir, { recursive: true, force: true });
+	});
+
+	it("reads a hoisted package from root node_modules", () => {
+		writeManifest("node_modules/firebase", "7.1.0");
+		expect(readInstalledVersions(tmpDir, ["firebase"]).get("firebase")).toBe("7.1.0");
+	});
+
+	it("falls back to the highest version in pnpm's virtual store", () => {
+		fs.mkdirSync(path.join(tmpDir, "node_modules/.pnpm/uuid@3.4.0/node_modules/uuid"), {
+			recursive: true,
+		});
+		fs.mkdirSync(path.join(tmpDir, "node_modules/.pnpm/uuid@7.0.0_react@18/node_modules/uuid"), {
+			recursive: true,
+		});
+		expect(readInstalledVersions(tmpDir, ["uuid"]).get("uuid")).toBe("7.0.0");
+	});
+
+	it("resolves a scoped package from the pnpm store (slash becomes plus)", () => {
+		fs.mkdirSync(path.join(tmpDir, "node_modules/.pnpm/@scope+pkg@5.0.0/node_modules/@scope/pkg"), {
+			recursive: true,
+		});
+		expect(readInstalledVersions(tmpDir, ["@scope/pkg"]).get("@scope/pkg")).toBe("5.0.0");
+	});
+
+	it("omits packages that are not installed anywhere", () => {
+		expect(readInstalledVersions(tmpDir, ["missing"]).has("missing")).toBe(false);
 	});
 });

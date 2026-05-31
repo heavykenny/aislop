@@ -200,13 +200,21 @@ const parseLegacyAdvisories = (
 	return [...bucket.values()].map((agg) => aggregateToDiagnostic(agg, source));
 };
 
+// An object in `via` means this package is the CVE source; a string means it is
+// only affected through another, so reporting it would duplicate the root cause.
+const carriesAdvisory = (vulnerability: Record<string, unknown>): boolean =>
+	Array.isArray(vulnerability.via) &&
+	vulnerability.via.some((entry) => entry !== null && typeof entry === "object");
+
 const parseModernVulnerabilities = (
 	vulnerabilities: Record<string, Record<string, unknown>>,
 	source: JsAuditSource,
 ): Diagnostic[] => {
 	const bucket = new Map<string, VulnAggregate>();
+	const hasRootCauses = Object.values(vulnerabilities).some(carriesAdvisory);
 
 	for (const [packageName, vulnerability] of Object.entries(vulnerabilities)) {
+		if (hasRootCauses && !carriesAdvisory(vulnerability)) continue;
 		const severity = ((vulnerability.severity as string) ?? "moderate").toLowerCase();
 		const fixAvailable = vulnerability.fixAvailable;
 		const isDirect = vulnerability.isDirect === true;
@@ -236,7 +244,7 @@ const parseModernVulnerabilities = (
 	return [...bucket.values()].map((agg) => aggregateToDiagnostic(agg, source));
 };
 
-const parseJsAudit = (output: string, source: JsAuditSource): Diagnostic[] => {
+export const parseJsAudit = (output: string, source: JsAuditSource): Diagnostic[] => {
 	if (!output) return [];
 	try {
 		const parsed = JSON.parse(output) as Record<string, unknown>;

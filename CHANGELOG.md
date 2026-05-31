@@ -8,10 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- **Suppression.** Silence a finding you have judged intentional with an inline directive: `// aislop-ignore-next-line [rule...]` (line below), `// aislop-ignore-line [rule...]` (same line), or `// aislop-ignore-file [rule...]` (whole file). Name one or more rules to scope it, or omit them to silence every rule on that line, and add a reason after `--`. Works in any comment syntax (`//`, `#`, `<!-- -->`). Directive lines are invisible to the comment engines, so they never join a comment block or get flagged themselves. Suppressed findings are dropped before scoring, and the run reports how many were silenced.
+- **`.aislopignore`.** A root-level ignore file (same glob semantics as the `exclude` config, with `#` comments) to keep whole paths out of every scan.
 - **`aislop fix --safe`.** An opt-in mode that restricts the run to fixes that cannot change behaviour — unused-import removal, import merging, narrative-comment removal, and formatting. Anything that deletes code or rewrites behaviour/attributes (console and dead-code removal, lint autofixes, unused-declaration and dependency pruning, and all `-f` force steps) is skipped, so a `--safe` run is genuinely safe to apply and commit. The default `fix` is unchanged.
 
 ### Fixed
 
+- **No-downgrade guard on dependency fixes.** `aislop fix -f` no longer writes a dependency override that pins a package below the version already installed. Before applying npm/pnpm overrides it reads the installed version and drops any that would be a downgrade, reporting them as "skipped downgrade(s), verify intent" instead of silently regressing a dependency the way `npm audit fix --force` does.
+- **CVE root-cause collapse.** The dependency audit now attributes a transitive vulnerability to the package that actually carries the advisory rather than emitting a near-duplicate finding for every intermediate package in the chain, so one root CVE reads as one issue instead of ten.
 - **Python comma imports.** The unused-import fixer treated `import os, sys` as a single binding, so one unused module (`os`) deleted the whole line and broke the used one (`sys`). Each comma-separated module is now considered independently: the unused one is trimmed (`import os, sys` → `import sys`), the line is removed only when every module is unused, and a line where all are used is left alone.
 
 ## 0.10.1 (2026-05-30)

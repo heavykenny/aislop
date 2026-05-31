@@ -65,6 +65,33 @@ const shouldUpgradeToError = (statementText: string): boolean => {
 	return ERROR_MESSAGE_PATTERNS.some((pattern) => pattern.test(statementText));
 };
 
+// In diagnostic scripts the console output is the point, so do not strip it.
+const DIAGNOSTIC_PATH_RE =
+	/(?:^|\/)(?:tools|scripts|cli|bin)\/|(?:^|\/)test-[^/]*\.[tj]sx?$|[.-](?:test|spec)\.[tj]sx?$/i;
+const isDiagnosticScriptPath = (filePath: string): boolean =>
+	DIAGNOSTIC_PATH_RE.test(filePath.replace(/\\/g, "/"));
+
+const firstNonBlank = (lines: string[], from: number, step: number, skip: Set<number>): string => {
+	for (let i = from; i >= 0 && i < lines.length; i += step) {
+		if (skip.has(i + 1)) continue;
+		if (lines[i].trim() !== "") return lines[i].trim();
+	}
+	return "";
+};
+
+// Removing every statement in a block guts the function, so leave it for a human.
+// `removed` is every line already scheduled to go, so two consoles in one block both skip.
+const wouldEmptyEnclosingBlock = (
+	lines: string[],
+	span: Set<number>,
+	removed: Set<number>,
+): boolean => {
+	const sorted = [...span].sort((a, b) => a - b);
+	const before = firstNonBlank(lines, sorted[0] - 2, -1, removed);
+	const after = firstNonBlank(lines, sorted[sorted.length - 1], 1, removed);
+	return before.endsWith("{") && after.startsWith("}");
+};
+
 export const fixDeadPatterns = async (context: EngineContext): Promise<void> => {
 	const diagnostics = [
 		...(await detectTrivialComments(context)),
@@ -85,11 +112,15 @@ export const fixDeadPatterns = async (context: EngineContext): Promise<void> => 
 	}
 
 	for (const [filePath, entries] of byFile) {
-		fixFileDeadPatterns(filePath, entries);
+		fixFileDeadPatterns(filePath, entries, context.rootDirectory);
 	}
 };
 
-const fixFileDeadPatterns = (filePath: string, entries: { line: number; rule: string }[]): void => {
+const fixFileDeadPatterns = (
+	filePath: string,
+	entries: { line: number; rule: string }[],
+	rootDirectory: string,
+): void => {
 	if (!fs.existsSync(filePath)) return;
 
 	const content = fs.readFileSync(filePath, "utf-8");
@@ -97,28 +128,44 @@ const fixFileDeadPatterns = (filePath: string, entries: { line: number; rule: st
 	const linesToRemove = new Set<number>();
 	const lineReplacements = new Map<number, string>();
 
+	// Match diagnostic dirs inside the project, not parent dirs of the checkout.
+	const skipConsole = isDiagnosticScriptPath(path.relative(rootDirectory, filePath));
+
+	const consoleSpans: Set<number>[] = [];
 	for (const entry of entries) {
 		const index = entry.line - 1;
 		if (index < 0 || index >= lines.length) continue;
 
 		if (entry.rule === "ai-slop/console-leftover") {
+			if (skipConsole) continue;
 			const span = findStatementSpan(lines, index);
 			const statementText = getStatementText(lines, index, span);
 
 			if (shouldUpgradeToError(statementText)) {
-				const replaced = lines[index].replace(
-					/console\.(?:log|debug|info|trace|dir|table)\s*\(/,
-					"console.error(",
+				lineReplacements.set(
+					entry.line,
+					lines[index].replace(
+						/console\.(?:log|debug|info|trace|dir|table)\s*\(/,
+						"console.error(",
+					),
 				);
-				lineReplacements.set(entry.line, replaced);
 			} else {
-				for (const lineNo of span) {
-					linesToRemove.add(lineNo);
-				}
+				consoleSpans.push(span);
 			}
 		} else {
 			linesToRemove.add(entry.line);
 		}
+	}
+
+	// Drop any console whose removal would empty its block, counting the other
+	// scheduled console removals so multiple logs in one block all stay.
+	const candidateLines = new Set<number>();
+	for (const span of consoleSpans) {
+		for (const lineNo of span) candidateLines.add(lineNo);
+	}
+	for (const span of consoleSpans) {
+		if (wouldEmptyEnclosingBlock(lines, span, candidateLines)) continue;
+		for (const lineNo of span) linesToRemove.add(lineNo);
 	}
 
 	const result = applyEditsAndCollapse(lines, linesToRemove, lineReplacements);

@@ -204,7 +204,10 @@ const tryNpmOverrides = async (
 			| undefined;
 		if (!vulnerabilities) return;
 
-		const overrides = await collectOverrides(rootDir, vulnerabilities, "npm");
+		const rawOverrides = await collectOverrides(rootDir, vulnerabilities, "npm");
+		if (Object.keys(rawOverrides).length === 0) return;
+
+		const overrides = guardAndReport(rootDir, rawOverrides, onProgress);
 		if (Object.keys(overrides).length === 0) return;
 
 		const pkgPath = path.join(rootDir, "package.json");
@@ -257,6 +260,99 @@ export const collectPnpmOverrides = (
 	return overrides;
 };
 
+const overrideName = (key: string): string => {
+	const at = key.lastIndexOf("@");
+	return at > 0 ? key.slice(0, at) : key;
+};
+
+// A "fix" that pins a package below what is already installed is a regression, not
+// a fix, so drop it and let the caller flag it for the human to verify intent.
+export const guardOverrides = (
+	overrides: Record<string, string>,
+	installed: Map<string, string>,
+): { safe: Record<string, string>; skipped: string[] } => {
+	const safe: Record<string, string> = {};
+	const skipped: string[] = [];
+	for (const [key, target] of Object.entries(overrides)) {
+		const current = installed.get(overrideName(key));
+		if (current && isDowngrade(current, target)) {
+			skipped.push(`${overrideName(key)} ${current} → ${target}`);
+			continue;
+		}
+		safe[key] = target;
+	}
+	return { safe, skipped };
+};
+
+const readRootNodeModulesVersion = (rootDir: string, name: string): string | null => {
+	try {
+		const manifest = path.join(rootDir, "node_modules", name, "package.json");
+		const version = (JSON.parse(fs.readFileSync(manifest, "utf-8")) as { version?: unknown })
+			.version;
+		return typeof version === "string" ? version : null;
+	} catch {
+		return null;
+	}
+};
+
+const PNPM_STORE_VERSION_RE = /^(\d+\.\d+\.\d+[^_(]*)/;
+
+const isHigherVersion = (candidate: string, current: string | null): boolean => {
+	if (!current) return true;
+	const a = parseSemverMin(candidate);
+	const b = parseSemverMin(current);
+	if (!a || !b) return false;
+	for (let i = 0; i < 3; i++) {
+		if ((a[i] ?? 0) > (b[i] ?? 0)) return true;
+		if ((a[i] ?? 0) < (b[i] ?? 0)) return false;
+	}
+	return false;
+};
+
+// pnpm stores non-hoisted packages as node_modules/.pnpm/<name>@<version> (scoped
+// slash becomes a plus); take the highest version since pinning below it downgrades.
+const readPnpmStoreVersion = (rootDir: string, name: string): string | null => {
+	let entries: string[];
+	try {
+		entries = fs.readdirSync(path.join(rootDir, "node_modules", ".pnpm"));
+	} catch {
+		return null;
+	}
+	const prefix = `${name.replace(/\//g, "+")}@`;
+	let best: string | null = null;
+	for (const entry of entries) {
+		if (!entry.startsWith(prefix)) continue;
+		const match = PNPM_STORE_VERSION_RE.exec(entry.slice(prefix.length));
+		if (match && isHigherVersion(match[1], best)) best = match[1];
+	}
+	return best;
+};
+
+export const readInstalledVersions = (rootDir: string, names: string[]): Map<string, string> => {
+	const map = new Map<string, string>();
+	for (const name of names) {
+		const version =
+			readRootNodeModulesVersion(rootDir, name) ?? readPnpmStoreVersion(rootDir, name);
+		if (version) map.set(name, version);
+	}
+	return map;
+};
+
+const guardAndReport = (
+	rootDir: string,
+	rawOverrides: Record<string, string>,
+	onProgress?: (label: string) => void,
+): Record<string, string> => {
+	const installed = readInstalledVersions(rootDir, Object.keys(rawOverrides).map(overrideName));
+	const { safe, skipped } = guardOverrides(rawOverrides, installed);
+	if (skipped.length > 0) {
+		onProgress?.(
+			`Dependency audit fixes · skipped ${skipped.length} downgrade(s), verify intent: ${skipped.join(", ")}`,
+		);
+	}
+	return safe;
+};
+
 // Detects the retired pnpm audit endpoint (HTTP 410) or other signals that
 // pnpm's audit registry call failed, so callers can fall back to npm.
 const isPnpmAuditRetired = (stdout: string, stderr: string): boolean => {
@@ -307,7 +403,10 @@ const tryPnpmOverrides = async (
 	const advisories = parsed.advisories as Record<string, PnpmAdvisory> | undefined;
 	if (!advisories || Object.keys(advisories).length === 0) return true;
 
-	const overrides = collectPnpmOverrides(advisories);
+	const rawOverrides = collectPnpmOverrides(advisories);
+	if (Object.keys(rawOverrides).length === 0) return true;
+
+	const overrides = guardAndReport(rootDir, rawOverrides, onProgress);
 	if (Object.keys(overrides).length === 0) return true;
 
 	const pkgPath = path.join(rootDir, "package.json");
@@ -323,64 +422,4 @@ const tryPnpmOverrides = async (
 		timeout: INSTALL_TIMEOUT,
 	});
 	return true;
-};
-
-export const fixExpoDependencies = async (
-	context: EngineContext,
-	onProgress?: (label: string) => void,
-): Promise<void> => {
-	await removeDisallowedExpoPackages(context.rootDirectory, onProgress);
-
-	onProgress?.("Expo dependency alignment · running expo install --fix (can take a few minutes)");
-	const fixResult = await runSubprocess("npx", ["--yes", "expo", "install", "--fix"], {
-		cwd: context.rootDirectory,
-		timeout: INSTALL_TIMEOUT,
-	});
-
-	if (fixResult.exitCode === 0) return;
-
-	onProgress?.("Expo dependency alignment · checking remaining issues");
-	const checkResult = await runSubprocess("npx", ["--yes", "expo", "install", "--check"], {
-		cwd: context.rootDirectory,
-		timeout: INSTALL_TIMEOUT,
-	});
-
-	if (checkResult.exitCode !== 0) {
-		throw new Error(checkResult.stderr || checkResult.stdout || "expo dependency check failed");
-	}
-};
-
-/**
- * Run expo-doctor to detect packages that should not be installed directly,
- * then uninstall them. No hardcoded list — expo-doctor is the source of truth.
- */
-const removeDisallowedExpoPackages = async (
-	rootDir: string,
-	onProgress?: (label: string) => void,
-): Promise<void> => {
-	try {
-		onProgress?.("Expo dependency alignment · running expo-doctor");
-		const result = await runSubprocess("npx", ["--yes", "expo-doctor", rootDir], {
-			cwd: rootDir,
-			timeout: INSTALL_TIMEOUT,
-		});
-		const output = [result.stdout, result.stderr].filter(Boolean).join("\n");
-
-		const packagePattern = /The package "([^"]+)" should not be installed directly/g;
-		const toRemove: string[] = [];
-		let match: RegExpExecArray | null;
-		while ((match = packagePattern.exec(output)) !== null) {
-			toRemove.push(match[1]);
-		}
-
-		if (toRemove.length === 0) return;
-
-		onProgress?.(`Expo dependency alignment · uninstalling ${toRemove.length} package(s)`);
-		await runSubprocess("npm", ["uninstall", ...toRemove], {
-			cwd: rootDir,
-			timeout: INSTALL_TIMEOUT,
-		});
-	} catch {
-		// Best-effort — don't fail the step
-	}
 };
