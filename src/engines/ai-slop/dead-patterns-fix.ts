@@ -65,6 +65,27 @@ const shouldUpgradeToError = (statementText: string): boolean => {
 	return ERROR_MESSAGE_PATTERNS.some((pattern) => pattern.test(statementText));
 };
 
+// In diagnostic scripts the console output is the point, so do not strip it.
+const DIAGNOSTIC_PATH_RE =
+	/(?:^|\/)(?:tools|scripts|cli|bin)\/|(?:^|\/)test-[^/]*\.[tj]sx?$|[.-](?:test|spec)\.[tj]sx?$/i;
+const isDiagnosticScriptPath = (filePath: string): boolean =>
+	DIAGNOSTIC_PATH_RE.test(filePath.replace(/\\/g, "/"));
+
+const firstNonBlank = (lines: string[], from: number, step: number): string => {
+	for (let i = from; i >= 0 && i < lines.length; i += step) {
+		if (lines[i].trim() !== "") return lines[i].trim();
+	}
+	return "";
+};
+
+// Removing the only statement in a block guts the function, so leave it for a human.
+const wouldEmptyEnclosingBlock = (lines: string[], span: Set<number>): boolean => {
+	const sorted = [...span].sort((a, b) => a - b);
+	const before = firstNonBlank(lines, sorted[0] - 2, -1);
+	const after = firstNonBlank(lines, sorted[sorted.length - 1], 1);
+	return before.endsWith("{") && after.startsWith("}");
+};
+
 export const fixDeadPatterns = async (context: EngineContext): Promise<void> => {
 	const diagnostics = [
 		...(await detectTrivialComments(context)),
@@ -102,6 +123,7 @@ const fixFileDeadPatterns = (filePath: string, entries: { line: number; rule: st
 		if (index < 0 || index >= lines.length) continue;
 
 		if (entry.rule === "ai-slop/console-leftover") {
+			if (isDiagnosticScriptPath(filePath)) continue;
 			const span = findStatementSpan(lines, index);
 			const statementText = getStatementText(lines, index, span);
 
@@ -112,6 +134,7 @@ const fixFileDeadPatterns = (filePath: string, entries: { line: number; rule: st
 				);
 				lineReplacements.set(entry.line, replaced);
 			} else {
+				if (wouldEmptyEnclosingBlock(lines, span)) continue;
 				for (const lineNo of span) {
 					linesToRemove.add(lineNo);
 				}
