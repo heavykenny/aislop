@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { getSourceFilesForRoot, listProjectFiles } from "./source-files.js";
+import { filterProjectFiles, getSourceFilesForRoot, listProjectFiles } from "./source-files.js";
 import { isToolAvailable } from "./tooling.js";
 
 export type Language =
@@ -80,7 +80,14 @@ const UNSUPPORTED_CODE_EXTENSIONS: Record<string, string> = {
 const analyzeCoverage = (rootDirectory: string, supportedFiles: number): Coverage => {
 	const counts = new Map<string, number>();
 	let unsupportedFiles = 0;
-	for (const file of listProjectFiles(rootDirectory)) {
+	// Count through the same exclusion pipeline as supported files so an excluded
+	// subtree (vendor/, tests/, examples/, gitignored) can't skew the gate.
+	const candidates = filterProjectFiles(
+		rootDirectory,
+		listProjectFiles(rootDirectory),
+		Object.keys(UNSUPPORTED_CODE_EXTENSIONS),
+	);
+	for (const file of candidates) {
 		const lang = UNSUPPORTED_CODE_EXTENSIONS[path.extname(file).toLowerCase()];
 		if (!lang) continue;
 		unsupportedFiles += 1;

@@ -50,6 +50,15 @@ describe("coverage gate (discoverProject)", () => {
 		expect(info.coverage.scoreable).toBe(true);
 	});
 
+	it("does not count an excluded subtree (vendor/) toward unsupported coverage", async () => {
+		for (let i = 0; i < 5; i++) write(`src/m${i}.ts`, `export const v${i} = ${i};\n`);
+		for (let i = 0; i < 50; i++) write(`vendor/lib/c${i}.c`, "int x;\n");
+
+		const info = await discoverProject(tmpDir);
+		expect(info.coverage.unsupportedFiles).toBe(0);
+		expect(info.coverage.scoreable).toBe(true);
+	});
+
 	it("withholds when there are no supported files to analyze", async () => {
 		write("README.md", "# docs only\n");
 		write("notes.md", "nothing to score\n");
