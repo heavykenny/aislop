@@ -19,7 +19,7 @@ inputs:
     required: false
     default: "json"
   version:
-    description: aislop version to run (e.g. "0.5.0"). Defaults to the latest published.
+    description: npm aislop CLI version to run (e.g. "0.10.1"). Use "latest" to follow the latest published CLI. This is separate from the GitHub Action ref in uses:.
     required: false
     default: "latest"
 

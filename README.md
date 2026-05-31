@@ -243,7 +243,7 @@ Or wire it into the [pre-commit](https://pre-commit.com) framework via the bundl
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/scanaislop/aislop
-    rev: v0.9.4
+    rev: v0.10.1
     hooks:
       - id: aislop
 ```
@@ -253,18 +253,42 @@ repos:
 Run `npx aislop init` and accept the workflow prompt, or add manually:
 
 ```yaml
+name: aislop
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  quality-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: scanaislop/aislop@v0.10.1
+        with:
+          version: latest
+```
+
+`uses: scanaislop/aislop@v0.10.1` pins the GitHub Action wrapper. `version: latest` follows the latest npm CLI. For fully deterministic CI, set both to the same release:
+
+```yaml
+- uses: actions/checkout@v4
+
+- uses: scanaislop/aislop@v0.10.1
+  with:
+    version: "0.10.1"
+```
+
+Manual workflow without the Marketplace Action:
+
+```yaml
 - uses: actions/checkout@v4
 - uses: actions/setup-node@v4
   with:
     node-version: 20
-- run: npx aislop@latest ci .
-```
-
-**Composite action**:
-
-```yaml
-- uses: actions/checkout@v4
-- uses: scanaislop/aislop@v0.8
+- run: npx --yes aislop@latest ci .
 ```
 
 **GitHub code scanning (SARIF)**: emit a SARIF 2.1.0 report and upload it so findings appear in the Security tab:

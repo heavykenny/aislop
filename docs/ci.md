@@ -4,7 +4,11 @@
 
 Run `npx aislop init` and answer "yes" to the GitHub Actions workflow prompt. It writes `.aislop/config.yml` and `.github/workflows/aislop.yml` for you. Commit both and your quality gate is live.
 
+`.github/workflows/aislop.yml` is the GitHub Actions workflow file. You can rename the file, but it must live under `.github/workflows/`. `.aislop/config.yml` is the aislop policy file: thresholds, engines, scoring, and telemetry live there.
+
 ## GitHub Actions
+
+Recommended Marketplace Action:
 
 ```yaml
 # .github/workflows/aislop.yml
@@ -20,17 +24,35 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+
+      - uses: scanaislop/aislop@v0.10.1
         with:
-          node-version: 20
-      - run: npx aislop@latest ci .
+          version: latest
 ```
 
-Or the composite action (one-liner):
+For deterministic CI, pin both layers:
 
 ```yaml
 - uses: actions/checkout@v4
-- uses: scanaislop/aislop@v0.5
+
+- uses: scanaislop/aislop@v0.10.1
+  with:
+    version: "0.10.1"
+```
+
+Versioning has two separate knobs:
+
+- `uses: scanaislop/aislop@v0.10.1` is the GitHub Action wrapper ref. It must be a real Git tag, branch, or SHA. GitHub does not resolve `@latest` unless this repository creates and maintains such a ref.
+- `version: latest` is the npm CLI version the Action runs. It maps to the npm `latest` dist-tag.
+
+Manual workflow without the Marketplace Action:
+
+```yaml
+- uses: actions/checkout@v4
+- uses: actions/setup-node@v4
+  with:
+    node-version: 20
+- run: npx --yes aislop@latest ci .
 ```
 
 `aislop ci` outputs JSON and exits with code 1 if the score is below the configured threshold or any error-severity diagnostic is present.
@@ -42,7 +64,7 @@ Or the composite action (one-liner):
 aislop:
   image: node:20
   script:
-    - npx aislop@latest ci .
+    - npx --yes aislop@latest ci .
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH == "main"
@@ -59,7 +81,7 @@ jobs:
       - image: cimg/node:20.0
     steps:
       - checkout
-      - run: npx aislop@latest ci .
+      - run: npx --yes aislop@latest ci .
 workflows:
   quality-gate:
     jobs:
@@ -101,7 +123,7 @@ Both `aislop ci` and `aislop scan --json` produce structured JSON output suitabl
 ```json
 {
   "schemaVersion": "1",
-  "cliVersion": "0.5.0",
+  "cliVersion": "0.10.1",
   "score": 87,
   "label": "Healthy",
   "engines": {
