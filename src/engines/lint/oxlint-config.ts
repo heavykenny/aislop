@@ -80,6 +80,8 @@ export const createOxlintConfig = (options: OxlintConfigOptions): Record<string,
 	if (options.mode === "fix") {
 		rules["no-unused-vars"] = "off";
 		rules["react-hooks/exhaustive-deps"] = "off";
+		// Its autofix deletes aria-hidden, which breaks the sr-only submit-on-Enter pattern.
+		rules["jsx-a11y/no-aria-hidden-on-focusable"] = "off";
 	}
 
 	const plugins = ["import", "unicorn", "typescript", ...buildFrameworkPlugins(options.framework)];
