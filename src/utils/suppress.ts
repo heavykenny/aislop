@@ -2,7 +2,9 @@ import fs from "node:fs";
 import path from "node:path";
 import type { Diagnostic, EngineResult } from "../engines/types.js";
 
-const DIRECTIVE_RE = /aislop-ignore-(next-line|line|file)\b([^\n]*)/;
+// Require a comment marker before the directive so the bare words in a string
+// literal or doc text don't silently suppress diagnostics for the whole file.
+const DIRECTIVE_RE = /(?:\/\/|\/\*|#|<!--|\*)\s*aislop-ignore-(next-line|line|file)\b([^\n]*)/;
 
 export const isAislopDirectiveLine = (line: string): boolean => DIRECTIVE_RE.test(line);
 

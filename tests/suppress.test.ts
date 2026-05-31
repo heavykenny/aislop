@@ -121,6 +121,15 @@ describe("applySuppressions", () => {
 		expect(suppressedCount).toBe(0);
 		expect(results[0].diagnostics).toHaveLength(1);
 	});
+
+	it("ignores the directive words inside a string literal (no comment marker)", () => {
+		write("a.ts", 'const help = "pass aislop-ignore-file to skip a file";\nconst y = 2;\n');
+		const { suppressedCount } = applySuppressions(
+			wrap([diag("a.ts", 1, "ai-slop/other"), diag("a.ts", 2, "ai-slop/other")]),
+			tmpDir,
+		);
+		expect(suppressedCount).toBe(0);
+	});
 });
 
 describe("aislop directive lines are invisible to comment blocks", () => {
