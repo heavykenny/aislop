@@ -1,5 +1,5 @@
 import { performance } from "node:perf_hooks";
-import { flushTelemetry, track, type TelemetryConfig } from "./client.js";
+import { flushTelemetry, type TelemetryConfig, track } from "./client.js";
 import {
 	buildCommandCompletedProps,
 	buildCommandStartedProps,
@@ -17,7 +17,8 @@ interface CommandLifecycleStart {
 
 interface CommandCompletionInfo {
 	exitCode: number;
-	score?: number;
+	score?: number | null;
+	scoreable?: boolean;
 	findingCount?: number;
 	errorCount?: number;
 	warningCount?: number;
@@ -56,7 +57,7 @@ export const withCommandLifecycle = async <T extends CommandCompletionInfo>(
 				startProps,
 				exitCode: result.exitCode,
 				durationMs,
-				score: result.score,
+				score: result.score ?? undefined,
 				findingCount: result.findingCount,
 				errorCount: result.errorCount,
 				warningCount: result.warningCount,

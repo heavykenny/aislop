@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **`.aislopignore`.** A root-level ignore file (same glob semantics as the `exclude` config, with `#` comments) to keep whole paths out of every scan.
 - **`aislop fix --safe`.** An opt-in mode that restricts the run to fixes that cannot change behaviour — unused-import removal, import merging, narrative-comment removal, and formatting. Anything that deletes code or rewrites behaviour/attributes (console and dead-code removal, lint autofixes, unused-declaration and dependency pruning, and all `-f` force steps) is skipped, so a `--safe` run is genuinely safe to apply and commit. The default `fix` is unchanged.
 
+### Changed
+
+- **Coverage gate — no score off a sliver.** aislop now withholds the numeric score when it could only analyse a negligible fraction of a repo: when there are no files in a supported language, or when unsupported-language code (C, C++, C#, Swift, Kotlin, and similar) outnumbers supported files by more than three to one. Previously a repo like postgres (≈1.4M lines of C) could score 91 off two incidental Python helper scripts. The scan now prints a plain explanation instead of a number, `--json` returns `score: null` with `scoreable: false` and a `coverage` breakdown, and `ci` does not gate on a withheld score.
+
 ### Fixed
 
 - **No-downgrade guard on dependency fixes.** `aislop fix -f` no longer writes a dependency override that pins a package below the version already installed. Before applying npm/pnpm overrides it reads the installed version and drops any that would be a downgrade, reporting them as "skipped downgrade(s), verify intent" instead of silently regressing a dependency the way `npm audit fix --force` does.

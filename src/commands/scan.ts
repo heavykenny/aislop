@@ -33,6 +33,7 @@ import {
 } from "../utils/source-files.js";
 import { applySuppressions } from "../utils/suppress.js";
 import { APP_VERSION } from "../version.js";
+import { renderCoverageNotice } from "./scan-coverage.js";
 
 interface ScanOptions {
 	changes: boolean;
@@ -343,8 +344,9 @@ const runScanBody = async (
 		projectInfo.sourceFileCount,
 		config.scoring.smoothing,
 	);
+	const scoreable = projectInfo.coverage.scoreable;
 	const hasErrors = allDiagnostics.some((d) => d.severity === "error");
-	const exitCode = hasErrors || scoreResult.score < config.ci.failBelow ? 1 : 0;
+	const exitCode = scoreable && (hasErrors || scoreResult.score < config.ci.failBelow) ? 1 : 0;
 
 	const engineIssues: EngineCounts = {};
 	const engineTimings: EngineCounts = {};
@@ -354,7 +356,8 @@ const runScanBody = async (
 	}
 	const completion = {
 		exitCode,
-		score: scoreResult.score,
+		score: scoreable ? scoreResult.score : null,
+		scoreable,
 		findingCount: allDiagnostics.length,
 		errorCount: allDiagnostics.filter((d) => d.severity === "error").length,
 		warningCount: allDiagnostics.filter((d) => d.severity === "warning").length,
@@ -371,8 +374,21 @@ const runScanBody = async (
 
 	if (options.json) {
 		const { buildJsonOutput } = await import("../output/json.js");
-		const jsonOut = buildJsonOutput(results, scoreResult, projectInfo.sourceFileCount, elapsedMs);
+		const jsonOut = buildJsonOutput(
+			results,
+			scoreResult,
+			projectInfo.sourceFileCount,
+			elapsedMs,
+			projectInfo.coverage,
+		);
 		console.log(JSON.stringify(jsonOut, null, 2));
+		return completion;
+	}
+
+	if (!scoreable) {
+		if (!machineOutput) {
+			process.stdout.write(renderCoverageNotice(projectInfo, showHeader));
+		}
 		return completion;
 	}
 

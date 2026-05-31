@@ -1,5 +1,6 @@
 import type { Diagnostic, EngineResult } from "../engines/types.js";
 import type { ScoreResult } from "../scoring/index.js";
+import type { Coverage } from "../utils/discover.js";
 import { APP_VERSION } from "../version.js";
 import { ENGINE_INFO, type EngineInfo } from "./engine-info.js";
 
@@ -7,8 +8,10 @@ interface JsonOutput {
 	schemaVersion: string;
 	cliVersion: string;
 	version: string;
-	score: number;
+	score: number | null;
 	label: string;
+	scoreable: boolean;
+	coverage: Coverage;
 	engines: Record<string, { issues: number; skipped: boolean; elapsed: number }>;
 	engineDefinitions: Record<string, EngineInfo>;
 	diagnostics: Diagnostic[];
@@ -26,6 +29,7 @@ export const buildJsonOutput = (
 	scoreResult: ScoreResult,
 	fileCount: number,
 	elapsedMs: number,
+	coverage: Coverage,
 ): JsonOutput => {
 	const allDiagnostics = results.flatMap((r) => r.diagnostics);
 	const engines: JsonOutput["engines"] = {};
@@ -42,8 +46,10 @@ export const buildJsonOutput = (
 		schemaVersion: "1",
 		cliVersion: APP_VERSION,
 		version: APP_VERSION,
-		score: scoreResult.score,
-		label: scoreResult.label,
+		score: coverage.scoreable ? scoreResult.score : null,
+		label: coverage.scoreable ? scoreResult.label : "not scored",
+		scoreable: coverage.scoreable,
+		coverage,
 		engines,
 		engineDefinitions: ENGINE_INFO,
 		diagnostics: allDiagnostics,
