@@ -104,3 +104,47 @@ describe("track — distinct_id stitching", () => {
 		expect(ids[0]).toMatch(/^[0-9a-f-]{36}$/);
 	});
 });
+
+describe("flushTelemetry — bounded flush (per-edit hook path)", () => {
+	const originalEnv = { ...process.env };
+	let tmpHome: string;
+
+	beforeEach(() => {
+		delete process.env.AISLOP_NO_TELEMETRY;
+		delete process.env.DO_NOT_TRACK;
+		delete process.env.CI;
+		delete process.env.AISLOP_TELEMETRY_DRY_RUN;
+		delete process.env.XDG_STATE_HOME;
+		tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), "aislop-flush-"));
+		process.env.HOME = tmpHome;
+		resetTelemetryForTests();
+	});
+
+	afterEach(() => {
+		vi.unstubAllGlobals();
+		resetTelemetryForTests();
+		process.env = { ...originalEnv };
+		fs.rmSync(tmpHome, { recursive: true, force: true });
+	});
+
+	it("returns within the cap when the request hangs, so the hook never stalls", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(() => new Promise(() => {})),
+		);
+		track({ event: "hook_scan_completed", config: { enabled: true } });
+
+		const start = Date.now();
+		await flushTelemetry(50);
+		expect(Date.now() - start).toBeLessThan(500);
+	});
+
+	it("delivers the queued event when the request resolves in time", async () => {
+		const fetchMock = vi.fn(async () => new Response(null, { status: 200 }));
+		vi.stubGlobal("fetch", fetchMock);
+		track({ event: "hook_scan_completed", config: { enabled: true } });
+
+		await flushTelemetry(1500);
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+	});
+});

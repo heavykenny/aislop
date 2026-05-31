@@ -108,9 +108,16 @@ export const track = (input: TrackInput): TrackResult => {
 	return { installCreated };
 };
 
-export const flushTelemetry = async (): Promise<void> => {
+export const flushTelemetry = async (timeoutMs?: number): Promise<void> => {
 	if (pendingRequests.size === 0) return;
-	await Promise.all(pendingRequests);
+	const all = Promise.all(pendingRequests);
+	if (timeoutMs == null) {
+		await all;
+		return;
+	}
+	// Bounded flush for latency-sensitive callers (per-edit hooks): give the
+	// in-flight request a brief window, but never block the caller past the cap.
+	await Promise.race([all, new Promise((resolve) => setTimeout(resolve, timeoutMs))]);
 };
 
 export const resetTelemetryForTests = (): void => {
