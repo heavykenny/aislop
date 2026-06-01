@@ -54,6 +54,24 @@ export const runDependencyAudit = async (context: EngineContext): Promise<Diagno
 	return diagnostics;
 };
 
+type JsAuditSource = "npm audit" | "pnpm audit";
+
+const errorMessageOf = (error: unknown): string =>
+	error instanceof Error ? error.message : String(error);
+
+const auditSkippedDiagnostic = (source: JsAuditSource, help: string): Diagnostic => ({
+	filePath: "package.json",
+	engine: "security",
+	rule: "security/dependency-audit-skipped",
+	severity: "info",
+	message: `Dependency audit did not complete (${source})`,
+	help,
+	line: 0,
+	column: 0,
+	category: "Security",
+	fixable: false,
+});
+
 const runNpmAudit = async (rootDir: string, timeout: number): Promise<Diagnostic[]> => {
 	try {
 		const result = await runSubprocess("npm", ["audit", "--json"], {
@@ -61,8 +79,10 @@ const runNpmAudit = async (rootDir: string, timeout: number): Promise<Diagnostic
 			timeout,
 		});
 		return parseJsAudit(result.stdout, "npm audit");
-	} catch {
-		return [];
+	} catch (error) {
+		return [
+			auditSkippedDiagnostic("npm audit", `Failed to run npm audit: ${errorMessageOf(error)}`),
+		];
 	}
 };
 
@@ -83,19 +103,18 @@ const runPnpmAuditWithFallback = async (
 			if (canFallbackToNpm) {
 				return runNpmAudit(rootDir, timeout);
 			}
-			// pnpm audit failed due to an infrastructure/tooling issue, not a project problem — suppress.
-			return [];
+			return diagnostics;
 		}
 		return diagnostics;
-	} catch {
+	} catch (error) {
 		if (canFallbackToNpm) {
 			return runNpmAudit(rootDir, timeout);
 		}
-		return [];
+		return [
+			auditSkippedDiagnostic("pnpm audit", `Failed to run pnpm audit: ${errorMessageOf(error)}`),
+		];
 	}
 };
-
-type JsAuditSource = "npm audit" | "pnpm audit";
 
 const SEVERITY_RANK: Record<string, number> = {
 	critical: 4,

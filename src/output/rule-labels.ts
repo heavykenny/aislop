@@ -20,6 +20,7 @@ const RULE_LABELS: Record<string, string> = {
 	"ai-slop/swallowed-exception": "Empty catch (swallowed error)",
 	"ai-slop/silent-recovery": "Catch logs then continues",
 	"ai-slop/meta-comment": "Meta/plan comment",
+	"ai-slop/hidden-fallback": "Hidden fallback",
 	"ai-slop/redundant-try-catch": "Redundant try/catch",
 	"ai-slop/redundant-type-coercion": "Redundant type coercion",
 	"ai-slop/duplicate-type-declaration": "Duplicate exported type",

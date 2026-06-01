@@ -617,27 +617,22 @@ describe("density-aware scoring (sourceFileCount)", () => {
 		expect(result.score).toBeGreaterThan(58);
 	});
 
-	it("omitting sourceFileCount falls back to file-count heuristic", () => {
+	it("omitting sourceFileCount uses an explicit diagnostic-file estimate", () => {
 		const withoutFileCount = calculateScore(
 			[makeInnerHTMLDiagnostic()],
 			defaultWeights,
 			defaultThresholds,
 		);
 
-		// getEffectiveFileCount counts unique file paths (1 file) and applies density scaling
 		expect(withoutFileCount.score).toBe(78);
+		expect(withoutFileCount.effectiveSourceFileCount).toBe(1);
+		expect(withoutFileCount.sourceFileCountMode).toBe("estimated-from-diagnostics");
 	});
 
-	it("sourceFileCount=0 falls back to file-count heuristic", () => {
-		const result = calculateScore(
-			[makeInnerHTMLDiagnostic()],
-			defaultWeights,
-			defaultThresholds,
-			0,
-		);
-
-		// Falls back to getEffectiveFileCount counting unique diagnostic file paths
-		expect(result.score).toBe(78);
+	it("sourceFileCount=0 with diagnostics is treated as an invalid impossible state", () => {
+		expect(() =>
+			calculateScore([makeInnerHTMLDiagnostic()], defaultWeights, defaultThresholds, 0),
+		).toThrow("sourceFileCount must be greater than 0 when diagnostics are present");
 	});
 
 	it("density caps at 1.0 for heavily polluted codebases", () => {

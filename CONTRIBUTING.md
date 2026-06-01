@@ -137,6 +137,8 @@ AI slop detectors live in `src/engines/ai-slop/`:
 | `dead-patterns.ts` | Console leftovers, TODO stubs, dead code, type assertions |
 | `unused-imports.ts` | Unused import detection |
 | `exceptions.ts` | Swallowed exceptions |
+| `hidden-fallback.ts` | Fallbacks that hide missing inputs or failed state |
+| `defensive-patterns.ts` | Redundant try/catch, duplicate types, redundant primitive coercion |
 | `abstractions.ts` | Thin wrappers, generic naming |
 
 If your rule doesn't fit any of these, create a new file and wire it into `src/engines/ai-slop/index.ts`.
