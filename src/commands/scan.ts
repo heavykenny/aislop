@@ -395,6 +395,10 @@ const runScanBody = async (
 	if (!scoreable) {
 		if (!machineOutput) {
 			process.stdout.write(renderCoverageNotice(projectInfo, showHeader));
+			// Score is withheld, but findings still ran on the supported files; show them so a CI failure on an error diagnostic is explained.
+			if (allDiagnostics.length > 0) {
+				process.stdout.write(renderDiagnostics(allDiagnostics, options.verbose ?? false));
+			}
 		}
 		return completion;
 	}
