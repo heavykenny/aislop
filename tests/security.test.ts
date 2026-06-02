@@ -522,6 +522,14 @@ describe("detectRiskyConstructs", () => {
 		expect(diagnostics.length).toBeGreaterThanOrEqual(2);
 	});
 
+	it("detects shell injection via template interpolation in command execution", async () => {
+		const filePath = writeFile("shell.ts", "child_process.exec(`rm -rf ${target}`);");
+		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));
+		const matches = diagnostics.filter((d) => d.rule === "security/shell-injection");
+		expect(matches).toHaveLength(1);
+		expect(matches[0].severity).toBe("error");
+	});
+
 	it("detects SQL injection via knex.raw template literal", async () => {
 		const filePath = writeFile(
 			"knex.ts",

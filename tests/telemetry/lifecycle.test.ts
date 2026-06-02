@@ -5,7 +5,7 @@ import { withCommandLifecycle } from "../../src/telemetry/lifecycle.js";
 const captureStderr = (): { lines: string[]; restore: () => void } => {
 	const lines: string[] = [];
 	const original = process.stderr.write;
-	process.stderr.write = ((chunk: any) => {
+	process.stderr.write = ((chunk: unknown) => {
 		lines.push(String(chunk));
 		return true;
 	}) as typeof process.stderr.write;

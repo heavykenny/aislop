@@ -170,7 +170,7 @@ const BUILTIN_RULES: { engine: string; rules: string[] }[] = [
 // The native rule IDs the catalog advertises (excludes lint/format wildcards).
 export const catalogRuleIds = (): string[] =>
 	BUILTIN_RULES.flatMap((b) => b.rules).filter((id) =>
-		/^(?:ai-slop|complexity|security|code-quality|knip)\/[a-z0-9-]+$/.test(id),
+		/^(?:ai-slop|complexity|security|code-quality|knip)\/[a-zA-Z0-9-]+$/.test(id),
 	);
 
 const toRuleEntry = (engine: string, ruleId: string): RuleEntry => {

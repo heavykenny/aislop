@@ -476,7 +476,7 @@ describe("checkComplexity — general", () => {
 			writeFile("api/users_test.py", makeLines(50, "assert x == 1")),
 			writeFile("conftest.py", makeLines(50, "import pytest")),
 			writeFile("pkg/users_test.go", makeLines(50, "t.Fatal(err)")),
-			writeFile("src/users_test.rs", makeLines(50, 'assert!(x == 1);')),
+			writeFile("src/users_test.rs", makeLines(50, "assert!(x == 1);")),
 			writeFile("spec/users_spec.rb", makeLines(50, "expect(x).to eq 1")),
 			writeFile("src/test/java/UsersTest.java", makeLines(50, "assertEquals(x, 1);")),
 		];

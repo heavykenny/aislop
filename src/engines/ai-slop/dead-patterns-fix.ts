@@ -49,7 +49,7 @@ const ERROR_MESSAGE_PATTERNS = [
 /**
  * Extracts the full text of a console statement spanning multiple lines.
  */
-const getStatementText = (lines: string[], startIndex: number, span: Set<number>): string => {
+const getStatementText = (lines: string[], span: Set<number>): string => {
 	const spanLines: string[] = [];
 	for (const lineNo of span) {
 		spanLines.push(lines[lineNo - 1]);
@@ -139,7 +139,7 @@ const fixFileDeadPatterns = (
 		if (entry.rule === "ai-slop/console-leftover") {
 			if (skipConsole) continue;
 			const span = findStatementSpan(lines, index);
-			const statementText = getStatementText(lines, index, span);
+			const statementText = getStatementText(lines, span);
 
 			if (shouldUpgradeToError(statementText)) {
 				lineReplacements.set(

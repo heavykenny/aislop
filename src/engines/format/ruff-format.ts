@@ -27,9 +27,8 @@ export const runRuffFormat = async (context: EngineContext): Promise<Diagnostic[
 const parseRuffFormatOutput = (output: string, rootDir: string): Diagnostic[] => {
 	const diagnostics: Diagnostic[] = [];
 	const filePattern = /^--- (.+)$/gm;
-	let match: RegExpExecArray | null;
 
-	while ((match = filePattern.exec(output)) !== null) {
+	for (const match of output.matchAll(filePattern)) {
 		const filePath = getRuffDiagnosticPath(rootDir, match[1]);
 		diagnostics.push({
 			filePath,

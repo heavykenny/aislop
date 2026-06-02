@@ -25,7 +25,7 @@ export const lintEngine: Engine = {
 			promises.push(import("./expo-doctor.js").then((mod) => mod.runExpoDoctor(context)));
 		}
 
-		if (languages.includes("python") && installedTools["ruff"]) {
+		if (languages.includes("python") && installedTools.ruff) {
 			promises.push(runRuffLint(context));
 		}
 
@@ -33,11 +33,11 @@ export const lintEngine: Engine = {
 			promises.push(runGolangciLint(context));
 		}
 
-		if (languages.includes("rust") && installedTools["cargo"]) {
+		if (languages.includes("rust") && installedTools.cargo) {
 			promises.push(runGenericLinter(context, "rust"));
 		}
 
-		if (languages.includes("ruby") && installedTools["rubocop"]) {
+		if (languages.includes("ruby") && installedTools.rubocop) {
 			promises.push(runGenericLinter(context, "ruby"));
 		}
 

@@ -1,7 +1,7 @@
 import wcwidth from "wcwidth";
 
-// eslint-disable-next-line no-control-regex
-const ANSI_RE = new RegExp(String.raw`\x1B\[[0-9;]*m`, "g");
+const ANSI_ESCAPE = "\u001B";
+const ANSI_RE = new RegExp(`${ANSI_ESCAPE}\\[[0-9;]*m`, "g");
 
 const stripAnsi = (s: string): string => s.replace(ANSI_RE, "");
 

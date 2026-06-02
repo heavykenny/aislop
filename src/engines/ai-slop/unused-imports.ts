@@ -153,8 +153,7 @@ const isSymbolUsed = (
 	lines: string[],
 ): boolean => {
 	const pattern = new RegExp(`\\b${name}\\b`, "g");
-	let match: RegExpExecArray | null;
-	while ((match = pattern.exec(content)) !== null) {
+	for (const match of content.matchAll(pattern)) {
 		const lineIndex = content.slice(0, match.index).split("\n").length - 1;
 		if (!importLines.has(lineIndex)) return true;
 	}

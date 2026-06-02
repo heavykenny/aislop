@@ -56,10 +56,7 @@ describe("runTypecheck", () => {
 	it("returns no diagnostics for a clean TypeScript project", async () => {
 		linkNodeModules();
 		writeFile("tsconfig.json", JSON.stringify(baseTsconfig));
-		writeFile(
-			"src/index.ts",
-			"export const greet = (name: string): string => `hi ${name}`;\n",
-		);
+		writeFile("src/index.ts", "export const greet = (name: string): string => `hi ${name}`;\n");
 
 		const diagnostics = await runTypecheck(buildContext());
 
@@ -69,10 +66,7 @@ describe("runTypecheck", () => {
 	it("reports a single TS2322 diagnostic on a deliberate type mismatch", async () => {
 		linkNodeModules();
 		writeFile("tsconfig.json", JSON.stringify(baseTsconfig));
-		writeFile(
-			"src/bug.ts",
-			"export const port: number = 'eight';\n",
-		);
+		writeFile("src/bug.ts", "export const port: number = 'eight';\n");
 
 		const diagnostics = await runTypecheck(buildContext());
 
@@ -114,10 +108,7 @@ describe("runTypecheck", () => {
 			JSON.stringify({ files: [], references: [{ path: "./packages/a" }] }),
 		);
 		writeFile("packages/a/tsconfig.json", JSON.stringify(baseTsconfig));
-		writeFile(
-			"packages/a/src/index.ts",
-			"export const ok: number = 1;\n",
-		);
+		writeFile("packages/a/src/index.ts", "export const ok: number = 1;\n");
 
 		const diagnostics = await runTypecheck(buildContext());
 

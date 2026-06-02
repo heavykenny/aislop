@@ -3,8 +3,8 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
-	PI_EXTENSION_SOURCE,
 	installPi,
+	PI_EXTENSION_SOURCE,
 	resolvePiPaths,
 	uninstallPi,
 } from "../../src/hooks/install/pi.js";

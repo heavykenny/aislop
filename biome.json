@@ -36,6 +36,16 @@
 					}
 				}
 			}
+		},
+		{
+			"includes": ["tests/**/*.ts"],
+			"linter": {
+				"rules": {
+					"suspicious": {
+						"noTemplateCurlyInString": "off"
+					}
+				}
+			}
 		}
 	]
 }

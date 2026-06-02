@@ -38,6 +38,9 @@ Measures structural complexity, finds dead code, and detects unused dependencies
 | `complexity/file-too-large` | Files exceeding configurable line limit (default: 400) |
 | `complexity/deep-nesting` | Control-flow nesting beyond threshold (default: 5) |
 | `complexity/too-many-params` | Functions with too many parameters (default: 6). For Python, counts required parameters only: `self`/`cls`, `*args`/`**kwargs`, the `*` / `/` separators, and parameters with a default are not counted. |
+| `code-quality/duplicate-block` | Repeated blocks of implementation code that should usually be extracted or shared |
+| `code-quality/repeated-chained-call` | Repeated long call chains on the same receiver that should usually be cached or factored |
+| `code-quality/unused-declaration` | Unused top-level declarations detected for safe removal |
 | `knip/files` | Unused files not imported anywhere (JS/TS, fixable with `fix -f`) |
 | `knip/exports`, `knip/types` | Unused exports and types (JS/TS) |
 | `knip/dependencies` | Unused dependencies in package.json (fixable with `fix`) |
@@ -45,6 +48,7 @@ Measures structural complexity, finds dead code, and detects unused dependencies
 | `knip/unlisted` | Packages imported in code but missing from package.json |
 | `knip/unresolved` | Imports that cannot be resolved |
 | `knip/binaries` | Binaries used but not declared in package.json |
+| `knip/duplicates` | Duplicate exports reported by knip |
 
 ## AI Slop
 
@@ -55,6 +59,8 @@ The rules that make aislop unique. These catch the patterns AI assistants leave 
 | `ai-slop/trivial-comment` | warning | Comments restating the code (`// Import React`, `// Return the value`) |
 | `ai-slop/narrative-comment` | warning | Decorative separators, phase/section headers, JSDoc preambles without meaningful tags (caught on top-level *and* interface/type members), cross-reference commentary, and longer prose blocks that carry an AI-narration signal (a restatement opener or step-by-step narration). Length alone is not flagged. |
 | `ai-slop/swallowed-exception` | error | Empty catch blocks, catch blocks that only log (JS/TS/Python/Go/Ruby/Java) |
+| `ai-slop/silent-recovery` | warning | Catch blocks that log without including the caught error and then continue |
+| `ai-slop/meta-comment` | warning | Comments about implementation phases, agent behavior, or generated-code process instead of the code itself |
 | `ai-slop/redundant-try-catch` | warning | JS/TS catch blocks that only rethrow the same error without adding context, cleanup, or recovery |
 | `ai-slop/redundant-type-coercion` | warning | TypeScript primitive parameters re-coerced with `String(...)`, `Number(...)`, or `Boolean(...)` |
 | `ai-slop/duplicate-type-declaration` | warning | Exported TypeScript type/interface declarations repeated with the same name and shape across files |
@@ -69,12 +75,21 @@ The rules that make aislop unique. These catch the patterns AI assistants leave 
 | `ai-slop/unsafe-type-assertion` | warning | `as any` in TypeScript |
 | `ai-slop/double-type-assertion` | warning | `as unknown as X` pattern |
 | `ai-slop/ts-directive` | info | `@ts-ignore` / `@ts-expect-error` usage |
+| `ai-slop/duplicate-import` | warning | Multiple imports from the same module that should be merged |
 | `ai-slop/hardcoded-url` | warning | Environment-specific URLs hardcoded in production code instead of env/config |
 | `ai-slop/hardcoded-id` | warning | Provider/project IDs hardcoded in production code instead of env/config |
+| `ai-slop/python-bare-except` | warning | Python `except:` blocks that catch everything without naming an exception type |
+| `ai-slop/python-broad-except` | warning | Python broad exception handlers with silent/pass-style bodies |
+| `ai-slop/python-mutable-default` | warning | Python function defaults such as `[]`, `{}`, or `set()` that are shared across calls |
+| `ai-slop/python-print-debug` | warning | Python `print(...)` debug output left in production modules |
 | `ai-slop/python-range-len-loop` | info | Python `for i in range(len(items))` loops that usually want direct iteration or `enumerate()` |
 | `ai-slop/python-chained-dict-get` | warning | Python `.get(..., {}).get(...)` fallback chains that hide missing-data cases |
 | `ai-slop/python-repetitive-dispatch` | warning | Repeated Python equality branch ladders that should usually become a table/set/handler map |
 | `ai-slop/python-isinstance-ladder` | warning | Repeated Python `isinstance(...)` ladders that should usually become a handler map or normalized representation |
+| `ai-slop/go-library-panic` | warning | Go `panic(...)` calls in non-main library code unless clearly intentional |
+| `ai-slop/rust-non-test-unwrap` | warning | Rust `.unwrap()` in production code where errors should be handled or documented |
+| `ai-slop/rust-todo-stub` | warning | Rust `todo!()` stubs in production code |
+| `ai-slop/hallucinated-import` | error | Imports of JS/TS packages that are not declared in the project manifest |
 
 ## Security
 
@@ -84,10 +99,12 @@ Finds secrets, risky constructs, and vulnerable dependencies.
 |---|---|
 | `security/hardcoded-secret` | API keys, AWS credentials, JWT tokens, database URLs, passwords |
 | `security/eval` | `eval()` usage (JS/TS/Python/Ruby/PHP) |
-| `security/innerhtml` | `.innerHTML` and `dangerouslySetInnerHTML` |
+| `security/innerhtml` | Direct `.innerHTML` assignment |
+| `security/dangerously-set-innerhtml` | React `dangerouslySetInnerHTML` usage that needs sanitization |
 | `security/sql-injection` | String concatenation in SQL queries |
 | `security/shell-injection` | User input in command execution |
 | `security/vulnerable-dependency` | npm/pip/cargo/go dependency audit |
+| `security/dependency-audit-skipped` | Dependency audit could not run because tooling or lockfile context was missing |
 
 ## Architecture (opt-in)
 

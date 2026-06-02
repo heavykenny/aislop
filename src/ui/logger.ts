@@ -1,5 +1,5 @@
 import { symbols as defaultSymbols, type Symbols } from "./symbols.js";
-import { style, theme as defaultTheme, type Theme, type Token } from "./theme.js";
+import { theme as defaultTheme, style, type Theme, type Token } from "./theme.js";
 
 interface LoggerDeps {
 	theme?: Theme;

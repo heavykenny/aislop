@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildTrendRender, renderSparkline } from "../../src/commands/trend.js";
 import type { HistoryRecord } from "../../src/utils/history.js";
+import { stripAnsi as plain } from "../helpers/ansi.js";
 
 const createRecord = (overrides: Partial<HistoryRecord> = {}): HistoryRecord => ({
 	timestamp: "2026-05-29T10:00:00.000Z",
@@ -11,10 +12,6 @@ const createRecord = (overrides: Partial<HistoryRecord> = {}): HistoryRecord => 
 	cliVersion: "0.9.4",
 	...overrides,
 });
-
-// Strip ANSI so assertions are color-mode independent.
-const ANSI_RE = new RegExp(String.raw`\x1B\[[0-9;]*m`, "g");
-const plain = (s: string): string => s.replace(ANSI_RE, "");
 
 describe("renderSparkline", () => {
 	it("returns empty string for no scores", () => {

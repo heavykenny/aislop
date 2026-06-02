@@ -4,8 +4,8 @@ import ts from "typescript";
 import {
 	applyRemovals,
 	hasSyntaxDiagnostics,
-	matchStatement,
 	type MatchResult,
+	matchStatement,
 	type NoneResult,
 	type PendingRemoval,
 	type SkipResult,

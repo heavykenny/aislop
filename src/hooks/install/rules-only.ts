@@ -60,7 +60,7 @@ export const uninstallRulesOnly = (
 
 	if (paths.host && paths.marker) {
 		const host = readIfExists(paths.host);
-		if (host != null && host.includes(paths.marker)) {
+		if (host?.includes(paths.marker)) {
 			const stripped = host
 				.split("\n")
 				.filter((l) => l.trim() !== paths.marker)

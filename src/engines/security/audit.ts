@@ -35,7 +35,7 @@ export const runDependencyAudit = async (context: EngineContext): Promise<Diagno
 	}
 
 	// govulncheck
-	if (context.languages.includes("go") && context.installedTools["govulncheck"]) {
+	if (context.languages.includes("go") && context.installedTools.govulncheck) {
 		promises.push(runGovulncheck(context.rootDirectory, timeout));
 	}
 

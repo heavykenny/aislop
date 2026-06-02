@@ -35,10 +35,7 @@ describe("loadConfigChain", () => {
 
 	it("merges a single relative parent (child wins on scalar)", () => {
 		write("parent.yml", "engines:\n  format: false\nquality:\n  maxFunctionLoc: 200");
-		const child = write(
-			"child.yml",
-			"extends: ./parent.yml\nquality:\n  maxFunctionLoc: 100",
-		);
+		const child = write("child.yml", "extends: ./parent.yml\nquality:\n  maxFunctionLoc: 100");
 		const merged = loadConfigChain(child);
 		expect(merged).toEqual({
 			engines: { format: false },
@@ -56,19 +53,13 @@ describe("loadConfigChain", () => {
 	it("handles array of parents merged left-to-right (last wins)", () => {
 		write("a.yml", "quality:\n  maxFunctionLoc: 100\n  maxFileLoc: 100");
 		write("b.yml", "quality:\n  maxFunctionLoc: 200");
-		const c = write(
-			"c.yml",
-			"extends:\n  - ./a.yml\n  - ./b.yml\nquality:\n  maxFileLoc: 999",
-		);
+		const c = write("c.yml", "extends:\n  - ./a.yml\n  - ./b.yml\nquality:\n  maxFileLoc: 999");
 		const merged = loadConfigChain(c);
 		expect(merged.quality).toEqual({ maxFunctionLoc: 200, maxFileLoc: 999 });
 	});
 
 	it("deep-merges nested objects but replaces arrays", () => {
-		write(
-			"p.yml",
-			"engines:\n  format: false\n  lint: true\nexclude:\n  - .git\n  - node_modules",
-		);
+		write("p.yml", "engines:\n  format: false\n  lint: true\nexclude:\n  - .git\n  - node_modules");
 		const c = write("c.yml", "extends: ./p.yml\nengines:\n  format: true\nexclude:\n  - dist");
 		const merged = loadConfigChain(c) as {
 			engines: Record<string, boolean>;
@@ -94,9 +85,7 @@ describe("loadConfigChain", () => {
 			const next = i === 6 ? "" : `extends: ./step-${i + 1}.yml\n`;
 			write(`step-${i}.yml`, next);
 		}
-		expect(() => loadConfigChain(path.join(tmp, "step-0.yml"))).toThrow(
-			/depth exceeded/,
-		);
+		expect(() => loadConfigChain(path.join(tmp, "step-0.yml"))).toThrow(/depth exceeded/);
 	});
 
 	it("rejects URL extends with a clear message", () => {
@@ -105,7 +94,7 @@ describe("loadConfigChain", () => {
 	});
 
 	it("rejects bare package-name extends with a clear message", () => {
-		const c = write("c.yml", "extends: \"@scanaislop/pack-nextjs\"");
+		const c = write("c.yml", 'extends: "@scanaislop/pack-nextjs"');
 		expect(() => loadConfigChain(c)).toThrow(/Package-name extends not yet supported/);
 	});
 

@@ -82,9 +82,12 @@ describe("fixDuplicateImports — merging two imports from the same module", () 
 	it("merges three value imports into one", async () => {
 		writeFile(
 			"src/c.ts",
-			[`import { A } from "./mod"`, `import { B } from "./mod"`, `import { C } from "./mod"`, ``].join(
-				"\n",
-			),
+			[
+				`import { A } from "./mod"`,
+				`import { B } from "./mod"`,
+				`import { C } from "./mod"`,
+				``,
+			].join("\n"),
 		);
 
 		await fixDuplicateImports(buildContext());
@@ -107,10 +110,7 @@ describe("fixDuplicateImports — merging two imports from the same module", () 
 	});
 
 	it("merges default + named import from the same module", async () => {
-		writeFile(
-			"src/e.ts",
-			[`import D from "./mod"`, `import { A, B } from "./mod"`, ``].join("\n"),
-		);
+		writeFile("src/e.ts", [`import D from "./mod"`, `import { A, B } from "./mod"`, ``].join("\n"));
 
 		await fixDuplicateImports(buildContext());
 
@@ -119,11 +119,7 @@ describe("fixDuplicateImports — merging two imports from the same module", () 
 	});
 
 	it("does NOT merge when there is a namespace import", async () => {
-		const before = [
-			`import * as ns from "./mod"`,
-			`import { A } from "./mod"`,
-			``,
-		].join("\n");
+		const before = [`import * as ns from "./mod"`, `import { A } from "./mod"`, ``].join("\n");
 		writeFile("src/ns.ts", before);
 
 		await fixDuplicateImports(buildContext());

@@ -1,3 +1,4 @@
+import { APP_VERSION } from "../version.js";
 import type { AislopConfig } from "./schema.js";
 
 export const DEFAULT_CONFIG: AislopConfig = {
@@ -65,12 +66,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: scanaislop/aislop@v${APP_VERSION}
         with:
-          node-version: 20
-      # Quality gate: exits 1 when score < ci.failBelow in .aislop/config.yml
-      # or when any error-severity diagnostic is present.
-      - run: npx aislop@latest ci .
+          version: ${APP_VERSION}
 `;
 
 export const DEFAULT_RULES_YAML = `# Architecture rules (BYO)

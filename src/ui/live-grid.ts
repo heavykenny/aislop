@@ -1,6 +1,6 @@
 import type { EngineName } from "../engines/types.js";
 import { symbols as defaultSymbols, type Symbols } from "./symbols.js";
-import { style, theme as defaultTheme, type Theme, type Token } from "./theme.js";
+import { theme as defaultTheme, style, type Theme, type Token } from "./theme.js";
 import { padEnd, padStart } from "./width.js";
 
 export type GridRowStatus = "queued" | "running" | "done" | "skipped";

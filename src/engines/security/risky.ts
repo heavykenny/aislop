@@ -143,9 +143,8 @@ export const detectRiskyConstructs = async (context: EngineContext): Promise<Dia
 			if (isMigrationOrSeeder && name === "sql-injection") continue;
 
 			const regex = new RegExp(pattern.source, pattern.flags);
-			let match: RegExpExecArray | null;
 
-			while ((match = regex.exec(masked)) !== null) {
+			for (const match of masked.matchAll(regex)) {
 				const line = content.slice(0, match.index).split("\n").length;
 
 				// For innerHTML: skip if target is a <template> element (safe by design)

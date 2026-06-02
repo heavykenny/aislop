@@ -2,10 +2,7 @@ import { describe, expect, it } from "vitest";
 import { renderCleanRun, renderSummary } from "../../src/ui/summary.js";
 import { createSymbols } from "../../src/ui/symbols.js";
 import { createTheme } from "../../src/ui/theme.js";
-
-// eslint-disable-next-line no-control-regex
-const ANSI_RE = new RegExp(String.raw`\x1B\[[0-9;]*m`, "g");
-const strip = (s: string) => s.replace(ANSI_RE, "");
+import { ANSI_ESCAPE, stripAnsi as strip } from "../helpers/ansi.js";
 
 const opts = {
 	theme: createTheme({ color: "truecolor", tty: true }),
@@ -30,8 +27,8 @@ describe("summary", () => {
 				opts,
 			),
 		);
-		expect(out).toMatch(/89 \/ 100\s+Healthy\s+0 errors  ·  3 warnings  ·  2 fixable/);
-		expect(out).toMatch(/142 files  ·  6 engines  ·  2\.3s/);
+		expect(out).toMatch(/89 \/ 100\s+Healthy\s+0 errors {2}· {2}3 warnings {2}· {2}2 fixable/);
+		expect(out).toMatch(/142 files {2}· {2}6 engines {2}· {2}2\.3s/);
 	});
 
 	it("pads the score to 10 cols so small scores align", () => {
@@ -52,7 +49,7 @@ describe("summary", () => {
 			),
 		);
 		const line = out.split("\n").find((l) => l.includes("7 / 100")) ?? "";
-		expect(line).toMatch(/7 \/ 100   Critical/);
+		expect(line).toMatch(/7 \/ 100 {3}Critical/);
 	});
 
 	it("renders next-steps as arrow lines", () => {
@@ -97,9 +94,9 @@ describe("summary", () => {
 		// truecolor danger red = 239;68;68
 		// truecolor warn yellow = 234;179;8
 		// truecolor success green = 34;197;94
-		expect(raw).toMatch(/\x1B\[38;2;239;68;68m7 errors\x1B\[39m/);
-		expect(raw).toMatch(/\x1B\[38;2;234;179;8m5 warnings\x1B\[39m/);
-		expect(raw).toMatch(/\x1B\[38;2;34;197;94m0 fixable\x1B\[39m/);
+		expect(raw).toContain(`${ANSI_ESCAPE}[38;2;239;68;68m7 errors${ANSI_ESCAPE}[39m`);
+		expect(raw).toContain(`${ANSI_ESCAPE}[38;2;234;179;8m5 warnings${ANSI_ESCAPE}[39m`);
+		expect(raw).toContain(`${ANSI_ESCAPE}[38;2;34;197;94m0 fixable${ANSI_ESCAPE}[39m`);
 	});
 
 	it("renders a clean-run one-liner when score is 100 and no issues", () => {

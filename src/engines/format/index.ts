@@ -17,19 +17,19 @@ export const formatEngine: Engine = {
 			promises.push(runBiomeFormat(context));
 		}
 
-		if (languages.includes("python") && installedTools["ruff"]) {
+		if (languages.includes("python") && installedTools.ruff) {
 			promises.push(runRuffFormat(context));
 		}
 
-		if (languages.includes("go") && installedTools["gofmt"]) {
+		if (languages.includes("go") && installedTools.gofmt) {
 			promises.push(runGofmt(context));
 		}
 
-		if (languages.includes("rust") && installedTools["rustfmt"]) {
+		if (languages.includes("rust") && installedTools.rustfmt) {
 			promises.push(runGenericFormatter(context, "rust"));
 		}
 
-		if (languages.includes("ruby") && installedTools["rubocop"]) {
+		if (languages.includes("ruby") && installedTools.rubocop) {
 			promises.push(runGenericFormatter(context, "ruby"));
 		}
 

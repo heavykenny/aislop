@@ -7,10 +7,7 @@ import {
 } from "../../src/ui/rail.js";
 import { createSymbols } from "../../src/ui/symbols.js";
 import { createTheme } from "../../src/ui/theme.js";
-
-// eslint-disable-next-line no-control-regex
-const ANSI_RE = new RegExp(String.raw`\x1B\[[0-9;]*m`, "g");
-const strip = (s: string) => s.replace(ANSI_RE, "");
+import { stripAnsi as strip } from "../helpers/ansi.js";
 
 const opts = {
 	theme: createTheme({ color: "truecolor", tty: true }),

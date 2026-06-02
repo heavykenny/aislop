@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
-import { maskComments } from "../../utils/source-masker.js";
 import { getSourceFilesWithExtras } from "../../utils/source-files.js";
+import { maskComments } from "../../utils/source-masker.js";
 import type { Diagnostic, EngineContext } from "../types.js";
 
 interface SecretPattern {
@@ -109,9 +109,8 @@ export const scanSecrets = async (context: EngineContext): Promise<Diagnostic[]>
 
 		for (const { pattern, name, keywordPrefixed } of SECRET_PATTERNS) {
 			const regex = new RegExp(pattern.source, pattern.flags);
-			let match: RegExpExecArray | null;
 
-			while ((match = regex.exec(content)) !== null) {
+			for (const match of content.matchAll(regex)) {
 				const matchedText = match[1] ?? match[0];
 				if (isPlaceholderValue(matchedText)) continue;
 				if (keywordPrefixed && isInsideStringLiteral(content, match.index)) continue;

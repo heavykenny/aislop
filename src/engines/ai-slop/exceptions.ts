@@ -96,13 +96,12 @@ export const detectSwallowedExceptions = async (context: EngineContext): Promise
 		for (const { pattern, languages, message } of SWALLOWED_EXCEPTION_PATTERNS) {
 			if (!languages.includes(ext)) continue;
 
-			let match: RegExpExecArray | null;
 			const regex = new RegExp(
 				pattern.source,
 				pattern.flags + (pattern.flags.includes("g") ? "" : "g"),
 			);
 
-			while ((match = regex.exec(content)) !== null) {
+			for (const match of content.matchAll(regex)) {
 				if (isIntentionalIgnore(match[0], ext)) continue;
 				const line = content.slice(0, match.index).split("\n").length;
 				diagnostics.push({

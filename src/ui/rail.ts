@@ -1,5 +1,5 @@
 import { symbols as defaultSymbols, type Symbols } from "./symbols.js";
-import { style, theme as defaultTheme, type Theme, type Token } from "./theme.js";
+import { theme as defaultTheme, style, type Theme, type Token } from "./theme.js";
 
 export type RailStepStatus = "active" | "done" | "warn" | "failed" | "skipped";
 

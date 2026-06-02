@@ -46,8 +46,7 @@ const removeDisallowedExpoPackages = async (
 
 		const packagePattern = /The package "([^"]+)" should not be installed directly/g;
 		const toRemove: string[] = [];
-		let match: RegExpExecArray | null;
-		while ((match = packagePattern.exec(output)) !== null) {
+		for (const match of output.matchAll(packagePattern)) {
 			toRemove.push(match[1]);
 		}
 

@@ -1,6 +1,6 @@
-import { renderRailConnector, renderRailFooter, renderRailStep, type RailStep } from "./rail.js";
+import { type RailStep, renderRailConnector, renderRailFooter, renderRailStep } from "./rail.js";
 import { symbols as defaultSymbols, type Symbols } from "./symbols.js";
-import { style, theme as defaultTheme, type Theme } from "./theme.js";
+import { theme as defaultTheme, style, type Theme } from "./theme.js";
 
 const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 

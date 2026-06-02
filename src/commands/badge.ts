@@ -82,7 +82,7 @@ export const badgeCommand = async (options: BadgeOptions = {}): Promise<BadgeRes
 	const output = renderBadgeOutput({ owner, repo, svgUrl, pageUrl });
 
 	if (options.json) {
-		process.stdout.write(JSON.stringify({ owner, repo, svgUrl, pageUrl }) + "\n");
+		process.stdout.write(`${JSON.stringify({ owner, repo, svgUrl, pageUrl })}\n`);
 	} else {
 		process.stdout.write(output);
 	}

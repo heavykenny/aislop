@@ -64,19 +64,28 @@ describe("meta-comment: plan/process references", () => {
 
 describe("meta-comment: before/after state narration", () => {
 	it("flags `previously this ...`", async () => {
-		writeFile("src/e.ts", `// Previously this used a Map; switched to a plain object\nexport const m = {};\n`);
+		writeFile(
+			"src/e.ts",
+			`// Previously this used a Map; switched to a plain object\nexport const m = {};\n`,
+		);
 		const diags = await metaDiags();
 		expect(diags).toHaveLength(1);
 		expect(diags[0].message).toContain("before/after state");
 	});
 
 	it("flags `used to return ...`", async () => {
-		writeFile("src/f.ts", `// This used to return null on miss\nexport const g = () => undefined;\n`);
+		writeFile(
+			"src/f.ts",
+			`// This used to return null on miss\nexport const g = () => undefined;\n`,
+		);
 		expect(await metaDiags()).toHaveLength(1);
 	});
 
 	it("flags `no longer needed`", async () => {
-		writeFile("src/g.ts", `// The shim is no longer needed after the upgrade\nexport const h = 1;\n`);
+		writeFile(
+			"src/g.ts",
+			`// The shim is no longer needed after the upgrade\nexport const h = 1;\n`,
+		);
 		expect(await metaDiags()).toHaveLength(1);
 	});
 
@@ -96,7 +105,10 @@ describe("meta-comment: negative fixtures (precision)", () => {
 	});
 
 	it("does NOT flag TODO/FIXME comments", async () => {
-		writeFile("src/n2.ts", `// TODO: handle the previously-unsupported locale\nexport const l = 1;\n`);
+		writeFile(
+			"src/n2.ts",
+			`// TODO: handle the previously-unsupported locale\nexport const l = 1;\n`,
+		);
 		expect(await metaDiags()).toHaveLength(0);
 	});
 

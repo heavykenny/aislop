@@ -27,7 +27,53 @@ jobs:
       - name: Build local CLI
         run: pnpm build
 
-      - run: npx aislop scan
+      - run: node dist/cli.js scan .
+
+  action-smoke:
+    name: Action smoke (${{ matrix.case }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - case: default-latest-json
+          - case: explicit-latest-human
+          - case: pinned-current-json
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Create clean fixture
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/aislop-action-fixture"
+          cat > "$RUNNER_TEMP/aislop-action-fixture/package.json" <<'JSON'
+          {"type":"module"}
+          JSON
+          cat > "$RUNNER_TEMP/aislop-action-fixture/index.ts" <<'TS'
+          export const add = (left: number, right: number): number => left + right;
+          TS
+
+      - name: Default latest JSON
+        if: matrix.case == 'default-latest-json'
+        uses: ./
+        with:
+          directory: ${{ runner.temp }}/aislop-action-fixture
+
+      - name: Explicit latest human
+        if: matrix.case == 'explicit-latest-human'
+        uses: ./
+        with:
+          directory: ${{ runner.temp }}/aislop-action-fixture
+          format: human
+          node-version: "22"
+          version: "latest"
+
+      - name: Pinned current JSON
+        if: matrix.case == 'pinned-current-json'
+        uses: ./
+        with:
+          directory: ${{ runner.temp }}/aislop-action-fixture
+          version: "0.10.1"
 
   quality-gate:
     name: Quality gate
@@ -35,8 +81,17 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - uses: pnpm/action-setup@v5
+
       - uses: actions/setup-node@v6
         with:
           node-version: 22
+          cache: pnpm
 
-      - run: npx aislop@latest ci .
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build local CLI
+        run: pnpm build
+
+      - run: node dist/cli.js ci .

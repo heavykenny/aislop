@@ -191,7 +191,15 @@ describe("silent-recovery (Python)", () => {
 	it("flags except that logs a message but drops the caught error", async () => {
 		writeFile(
 			"src/a.py",
-			["def load():", "    try:", "        risky()", "    except Exception as e:", "        logging.warning('load failed')", "    return next()", ""].join("\n"),
+			[
+				"def load():",
+				"    try:",
+				"        risky()",
+				"    except Exception as e:",
+				"        logging.warning('load failed')",
+				"    return next()",
+				"",
+			].join("\n"),
 		);
 		const diags = await silentRecoveryDiags();
 		expect(diags).toHaveLength(1);
@@ -200,7 +208,15 @@ describe("silent-recovery (Python)", () => {
 	it("does NOT flag except that logs the caught error (observable recovery)", async () => {
 		writeFile(
 			"src/a2.py",
-			["def load():", "    try:", "        risky()", "    except Exception as e:", "        logging.warning('failed: %s', e)", "    return next()", ""].join("\n"),
+			[
+				"def load():",
+				"    try:",
+				"        risky()",
+				"    except Exception as e:",
+				"        logging.warning('failed: %s', e)",
+				"    return next()",
+				"",
+			].join("\n"),
 		);
 		expect(await silentRecoveryDiags()).toHaveLength(0);
 	});
@@ -208,7 +224,15 @@ describe("silent-recovery (Python)", () => {
 	it("does NOT flag except that re-raises after logging", async () => {
 		writeFile(
 			"src/b.py",
-			["def load():", "    try:", "        risky()", "    except Exception as e:", "        logging.warning('failed: %s', e)", "        raise", ""].join("\n"),
+			[
+				"def load():",
+				"    try:",
+				"        risky()",
+				"    except Exception as e:",
+				"        logging.warning('failed: %s', e)",
+				"        raise",
+				"",
+			].join("\n"),
 		);
 		expect(await silentRecoveryDiags()).toHaveLength(0);
 	});
@@ -216,7 +240,15 @@ describe("silent-recovery (Python)", () => {
 	it("does NOT flag except that returns a fallback after logging", async () => {
 		writeFile(
 			"src/c.py",
-			["def load():", "    try:", "        return risky()", "    except Exception as e:", "        logging.error(e)", "        return None", ""].join("\n"),
+			[
+				"def load():",
+				"    try:",
+				"        return risky()",
+				"    except Exception as e:",
+				"        logging.error(e)",
+				"        return None",
+				"",
+			].join("\n"),
 		);
 		expect(await silentRecoveryDiags()).toHaveLength(0);
 	});
@@ -224,7 +256,14 @@ describe("silent-recovery (Python)", () => {
 	it("does NOT flag a bare except: pass (swallowed-exception's job)", async () => {
 		writeFile(
 			"src/d.py",
-			["def load():", "    try:", "        risky()", "    except Exception:", "        pass", ""].join("\n"),
+			[
+				"def load():",
+				"    try:",
+				"        risky()",
+				"    except Exception:",
+				"        pass",
+				"",
+			].join("\n"),
 		);
 		expect(await silentRecoveryDiags()).toHaveLength(0);
 	});

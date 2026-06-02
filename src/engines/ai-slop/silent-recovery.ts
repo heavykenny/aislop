@@ -81,9 +81,7 @@ const isLogOnlyBody = (body: string): boolean => {
 
 const detectJsSilentRecovery = (content: string, relPath: string): Diagnostic[] => {
 	const out: Diagnostic[] = [];
-	CATCH_HEAD_RE.lastIndex = 0;
-	let match: RegExpExecArray | null;
-	while ((match = CATCH_HEAD_RE.exec(content)) !== null) {
+	for (const match of content.matchAll(CATCH_HEAD_RE)) {
 		const braceIndex = match.index + match[0].length - 1;
 		const body = extractCatchBody(content, braceIndex);
 		if (body === null) continue;

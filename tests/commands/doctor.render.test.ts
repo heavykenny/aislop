@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildDoctorRender, type DoctorEngineRow } from "../../src/commands/doctor.js";
-
-// eslint-disable-next-line no-control-regex
-const ANSI_RE = new RegExp(String.raw`\x1B\[[0-9;]*m`, "g");
-const strip = (s: string) => s.replace(ANSI_RE, "");
+import { stripAnsi as strip } from "../helpers/ansi.js";
 
 describe("doctor render", () => {
 	it("shows each engine with its tool and an 'all ready' footer", () => {

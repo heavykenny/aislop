@@ -45,17 +45,21 @@ const readWorkspaceGlobs = (rootDir: string, rootPkg: unknown): string[] => {
 	return globs;
 };
 
+const readWorkspaceEntries = (dir: string): fs.Dirent[] => {
+	try {
+		return fs.readdirSync(dir, { withFileTypes: true });
+	} catch {
+		return [];
+	}
+};
+
 const expandWorkspaceDirs = (rootDir: string, globs: string[]): string[] => {
 	const dirs: string[] = [];
 	for (const glob of globs) {
 		if (glob.endsWith("/*")) {
 			const parent = path.join(rootDir, glob.slice(0, -2));
-			try {
-				for (const entry of fs.readdirSync(parent, { withFileTypes: true })) {
-					if (entry.isDirectory()) dirs.push(path.join(parent, entry.name));
-				}
-			} catch {
-				continue;
+			for (const entry of readWorkspaceEntries(parent)) {
+				if (entry.isDirectory()) dirs.push(path.join(parent, entry.name));
 			}
 		} else if (!glob.includes("*")) {
 			dirs.push(path.join(rootDir, glob));

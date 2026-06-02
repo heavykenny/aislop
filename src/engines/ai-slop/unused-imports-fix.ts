@@ -47,7 +47,7 @@ export const fixUnusedImports = async (context: EngineContext): Promise<void> =>
 			} else if (JS_EXTENSIONS.has(analysis.ext)) {
 				rewriteJsImportSpan(lines, importSpan, syms, unusedNames);
 			} else if (PY_EXTENSIONS.has(analysis.ext)) {
-				rewritePyImportLine(lines, lineIdx, syms, unusedNames);
+				rewritePyImportLine(lines, lineIdx, unusedNames);
 			}
 		}
 
@@ -163,12 +163,7 @@ const rewriteJsImportSpan = (
 	}
 };
 
-const rewritePyImportLine = (
-	lines: string[],
-	lineIdx: number,
-	syms: ImportedSymbol[],
-	unusedNames: Set<string>,
-): void => {
+const rewritePyImportLine = (lines: string[], lineIdx: number, unusedNames: Set<string>): void => {
 	const line = lines[lineIdx];
 	const fromMatch = line.match(/^(\s*from\s+[\w.]+\s+import\s+)(.+)$/);
 	if (!fromMatch) {

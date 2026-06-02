@@ -1,12 +1,12 @@
 import type { AislopConfig } from "../config/index.js";
+import { renderHeader } from "../ui/header.js";
+import { isCancel, select } from "../ui/prompts.js";
+import { APP_VERSION } from "../version.js";
 import { doctorCommand } from "./doctor.js";
 import { fixCommand } from "./fix.js";
 import { initCommand } from "./init.js";
 import { rulesCommand } from "./rules.js";
 import { scanCommand } from "./scan.js";
-import { renderHeader } from "../ui/header.js";
-import { isCancel, select } from "../ui/prompts.js";
-import { APP_VERSION } from "../version.js";
 
 type Action = "scan" | "fix" | "init" | "doctor" | "rules" | "quit";
 

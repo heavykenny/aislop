@@ -1,5 +1,5 @@
-import { type Symbols } from "./symbols.js";
-import { style, theme as defaultTheme, type Theme } from "./theme.js";
+import type { Symbols } from "./symbols.js";
+import { theme as defaultTheme, style, type Theme } from "./theme.js";
 
 interface HeaderInput {
 	version: string;

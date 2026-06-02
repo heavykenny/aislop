@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildFixStepNames } from "../src/commands/fix-plan.js";
-import type { AislopConfig } from "../src/config/index.js";
 import { DEFAULT_CONFIG } from "../src/config/defaults.js";
+import type { AislopConfig } from "../src/config/index.js";
 import type { ProjectInfo } from "../src/utils/discover.js";
 
 const makeProjectInfo = (overrides: Partial<ProjectInfo> = {}): ProjectInfo => ({

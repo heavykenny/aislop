@@ -1,5 +1,5 @@
 import { symbols as defaultSymbols, type Symbols } from "./symbols.js";
-import { style, theme as defaultTheme, type Theme } from "./theme.js";
+import { theme as defaultTheme, style, type Theme } from "./theme.js";
 
 interface ErrorInput {
 	message: string;

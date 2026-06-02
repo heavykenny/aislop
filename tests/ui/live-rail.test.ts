@@ -2,10 +2,7 @@ import { describe, expect, it } from "vitest";
 import { LiveRail } from "../../src/ui/live-rail.js";
 import { createSymbols } from "../../src/ui/symbols.js";
 import { createTheme } from "../../src/ui/theme.js";
-
-// eslint-disable-next-line no-control-regex
-const ANSI_RE = new RegExp(String.raw`\x1B\[[0-9;]*m`, "g");
-const strip = (s: string) => s.replace(ANSI_RE, "");
+import { stripAnsi as strip } from "../helpers/ansi.js";
 
 const mkRail = (tty: boolean) => {
 	const out: string[] = [];

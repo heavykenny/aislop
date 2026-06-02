@@ -47,9 +47,7 @@ export const collectAmbientGlobals = (rootDir: string): string[] => {
 		const content = readTextFile(path.join(rootDir, relativePath));
 		if (!content) continue;
 
-		AMBIENT_GLOBAL_RE.lastIndex = 0;
-		let match: RegExpExecArray | null;
-		while ((match = AMBIENT_GLOBAL_RE.exec(content)) !== null) {
+		for (const match of content.matchAll(AMBIENT_GLOBAL_RE)) {
 			globals.add(match[1]);
 		}
 	}

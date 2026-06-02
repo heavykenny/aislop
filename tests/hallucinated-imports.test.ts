@@ -503,7 +503,10 @@ x = 1
 
 	it("recognizes stdlib modules code / codeop / rlcompleter", async () => {
 		writeFile("pyproject.toml", `[project]\ndependencies = ["click"]\n`);
-		writeFile("src/shell.py", `import code\nimport rlcompleter\nfrom codeop import compile_command\n`);
+		writeFile(
+			"src/shell.py",
+			`import code\nimport rlcompleter\nfrom codeop import compile_command\n`,
+		);
 		const diagnostics = await detectHallucinatedImports(buildContext());
 		expect(diagnostics).toEqual([]);
 	});
@@ -547,10 +550,7 @@ x = 1
 
 	it("resolves google-genai for `from google import genai` and still flags a garbage import alongside", async () => {
 		writeFile("requirements.txt", "google-genai==0.3.0\n");
-		writeFile(
-			"src/main.py",
-			`from google import genai\nimport made_up_garbage_pkg\n`,
-		);
+		writeFile("src/main.py", `from google import genai\nimport made_up_garbage_pkg\n`);
 
 		const diagnostics = await detectHallucinatedImports(buildContext());
 

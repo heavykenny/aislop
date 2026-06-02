@@ -1,9 +1,9 @@
 const PYTHON_CONTROL_FLOW_RE = /^\s*(?:if|for|while|with|try|except|else|elif|finally|def|class)\b/;
 
-const ARROW_BLOCK_RE = new RegExp("=>\\s*\\{");
-const ARROW_END_RE = new RegExp("=>\\s*$");
-const BRACE_START_RE = new RegExp("^\\s*\\{");
-const NEW_STATEMENT_RE = new RegExp("^(?:export\\s+)?(?:const|let|var|function|class)\\s");
+const ARROW_BLOCK_RE = /=>\s*\{/;
+const ARROW_END_RE = /=>\s*$/;
+const BRACE_START_RE = /^\s*\{/;
+const NEW_STATEMENT_RE = /^(?:export\s+)?(?:const|let|var|function|class)\s/;
 
 const isControlFlowBrace = (lineText: string, braceIndex: number): boolean => {
 	const before = lineText.substring(0, braceIndex).trimEnd();
@@ -227,14 +227,14 @@ export const countTemplateLines = (bodyLines: string[]): number => {
 	let templateLineCount = 0;
 	for (const line of bodyLines) {
 		const startedInside = insideTemplate;
-		let escape = false;
+		let escaped = false;
 		for (const ch of line) {
-			if (escape) {
-				escape = false;
+			if (escaped) {
+				escaped = false;
 				continue;
 			}
 			if (ch === "\\") {
-				escape = true;
+				escaped = true;
 				continue;
 			}
 			if (ch === "`") insideTemplate = !insideTemplate;

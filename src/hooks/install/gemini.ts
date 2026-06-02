@@ -129,7 +129,7 @@ export const uninstallGemini = (
 	else result.skipped.push(paths.aislopMd);
 
 	const geminiMd = readIfExists(paths.geminiMd);
-	if (geminiMd != null && geminiMd.includes("@AISLOP.md")) {
+	if (geminiMd?.includes("@AISLOP.md")) {
 		const stripped = geminiMd
 			.split("\n")
 			.filter((l) => l.trim() !== "@AISLOP.md")

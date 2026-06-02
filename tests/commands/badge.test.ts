@@ -11,9 +11,7 @@ describe("renderBadgeOutput", () => {
 		});
 
 		expect(out).toContain("scanaislop/aislop");
-		expect(out).toContain(
-			"https://badges.scanaislop.com/score/scanaislop/aislop.svg",
-		);
+		expect(out).toContain("https://badges.scanaislop.com/score/scanaislop/aislop.svg");
 		expect(out).toContain(
 			"[![aislop](https://badges.scanaislop.com/score/scanaislop/aislop.svg)](https://scanaislop.com/scanaislop/aislop)",
 		);

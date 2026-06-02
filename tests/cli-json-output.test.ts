@@ -53,5 +53,5 @@ describe("cli json output", () => {
 		expect(
 			parsed.diagnostics.some((diagnostic) => diagnostic.rule === "security/hardcoded-secret"),
 		).toBe(true);
-	});
+	}, 15_000);
 });

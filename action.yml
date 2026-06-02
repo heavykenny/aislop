@@ -19,7 +19,7 @@ inputs:
     required: false
     default: "json"
   version:
-    description: npm aislop CLI version to run (e.g. "0.10.1"). Use "latest" to follow the latest published CLI. This is separate from the GitHub Action ref in uses:.
+    description: npm aislop CLI version to run (e.g. "0.10.1"). Defaults to the latest published release. This is separate from the GitHub Action ref in uses:.
     required: false
     default: "latest"
 
@@ -38,8 +38,17 @@ runs:
         AISLOP_VERSION: ${{ inputs.version }}
         AISLOP_DIR: ${{ inputs.directory }}
       run: |
-        args=("ci" "$AISLOP_DIR")
+        scan_dir="$AISLOP_DIR"
+        if [[ "$scan_dir" != /* ]]; then
+          scan_dir="$GITHUB_WORKSPACE/$scan_dir"
+        fi
+
+        args=("ci" "$scan_dir")
         if [ "$AISLOP_FORMAT" = "human" ]; then
           args+=("--human")
         fi
-        npx --yes "aislop@${AISLOP_VERSION}" "${args[@]}"
+
+        npm_exec_dir="$(mktemp -d)"
+        trap 'rm -rf "$npm_exec_dir"' EXIT
+        cd "$npm_exec_dir"
+        npm exec --yes --package "aislop@${AISLOP_VERSION}" -- aislop "${args[@]}"

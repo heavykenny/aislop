@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createTheme, style } from "../../src/ui/theme.js";
-
-// eslint-disable-next-line no-control-regex
-const ANSI_RE = new RegExp(String.raw`\x1B\[[0-9;]*m`, "g");
-const stripAnsi = (s: string) => s.replace(ANSI_RE, "");
+import { ANSI_ESCAPE, stripAnsi } from "../helpers/ansi.js";
 
 describe("theme", () => {
 	it("wraps text with the accent color when color is enabled", () => {
@@ -32,7 +29,7 @@ describe("theme", () => {
 	it("falls back to 256-color when truecolor is unavailable", () => {
 		const theme = createTheme({ color: "256", tty: true });
 		const out = style(theme, "accent", "x");
-		expect(out).toMatch(/\x1B\[38;5;10m/);
+		expect(out).toContain(`${ANSI_ESCAPE}[38;5;10m`);
 	});
 
 	it("exposes every design token", () => {

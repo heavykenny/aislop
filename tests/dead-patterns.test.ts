@@ -47,10 +47,7 @@ afterEach(() => {
 
 describe("unused imports", () => {
 	it("does not flag `from __future__ import` (a parser directive, not a name)", async () => {
-		const filePath = writeFile(
-			"future.py",
-			"from __future__ import annotations\n\nx: int = 1\n",
-		);
+		const filePath = writeFile("future.py", "from __future__ import annotations\n\nx: int = 1\n");
 		const diagnostics = await detectUnusedImports(makeContext([filePath]));
 		expect(diagnostics.filter((d) => d.rule === "ai-slop/unused-import")).toEqual([]);
 	});
@@ -288,6 +285,16 @@ describe("todo stubs", () => {
 		const diagnostics = await detectDeadPatterns(makeContext([filePath]));
 		const todos = diagnostics.filter((d) => d.rule === "ai-slop/todo-stub");
 		expect(todos).toHaveLength(0);
+	});
+});
+
+describe("empty functions", () => {
+	it("detects empty function stubs", async () => {
+		const filePath = writeFile("empty-function.ts", "export function placeholder() {}");
+		const diagnostics = await detectDeadPatterns(makeContext([filePath]));
+		const matches = diagnostics.filter((d) => d.rule === "ai-slop/empty-function");
+		expect(matches).toHaveLength(1);
+		expect(matches[0].severity).toBe("info");
 	});
 });
 
