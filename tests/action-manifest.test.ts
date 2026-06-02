@@ -72,6 +72,6 @@ describe("GitHub action manifest", () => {
 
 		const pinnedStep = steps.find((step) => step.name === "Pinned current JSON");
 		expect(pinnedStep?.uses).toBe("./");
-		expect(pinnedStep?.with?.version).toBe("0.10.1");
+		expect(pinnedStep?.with?.version).toBe("0.10.2");
 	});
 });
