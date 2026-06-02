@@ -73,6 +73,17 @@ describe("coverage gate (discoverProject)", () => {
 		expect(withExclude.coverage.scoreable).toBe(true);
 	});
 
+	it("counts supported files post-exclude, so excluding supported code can still withhold the score", async () => {
+		write("src/main.ts", "export const x = 1;\n");
+		for (let i = 0; i < 50; i++) write(`c${i}.c`, "int x;\n");
+		for (let i = 0; i < 30; i++) write(`legacy/old${i}.ts`, `export const y${i} = ${i};\n`);
+
+		// Excluding the legacy TS tree leaves 1 scanned TS file against 50 C files → withheld.
+		const info = await discoverProject(tmpDir, ["legacy"]);
+		expect(info.coverage.supportedFiles).toBe(1);
+		expect(info.coverage.scoreable).toBe(false);
+	});
+
 	it("withholds when there are no supported files to analyze", async () => {
 		write("README.md", "# docs only\n");
 		write("notes.md", "nothing to score\n");
