@@ -6,11 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## Unreleased
 
+## 0.10.2 (2026-06-02)
+
+A patch release focused on safer release/CI plumbing and sharper scan consistency. The GitHub Action now keeps wrapper and npm CLI versions separate without letting exact npm pins be shadowed by a checked-out local package, `aislop init` emits reproducible pinned workflows, and the rule catalog/docs now stay aligned with the implemented detectors.
+
 ### Added
 
 - **Suppression.** Silence a finding you have judged intentional with an inline directive: `// aislop-ignore-next-line [rule...]` (line below), `// aislop-ignore-line [rule...]` (same line), or `// aislop-ignore-file [rule...]` (whole file). Name one or more rules to scope it, or omit them to silence every rule on that line, and add a reason after `--`. Works in any comment syntax (`//`, `#`, `<!-- -->`). Directive lines are invisible to the comment engines, so they never join a comment block or get flagged themselves. Suppressed findings are dropped before scoring, and the run reports how many were silenced.
 - **`.aislopignore`.** A root-level ignore file (same glob semantics as the `exclude` config, with `#` comments) to keep whole paths out of every scan.
 - **`aislop fix --safe`.** An opt-in mode that restricts the run to fixes that cannot change behaviour — unused-import removal, import merging, narrative-comment removal, and formatting. Anything that deletes code or rewrites behaviour/attributes (console and dead-code removal, lint autofixes, unused-declaration and dependency pruning, and all `-f` force steps) is skipped, so a `--safe` run is genuinely safe to apply and commit. The default `fix` is unchanged.
+- **Action smoke coverage.** The repository CI now exercises the composite GitHub Action in default `latest`, explicit `latest`, pinned npm-version, JSON, human, and node-version override modes.
 
 ### Changed
 
@@ -22,6 +27,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **CVE root-cause collapse.** The dependency audit now attributes a transitive vulnerability to the package that actually carries the advisory rather than emitting a near-duplicate finding for every intermediate package in the chain, so one root CVE reads as one issue instead of ten.
 - **Python comma imports.** The unused-import fixer treated `import os, sys` as a single binding, so one unused module (`os`) deleted the whole line and broke the used one (`sys`). Each comma-separated module is now considered independently: the unused one is trimmed (`import os, sys` → `import sys`), the line is removed only when every module is unused, and a line where all are used is left alone.
 - **Hook telemetry never sent.** The per-edit hook (`aislop hook <agent>`) emits its `hook_scan_completed` event with a fire-and-forget request, but the short-lived process called `process.exit()` before the request left the machine, so the event was always dropped (hook-install/status/etc. were unaffected since they flush via the command lifecycle). The hook now flushes telemetry before exiting, bounded to 1.5s so it never stalls the agent's edit.
+- **GitHub Action exact-version pins.** Exact npm pins such as `version: "0.10.1"` now run from an isolated temp directory so npm cannot resolve the checked-out local package metadata instead of the published package.
+- **Rule catalog consistency.** `aislop rules`, rule labels, and `docs/rules.md` now cover the implemented camel-case and newly-added rule IDs consistently, including `knip/devDependencies`, duplicate exports, dependency-audit skips, and React `dangerouslySetInnerHTML`.
+- **Empty function detection.** `ai-slop/empty-function` now recognises normal JavaScript/TypeScript function declarations with parameter lists instead of only arrow stubs or malformed function headers.
+
+### Tests
+
+Full suite at 1029 passing, plus self-scan at 100 with zero diagnostics. New coverage locks the action manifest/workflow behavior, empty-function detection, shell-injection interpolation, and rule catalog label/doc parity.
 
 ## 0.10.1 (2026-05-30)
 

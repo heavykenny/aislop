@@ -23,8 +23,8 @@ describe("writeGithubWorkflow", () => {
 		}
 		const body = fs.readFileSync(path.join(tmpDir, ".github/workflows/aislop.yml"), "utf-8");
 		expect(body).toContain("name: aislop");
-		expect(body).toContain("uses: scanaislop/aislop@v0.10.1");
-		expect(body).toContain("version: 0.10.1");
+		expect(body).toContain("uses: scanaislop/aislop@v0.10.2");
+		expect(body).toContain("version: 0.10.2");
 	});
 
 	it("returns declined (no write) when disabled", () => {

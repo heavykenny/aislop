@@ -243,7 +243,7 @@ Or wire it into the [pre-commit](https://pre-commit.com) framework via the bundl
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/scanaislop/aislop
-    rev: v0.10.1
+    rev: v0.10.2
     hooks:
       - id: aislop
 ```
@@ -266,19 +266,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: scanaislop/aislop@v0.10.1
+      - uses: scanaislop/aislop@v0.10.2
         with:
           version: latest
 ```
 
-`uses: scanaislop/aislop@v0.10.1` pins the GitHub Action wrapper. `version: latest` follows the latest npm CLI. For fully deterministic CI, set both to the same release:
+`uses: scanaislop/aislop@v0.10.2` pins the GitHub Action wrapper. `version: latest` follows the latest npm CLI. For fully deterministic CI, set both to the same release:
 
 ```yaml
 - uses: actions/checkout@v4
 
-- uses: scanaislop/aislop@v0.10.1
+- uses: scanaislop/aislop@v0.10.2
   with:
-    version: "0.10.1"
+    version: "0.10.2"
 ```
 
 Manual workflow without the Marketplace Action:

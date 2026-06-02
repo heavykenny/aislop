@@ -25,7 +25,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: scanaislop/aislop@v0.10.1
+      - uses: scanaislop/aislop@v0.10.2
         with:
           version: latest
 ```
@@ -35,14 +35,14 @@ For deterministic CI, pin both layers:
 ```yaml
 - uses: actions/checkout@v4
 
-- uses: scanaislop/aislop@v0.10.1
+- uses: scanaislop/aislop@v0.10.2
   with:
-    version: "0.10.1"
+    version: "0.10.2"
 ```
 
 Versioning has two separate knobs:
 
-- `uses: scanaislop/aislop@v0.10.1` is the GitHub Action wrapper ref. It must be a real Git tag, branch, or SHA. GitHub does not resolve `@latest` unless this repository creates and maintains such a ref.
+- `uses: scanaislop/aislop@v0.10.2` is the GitHub Action wrapper ref. It must be a real Git tag, branch, or SHA. GitHub does not resolve `@latest` unless this repository creates and maintains such a ref.
 - `version: latest` is the npm CLI version the Action runs. It maps to the npm `latest` dist-tag.
 
 Manual workflow without the Marketplace Action:
@@ -123,7 +123,7 @@ Both `aislop ci` and `aislop scan --json` produce structured JSON output suitabl
 ```json
 {
   "schemaVersion": "1",
-  "cliVersion": "0.10.1",
+  "cliVersion": "0.10.2",
   "score": 87,
   "label": "Healthy",
   "engines": {
