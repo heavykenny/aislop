@@ -34,6 +34,7 @@ import {
 import { applySuppressions } from "../utils/suppress.js";
 import { APP_VERSION } from "../version.js";
 import { renderCoverageNotice } from "./scan-coverage.js";
+import { computeScanExitCode } from "./scan-exit-code.js";
 
 interface ScanOptions {
 	changes: boolean;
@@ -218,7 +219,8 @@ export const scanCommand = async (
 		return { exitCode: 1 };
 	}
 
-	const projectInfo = await discoverProject(resolvedDir);
+	const excludePatterns = [...config.exclude, ...readAislopIgnorePatterns(resolvedDir)];
+	const projectInfo = await discoverProject(resolvedDir, excludePatterns);
 
 	return withCommandLifecycle(
 		{
@@ -346,7 +348,12 @@ const runScanBody = async (
 	);
 	const scoreable = projectInfo.coverage.scoreable;
 	const hasErrors = allDiagnostics.some((d) => d.severity === "error");
-	const exitCode = scoreable && (hasErrors || scoreResult.score < config.ci.failBelow) ? 1 : 0;
+	const exitCode = computeScanExitCode({
+		hasErrors,
+		scoreable,
+		score: scoreResult.score,
+		failBelow: config.ci.failBelow,
+	});
 
 	const engineIssues: EngineCounts = {};
 	const engineTimings: EngineCounts = {};

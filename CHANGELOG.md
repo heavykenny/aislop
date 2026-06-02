@@ -19,7 +19,7 @@ A patch release focused on safer release/CI plumbing and sharper scan consistenc
 
 ### Changed
 
-- **Coverage gate — no score off a sliver.** aislop now withholds the numeric score when it could only analyse a negligible fraction of a repo: when there are no files in a supported language, or when unsupported-language code (C, C++, C#, Swift, Kotlin, and similar) outnumbers supported files by more than three to one. Previously a repo like postgres (≈1.4M lines of C) could score 91 off two incidental Python helper scripts. The scan now prints a plain explanation instead of a number, `--json` returns `score: null` with `scoreable: false` and a `coverage` breakdown, and `ci` does not gate on a withheld score.
+- **Coverage gate — no score off a sliver.** aislop now withholds the numeric score when it could only analyse a negligible fraction of a repo: when there are no files in a supported language, or when unsupported-language code (C, C++, C#, Swift, Kotlin, and similar) outnumbers supported files by more than three to one. Previously a repo like postgres (≈1.4M lines of C) could score 91 off two incidental Python helper scripts. The scan now prints a plain explanation instead of a number, `--json` returns `score: null` with `scoreable: false` and a `coverage` breakdown, and `ci` does not gate on a withheld score (but still fails on any error-severity diagnostic). The gate counts files through the same exclude patterns as the scan (`exclude` config and `.aislopignore`), so an intentionally ignored subtree never withholds the score for the code that was scanned.
 
 ### Fixed
 
