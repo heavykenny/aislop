@@ -37,6 +37,7 @@ scoring:
     good: 75
     ok: 50
   smoothing: 20
+  maxPerRule: 40
 
 ci:
   failBelow: 70          # fail CI below this score
@@ -85,6 +86,7 @@ scoring:
     architecture: 1.0
     security: 1.5
   smoothing: 20        # increase to reduce penalty spikes on larger repos
+  maxPerRule: 40       # cap one rule family so repeated noise cannot dominate
 ```
 
 ## Extending a shared config

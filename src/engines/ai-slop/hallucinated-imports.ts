@@ -110,7 +110,16 @@ const isJsBuiltin = (spec: string): boolean => {
 	return isBuiltin(stripped) || isBuiltin(spec);
 };
 
-const VIRTUAL_MODULE_PREFIXES = ["astro:", "virtual:", "bun:", "file:"];
+const VIRTUAL_MODULE_PREFIXES = [
+	"astro:",
+	"virtual:",
+	"bun:",
+	"file:",
+	"http:",
+	"https:",
+	"jsr:",
+	"npm:",
+];
 const isJsVirtualModule = (spec: string, manifest: PackageManifest): boolean => {
 	if (VIRTUAL_MODULE_PREFIXES.some((p) => spec.startsWith(p))) return true;
 	if (spec === "bun") return true;

@@ -76,6 +76,58 @@ describe("summary", () => {
 		expect(out).toContain("→ Run aislop fix --agent to hand off");
 	});
 
+	it("renders the verdict mix when finding assessment is provided", () => {
+		const out = strip(
+			renderSummary(
+				{
+					score: 42,
+					label: "Critical",
+					errors: 2,
+					warnings: 6,
+					fixable: 0,
+					files: 100,
+					engines: 5,
+					elapsedMs: 1000,
+					nextSteps: [],
+					findingAssessment: {
+						rows: [
+							{
+								kind: "confirmed-defect",
+								label: "confirmed defects",
+								count: 2,
+								errors: 2,
+								warnings: 0,
+								info: 0,
+								fixable: 0,
+							},
+							{
+								kind: "conservative-security",
+								label: "conservative security",
+								count: 6,
+								errors: 6,
+								warnings: 0,
+								info: 0,
+								fixable: 0,
+							},
+						],
+						byKind: {
+							"confirmed-defect": 2,
+							"conservative-security": 6,
+							"style-policy": 0,
+							"ai-slop-indicator": 0,
+						},
+						byConfidence: { high: 2, medium: 6, low: 0 },
+					},
+				},
+				opts,
+			),
+		);
+		expect(out).toContain("Verdict mix:");
+		expect(out).toContain("2 confirmed defects");
+		expect(out).toContain("6 conservative security");
+		expect(out).toContain("2 high-confidence, 6 medium-confidence");
+	});
+
 	it("colors each counter individually (errors red, warnings yellow, fixable green)", () => {
 		const raw = renderSummary(
 			{

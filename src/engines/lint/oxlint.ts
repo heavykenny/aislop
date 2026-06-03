@@ -12,6 +12,7 @@ import {
 	detectAmbientSources,
 	fileReferencesSstPlatform,
 	isAmbientFalsePositive,
+	isRuntimeGlobalFalsePositive,
 } from "./oxlint-context-filters.js";
 import { collectAmbientGlobals } from "./oxlint-globals.js";
 
@@ -29,6 +30,8 @@ interface OxlintDiagnostic {
 interface OxlintOutput {
 	diagnostics: OxlintDiagnostic[];
 }
+
+type AmbientSources = ReturnType<typeof detectAmbientSources>;
 
 const OXLINT_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"]);
 
@@ -206,6 +209,54 @@ const removeDuplicateKeyLines = (rootDirectory: string, diagnostics: Diagnostic[
 	}
 };
 
+const toDiagnostic = (d: OxlintDiagnostic): Diagnostic => {
+	const { plugin, rule } = parseRuleCode(d.code);
+	const label = d.labels[0];
+
+	return {
+		filePath: d.filename,
+		engine: "lint",
+		rule: `${plugin}/${rule}`,
+		severity: d.severity,
+		message: d.message.replace(/\S+\.\w+:\d+:\d+[\s\S]*$/, "").trim() || d.message,
+		help: d.help || "",
+		line: label?.span.line ?? 0,
+		column: label?.span.column ?? 0,
+		category: plugin === "react" ? "React" : plugin === "import" ? "Imports" : "Lint",
+		fixable: false,
+	};
+};
+
+const shouldKeepOxlintDiagnostic = (
+	context: EngineContext,
+	ambientSources: AmbientSources,
+	seen: Set<string>,
+	d: Diagnostic,
+): boolean => {
+	const relativePath = path.isAbsolute(d.filePath)
+		? path.relative(context.rootDirectory, d.filePath)
+		: d.filePath;
+	if (isExcludedFromScan(relativePath)) return false;
+	if (isViteVirtualImportFalsePositive(d.rule, d.message)) return false;
+	if (isAmbientFalsePositive(d.rule, d.message, ambientSources)) return false;
+	if (isRuntimeGlobalFalsePositive(d.rule, d.message, context.rootDirectory, relativePath)) {
+		return false;
+	}
+	if (isSolidRefFalsePositive(context, d)) return false;
+	if (isContextualTypeScriptFalsePositive(d)) return false;
+	if (isUnderscoreUnusedVar(d.rule, d.message)) return false;
+	if (
+		d.rule === "eslint/no-undef" &&
+		fileReferencesSstPlatform(context.rootDirectory, d.filePath)
+	) {
+		return false;
+	}
+	const key = `${d.filePath}:${d.line}:${d.rule}:${d.message}`;
+	if (seen.has(key)) return false;
+	seen.add(key);
+	return true;
+};
+
 export const runOxlint = async (context: EngineContext): Promise<Diagnostic[]> => {
 	const configPath = path.join(os.tmpdir(), `aislop-oxlintrc-${process.pid}.json`);
 	const framework = context.frameworks.find((f) => f !== "none");
@@ -249,44 +300,8 @@ export const runOxlint = async (context: EngineContext): Promise<Diagnostic[]> =
 
 		const seen = new Set<string>();
 		return output.diagnostics
-			.map((d) => {
-				const { plugin, rule } = parseRuleCode(d.code);
-				const label = d.labels[0];
-
-				return {
-					filePath: d.filename,
-					engine: "lint" as const,
-					rule: `${plugin}/${rule}`,
-					severity: d.severity,
-					message: d.message.replace(/\S+\.\w+:\d+:\d+[\s\S]*$/, "").trim() || d.message,
-					help: d.help || "",
-					line: label?.span.line ?? 0,
-					column: label?.span.column ?? 0,
-					category: plugin === "react" ? "React" : plugin === "import" ? "Imports" : "Lint",
-					fixable: false,
-				};
-			})
-			.filter((d) => {
-				const relativePath = path.isAbsolute(d.filePath)
-					? path.relative(context.rootDirectory, d.filePath)
-					: d.filePath;
-				if (isExcludedFromScan(relativePath)) return false;
-				if (isViteVirtualImportFalsePositive(d.rule, d.message)) return false;
-				if (isAmbientFalsePositive(d.rule, d.message, ambientSources)) return false;
-				if (isSolidRefFalsePositive(context, d)) return false;
-				if (isContextualTypeScriptFalsePositive(d)) return false;
-				if (isUnderscoreUnusedVar(d.rule, d.message)) return false;
-				if (
-					d.rule === "eslint/no-undef" &&
-					fileReferencesSstPlatform(context.rootDirectory, d.filePath)
-				) {
-					return false;
-				}
-				const key = `${d.filePath}:${d.line}:${d.rule}:${d.message}`;
-				if (seen.has(key)) return false;
-				seen.add(key);
-				return true;
-			});
+			.map(toDiagnostic)
+			.filter((d) => shouldKeepOxlintDiagnostic(context, ambientSources, seen, d));
 	} finally {
 		if (fs.existsSync(configPath)) {
 			fs.unlinkSync(configPath);

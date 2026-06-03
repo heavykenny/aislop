@@ -218,6 +218,7 @@ const runScanBody = async (
 		config.scoring.thresholds,
 		projectInfo.sourceFileCount,
 		config.scoring.smoothing,
+		config.scoring.maxPerRule,
 	);
 	const scoreable = projectInfo.coverage.scoreable;
 	const hasErrors = allDiagnostics.some((d) => d.severity === "error");

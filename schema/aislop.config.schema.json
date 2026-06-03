@@ -118,7 +118,8 @@
 					"good": 75,
 					"ok": 50
 				},
-				"smoothing": 20
+				"smoothing": 20,
+				"maxPerRule": 40
 			},
 			"type": "object",
 			"properties": {
@@ -160,6 +161,11 @@
 					"default": 20,
 					"type": "number",
 					"minimum": 0
+				},
+				"maxPerRule": {
+					"default": 40,
+					"type": "number",
+					"exclusiveMinimum": 0
 				}
 			}
 		},

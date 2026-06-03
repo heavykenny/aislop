@@ -1,3 +1,4 @@
+import type { FindingAssessmentSummary } from "../output/finding-assessment.js";
 import { labelForRule } from "../output/rule-labels.js";
 import { symbols as defaultSymbols, type Symbols } from "./symbols.js";
 import { theme as defaultTheme, style, type Theme, type Token } from "./theme.js";
@@ -34,6 +35,7 @@ interface SummaryInput {
 	elapsedMs: number;
 	nextSteps: NextStep[];
 	breakdown?: BreakdownSummary;
+	findingAssessment?: FindingAssessmentSummary;
 	thresholds?: { good: number; ok: number };
 }
 
@@ -49,6 +51,26 @@ const scoreToken = (score: number, thresholds: { good: number; ok: number }): To
 	if (score >= thresholds.good) return "success";
 	if (score >= thresholds.ok) return "warn";
 	return "danger";
+};
+
+const renderFindingAssessment = (
+	assessment: FindingAssessmentSummary,
+	t: Theme,
+	sep: string,
+): string[] => {
+	if (assessment.rows.length === 0) return [];
+	const parts = assessment.rows
+		.filter((row) => row.count > 0)
+		.map((row) => `${row.count} ${row.label}`);
+	if (parts.length === 0) return [];
+	const high = assessment.byConfidence.high;
+	const medium = assessment.byConfidence.medium;
+	const confidenceParts: string[] = [];
+	if (high > 0) confidenceParts.push(`${high} high-confidence`);
+	if (medium > 0) confidenceParts.push(`${medium} medium-confidence`);
+	const confidence =
+		confidenceParts.length > 0 ? `  ${sep}  ${style(t, "muted", confidenceParts.join(", "))}` : "";
+	return [`   ${style(t, "muted", "Verdict mix:")} ${parts.join(`  ${sep}  `)}${confidence}`];
 };
 
 export const renderSummary = (input: SummaryInput, deps: SummaryDeps = {}): string => {
@@ -73,6 +95,11 @@ export const renderSummary = (input: SummaryInput, deps: SummaryDeps = {}): stri
 	const statsLine = `   ${style(t, "muted", `${input.files} files`)}  ${sep}  ${style(t, "muted", `${input.engines} engines`)}  ${sep}  ${style(t, "muted", elapsed(input.elapsedMs))}`;
 
 	const lines = ["", scoreLine, statsLine, ""];
+
+	if (input.findingAssessment) {
+		lines.push(...renderFindingAssessment(input.findingAssessment, t, sep));
+		lines.push("");
+	}
 
 	if (input.breakdown && input.breakdown.rows.length > 0) {
 		lines.push(` ${style(t, "bold", "Top findings")}`);

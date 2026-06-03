@@ -1,8 +1,14 @@
-import type { Diagnostic, EngineResult } from "../engines/types.js";
+import type { EngineResult } from "../engines/types.js";
 import type { ScoreResult } from "../scoring/index.js";
 import type { Coverage } from "../utils/discover.js";
 import { APP_VERSION } from "../version.js";
 import { ENGINE_INFO, type EngineInfo } from "./engine-info.js";
+import {
+	type AssessedDiagnostic,
+	type FindingAssessmentSummary,
+	summarizeFindingAssessments,
+	withFindingAssessments,
+} from "./finding-assessment.js";
 
 interface JsonOutput {
 	schemaVersion: string;
@@ -14,7 +20,8 @@ interface JsonOutput {
 	coverage: Coverage;
 	engines: Record<string, { issues: number; skipped: boolean; elapsed: number }>;
 	engineDefinitions: Record<string, EngineInfo>;
-	diagnostics: Diagnostic[];
+	diagnostics: AssessedDiagnostic[];
+	findingAssessment: FindingAssessmentSummary;
 	summary: {
 		errors: number;
 		warnings: number;
@@ -32,6 +39,7 @@ export const buildJsonOutput = (
 	coverage: Coverage,
 ): JsonOutput => {
 	const allDiagnostics = results.flatMap((r) => r.diagnostics);
+	const assessedDiagnostics = withFindingAssessments(allDiagnostics);
 	const engines: JsonOutput["engines"] = {};
 
 	for (const result of results) {
@@ -52,7 +60,8 @@ export const buildJsonOutput = (
 		coverage,
 		engines,
 		engineDefinitions: ENGINE_INFO,
-		diagnostics: allDiagnostics,
+		diagnostics: assessedDiagnostics,
+		findingAssessment: summarizeFindingAssessments(allDiagnostics),
 		summary: {
 			errors: allDiagnostics.filter((d) => d.severity === "error").length,
 			warnings: allDiagnostics.filter((d) => d.severity === "warning").length,

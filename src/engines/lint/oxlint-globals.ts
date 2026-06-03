@@ -35,6 +35,53 @@ const collectPackageNames = (dir: string): Set<string> => {
 	return names;
 };
 
+const readJson = (filePath: string): Record<string, unknown> | null => {
+	const raw = readTextFile(filePath);
+	if (!raw) return null;
+	try {
+		const parsed = JSON.parse(raw) as unknown;
+		return parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : null;
+	} catch {
+		return null;
+	}
+};
+
+const hasBunRuntime = (rootDir: string, projectFiles: string[]): boolean => {
+	if (
+		fs.existsSync(path.join(rootDir, "bun.lock")) ||
+		fs.existsSync(path.join(rootDir, "bun.lockb")) ||
+		fs.existsSync(path.join(rootDir, "bunfig.toml"))
+	) {
+		return true;
+	}
+	const hasBunFiles = projectFiles.some((filePath) =>
+		/(?:^|\/)bunfig\.toml$|(?:^|\/)bun\.lockb?$/.test(filePath),
+	);
+
+	const pkg = readJson(path.join(rootDir, "package.json"));
+	if (!pkg) return hasBunFiles;
+	if (typeof pkg.packageManager === "string" && /^bun@/i.test(pkg.packageManager)) return true;
+
+	const scripts = pkg.scripts;
+	if (scripts && typeof scripts === "object") {
+		for (const command of Object.values(scripts as Record<string, unknown>)) {
+			if (typeof command === "string" && /(?:^|[;&|()\s])bunx?\s/.test(command)) return true;
+		}
+	}
+
+	return hasBunFiles;
+};
+
+const hasDenoRuntime = (rootDir: string, projectFiles: string[]): boolean => {
+	if (
+		fs.existsSync(path.join(rootDir, "deno.json")) ||
+		fs.existsSync(path.join(rootDir, "deno.jsonc"))
+	) {
+		return true;
+	}
+	return projectFiles.some((filePath) => /(?:^|\/)deno\.jsonc?$/.test(filePath));
+};
+
 const AMBIENT_GLOBAL_RE =
 	/^\s*(?:declare\s+)?(?:const|let|var|function|class)\s+([A-Za-z_$][\w$]*)/gm;
 
@@ -53,7 +100,10 @@ export const collectAmbientGlobals = (rootDir: string): string[] => {
 	}
 
 	const deps = collectPackageNames(rootDir);
-	if (deps.has("@types/bun") || deps.has("bun-types")) globals.add("Bun");
+	if (deps.has("@types/bun") || deps.has("bun-types") || hasBunRuntime(rootDir, projectFiles)) {
+		globals.add("Bun");
+	}
+	if (hasDenoRuntime(rootDir, projectFiles)) globals.add("Deno");
 
 	if (projectFiles.some((filePath) => /(?:^|\/)sst\.config\.ts$/.test(filePath))) {
 		for (const name of [

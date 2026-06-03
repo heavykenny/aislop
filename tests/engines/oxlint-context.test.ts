@@ -97,6 +97,59 @@ describe("runOxlint project context", () => {
 		expect(diagnostics.some((d) => d.rule === "eslint/no-undef")).toBe(false);
 	});
 
+	it("recognizes runtime globals without hiding them outside their scope", async () => {
+		writeFile("bun.lock", "");
+		writeFile("src/bun.ts", "export const launch = () => Bun.spawn(['echo', 'ok']);\n");
+		writeFile(
+			"supabase/functions/update-check/index.ts",
+			"Deno.serve(() => new Response('ok'));\n",
+		);
+		writeFile("src/not-deno.ts", "export const env = Deno.env.get('MODE');\n");
+		writeFile(
+			"extension/manifest.json",
+			JSON.stringify({
+				manifest_version: 3,
+				background: { service_worker: "background.js" },
+			}),
+		);
+		writeFile(
+			"extension/background.js",
+			"chrome.runtime.onInstalled.addListener(() => undefined);\n",
+		);
+		writeFile("src/not-extension.ts", "chrome.runtime.sendMessage({ type: 'ping' });\n");
+
+		const diagnostics = await runOxlint(context());
+
+		expect(diagnostics.some((d) => d.message.includes("'Bun' is not defined"))).toBe(false);
+		expect(
+			diagnostics.some(
+				(d) =>
+					d.filePath.endsWith("supabase/functions/update-check/index.ts") &&
+					d.message.includes("'Deno' is not defined"),
+			),
+		).toBe(false);
+		expect(
+			diagnostics.some(
+				(d) =>
+					d.filePath.endsWith("extension/background.js") &&
+					d.message.includes("'chrome' is not defined"),
+			),
+		).toBe(false);
+		expect(
+			diagnostics.some(
+				(d) =>
+					d.filePath.endsWith("src/not-deno.ts") && d.message.includes("'Deno' is not defined"),
+			),
+		).toBe(true);
+		expect(
+			diagnostics.some(
+				(d) =>
+					d.filePath.endsWith("src/not-extension.ts") &&
+					d.message.includes("'chrome' is not defined"),
+			),
+		).toBe(true);
+	});
+
 	it("drops Solid JSX ref assignment false positives without disabling real no-undef", async () => {
 		writeFile(
 			"src/app.tsx",

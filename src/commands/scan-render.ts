@@ -1,4 +1,5 @@
 import type { Diagnostic, EngineResult } from "../engines/types.js";
+import { summarizeFindingAssessments } from "../output/finding-assessment.js";
 import { renderDiagnostics } from "../output/terminal.js";
 import { renderHeader } from "../ui/header.js";
 import { detectInvocation } from "../ui/invocation.js";
@@ -137,6 +138,7 @@ export const buildScanRender = (input: BuildScanRenderInput): string => {
 			elapsedMs: input.elapsedMs,
 			nextSteps,
 			breakdown: computeBreakdown(input.diagnostics),
+			findingAssessment: summarizeFindingAssessments(input.diagnostics),
 			thresholds: input.thresholds,
 		},
 		deps,

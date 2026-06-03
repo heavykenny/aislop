@@ -201,6 +201,22 @@ export { spawn, config };
 		expect(diags).toHaveLength(0);
 	});
 
+	it("does not flag Deno-style remote and registry imports", async () => {
+		writePkgJson({});
+		writeFile(
+			"supabase/functions/update-check/index.ts",
+			`import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { assertEquals } from "jsr:@std/assert";
+import { z } from "npm:zod@4";
+export { createClient, assertEquals, z };
+`,
+		);
+
+		const diags = await detectHallucinatedImports(buildContext());
+
+		expect(diags).toHaveLength(0);
+	});
+
 	it("does not flag unplugin virtual icon and font modules when their plugins are installed", async () => {
 		writePkgJson({}, { "unplugin-icons": "^0.19.0", "unplugin-fonts": "^1.1.0" });
 		writeFile(

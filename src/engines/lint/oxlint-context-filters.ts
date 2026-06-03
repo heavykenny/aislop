@@ -8,6 +8,7 @@ const SST_PLATFORM_REF_RE =
 	/\/\/\/\s*<reference\s+path=["'][^"']*sst[\\/]+platform[\\/]+config\.d\.ts["']/;
 const ICON_AUTOIMPORT_RE = /^Icon[A-Z]/;
 const NO_UNDEF_IDENT_RE = /^['‘"`]([^'’"`]+)['’"`]/;
+const SUPABASE_FUNCTION_PATH_RE = /(?:^|\/)supabase\/functions\/[^/]+\/.+\.[cm]?[jt]sx?$/;
 
 export const detectAmbientSources = (rootDir: string): Set<AmbientSource> => {
 	const found = new Set<AmbientSource>();
@@ -63,6 +64,48 @@ const extractNoUndefIdentifier = (message: string): string | null => {
 	return match?.[1] ?? null;
 };
 
+const looksLikeChromeExtensionManifest = (filePath: string): boolean => {
+	try {
+		const manifest = JSON.parse(fs.readFileSync(filePath, "utf-8")) as Record<string, unknown>;
+		return (
+			typeof manifest.manifest_version === "number" &&
+			("background" in manifest || "content_scripts" in manifest || "permissions" in manifest)
+		);
+	} catch {
+		return false;
+	}
+};
+
+const chromeExtensionFileCache = new Map<string, boolean>();
+
+const isChromeExtensionFile = (rootDir: string, relativeFilePath: string): boolean => {
+	const normalized = relativeFilePath.split(path.sep).join("/");
+	const cacheKey = `${rootDir}:${normalized}`;
+	const cached = chromeExtensionFileCache.get(cacheKey);
+	if (cached !== undefined) return cached;
+
+	const absolute = path.isAbsolute(relativeFilePath)
+		? relativeFilePath
+		: path.join(rootDir, relativeFilePath);
+	const root = path.resolve(rootDir);
+	let dir = path.dirname(path.resolve(absolute));
+	let matched = false;
+
+	while (true) {
+		const relativeToRoot = path.relative(root, dir);
+		if (relativeToRoot.startsWith("..") || path.isAbsolute(relativeToRoot)) break;
+		if (looksLikeChromeExtensionManifest(path.join(dir, "manifest.json"))) {
+			matched = true;
+			break;
+		}
+		if (dir === root) break;
+		dir = path.dirname(dir);
+	}
+
+	chromeExtensionFileCache.set(cacheKey, matched);
+	return matched;
+};
+
 export const isAmbientFalsePositive = (
 	rule: string,
 	message: string,
@@ -76,10 +119,26 @@ export const isAmbientFalsePositive = (
 	return false;
 };
 
+export const isRuntimeGlobalFalsePositive = (
+	rule: string,
+	message: string,
+	rootDir: string,
+	relativeFilePath: string,
+): boolean => {
+	if (rule !== "eslint/no-undef") return false;
+	const ident = extractNoUndefIdentifier(message);
+	if (!ident) return false;
+	const normalized = relativeFilePath.split(path.sep).join("/");
+	if (ident === "Deno" && SUPABASE_FUNCTION_PATH_RE.test(normalized)) return true;
+	if (ident === "chrome" && isChromeExtensionFile(rootDir, relativeFilePath)) return true;
+	return false;
+};
+
 const sstReferencedFiles = new Map<string, boolean>();
 
 export const clearSstReferenceCache = (): void => {
 	sstReferencedFiles.clear();
+	chromeExtensionFileCache.clear();
 };
 
 export const fileReferencesSstPlatform = (rootDir: string, relativeFilePath: string): boolean => {

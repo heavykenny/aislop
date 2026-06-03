@@ -178,6 +178,7 @@ const writeAislopConfig = (configDir: string, configPath: string, choices: InitC
 			weights: { ...DEFAULT_CONFIG.scoring.weights },
 			thresholds: { ...DEFAULT_CONFIG.scoring.thresholds },
 			smoothing: DEFAULT_CONFIG.scoring.smoothing,
+			maxPerRule: DEFAULT_CONFIG.scoring.maxPerRule,
 		},
 		ci: {
 			failBelow: choices.failBelow,

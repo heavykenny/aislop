@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { EngineResult } from "../../src/engines/types.js";
+import type { Diagnostic, EngineResult } from "../../src/engines/types.js";
 import { buildJsonOutput } from "../../src/output/json.js";
 import type { Coverage } from "../../src/utils/discover.js";
 
@@ -9,6 +9,27 @@ const scoreable: Coverage = {
 	dominantUnsupported: null,
 	scoreable: true,
 };
+
+const diagnostic = (overrides: Partial<Diagnostic> = {}): Diagnostic => ({
+	filePath: "src/a.ts",
+	engine: "lint",
+	rule: "eslint/no-undef",
+	severity: "error",
+	message: "Example",
+	help: "",
+	line: 1,
+	column: 0,
+	category: "Lint",
+	fixable: false,
+	...overrides,
+});
+
+const result = (diagnostics: Diagnostic[]): EngineResult => ({
+	engine: "lint",
+	diagnostics,
+	elapsed: 10,
+	skipped: false,
+});
 
 describe("json output", () => {
 	it("includes schemaVersion and cliVersion", () => {
@@ -36,5 +57,19 @@ describe("json output", () => {
 		expect(out.score).toBeNull();
 		expect(out.scoreable).toBe(false);
 		expect(out.coverage.dominantUnsupported).toBe("C/C++");
+	});
+
+	it("adds finding assessments to JSON diagnostics and summary", () => {
+		const out = buildJsonOutput(
+			[result([diagnostic()])],
+			{ score: 50, label: "Critical" },
+			10,
+			10,
+			scoreable,
+		);
+
+		expect(out.diagnostics[0].assessment.kind).toBe("confirmed-defect");
+		expect(out.diagnostics[0].assessment.confidence).toBe("high");
+		expect(out.findingAssessment.byKind["confirmed-defect"]).toBe(1);
 	});
 });

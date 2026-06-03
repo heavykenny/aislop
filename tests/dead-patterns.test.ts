@@ -216,6 +216,17 @@ describe("console leftovers", () => {
 		expect(consoleD).toHaveLength(0);
 	});
 
+	it("does not flag console in CLI entrypoint files or bin/scripts folders", async () => {
+		const files = [
+			writeFile("src/cli.ts", "console.log('usage');"),
+			writeFile("bin/run.ts", "console.log('running');"),
+			writeFile("scripts/generate.ts", "console.log('generated');"),
+		];
+		const diagnostics = await detectDeadPatterns(makeContext(files));
+		const consoleD = diagnostics.filter((d) => d.rule === "ai-slop/console-leftover");
+		expect(consoleD).toHaveLength(0);
+	});
+
 	it("does not flag console in root-level scripts named benchmark-* / seed-* / smoke-* / etc.", async () => {
 		const files = [
 			writeFile("benchmark-railway.js", "console.log('running');"),

@@ -175,6 +175,7 @@ const runFixBody = async (
 		config.scoring.thresholds,
 		projectInfo.sourceFileCount,
 		config.scoring.smoothing,
+		config.scoring.maxPerRule,
 	);
 
 	const errors = allDiagnostics.filter((d) => d.severity === "error").length;

@@ -26,6 +26,7 @@ scoring:
     architecture: 1.0
     security: 1.5
   smoothing: 20
+  maxPerRule: 40
 ```
 
 This means AI-slop findings are weighted more heavily than generic lint/format noise,
@@ -37,6 +38,12 @@ Style and maintainability rules (`trivial-comment`, `narrative-comment`, `file-t
 `function-too-long`) still surface as findings, but contribute half their normal weight to the
 score. This keeps the number driven by genuine slop (swallowed errors, dead code, hallucinated
 imports) rather than house style, without hiding the style findings themselves.
+
+## Repeated findings saturate by rule
+
+Each rule contributes at most `scoring.maxPerRule` weighted penalty points by default. Repeated
+findings still appear in the report, but one noisy rule family cannot dominate the whole score.
+Different rule families continue to accumulate normally.
 
 ## Density normalization
 
@@ -68,6 +75,7 @@ scoring:
 - Increase `ai-slop` weight if you want strict AI-output hygiene.
 - Increase `security` weight if dependency/runtime risk should dominate your score.
 - Increase `smoothing` for large legacy codebases so a few warnings are less punitive.
+- Increase `maxPerRule` if repeated findings from one rule should punish the score more heavily.
 - Lower `lint` and `code-quality` weights if you want scores to emphasize AI-specific findings.
 
 ## CI quality gate

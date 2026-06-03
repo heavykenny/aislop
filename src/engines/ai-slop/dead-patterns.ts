@@ -32,6 +32,7 @@ const slop = (
 });
 
 const LOGGER_FILE_PATTERN = /(?:^|\/)(?:logger|logging|log)\.[^/]+$/i;
+const CLI_ENTRYPOINT_PATTERN = /(?:^|\/)(?:cli|cli[-_.][^/]*|[^/]+[-_]cli)\.[mc]?[jt]sx?$/i;
 
 const detectConsoleLeftovers = (
 	content: string,
@@ -41,7 +42,8 @@ const detectConsoleLeftovers = (
 	if (!JS_EXTENSIONS.has(ext)) return [];
 
 	if (LOGGER_FILE_PATTERN.test(relativePath)) return [];
-	if (isNonProductionPath(relativePath)) return [];
+	if (isNonProductionPath(relativePath) || CLI_ENTRYPOINT_PATTERN.test(relativePath)) return [];
+	if (content.startsWith("#!")) return [];
 
 	const diagnostics: Diagnostic[] = [];
 	const lines = content.split("\n");

@@ -195,6 +195,17 @@ describe("calculateScore", () => {
 		const drop10 = 100 - ten.score;
 		expect(drop10).toBeLessThan(drop1 * 10);
 	});
+
+	it("caps repeated findings from the same rule when maxPerRule is provided", () => {
+		const repeated = Array.from({ length: 100 }, () =>
+			makeDiagnostic({ engine: "ai-slop", rule: "ai-slop/narrative-comment" }),
+		);
+
+		const uncapped = calculateScore(repeated, defaultWeights, defaultThresholds, 20, 20);
+		const capped = calculateScore(repeated, defaultWeights, defaultThresholds, 20, 20, 5);
+
+		expect(capped.score).toBeGreaterThan(uncapped.score);
+	});
 });
 
 // ─── getScoreColor ─────────────────────────────────────────────────────────────

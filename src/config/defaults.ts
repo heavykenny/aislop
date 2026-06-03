@@ -40,6 +40,7 @@ export const DEFAULT_CONFIG: AislopConfig = {
 			ok: 50,
 		},
 		smoothing: 20,
+		maxPerRule: 40,
 	},
 	ci: {
 		failBelow: 70,

@@ -73,6 +73,7 @@ export const runScopedScan = async (
 		config.scoring.thresholds,
 		project.sourceFileCount,
 		config.scoring.smoothing,
+		config.scoring.maxPerRule,
 	);
 
 	return { diagnostics, score, rootDirectory: project.rootDirectory };

@@ -5,6 +5,7 @@ import { findConfigDir, loadConfig, RULES_FILE } from "../config/index.js";
 import { runEngines } from "../engines/orchestrator.js";
 import type { Diagnostic, EngineContext, EngineName } from "../engines/types.js";
 import { readBaseline } from "../hooks/quality-gate/baseline.js";
+import { assessDiagnostic, summarizeFindingAssessments } from "../output/finding-assessment.js";
 import { calculateScore } from "../scoring/index.js";
 import { discoverProject } from "../utils/discover.js";
 
@@ -53,6 +54,7 @@ const summariseDiagnostic = (d: Diagnostic, rootDirectory: string) => ({
 	column: d.column,
 	rule: d.rule,
 	severity: d.severity,
+	assessment: assessDiagnostic(d),
 	message: d.message,
 	fixable: d.fixable,
 	help: d.help || undefined,
@@ -69,7 +71,7 @@ const summariseDiagnostics = (diagnostics: Diagnostic[], rootDirectory: string) 
 		.slice(0, MAX_FINDINGS)
 		.map((d) => summariseDiagnostic(d, rootDirectory));
 	const elided = diagnostics.length > MAX_FINDINGS ? diagnostics.length - MAX_FINDINGS : 0;
-	return { counts, findings, elided };
+	return { counts, findingAssessment: summarizeFindingAssessments(diagnostics), findings, elided };
 };
 
 const runScan = async (cwd: string) => {
@@ -85,6 +87,7 @@ const runScan = async (cwd: string) => {
 		config.scoring.thresholds,
 		project.sourceFileCount,
 		config.scoring.smoothing,
+		config.scoring.maxPerRule,
 	);
 	const errorCount = diagnostics.filter((d) => d.severity === "error").length;
 	const failBelow = config.ci.failBelow;

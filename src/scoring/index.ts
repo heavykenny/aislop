@@ -32,19 +32,29 @@ export const calculateScore = (
 	thresholds: { good: number; ok: number },
 	sourceFileCount?: number,
 	smoothing?: number,
+	maxPerRule?: number,
 ): ScoreResult => {
 	if (diagnostics.length === 0) {
 		return { score: PERFECT_SCORE, label: "Healthy" };
 	}
 
-	let deductions = 0;
+	const deductionsByRule = new Map<string, number>();
 
 	for (const d of diagnostics) {
 		const engineWeight = weights[d.engine] ?? 1.0;
 		const severityPenalty = d.severity === "error" ? 3 : d.severity === "warning" ? 1 : 0.25;
 		const styleFactor = STYLE_RULES.has(d.rule) ? STYLE_WEIGHT : 1;
-		deductions += severityPenalty * engineWeight * styleFactor;
+		const key = `${d.engine}:${d.rule}`;
+		deductionsByRule.set(
+			key,
+			(deductionsByRule.get(key) ?? 0) + severityPenalty * engineWeight * styleFactor,
+		);
 	}
+	const ruleCap = typeof maxPerRule === "number" && maxPerRule > 0 ? maxPerRule : null;
+	const deductions = [...deductionsByRule.values()].reduce(
+		(total, value) => total + (ruleCap ? Math.min(value, ruleCap) : value),
+		0,
+	);
 
 	const effectiveFileCount = getEffectiveFileCount(diagnostics, sourceFileCount);
 	const smoothingConstant = typeof smoothing === "number" ? smoothing : 10;
