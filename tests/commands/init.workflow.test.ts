@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { initCommand, writeGithubWorkflow } from "../../src/commands/init.js";
+import { APP_VERSION } from "../../src/version.js";
 
 let tmpDir: string;
 
@@ -23,8 +24,8 @@ describe("writeGithubWorkflow", () => {
 		}
 		const body = fs.readFileSync(path.join(tmpDir, ".github/workflows/aislop.yml"), "utf-8");
 		expect(body).toContain("name: aislop");
-		expect(body).toContain("uses: scanaislop/aislop@v0.10.2");
-		expect(body).toContain("version: 0.10.2");
+		expect(body).toContain(`uses: scanaislop/aislop@v${APP_VERSION}`);
+		expect(body).toContain(`version: ${APP_VERSION}`);
 	});
 
 	it("returns declined (no write) when disabled", () => {
