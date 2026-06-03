@@ -128,7 +128,7 @@ const buildSuggestedActions = (
 		actions.push({
 			id: "run_aislop_fix",
 			label: `Run aislop fix to clear ${fixableDiags.length} mechanical finding${fixableDiags.length === 1 ? "" : "s"}.`,
-			command: "npx aislop fix",
+			command: "aislop fix",
 			rationale:
 				"These findings have deterministic fixes (formatting, unused imports, trivial comments). Running this before any manual work avoids burning agent tokens on what the CLI handles for free.",
 			ruleIds,

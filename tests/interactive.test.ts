@@ -2,13 +2,15 @@ import { describe, expect, it } from "vitest";
 import { INTERACTIVE_OPTIONS } from "../src/commands/interactive.js";
 
 describe("interactive options", () => {
-	it("exposes the six menu actions in a stable order", () => {
+	it("exposes the menu actions in a stable order", () => {
 		expect(INTERACTIVE_OPTIONS.map((o) => o.value)).toEqual([
 			"scan",
 			"fix",
-			"init",
 			"doctor",
+			"init",
 			"rules",
+			"hook-install",
+			"hook-status",
 			"quit",
 		]);
 	});

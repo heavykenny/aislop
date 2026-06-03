@@ -149,7 +149,7 @@ const parseBiomeJsonOutput = (output: string, rootDir: string): Diagnostic[] => 
 				rule: "formatting",
 				severity,
 				message,
-				help: "Run `npx aislop fix` to auto-format",
+				help: "Run `aislop fix` to auto-format",
 				line: entry.location?.start?.line ?? 0,
 				column: entry.location?.start?.column ?? 0,
 				category: "Format",

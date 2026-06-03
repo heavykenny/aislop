@@ -64,9 +64,9 @@ export const shouldIncludeIssue = (issueType: string, filePath: string): boolean
 
 const DEPENDENCY_HELP: Record<string, string> = {
 	dependencies:
-		"This package is listed in package.json but not imported anywhere. Remove it with `npm uninstall` or `npx aislop fix`.",
+		"This package is listed in package.json but not imported anywhere. Remove it with `npm uninstall` or `aislop fix`.",
 	devDependencies:
-		"This package is listed in package.json but not imported anywhere. Remove it with `npm uninstall` or `npx aislop fix`.",
+		"This package is listed in package.json but not imported anywhere. Remove it with `npm uninstall` or `aislop fix`.",
 	unlisted:
 		"This package is imported in code but not declared in package.json. Run `npm install` to add it.",
 	unresolved: "This import cannot be resolved. Check for typos or missing packages.",

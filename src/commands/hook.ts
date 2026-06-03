@@ -20,7 +20,7 @@ import {
 import type { HookInstallOpts } from "../hooks/install/types.js";
 import { captureBaseline } from "../hooks/quality-gate/baseline.js";
 import { flushTelemetry } from "../telemetry/client.js";
-import { isCancel, multiselect } from "../ui/prompts.js";
+import { searchMultiselect } from "../ui/search-select.js";
 import { style, theme } from "../ui/theme.js";
 
 // A per-edit hook must not stall the agent on telemetry. Give the queued event a
@@ -225,19 +225,19 @@ export const promptAgentSelection = async (
 	if (pool.length === 0) return [];
 	const preChecked =
 		mode === "uninstall" ? installed : (AGENTS_SUPPORTING_BOTH_SCOPES as AgentName[]);
-	const choice = await multiselect<AgentName>({
+	const choice = await searchMultiselect<AgentName>({
 		message:
 			mode === "install"
 				? "Which agents should get aislop hooks?"
 				: "Which agent hooks should be removed?",
-		options: pool.map((a) => ({
+		items: pool.map((a) => ({
 			value: a,
 			label: AGENT_LABELS[a].label,
 			hint: AGENT_LABELS[a].hint,
+			keywords: [a],
 		})),
-		initialValues: preChecked.filter((a) => pool.includes(a)),
+		initialSelected: preChecked.filter((a) => pool.includes(a)),
 		required: false,
 	});
-	if (isCancel(choice)) return null;
-	return choice as AgentName[];
+	return choice;
 };

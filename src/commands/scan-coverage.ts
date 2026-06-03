@@ -27,7 +27,7 @@ export const renderCoverageNotice = (projectInfo: ProjectInfo, includeHeader: bo
 			: renderHeader(
 					{
 						version: APP_VERSION,
-						command: "scan",
+						command: "Scan result",
 						context: [
 							projectInfo.projectName,
 							projectInfo.languages[0] ?? "unknown",

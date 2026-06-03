@@ -49,7 +49,7 @@ export const buildDoctorRender = (input: BuildDoctorRenderInput): string => {
 	const header = renderHeader(
 		{
 			version: APP_VERSION,
-			command: "doctor",
+			command: "Doctor report",
 			context: [input.projectName, input.languageLabel].filter((s) => s.length > 0),
 			brand: input.printBrand !== false,
 		},

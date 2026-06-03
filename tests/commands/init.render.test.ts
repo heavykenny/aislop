@@ -13,7 +13,7 @@ describe("init render", () => {
 				nextCommand: "aislop scan",
 			}),
 		);
-		expect(out).toContain("init");
+		expect(out).toContain("Setup");
 		expect(out).toContain("Wrote .aislop/config.yml");
 		expect(out).toContain("Wrote .github/workflows/aislop.yml");
 		expect(out).toContain("Done · wrote 2 files");

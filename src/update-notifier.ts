@@ -49,7 +49,13 @@ export const isOutdated = (current: string, latest: string): boolean => {
 };
 
 export const formatUpdateNotice = (current: string, latest: string): string =>
-	`\nUpdate available: ${current} -> ${latest}. Run npx aislop@latest to upgrade.\n`;
+	[
+		"",
+		`Update available: ${current} -> ${latest}.`,
+		"Upgrade: npm i -g aislop@latest",
+		"One-off: npx aislop@latest",
+		"",
+	].join("\n");
 
 interface UpdateCache {
 	latest: string;
@@ -78,7 +84,7 @@ const writeCache = (cachePath: string, cache: UpdateCache): boolean => {
 	}
 };
 
-const fetchLatestVersion = async (): Promise<string | null> => {
+export const fetchLatestVersion = async (): Promise<string | null> => {
 	try {
 		const res = await fetch(REGISTRY_URL, { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
 		if (!res.ok) return null;

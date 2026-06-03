@@ -167,7 +167,7 @@ const buildAgentPrompt = (
 	lines.push("---");
 	lines.push("Fix each issue following the guidance above. Prioritize errors over warnings.");
 	lines.push(
-		"After making changes, run `npx aislop scan` to verify all issues are resolved and the score improves.",
+		"After making changes, run `aislop scan` to verify all issues are resolved and the score improves.",
 	);
 
 	return lines.join("\n");

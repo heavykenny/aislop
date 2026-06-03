@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildRulesRender } from "../../src/commands/rules.js";
+import { buildRuleDetailRender, buildRulesRender } from "../../src/commands/rules.js";
 import { stripAnsi as strip } from "../helpers/ansi.js";
 
 describe("rules render", () => {
@@ -18,13 +18,16 @@ describe("rules render", () => {
 				],
 			}),
 		);
-		expect(out.indexOf("ai-slop")).toBeLessThan(out.indexOf("lint"));
+		expect(out).toContain("Rules catalog");
+		expect(out).toContain("auto = aislop fix can change it");
+		expect(out.indexOf("AI Slop")).toBeLessThan(out.indexOf("Lint"));
 		expect(out).toContain("ai-slop/swallowed-exception");
 		expect(out).toContain("ai-slop/trivial-comment");
-		expect(out).toMatch(/lint\/no-any\s+warning/);
+		expect(out).toContain("Catch block hides an error without handling it.");
+		expect(out).toMatch(/lint\/no-any\s+warn/);
 	});
 
-	it("shows fixable vs manual column", () => {
+	it("shows auto vs review fix mode", () => {
 		const out = strip(
 			buildRulesRender({
 				rules: [
@@ -33,20 +36,40 @@ describe("rules render", () => {
 				],
 			}),
 		);
-		expect(out).toContain("fixable");
-		expect(out).toContain("manual");
+		expect(out).toContain("auto");
+		expect(out).toContain("review");
 	});
 
 	it("ends with accent-green next-step hints pointing at scan and init", () => {
 		const out = strip(
 			buildRulesRender({
 				rules: [{ id: "lint/a", engine: "lint", severity: "warning", fixable: true }],
-				invocation: "npx aislop",
+				invocation: "aislop",
 			}),
 		);
 		// Symbols vary between TTY (→) and non-TTY/plain (->); both forms should
 		// carry the scan and init hints.
-		expect(out).toMatch(/(→|->) Run npx aislop scan to apply these rules/);
-		expect(out).toMatch(/(→|->) Run npx aislop init to customize which engines are enabled/);
+		expect(out).toMatch(/(→|->) Run aislop scan to check your project against these rules/);
+		expect(out).toMatch(/(→|->) Run aislop init to choose engines and CI settings/);
+	});
+
+	it("renders a rule detail card with meaning and fix guidance", () => {
+		const out = strip(
+			buildRuleDetailRender(
+				{
+					id: "ai-slop/console-leftover",
+					engine: "ai-slop",
+					severity: "warning",
+					fixable: false,
+				},
+				{ includeHeader: false },
+			),
+		);
+
+		expect(out).toContain("Rule");
+		expect(out).toContain("ai-slop/console-leftover");
+		expect(out).toContain("AI Slop");
+		expect(out).toContain("review");
+		expect(out).toContain("console/debug output was left in application code.");
 	});
 });

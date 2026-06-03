@@ -1,1 +1,1 @@
-export const detectInvocation = (): string => "npx aislop";
+export const detectInvocation = (): string => "aislop";

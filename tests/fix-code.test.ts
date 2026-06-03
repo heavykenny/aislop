@@ -75,7 +75,7 @@ describe("printPrompt", () => {
 		expect(output).toContain("Fix the following 1 code quality issue");
 		expect(output).toContain("score: 85/100");
 		expect(output).toContain("complexity/file-too-large");
-		expect(output).toContain("npx aislop scan");
+		expect(output).toContain("aislop scan");
 	});
 
 	it("includes code snippets when line number is provided", () => {

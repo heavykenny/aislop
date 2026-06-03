@@ -18,7 +18,7 @@ describe("doctor render", () => {
 				invocation: "aislop",
 			}),
 		);
-		expect(out).toContain("doctor");
+		expect(out).toContain("Doctor report");
 		expect(out).toContain("my-app");
 		expect(out).toContain("typescript");
 		expect(out).toContain("◆ Formatting");
@@ -60,9 +60,9 @@ describe("doctor render", () => {
 				projectName: "my-app",
 				languageLabel: "typescript",
 				rows: [{ engine: "Formatting", tool: "biome (bundled)", status: "ok" }],
-				invocation: "npx aislop",
+				invocation: "aislop",
 			}),
 		);
-		expect(out).toContain("→ Run npx aislop scan to check this project");
+		expect(out).toContain("→ Run aislop scan to check this project");
 	});
 });

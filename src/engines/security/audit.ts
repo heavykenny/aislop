@@ -260,7 +260,7 @@ export const parseJsAudit = (output: string, source: JsAuditSource): Diagnostic[
 					message: `Dependency audit skipped (${source}): lockfile is missing`,
 					help:
 						error.detail ??
-						"Generate a lockfile, then re-run `npx aislop scan` for dependency vulnerability checks.",
+						"Generate a lockfile, then re-run `aislop scan` for dependency vulnerability checks.",
 					line: 0,
 					column: 0,
 					category: "Security",

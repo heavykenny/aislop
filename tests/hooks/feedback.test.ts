@@ -110,7 +110,7 @@ describe("buildFeedback v2 — delta + newSinceBaseline + suggestedActions", () 
 		const fb = buildFeedback([diag({ fixable: true })], 80, "/repo");
 		const fix = fb.suggestedActions.find((a) => a.id === "run_aislop_fix");
 		expect(fix).toBeDefined();
-		expect(fix?.command).toBe("npx aislop fix");
+		expect(fix?.command).toBe("aislop fix");
 	});
 
 	it("suggestedActions emits review_finding for arch/* errors (not auto-fixable)", () => {

@@ -17,7 +17,7 @@ describe("fix render", () => {
 				nextAgentHint: "Run aislop fix --claude to hand off the 3 remaining issues",
 			}),
 		);
-		expect(out).toContain("fix");
+		expect(out).toContain("Fix run");
 		expect(out).toContain("my-app");
 		expect(out).toContain("◆ Removed 12 unused imports");
 		expect(out).toContain("◇ Formatting…");

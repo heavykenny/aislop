@@ -60,10 +60,11 @@ describe("isUpdateNotifierDisabled", () => {
 });
 
 describe("formatUpdateNotice", () => {
-	it("names both versions and the upgrade command", () => {
+	it("names both versions and the global upgrade command", () => {
 		const notice = formatUpdateNotice("0.9.4", "0.10.1");
 		expect(notice).toContain("0.9.4");
 		expect(notice).toContain("0.10.1");
+		expect(notice).toContain("npm i -g aislop@latest");
 		expect(notice).toContain("npx aislop@latest");
 	});
 });

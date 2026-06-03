@@ -95,7 +95,7 @@ const runFixBody = async (
 		process.stdout.write(
 			renderHeader({
 				version: APP_VERSION,
-				command: "fix",
+				command: "Fix run",
 				context: [projectName],
 				brand: options.printBrand !== false,
 			}),
@@ -180,6 +180,7 @@ const runFixBody = async (
 	const errors = allDiagnostics.filter((d) => d.severity === "error").length;
 	const warnings = allDiagnostics.filter((d) => d.severity === "warning").length;
 	const remaining = errors + warnings;
+	const actionableDiagnostics = allDiagnostics.filter((d) => d.severity !== "info");
 
 	// If no fix steps ran at all, emit a single "skipped" rail line so the
 	// footer has context. Otherwise the step lines were already emitted live.
@@ -204,7 +205,7 @@ const runFixBody = async (
 				language,
 				fileCount: projectInfo.sourceFileCount,
 				results: scanResults,
-				diagnostics: allDiagnostics,
+				diagnostics: actionableDiagnostics,
 				score: scoreResult,
 				elapsedMs: performance.now() - startTime,
 				thresholds: config.scoring.thresholds,
@@ -216,7 +217,7 @@ const runFixBody = async (
 	}
 
 	if (options.agent) {
-		launchAgent(options.agent, resolvedDir, allDiagnostics, scoreResult.score);
+		launchAgent(options.agent, resolvedDir, actionableDiagnostics, scoreResult.score);
 		return {
 			exitCode: 0,
 			score: scoreResult.score,
@@ -225,7 +226,7 @@ const runFixBody = async (
 		};
 	}
 	if (options.prompt) {
-		printPrompt(resolvedDir, allDiagnostics, scoreResult.score);
+		printPrompt(resolvedDir, actionableDiagnostics, scoreResult.score);
 		return {
 			exitCode: 0,
 			score: scoreResult.score,

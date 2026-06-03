@@ -1,7 +1,7 @@
 export { buildDoctorRender, doctorCommand } from "./commands/doctor.js";
 export { fixCommand } from "./commands/fix.js";
 export { buildInitSuccessRender, initCommand } from "./commands/init.js";
-export { buildRulesRender, rulesCommand } from "./commands/rules.js";
+export { buildRuleDetailRender, buildRulesRender, rulesCommand } from "./commands/rules.js";
 export { scanCommand } from "./commands/scan.js";
 export { loadConfig } from "./config/index.js";
 export type { AislopConfig } from "./config/schema.js";

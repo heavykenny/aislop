@@ -28,7 +28,7 @@ export const buildFixRender = (input: BuildFixRenderInput): string => {
 			: renderHeader(
 					{
 						version: APP_VERSION,
-						command: "fix",
+						command: "Fix run",
 						context: [input.projectName],
 						brand: input.printBrand !== false,
 					},

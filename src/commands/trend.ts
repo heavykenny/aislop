@@ -46,7 +46,7 @@ interface BuildTrendRenderInput {
 export const buildTrendRender = (input: BuildTrendRenderInput): string => {
 	const header = renderHeader({
 		version: APP_VERSION,
-		command: "trend",
+		command: "Score history",
 		context: [],
 		brand: input.printBrand !== false,
 	});

@@ -1,5 +1,5 @@
 import { Command } from "commander";
-import { registerHookCommand } from "./cli/hook-command.js";
+import { registerHookAliases, registerHookCommand } from "./cli/hook-command.js";
 import { badgeCommand } from "./commands/badge.js";
 import { ciCommand } from "./commands/ci.js";
 import { doctorCommand } from "./commands/doctor.js";
@@ -9,6 +9,7 @@ import { interactiveCommand } from "./commands/interactive.js";
 import { rulesCommand } from "./commands/rules.js";
 import { scanCommand } from "./commands/scan.js";
 import { trendCommand } from "./commands/trend.js";
+import { updateCommand } from "./commands/update.js";
 import { loadConfig } from "./config/index.js";
 import {
 	ensureInstallId,
@@ -18,9 +19,7 @@ import {
 	track,
 	withCommandLifecycle,
 } from "./telemetry/index.js";
-import { renderHeader } from "./ui/header.js";
-import { renderHintLine } from "./ui/logger.js";
-import { style, theme } from "./ui/theme.js";
+import { renderCommandReference, renderRootHelp } from "./ui/home.js";
 import { maybeNotifyUpdate } from "./update-notifier.js";
 import { APP_VERSION } from "./version.js";
 
@@ -91,11 +90,23 @@ const noFlagsPassed = (flags: ScanFlags): boolean =>
 	!(flags.exclude && flags.exclude.length > 0) &&
 	!(flags.include && flags.include.length > 0);
 
+const hasNoUserArgs = (): boolean => process.argv.slice(2).length === 0;
+
+const shouldRenderRootHelp = (): boolean => {
+	const args = process.argv.slice(2);
+	return args.length === 1 && ["--help", "-h", "help"].includes(args[0] ?? "");
+};
+
+const shouldRenderPlainVersion = (): boolean => {
+	const args = process.argv.slice(2);
+	return args.length === 1 && ["-V", "-v", "--version", "version"].includes(args[0] ?? "");
+};
+
 const program = new Command()
 	.name("aislop")
-	.description("The unified code quality CLI")
+	.description("The quality gate for agentic coding.")
 	.version(APP_VERSION, "-v, --version")
-	.argument("[directory]", "project directory to scan", ".")
+	.argument("[directory]", "directory to scan when no command is passed", ".")
 	.option("--changes", "only scan changed files (git diff)")
 	.option("--staged", "only scan staged files")
 	.option("-d, --verbose", "show file details per rule")
@@ -115,7 +126,7 @@ const program = new Command()
 		[],
 	)
 	.action(async (directory: string, flags: ScanFlags) => {
-		if (noFlagsPassed(flags) && process.stdin.isTTY) {
+		if (hasNoUserArgs() && noFlagsPassed(flags) && process.stdin.isTTY) {
 			try {
 				await interactiveCommand(directory, loadConfig(directory));
 				return;
@@ -124,44 +135,11 @@ const program = new Command()
 			}
 		}
 		await runScan(directory, flags);
-	})
-	.addHelpText("beforeAll", renderHeader({ version: APP_VERSION, command: "--bare", context: [] }))
-	.addHelpText(
-		"after",
-		`
-${style(theme, "dim", "Commands:")}
-  npx aislop scan [dir]      Full code quality scan
-  npx aislop fix [dir]       Auto-fix ai slop in codebase
-  npx aislop init [dir]      Initialize aislop config
-  npx aislop doctor [dir]    Check installed tools
-  npx aislop ci [dir]        CI-friendly JSON output
-  npx aislop rules [dir]     List all rules
-  npx aislop trend [dir]     Show score history trend
-
-${style(theme, "dim", "Examples:")}
-  npx aislop                 Interactive menu
-  npx aislop scan            Scan entire project
-  npx aislop scan -d         Scan with file/line details
-  npx aislop scan --changes  Scan only changed files
-  npx aislop scan --staged   Scan only staged files (for hooks)
-  npx aislop fix             Auto-fix ai slop in codebase
-  npx aislop fix -f          Run aggressive fixes (includes audit and dependency alignment)
-  npx aislop fix --claude    Open Claude Code to fix remaining issues
-  npx aislop fix --cursor    Open Cursor + copy prompt to clipboard
-  npx aislop fix -p          Print a prompt to paste into any coding agent
-  npx aislop ci              JSON output for CI pipelines
-  npx aislop scan --sarif    SARIF 2.1.0 for GitHub code scanning
-  npx aislop trend           Show score history over time
-  npx aislop scan --exclude node_modules
-  npx aislop scan --exclude node_modules,dist,file.txt
-  npx aislop scan --exclude node_modules --exclude dist --exclude **/*.ts
-${renderHintLine("Run npx aislop scan to scan your project").trimEnd()}
-`,
-	);
+	});
 
 program
 	.command("scan [directory]")
-	.description("Run full code quality scan")
+	.description("Score a project and print findings")
 	.option("--changes", "only scan changed files")
 	.option("--staged", "only scan staged files")
 	.option("-d, --verbose", "show file details per rule")
@@ -211,7 +189,7 @@ const matchFixAgent = (flags: Record<string, boolean | undefined>): string | und
 
 const fixProgram = program
 	.command("fix [directory]")
-	.description("Auto-fix ai slop in codebase")
+	.description("Auto-fix findings or hand off to a coding agent")
 	.option("-d, --verbose", "show detailed fix progress")
 	.option("-f, --force", "run aggressive fixes (audit and framework dependency alignment)")
 	.option(
@@ -235,7 +213,7 @@ fixProgram.action(async (directory = ".", _flags, command) => {
 
 program
 	.command("init [directory]")
-	.description("Initialize aislop config in project")
+	.description("Create aislop config and optional CI workflow")
 	.option(
 		"--strict",
 		"write an enterprise-grade default config: all engines, typecheck on, CI failBelow 85, workflow included",
@@ -253,7 +231,7 @@ program
 
 program
 	.command("doctor [directory]")
-	.description("Check installed tools and environment")
+	.description("Check toolchain coverage for this project")
 	.action(async (directory = ".") => {
 		await withCommandLifecycle(
 			{ command: "doctor", config: loadConfig(directory).telemetry },
@@ -266,7 +244,7 @@ program
 
 program
 	.command("ci [directory]")
-	.description("CI-friendly JSON output with exit codes")
+	.description("Run the quality gate for CI")
 	.option("--human", "render the human-friendly scan design instead of JSON")
 	.option("--sarif", "output SARIF 2.1.0 (for GitHub code scanning)")
 	.option("--format <format>", "output format: json or sarif")
@@ -289,12 +267,14 @@ program
 
 program
 	.command("rules [directory]")
-	.description("List all available rules")
-	.action(async (directory = ".") => {
+	.description("Explain rules, severity, and fix mode")
+	.option("-s, --search", "open an interactive searchable rule explorer")
+	.action(async (directory = ".", _flags, command) => {
+		const flags = command.optsWithGlobals() as { search?: boolean };
 		await withCommandLifecycle(
 			{ command: "rules", config: loadConfig(directory).telemetry },
 			async () => {
-				await rulesCommand(directory);
+				await rulesCommand(directory, { interactive: Boolean(flags.search) });
 				return { exitCode: 0 };
 			},
 		);
@@ -302,7 +282,7 @@ program
 
 program
 	.command("badge [directory]")
-	.description("Print the public score badge URL + README markdown for this repo")
+	.description("Print score badge URL and README markdown")
 	.option("--owner <owner>", "GitHub owner (auto-detected from git remote if omitted)")
 	.option("--repo <repo>", "GitHub repo name (auto-detected from git remote if omitted)")
 	.option("--json", "emit machine-readable JSON instead of the rendered output")
@@ -334,7 +314,7 @@ program
 
 program
 	.command("trend [directory]")
-	.description("Show score history trend from .aislop/history.jsonl")
+	.description("Show local score history")
 	.option("--limit <n>", "number of recent runs to show", (v) => Number.parseInt(v, 10))
 	.action(async (directory = ".", _flags, command) => {
 		const flags = command.optsWithGlobals() as { limit?: number };
@@ -347,10 +327,41 @@ program
 		);
 	});
 
+program
+	.command("update")
+	.alias("upgrade")
+	.description("Check npm for the latest aislop version")
+	.action(async () => {
+		await updateCommand();
+	});
+
+program
+	.command("version")
+	.description("Print the installed aislop version")
+	.action(() => {
+		process.stdout.write(`${APP_VERSION}\n`);
+	});
+
+program
+	.command("commands")
+	.description("List all commands and major flags")
+	.action(() => {
+		process.stdout.write(renderCommandReference({ version: APP_VERSION }));
+	});
+
 registerHookCommand(program);
+registerHookAliases(program);
 
 const main = async () => {
 	fireInstalledOnce();
+	if (shouldRenderPlainVersion()) {
+		process.stdout.write(`${APP_VERSION}\n`);
+		return;
+	}
+	if (shouldRenderRootHelp()) {
+		process.stdout.write(renderRootHelp({ version: APP_VERSION }));
+		return;
+	}
 	await program.parseAsync();
 	await flushTelemetry();
 	await maybeNotifyUpdate();

@@ -16,16 +16,16 @@ aislop catches them. 50+ rules across 7 languages (TypeScript, JavaScript, Pytho
 ## Quick start
 
 ```bash
-npx aislop scan
+npx aislop@latest scan
 ```
 
 No install needed. Works on any project. Get your score in seconds.
 
 ```bash
-npx aislop fix                   # auto-fix issues
-npx aislop fix -f                # aggressive fixes (deps, unused files)
-npx aislop ci                    # CI mode (JSON + gate)
-npx aislop hook install --claude # per-edit hook
+aislop fix                   # auto-fix issues after installing
+aislop fix -f                # aggressive fixes (deps, unused files)
+aislop ci                    # CI mode (JSON + gate)
+aislop hook install --claude # per-edit hook
 ```
 
 **Public badge**: Show your score on your README
@@ -34,7 +34,7 @@ npx aislop hook install --claude # per-edit hook
 [![aislop](https://badges.scanaislop.com/score/<owner>/<repo>.svg)](https://scanaislop.com)
 ```
 
-Run `npx aislop badge` to auto-generate. Free at [scanaislop.com](https://scanaislop.com).
+Run `npx aislop@latest badge` to auto-generate. Free at [scanaislop.com](https://scanaislop.com).
 
 ## See it in action
 
@@ -48,7 +48,7 @@ Run `npx aislop badge` to auto-generate. Free at [scanaislop.com](https://scanai
 
 ```bash
 # Run without installing
-npx aislop scan
+npx aislop@latest scan
 
 # npm
 npm install --save-dev aislop
@@ -69,15 +69,32 @@ Also available as [`@scanaislop/aislop`](docs/installation.md) on GitHub Package
 
 ## Usage
 
+Examples below use the installed `aislop` binary. For a one-off latest run, prefix the command with `npx aislop@latest`, for example `npx aislop@latest scan`.
+
+### Command reference
+
+```bash
+aislop --help              # clean overview
+aislop commands            # every public command and major flag
+aislop <command> --help    # detailed help for one command
+aislop version             # installed version
+aislop -V                  # installed version
+aislop update              # current and latest npm versions
+```
+
 ### Scan
 
 ```bash
-npx aislop scan           # current directory
-npx aislop scan ./src     # specific directory
-npx aislop scan --changes # changed files from HEAD
-npx aislop scan --staged  # staged files only
-npx aislop scan --json    # JSON output
-npx aislop scan --sarif   # SARIF 2.1.0 output (GitHub code scanning)
+aislop scan                       # current directory
+aislop scan ./src                 # specific directory
+aislop scan --changes             # changed files from HEAD
+aislop scan --staged              # staged files only
+aislop scan -d                    # verbose file/rule detail
+aislop scan --json                # JSON output
+aislop scan --sarif               # SARIF 2.1.0 output (GitHub code scanning)
+aislop scan --format json         # alternate JSON form
+aislop scan --include "src/**"    # only matching paths
+aislop scan --exclude "dist,gen"  # skip extra paths
 ```
 
 **Exclude files**: `node_modules`, `.git`, `dist`, `build`, `coverage` excluded by default. Add more in `.aislop/config.yml`:
@@ -88,7 +105,7 @@ exclude:
   - src/generated
 ```
 
-Or via CLI: `npx aislop scan --exclude "**/*.test.ts,dist"`
+Or via CLI: `aislop scan --exclude "**/*.test.ts,dist"`
 
 **Unsupported languages**: aislop only analyses the 8 languages above. If a repo is mostly something else (C, C++, C#, Swift, Kotlin, …), scoring a handful of incidental files would misrepresent it, so aislop **withholds the score** and says so rather than printing a number off code it never read. `--json` returns `score: null`, `scoreable: false`, and a `coverage` breakdown.
 
@@ -139,9 +156,11 @@ ci:
 Auto-fix what's mechanical (formatters, unused imports, dead code). For issues that need context, hand off to your agent with full diagnostic info.
 
 ```bash
-npx aislop fix                 # auto-fixes
-npx aislop fix --safe          # only reversible fixes (imports, comment removal, formatting)
-npx aislop fix -f              # aggressive: deps, unused files
+aislop fix                 # auto-fixes
+aislop fix -d              # detailed fix progress
+aislop fix --safe          # only reversible fixes (imports, comment removal, formatting)
+aislop fix -f              # aggressive: deps, unused files
+aislop fix -p              # print an agent handoff prompt
 ```
 
 `--safe` restricts the run to fixes that cannot change behaviour — unused-import removal, import merging, narrative-comment removal, and formatting. Anything that deletes code or rewrites behaviour/attributes (console/dead-code removal, lint autofixes, unused-declaration and dependency pruning) is skipped, so a `--safe` run is genuinely "apply and commit".
@@ -151,37 +170,45 @@ npx aislop fix -f              # aggressive: deps, unused files
 When auto-fix can't solve it, pass the remaining issues to your coding agent with full context:
 
 ```bash
-npx aislop fix --claude        # Claude Code
-npx aislop fix --cursor        # Cursor (copies to clipboard)
-npx aislop fix --gemini        # Gemini CLI
-npx aislop fix --codex         # Codex CLI
-# Also: --windsurf, --amp, --aider, --goose, --pi, --crush, --opencode, --warp, --kimi, --antigravity, --deep-agents, --vscode
-npx aislop fix --prompt        # print prompt (agent-agnostic)
+aislop fix --claude        # Claude Code
+aislop fix --codex         # Codex CLI
+aislop fix --cursor        # Cursor (copies to clipboard)
+aislop fix --gemini        # Gemini CLI
+aislop fix --prompt        # print prompt (agent-agnostic)
 ```
+
+Other fix handoff flags: `--windsurf`, `--vscode`, `--amp`, `--antigravity`, `--deep-agents`, `--kimi`, `--opencode`, `--warp`, `--aider`, `--goose`, `--pi`, `--crush`.
 
 ### Install hook
 
 Runs after every agent edit. Feedback flows back immediately.
 
 ```bash
-npx aislop hook install --claude           # Claude Code
-npx aislop hook install --cursor           # Cursor
-npx aislop hook install --gemini           # Gemini CLI
-npx aislop hook install --pi               # pi
-npx aislop hook install                    # all supported agents
-npx aislop hook install claude cursor      # specific agents
+aislop hook install --claude           # Claude Code
+aislop hook install --cursor           # Cursor
+aislop hook install --gemini           # Gemini CLI
+aislop hook install --pi               # pi
+aislop hook install                    # pick agents interactively
+aislop hook install claude cursor      # specific agents
+aislop hook install --agent claude,pi  # comma-separated agents
+aislop install claude cursor           # alias for hook install
+aislop install hooks --claude          # natural alias for hook install
 ```
 
 **Runtime adapters** (scan + feedback): `claude`, `cursor`, `gemini`, `pi`.  
 **Rules-only** (agent reads rules): `codex`, `windsurf`, `cline`, `kilocode`, `antigravity`, `copilot`.
 
+Hook install flags: `--agent <names>`, `-g, --global`, `--project`, `--dry-run`, `--yes`, `--quality-gate`, plus per-agent shortcuts `--claude`, `--cursor`, `--gemini`, `--pi`, `--codex`, `--windsurf`, `--cline`, `--kilocode`, `--antigravity`, `--copilot`.
+
 **Quality-gate mode**: Blocks if score regresses below baseline.
 
 ```bash
-npx aislop hook install --claude --quality-gate
-npx aislop hook baseline                    # re-capture baseline
-npx aislop hook status                      # list installed
-npx aislop hook uninstall --claude          # remove
+aislop hook install --claude --quality-gate
+aislop hook baseline                    # re-capture baseline
+aislop hook status                      # list installed
+aislop hook uninstall --claude          # remove
+aislop uninstall claude                  # alias for hook uninstall
+aislop uninstall hooks --claude          # natural alias for hook uninstall
 ```
 
 Docs: [`/docs/hooks`](https://scanaislop.com/docs/hooks)
@@ -207,18 +234,27 @@ Expose aislop as MCP tools for Claude Desktop, Cursor, Codex:
 ### CI
 
 ```bash
-npx aislop ci                  # JSON output, exits 1 if score < threshold
+aislop ci                  # JSON output, exits 1 if score < threshold
+aislop ci --human          # human-friendly CI output
+aislop ci --sarif          # SARIF output for code scanning
 ```
 
 ### Other commands
 
 ```bash
-npx aislop init                # create .aislop/config.yml
-npx aislop init --strict       # enterprise-grade gate: all engines, typecheck, failBelow 85
-npx aislop rules               # list rules
-npx aislop badge               # print badge URL
-npx aislop trend               # show score history over time
-npx aislop                     # interactive menu
+aislop                         # interactive menu
+aislop init                    # create .aislop/config.yml
+aislop init --strict           # enterprise-grade gate: all engines, typecheck, failBelow 85
+aislop doctor                  # check which engines can run here
+aislop rules                   # list rules
+aislop rules --search          # searchable rule explorer
+aislop badge                   # print badge URL
+aislop badge --owner o --repo r --json
+aislop trend                   # show score history over time
+aislop trend --limit 20
+aislop update                  # show current and latest npm versions
+aislop upgrade                 # alias for update
+aislop commands                # full command list
 ```
 
 **Score history**: a normal (full-project, interactive) `scan` appends a compact record to `.aislop/history.jsonl` (timestamp, score, error/warning counts, file count, CLI version). `aislop trend` reads it and prints a table plus an ASCII sparkline of recent scores. History is a local side effect only: it is never written for `--json`/`--sarif` output, in CI, or when `AISLOP_NO_HISTORY=1` is set, so machine output stays clean.
@@ -234,7 +270,7 @@ Docs: [commands](docs/commands.md)
 Run directly on staged files:
 
 ```bash
-npx aislop scan --staged
+aislop scan --staged
 ```
 
 Or wire it into the [pre-commit](https://pre-commit.com) framework via the bundled hook:
@@ -250,7 +286,7 @@ repos:
 
 ### GitHub Actions
 
-Run `npx aislop init` and accept the workflow prompt, or add manually:
+Run `aislop init` and accept the workflow prompt, or add manually:
 
 ```yaml
 name: aislop
@@ -333,7 +369,7 @@ AI coding tools generate code that compiles and passes tests but ships with patt
 - **One score**: 0-100, enforced in CI. Weighted so sloppy patterns hit harder than style noise.
 - **Auto-fix first**: Clears formatters, unused imports, dead code mechanically. Hands off the rest to your agent with full context.
 - **Deterministic**: Regex + AST + standard tooling. No LLMs, no API calls. Same code in, same score out.
-- **Zero-config start**: `npx aislop scan` works on any repo. Add `.aislop/config.yml` to tune.
+- **Zero-config start**: `npx aislop@latest scan` works on any repo. Add `.aislop/config.yml` to tune.
 
 ## What it catches
 
