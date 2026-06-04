@@ -5,6 +5,7 @@ onlyBuiltDependencies:
 
 overrides:
   defu@<=6.1.4: '>=6.1.5'
+  hono@<4.12.21: '>=4.12.21'
   picomatch@<2.3.2: '>=2.3.2'
   picomatch@>=4.0.0 <4.0.4: '>=4.0.4'
   postcss@<8.5.10: ^8.5.10
