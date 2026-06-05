@@ -254,6 +254,67 @@ describe("console leftovers", () => {
 		const consoleD = diagnostics.filter((d) => d.rule === "ai-slop/console-leftover");
 		expect(consoleD).toHaveLength(0);
 	});
+
+	it("does not flag console output in prototype scripts", async () => {
+		const filePath = writeFile(
+			"design/prototype.ts",
+			[
+				"async function main() {",
+				"  console.log('Prototype validation');",
+				"  console.log(`Output: ${process.cwd()}`);",
+				"}",
+			].join("\n"),
+		);
+		const diagnostics = await detectDeadPatterns(makeContext([filePath]));
+		const consoleD = diagnostics.filter((d) => d.rule === "ai-slop/console-leftover");
+		expect(consoleD).toHaveLength(0);
+	});
+
+	it("does not flag command-output console in guarded entrypoints", async () => {
+		const filePath = writeFile(
+			"src/find-tool.ts",
+			[
+				"function main() {",
+				"  const bin = locateBinary();",
+				"  console.log(bin);",
+				"}",
+				"if (import.meta.main) main();",
+			].join("\n"),
+		);
+		const diagnostics = await detectDeadPatterns(makeContext([filePath]));
+		const consoleD = diagnostics.filter((d) => d.rule === "ai-slop/console-leftover");
+		expect(consoleD).toHaveLength(0);
+	});
+
+	it("does not treat process.argv usage alone as a console-output entrypoint", async () => {
+		const filePath = writeFile(
+			"src/options.ts",
+			[
+				"export function parse() {",
+				"  const mode = process.argv[2];",
+				"  console.log(mode);",
+				"}",
+			].join("\n"),
+		);
+		const diagnostics = await detectDeadPatterns(makeContext([filePath]));
+		const consoleD = diagnostics.filter((d) => d.rule === "ai-slop/console-leftover");
+		expect(consoleD).toHaveLength(1);
+	});
+
+	it("does not flag bracket-prefixed operational logs", async () => {
+		const filePath = writeFile(
+			"server.ts",
+			[
+				"export function start(port: number) {",
+				"  console.log(`[server] listening on ${port}`);",
+				"  console.info('[server] ready');",
+				"}",
+			].join("\n"),
+		);
+		const diagnostics = await detectDeadPatterns(makeContext([filePath]));
+		const consoleD = diagnostics.filter((d) => d.rule === "ai-slop/console-leftover");
+		expect(consoleD).toHaveLength(0);
+	});
 });
 
 // ─── TODO Stubs ──────────────────────────────────────────────────────────────
@@ -307,6 +368,16 @@ describe("empty functions", () => {
 		expect(matches).toHaveLength(1);
 		expect(matches[0].severity).toBe("info");
 	});
+
+	it("does not flag property-assigned no-op shims", async () => {
+		const filePath = writeFile(
+			"browser-shim.ts",
+			["const plugins = [];", "plugins.refresh = () => {};"].join("\n"),
+		);
+		const diagnostics = await detectDeadPatterns(makeContext([filePath]));
+		const matches = diagnostics.filter((d) => d.rule === "ai-slop/empty-function");
+		expect(matches).toHaveLength(0);
+	});
 });
 
 // ─── Hardcoded Config Literals ───────────────────────────────────────────────
@@ -343,6 +414,12 @@ describe("hardcoded config literals", () => {
 				'const proxyTarget = "http://127.0.0.1:3001";',
 			].join("\n"),
 		);
+		const diagnostics = await detectHardcodedConfigLiterals(makeContext([filePath]));
+		expect(diagnostics.filter((d) => d.rule === "ai-slop/hardcoded-url")).toEqual([]);
+	});
+
+	it("does not flag URL constructor parsing probes", async () => {
+		const filePath = writeFile("url-parse.ts", "const probe = new URL(`http://${hostname}`);");
 		const diagnostics = await detectHardcodedConfigLiterals(makeContext([filePath]));
 		expect(diagnostics.filter((d) => d.rule === "ai-slop/hardcoded-url")).toEqual([]);
 	});
@@ -426,6 +503,19 @@ describe("hardcoded config literals", () => {
 				'const STORAGE_KEY = "scanaislop_theme";',
 				'const entry = { key: "swallowed-exception" };',
 				'const map = { "hardcoded-secret": ["security/hardcoded-secret"] };',
+			].join("\n"),
+		);
+		const diagnostics = await detectHardcodedConfigLiterals(makeContext([filePath]));
+		expect(diagnostics.filter((d) => d.rule === "ai-slop/hardcoded-id")).toEqual([]);
+	});
+
+	it("does not flag stable schema/keychain constants as provider IDs", async () => {
+		const filePath = writeFile(
+			"keychain.ts",
+			[
+				"const attempts = [",
+				"  ['secret-tool', 'lookup', 'xdg:schema', 'chrome_libsecret_os_crypt_password_v2'],",
+				"];",
 			].join("\n"),
 		);
 		const diagnostics = await detectHardcodedConfigLiterals(makeContext([filePath]));

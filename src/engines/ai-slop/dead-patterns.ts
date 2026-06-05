@@ -8,7 +8,7 @@ import { isNonProductionPath } from "./non-production-paths.js";
 
 const JS_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"]);
 
-const CONSOLE_LOG_PATTERN = /\bconsole\.(?:log|debug|info|trace|dir|table)\s*\(/;
+const CONSOLE_CALL_PATTERN = /\bconsole\.(log|debug|info|trace|dir|table)\s*\(/;
 
 const slop = (
 	filePath: string,
@@ -33,6 +33,25 @@ const slop = (
 
 const LOGGER_FILE_PATTERN = /(?:^|\/)(?:logger|logging|log)\.[^/]+$/i;
 const CLI_ENTRYPOINT_PATTERN = /(?:^|\/)(?:cli|cli[-_.][^/]*|[^/]+[-_]cli)\.[mc]?[jt]sx?$/i;
+const ENTRYPOINT_GUARD_PATTERN = /\b(?:import\.meta\.main|require\.main\s*===\s*module)\b/;
+const OPERATIONAL_LOG_PATTERN = /\bconsole\.(?:log|info)\s*\(\s*(?:`|["'])\s*\[[^\]\n]{1,48}\]/;
+const DEBUG_SIGNAL_PATTERN =
+	/\b(?:debug|dbg|trace|dump|inspect|todo|tmp|temp|remove\s+me|leftover|here|checkpoint)\b/i;
+
+const shouldFlagConsoleCall = (trimmed: string): boolean => {
+	const match = CONSOLE_CALL_PATTERN.exec(trimmed);
+	if (!match) return false;
+	const method = match[1];
+	if (method === "trace" || method === "dir" || method === "table") return true;
+	if (method === "debug")
+		return DEBUG_SIGNAL_PATTERN.test(trimmed) || !OPERATIONAL_LOG_PATTERN.test(trimmed);
+	if (method === "info" || method === "log") {
+		if (/console\.log\(\s*JSON\.stringify\b/.test(trimmed)) return false;
+		if (OPERATIONAL_LOG_PATTERN.test(trimmed)) return false;
+		return true;
+	}
+	return false;
+};
 
 const detectConsoleLeftovers = (
 	content: string,
@@ -44,6 +63,7 @@ const detectConsoleLeftovers = (
 	if (LOGGER_FILE_PATTERN.test(relativePath)) return [];
 	if (isNonProductionPath(relativePath) || CLI_ENTRYPOINT_PATTERN.test(relativePath)) return [];
 	if (content.startsWith("#!")) return [];
+	if (ENTRYPOINT_GUARD_PATTERN.test(content)) return [];
 
 	const diagnostics: Diagnostic[] = [];
 	const lines = content.split("\n");
@@ -52,11 +72,7 @@ const detectConsoleLeftovers = (
 		const trimmed = lines[i].trim();
 		if (trimmed.startsWith("//") || trimmed.startsWith("*")) continue;
 
-		if (CONSOLE_LOG_PATTERN.test(trimmed)) {
-			if (/console\.(?:error|warn)\s*\(/.test(trimmed)) continue;
-			// Skip JSON output patterns like console.log(JSON.stringify(...))
-			if (/console\.log\(\s*JSON\.stringify\b/.test(trimmed)) continue;
-
+		if (shouldFlagConsoleCall(trimmed)) {
 			diagnostics.push(
 				slop(
 					relativePath,
@@ -106,6 +122,9 @@ const isGuardedSingleLineExit = (lines: string[], lineIndex: number): boolean =>
 	const control = contextLines.join(" ");
 	return /(?:^|[}\s])(?:if|else\s+if|for|while)\s*\(/.test(control) && !/{\s*$/.test(control);
 };
+
+const isPropertyNoopAssignment = (trimmed: string): boolean =>
+	/^(?:[\w$]+\.)+[\w$]+\s*=\s*(?:function\s*)?\([^)]*\)\s*(?:=>)?\s*\{\s*\}\s*;?$/.test(trimmed);
 
 const detectTodoStubs = (content: string, relativePath: string): Diagnostic[] => {
 	const diagnostics: Diagnostic[] = [];
@@ -209,7 +228,8 @@ const detectDeadCodePatterns = (
 			JS_EXTENSIONS.has(ext) &&
 			/(?:function\s+\w+\s*\([^)]*\)|=>\s*)\s*\{\s*\}\s*;?\s*$/.test(trimmed) &&
 			!trimmed.startsWith("interface") &&
-			!trimmed.startsWith("type ")
+			!trimmed.startsWith("type ") &&
+			!isPropertyNoopAssignment(trimmed)
 		) {
 			diagnostics.push(
 				slop(

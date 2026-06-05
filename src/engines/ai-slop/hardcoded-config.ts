@@ -62,6 +62,10 @@ const VENDOR_API_DOMAINS = [
 const isVendorApiHost = (host: string): boolean =>
 	VENDOR_API_DOMAINS.some((d) => host === d || host.endsWith(`.${d}`));
 const PLACEHOLDER_ID_RE = /^(?:changeme|replace[_-]?me|your[_-]|example|placeholder|todo)/i;
+const PROVIDER_ID_RE =
+	/^(?:price|prod|cus|sub|acct|org|app|tenant|workspace|project|client|key|tok|token|sk|pk)_[A-Za-z0-9][A-Za-z0-9_-]{7,}$/i;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const READABLE_KEY_RE = /^[a-z][a-z0-9]*(?:[_-][a-z0-9]+){2,}$/;
 
 interface FindingSpec {
 	rule: string;
@@ -116,9 +120,11 @@ const safeUrlHost = (urlText: string): string | null => {
 };
 
 const isEnvBackedLine = (line: string): boolean => ENV_REFERENCE_RE.test(line);
+const TEMPLATE_INTERPOLATION_START = "$" + "{";
 
 const shouldFlagUrlLiteral = (line: string, urlText: string): boolean => {
 	if (isEnvBackedLine(line)) return false;
+	if (urlText.includes(TEMPLATE_INTERPOLATION_START) && /\bnew\s+URL\s*\(/.test(line)) return false;
 	const host = safeUrlHost(urlText);
 	if (!host) return false;
 	if (PLACEHOLDER_HOSTS.has(host)) return false;
@@ -135,8 +141,12 @@ const hasUsefulIdShape = (value: string): boolean => {
 	if (ENV_VAR_NAME_RE.test(value)) return false;
 	if (/^https?:\/\//i.test(value)) return false;
 	if (/^[A-Za-z]+$/.test(value)) return false;
-	// A digit separates an opaque ID from a readable slug/storage key.
-	return /[0-9]/.test(value);
+	if (READABLE_KEY_RE.test(value) && !PROVIDER_ID_RE.test(value)) return false;
+	if (PROVIDER_ID_RE.test(value)) return true;
+	if (UUID_RE.test(value)) return true;
+	if (!/[0-9]/.test(value)) return false;
+	// Last-resort opaque token heuristic: long mixed-case/alnum values without readable separators.
+	return value.length >= 24 && !/[_-]/.test(value) && /[a-z]/.test(value) && /[A-Z]/.test(value);
 };
 
 const scanLineForConfigLiterals = (

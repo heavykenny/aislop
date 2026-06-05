@@ -15,6 +15,8 @@ const STYLE_RULES = new Set([
 	"complexity/function-too-long",
 ]);
 const STYLE_WEIGHT = 0.5;
+const COMMENT_STYLE_RULE_CAP = 12;
+const COMMENT_STYLE_RULES = new Set(["ai-slop/trivial-comment", "ai-slop/narrative-comment"]);
 
 const getEffectiveFileCount = (diagnostics: Diagnostic[], sourceFileCount?: number): number => {
 	if (typeof sourceFileCount === "number" && sourceFileCount > 0) {
@@ -50,11 +52,20 @@ export const calculateScore = (
 			(deductionsByRule.get(key) ?? 0) + severityPenalty * engineWeight * styleFactor,
 		);
 	}
-	const ruleCap = typeof maxPerRule === "number" && maxPerRule > 0 ? maxPerRule : null;
-	const deductions = [...deductionsByRule.values()].reduce(
-		(total, value) => total + (ruleCap ? Math.min(value, ruleCap) : value),
-		0,
-	);
+	const defaultRuleCap = typeof maxPerRule === "number" && maxPerRule > 0 ? maxPerRule : null;
+	const capForRule = (key: string): number | null => {
+		const rule = key.slice(key.indexOf(":") + 1);
+		if (COMMENT_STYLE_RULES.has(rule)) {
+			return defaultRuleCap
+				? Math.min(defaultRuleCap, COMMENT_STYLE_RULE_CAP)
+				: COMMENT_STYLE_RULE_CAP;
+		}
+		return defaultRuleCap;
+	};
+	const deductions = [...deductionsByRule.entries()].reduce((total, [key, value]) => {
+		const cap = capForRule(key);
+		return total + (cap ? Math.min(value, cap) : value);
+	}, 0);
 
 	const effectiveFileCount = getEffectiveFileCount(diagnostics, sourceFileCount);
 	const smoothingConstant = typeof smoothing === "number" ? smoothing : 10;

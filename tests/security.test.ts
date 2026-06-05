@@ -539,6 +539,50 @@ describe("detectRiskyConstructs", () => {
 		expect(innerHtmlDiags).toHaveLength(0);
 	});
 
+	it("does NOT flag safe numeric and formatter-only innerHTML templates", async () => {
+		const filePath = writeFile(
+			"inner-template-numeric.ts",
+			[
+				"const refText = refCount > 0 ? ` · ${refCount} refs` : '';",
+				'pill.innerHTML = `<span class="dot"></span> status${refText}`;',
+				"box.innerHTML = `<span>${fmtBoxVal(m.top)}</span><span>${Math.round(size.width || 0)}</span>`;",
+			].join("\n"),
+		);
+		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));
+		const innerHtmlDiags = diagnostics.filter((d) => d.rule === "security/innerhtml");
+		expect(innerHtmlDiags).toHaveLength(0);
+	});
+
+	it("does NOT flag safe HTML accumulators with escaped appends", async () => {
+		const filePath = writeFile(
+			"inner-accumulator-safe.ts",
+			[
+				"let html = '';",
+				"for (const prop of editableProps) {",
+				"  const val = computed[prop] || '';",
+				"  html += `<span data-prop=\"${escapeHtml(prop)}\">${escapeHtml(val || '(none)')}</span>`;",
+				"}",
+				"html += '<div class=\"footer\">Done</div>';",
+				"panel.innerHTML = html;",
+			].join("\n"),
+		);
+		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));
+		const innerHtmlDiags = diagnostics.filter((d) => d.rule === "security/innerhtml");
+		expect(innerHtmlDiags).toHaveLength(0);
+	});
+
+	it("still flags unsafe HTML accumulators with raw appends", async () => {
+		const filePath = writeFile(
+			"inner-accumulator-unsafe.ts",
+			["let html = '';", "html += `<span>${user.name}</span>`;", "panel.innerHTML = html;"].join(
+				"\n",
+			),
+		);
+		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));
+		const innerHtmlDiags = diagnostics.filter((d) => d.rule === "security/innerhtml");
+		expect(innerHtmlDiags).toHaveLength(1);
+	});
+
 	it("still flags innerHTML templates with raw interpolated values", async () => {
 		const filePath = writeFile(
 			"inner-template-raw.ts",
