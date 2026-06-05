@@ -4,6 +4,8 @@
 
 [![npm version](https://img.shields.io/npm/v/aislop.svg)](https://www.npmjs.com/package/aislop)
 [![npm downloads](https://img.shields.io/npm/dm/aislop.svg)](https://www.npmjs.com/package/aislop)
+[![PyPI downloads](https://img.shields.io/pepy/dt/aislop.svg?label=PyPI%20downloads)](https://pypi.org/project/aislop/)
+[![Homebrew tap](https://img.shields.io/badge/Homebrew-scanaislop%2Ftap-2f855a.svg)](https://github.com/scanaislop/homebrew-tap)
 [![CI](https://github.com/scanaislop/aislop/actions/workflows/ci.yml/badge.svg)](https://github.com/scanaislop/aislop/actions/workflows/ci.yml)
 [![aislop score](https://badges.scanaislop.com/score/scanaislop/aislop.svg)](https://scanaislop.com/scanaislop/aislop)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
@@ -20,6 +22,16 @@ npx aislop@latest scan
 ```
 
 No install needed. Works on any project. Get your score in seconds.
+
+Prefer a persistent install? The same CLI ships through three channels:
+
+```bash
+brew install scanaislop/tap/aislop   # macOS / Linux (Homebrew)
+pipx install aislop                  # Python (pipx)
+npm install -g aislop                # Node (global)
+```
+
+See [Installation](#installation) for every option.
 
 ```bash
 aislop fix                   # auto-fix issues after installing
@@ -46,6 +58,10 @@ Run `npx aislop@latest badge` to auto-generate. Free at [scanaislop.com](https:/
 
 ## Installation
 
+The same CLI is published to npm, Homebrew, and PyPI. Pick whichever fits your stack.
+
+**Node / npm**
+
 ```bash
 # Run without installing
 npx aislop@latest scan
@@ -64,6 +80,24 @@ npm install -g aislop
 ```
 
 Also available as [`@scanaislop/aislop`](docs/installation.md) on GitHub Packages.
+
+**Homebrew** (macOS / Linux)
+
+```bash
+brew install scanaislop/tap/aislop
+```
+
+Homebrew installs Node.js as a dependency if it isn't already present. Details: [homebrew-tap](https://github.com/scanaislop/homebrew-tap).
+
+**Python / pipx**
+
+```bash
+pipx install aislop
+```
+
+`pipx` keeps `aislop` in its own isolated environment. Needs Node.js on `PATH`. Details: [PyPI package](https://pypi.org/project/aislop/).
+
+Full reference for every channel, bundled tooling, and external tools: [docs/installation.md](docs/installation.md).
 
 ---
 

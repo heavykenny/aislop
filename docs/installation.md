@@ -1,5 +1,13 @@
 # Installation
 
+The same CLI is published to npm, Homebrew, and PyPI. Pick whichever fits your stack — every channel installs the identical `aislop` and `aislop-mcp` commands.
+
+| Channel | Command | Notes |
+|---|---|---|
+| npm / npx | `npx aislop@latest scan` | No install; bundles its own tooling |
+| Homebrew | `brew install scanaislop/tap/aislop` | macOS / Linux; pulls Node as a dependency |
+| Python / pipx | `pipx install aislop` | Isolated env; needs Node on `PATH` |
+
 ## Run without installing
 
 ```bash
@@ -33,6 +41,33 @@ The package is also published as `@scanaislop/aislop` on GitHub Packages:
 ```bash
 npm install --save-dev @scanaislop/aislop --registry=https://npm.pkg.github.com
 ```
+
+## Install with Homebrew
+
+macOS and Linux, via the official tap:
+
+```bash
+brew install scanaislop/tap/aislop
+```
+
+Equivalent two-step form:
+
+```bash
+brew tap scanaislop/tap
+brew install aislop
+```
+
+Homebrew installs Node.js as a runtime dependency if it isn't already present. Upgrade with `brew upgrade aislop`. More: [homebrew-tap](https://github.com/scanaislop/homebrew-tap).
+
+## Install with pipx (Python)
+
+For Python-tooling environments:
+
+```bash
+pipx install aislop
+```
+
+`pipx` keeps `aislop` in an isolated virtual environment. Plain `pip install --user aislop` also works. Both still require **Node.js** on `PATH`, since the engines run on Node. Upgrade with `pipx upgrade aislop`. More: [PyPI package](https://pypi.org/project/aislop/).
 
 ## Bundled tooling
 
