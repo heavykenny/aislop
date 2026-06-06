@@ -3,9 +3,7 @@ import path from "node:path";
 
 const MAX_BUFFER = 50 * 1024 * 1024;
 
-// Distinguishes a missing/unfetched base ref from a genuine empty diff, so an
-// explicit `--base` that can't be resolved fails the run instead of silently
-// scanning zero files and passing the gate.
+// Separates a missing/unfetched base ref from a genuine empty diff.
 export const baseRefExists = (cwd: string, ref: string): boolean => {
 	const result = spawnSync("git", ["rev-parse", "--verify", "--quiet", `${ref}^{commit}`], {
 		cwd,

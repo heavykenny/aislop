@@ -32,7 +32,6 @@ export { buildScanRender } from "./scan-render.js";
 interface ScanOptions {
 	changes: boolean;
 	staged: boolean;
-	/** Git ref to diff against when resolving `--changes` (defaults to HEAD). */
 	base?: string;
 	verbose: boolean;
 	json: boolean;
@@ -80,8 +79,6 @@ export const scanCommand = async (
 		return { exitCode: 1 };
 	}
 
-	// An explicit --base that cannot be resolved must fail the run, not silently
-	// scan zero changed files and pass the gate.
 	if (options.changes && options.base && !baseRefExists(resolvedDir, options.base)) {
 		const msg = `Could not resolve base ref "${options.base}". Make sure it exists and was fetched (e.g. \`git fetch origin ${options.base}\`).`;
 		if (options.json) {

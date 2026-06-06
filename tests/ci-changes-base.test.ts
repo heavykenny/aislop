@@ -43,7 +43,6 @@ describe("ci --changes --base", () => {
 		git(tmpDir, ["config", "user.email", "test@example.com"]);
 		git(tmpDir, ["config", "user.name", "test"]);
 		git(tmpDir, ["config", "commit.gpgsign", "false"]);
-		// Slop lives only on the base branch, already committed.
 		write(tmpDir, "tainted.ts", SECRET);
 		git(tmpDir, ["add", "."]);
 		git(tmpDir, ["commit", "-m", "base", "--no-verify"]);
@@ -51,7 +50,6 @@ describe("ci --changes --base", () => {
 			cwd: tmpDir,
 			encoding: "utf8",
 		}).trim();
-		// PR branch adds a clean, committed file (not in the working tree as a diff).
 		git(tmpDir, ["checkout", "-b", "feature"]);
 		write(tmpDir, "clean.ts", CLEAN);
 		git(tmpDir, ["add", "."]);
@@ -73,8 +71,6 @@ describe("ci --changes --base", () => {
 	});
 
 	it("fails loudly when an explicit --base ref cannot be resolved", () => {
-		// A misspelled or unfetched base ref must NOT degrade into a clean
-		// zero-file pass: that would let a broken PR gate go green.
 		const res = runCli(["ci", tmpDir, "--changes", "--base", "origin/does-not-exist", "--json"]);
 		expect(res.status).not.toBe(0);
 		const parsed = JSON.parse(res.stdout) as { error?: string };
