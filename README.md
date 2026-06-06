@@ -122,6 +122,7 @@ aislop update              # current and latest npm versions
 aislop scan                       # current directory
 aislop scan ./src                 # specific directory
 aislop scan --changes             # changed files from HEAD
+aislop scan --changes --base origin/main  # changed vs a base branch (PRs)
 aislop scan --staged              # staged files only
 aislop scan -d                    # verbose file/rule detail
 aislop scan --json                # JSON output
@@ -269,9 +270,12 @@ Expose aislop as MCP tools for Claude Desktop, Cursor, Codex:
 
 ```bash
 aislop ci                  # JSON output, exits 1 if score < threshold
+aislop ci --changes --base origin/main  # gate only the files a PR changes
 aislop ci --human          # human-friendly CI output
 aislop ci --sarif          # SARIF output for code scanning
 ```
+
+`ci` accepts the same `--changes` / `--staged` / `--base <ref>` scoping as `scan`. Use `--changes --base origin/<target>` to gate a pull request on only the files it touches; the score gate and exit code still apply.
 
 ### Other commands
 
@@ -369,6 +373,27 @@ Manual workflow without the Marketplace Action:
   with:
     sarif_file: aislop.sarif
 ```
+
+### Bitbucket Pipelines
+
+Bitbucket clones shallow by default, so fetch the PR target branch and gate on only the changed files with `ci --changes --base`:
+
+```yaml
+# bitbucket-pipelines.yml
+pipelines:
+  pull-requests:
+    "**":
+      - step:
+          name: aislop gate
+          image: node:20
+          clone:
+            depth: full   # branch diffs need history
+          script:
+            - git fetch origin "$BITBUCKET_PR_DESTINATION_BRANCH"
+            - npx --yes aislop@latest ci --changes --base "origin/$BITBUCKET_PR_DESTINATION_BRANCH"
+```
+
+`ci` applies the score gate and exit code, so no JSON parsing or hand-rolled threshold is needed. More providers: [CI/CD](docs/ci.md).
 
 ### Quality gate
 

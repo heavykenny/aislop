@@ -37,6 +37,7 @@ const fireInstalledOnce = (): void => {
 interface ScanFlags {
 	changes?: boolean;
 	staged?: boolean;
+	base?: string;
 	verbose?: boolean;
 	json?: boolean;
 	sarif?: boolean;
@@ -68,6 +69,7 @@ const runScan = async (directory: string, flags: ScanFlags): Promise<void> => {
 	const { exitCode } = await scanCommand(directory, finalConfig, {
 		changes: Boolean(flags.changes),
 		staged: Boolean(flags.staged),
+		base: flags.base,
 		verbose: Boolean(flags.verbose),
 		json: !sarif && wantsJson(flags),
 		sarif,
@@ -109,6 +111,7 @@ const program = new Command()
 	.argument("[directory]", "directory to scan when no command is passed", ".")
 	.option("--changes", "only scan changed files (git diff)")
 	.option("--staged", "only scan staged files")
+	.option("--base <ref>", "diff base for --changes, e.g. origin/main (default HEAD)")
 	.option("-d, --verbose", "show file details per rule")
 	.option("--json", "output JSON instead of terminal UI")
 	.option("--sarif", "output SARIF 2.1.0 (for GitHub code scanning)")
@@ -142,6 +145,7 @@ program
 	.description("Score a project and print findings")
 	.option("--changes", "only scan changed files")
 	.option("--staged", "only scan staged files")
+	.option("--base <ref>", "diff base for --changes, e.g. origin/main (default HEAD)")
 	.option("-d, --verbose", "show file details per rule")
 	.option("--json", "output JSON")
 	.option("--sarif", "output SARIF 2.1.0 (for GitHub code scanning)")
@@ -242,28 +246,40 @@ program
 		);
 	});
 
-program
-	.command("ci [directory]")
-	.description("Run the quality gate for CI")
-	.option("--human", "render the human-friendly scan design instead of JSON")
-	.option("--sarif", "output SARIF 2.1.0 (for GitHub code scanning)")
-	.option("--format <format>", "output format: json or sarif")
-	.action(async (directory = ".", _flags, command) => {
-		const flags = command.optsWithGlobals() as {
-			human?: boolean;
-			sarif?: boolean;
-			format?: string;
-		};
-		const config = loadConfig(directory);
-		const { exitCode } = await ciCommand(directory, config, {
-			human: Boolean(flags.human),
-			sarif: Boolean(flags.sarif) || flags.format === "sarif",
-		});
-		if (exitCode !== 0) {
-			await flushTelemetry();
-			process.exitCode = exitCode;
-		}
+const ciProgram = program.command("ci [directory]").description("Run the quality gate for CI");
+
+const CI_OPTIONS: [flag: string, description: string][] = [
+	["--changes", "only gate files changed vs --base (or HEAD)"],
+	["--staged", "only gate staged files"],
+	["--base <ref>", "diff base for --changes, e.g. origin/main (default HEAD)"],
+	["--human", "render the human-friendly scan design instead of JSON"],
+	["--sarif", "output SARIF 2.1.0 (for GitHub code scanning)"],
+	["--format <format>", "output format: json or sarif"],
+];
+for (const [flag, description] of CI_OPTIONS) ciProgram.option(flag, description);
+
+ciProgram.action(async (directory = ".", _flags, command) => {
+	const flags = command.optsWithGlobals() as {
+		changes?: boolean;
+		staged?: boolean;
+		base?: string;
+		human?: boolean;
+		sarif?: boolean;
+		format?: string;
+	};
+	const config = loadConfig(directory);
+	const { exitCode } = await ciCommand(directory, config, {
+		changes: Boolean(flags.changes),
+		staged: Boolean(flags.staged),
+		base: flags.base,
+		human: Boolean(flags.human),
+		sarif: Boolean(flags.sarif) || flags.format === "sarif",
 	});
+	if (exitCode !== 0) {
+		await flushTelemetry();
+		process.exitCode = exitCode;
+	}
+});
 
 program
 	.command("rules [directory]")

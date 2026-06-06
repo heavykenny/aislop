@@ -88,6 +88,27 @@ workflows:
       - aislop
 ```
 
+## Bitbucket Pipelines
+
+Bitbucket clones shallow by default and exposes the PR target branch as `$BITBUCKET_PR_DESTINATION_BRANCH`. Fetch the base, then gate on the changed files with `ci --changes --base`:
+
+```yaml
+# bitbucket-pipelines.yml
+pipelines:
+  pull-requests:
+    "**":
+      - step:
+          name: aislop gate
+          image: node:20
+          clone:
+            depth: full # branch diffs need history; the default shallow clone hides it
+          script:
+            - git fetch origin "$BITBUCKET_PR_DESTINATION_BRANCH"
+            - npx --yes aislop@latest ci --changes --base "origin/$BITBUCKET_PR_DESTINATION_BRANCH"
+```
+
+`ci` handles the score gate and the non-zero exit code, so there is no need to parse the JSON or hand-roll a threshold check. Drop `--changes --base ...` to gate the whole repository instead of just the PR diff.
+
 ## Quality gate
 
 Set a minimum score in `.aislop/config.yml`:
@@ -110,11 +131,20 @@ npx aislop scan --staged
 
 ## Scan changed files
 
-Scan only files that differ from `HEAD` (useful in CI for PR checks):
+Scan only files that differ from `HEAD` (uncommitted work, useful locally):
 
 ```bash
 npx aislop scan --changes
 ```
+
+In a PR the changes are already committed, so a plain `--changes` (which diffs against `HEAD`) sees nothing. Pass `--base <ref>` to diff against the target branch instead. Both `scan` and `ci` accept `--changes` and `--base`, so you can gate a PR on only the files it touches:
+
+```bash
+# Gate only the files this PR changes, relative to main
+npx aislop ci --changes --base origin/main
+```
+
+The base ref must exist in the checkout, so make sure CI fetches it (a full clone, or `git fetch origin <branch>`). The score gate (`failBelow`) and exit code behave exactly as they do for a full `ci` run.
 
 ## JSON output
 

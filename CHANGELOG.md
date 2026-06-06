@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## Unreleased
 
+### Added
+
+- **`--base <ref>` and `ci --changes`.** Both `scan` and `ci` now accept `--changes --base <ref>` to diff against a branch instead of `HEAD`, so a pull request can be gated on only the files it touches even when those files are already committed (a plain `--changes` diffs the working tree against `HEAD` and sees nothing in CI). `ci` also accepts `--changes` and `--staged` directly, applying the score gate and exit code to the scoped set. New Bitbucket Pipelines recipe in the docs uses `aislop ci --changes --base "origin/$BITBUCKET_PR_DESTINATION_BRANCH"`, removing the previous merge-base + soft-reset workaround ([#185](https://github.com/scanaislop/aislop/issues/185)).
+
 ## 0.10.2 (2026-06-02)
 
 A patch release focused on safer release/CI plumbing and sharper scan consistency. The GitHub Action now keeps wrapper and npm CLI versions separate without letting exact npm pins be shadowed by a checked-out local package, `aislop init` emits reproducible pinned workflows, and the rule catalog/docs now stay aligned with the implemented detectors.

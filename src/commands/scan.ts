@@ -32,6 +32,8 @@ export { buildScanRender } from "./scan-render.js";
 interface ScanOptions {
 	changes: boolean;
 	staged: boolean;
+	/** Git ref to diff against when resolving `--changes` (defaults to HEAD). */
+	base?: string;
 	verbose: boolean;
 	json: boolean;
 	sarif?: boolean;
@@ -126,9 +128,15 @@ const runScanBody = async (
 			log.muted(`Scope: ${files.length} staged file(s)`);
 		}
 	} else if (options.changes) {
-		files = filterProjectFiles(resolvedDir, getChangedFiles(resolvedDir), [], excludePatterns);
+		files = filterProjectFiles(
+			resolvedDir,
+			getChangedFiles(resolvedDir, options.base),
+			[],
+			excludePatterns,
+		);
 		if (!machineOutput) {
-			log.muted(`Scope: ${files.length} changed file(s)`);
+			const scope = options.base ? `changed vs ${options.base}` : "changed";
+			log.muted(`Scope: ${files.length} ${scope} file(s)`);
 		}
 	} else {
 		const allFiles = listProjectFiles(resolvedDir);

@@ -5,6 +5,9 @@ import { scanCommand } from "./scan.js";
 interface CiOptions {
 	human?: boolean;
 	sarif?: boolean;
+	changes?: boolean;
+	staged?: boolean;
+	base?: string;
 }
 
 export const ciCommand = async (
@@ -14,8 +17,9 @@ export const ciCommand = async (
 ): Promise<{ exitCode: number }> => {
 	try {
 		return await scanCommand(directory, config, {
-			changes: false,
-			staged: false,
+			changes: Boolean(options.changes),
+			staged: Boolean(options.staged),
+			base: options.base,
 			verbose: false,
 			json: !options.human && !options.sarif,
 			sarif: options.sarif,

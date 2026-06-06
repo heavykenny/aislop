@@ -40,7 +40,8 @@ npx aislop@latest scan
 
 | Flag | Description |
 |---|---|
-| `--changes` | Only scan files changed from `HEAD` |
+| `--changes` | Only scan changed files (defaults to diffing `HEAD`) |
+| `--base <ref>` | Diff base for `--changes`, e.g. `origin/main` (default `HEAD`) |
 | `--staged` | Only scan staged files |
 | `-d, --verbose` | Show detailed per-file output |
 | `--json` | Output JSON instead of terminal UI |
@@ -48,6 +49,19 @@ npx aislop@latest scan
 | `--format <format>` | Output format: `json` or `sarif` |
 | `--include <patterns>` | Only scan matching comma-separated or repeated paths |
 | `--exclude <patterns>` | Exclude comma-separated or repeated paths |
+
+### ci
+
+| Flag | Description |
+|---|---|
+| `--changes` | Only gate changed files (defaults to diffing `HEAD`) |
+| `--base <ref>` | Diff base for `--changes`, e.g. `origin/main` (default `HEAD`) |
+| `--staged` | Only gate staged files |
+| `--human` | Render the human-friendly scan UI instead of JSON |
+| `--sarif` | Output SARIF 2.1.0 |
+| `--format <format>` | Output format: `json` or `sarif` |
+
+Use `--changes --base origin/<target>` to gate a pull request on only the files it touches. See [CI / CD](ci.md) for per-provider recipes (GitHub Actions, GitLab, CircleCI, Bitbucket Pipelines).
 
 ### fix
 
