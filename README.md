@@ -16,12 +16,14 @@ npx aislop@latest scan
 
 No install needed. Works on any project. Get your score in seconds.
 
-Prefer a persistent install? The same CLI ships through three channels:
+Also available on npm, Yarn, Bun, Homebrew, and PyPI:
 
 ```bash
-brew install scanaislop/tap/aislop   # macOS / Linux (Homebrew)
-pipx install aislop                  # Python (pipx)
-npm install -g aislop                # Node (global)
+npm install -g aislop                # npm
+yarn global add aislop               # Yarn
+bun add -g aislop                    # Bun
+brew install scanaislop/tap/aislop   # Homebrew
+pipx install aislop                  # Python
 ```
 
 See [Installation](#installation) for every option.
@@ -67,6 +69,9 @@ yarn add --dev aislop
 
 # pnpm
 pnpm add -D aislop
+
+# bun
+bun add -d aislop
 
 # Global
 npm install -g aislop
