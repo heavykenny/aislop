@@ -16,7 +16,23 @@ export interface FindingAssessment {
 
 export interface AssessedDiagnostic extends Diagnostic {
 	assessment: FindingAssessment;
+	forceFixable: boolean;
 }
+
+const KNIP_FORCE_RULES = new Set(["knip/files", "knip/dependencies", "knip/devDependencies"]);
+
+export const isForceFixable = (diagnostic: Diagnostic): boolean => {
+	if (diagnostic.fixable) return false;
+	if (KNIP_FORCE_RULES.has(diagnostic.rule)) return true;
+	// Only JS audits have a `fix -f` path; pip/govulncheck/cargo do not.
+	if (diagnostic.rule === "security/vulnerable-dependency") {
+		return diagnostic.detail === "npm" || diagnostic.detail === "pnpm";
+	}
+	if (diagnostic.rule.startsWith("expo-doctor/")) {
+		return diagnostic.rule !== "expo-doctor/config-error";
+	}
+	return false;
+};
 
 export interface FindingAssessmentRow {
 	kind: FindingKind;
@@ -107,6 +123,7 @@ export const withFindingAssessments = (diagnostics: Diagnostic[]): AssessedDiagn
 	diagnostics.map((diagnostic) => ({
 		...diagnostic,
 		assessment: assessDiagnostic(diagnostic),
+		forceFixable: isForceFixable(diagnostic),
 	}));
 
 export const summarizeFindingAssessments = (
