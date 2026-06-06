@@ -1,8 +1,12 @@
 import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 const CLI = path.resolve("dist/cli.js");
+const PKG_VERSION = (
+	JSON.parse(readFileSync(path.resolve("package.json"), "utf8")) as { version: string }
+).version;
 
 const runCli = (args: string[]) =>
 	spawnSync(process.execPath, [CLI, ...args], {
@@ -40,7 +44,7 @@ describe("cli ergonomics", () => {
 		const result = runCli(["version"]);
 
 		expect(result.status).toBe(0);
-		expect(result.stdout.trim()).toBe("0.11.0");
+		expect(result.stdout.trim()).toBe(PKG_VERSION);
 		expect(result.stderr).not.toContain("Path does not exist");
 	});
 
@@ -48,7 +52,7 @@ describe("cli ergonomics", () => {
 		const result = runCli(["-V"]);
 
 		expect(result.status).toBe(0);
-		expect(result.stdout.trim()).toBe("0.11.0");
+		expect(result.stdout.trim()).toBe(PKG_VERSION);
 		expect(result.stderr).not.toContain("unknown option");
 	});
 

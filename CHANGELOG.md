@@ -13,6 +13,7 @@ PR-scoped quality gates and set-and-forget CI. `scan` and `ci` can now gate a pu
 ### Added
 
 - **`--base <ref>` and `ci --changes`.** Both `scan` and `ci` now accept `--changes --base <ref>` to diff against a branch instead of `HEAD`, so a pull request can be gated on only the files it touches even when those files are already committed (a plain `--changes` diffs the working tree against `HEAD` and sees nothing in CI). `ci` also accepts `--changes` and `--staged` directly, applying the score gate and exit code to the scoped set. New Bitbucket Pipelines recipe in the docs uses `aislop ci --changes --base "origin/$BITBUCKET_PR_DESTINATION_BRANCH"`, removing the previous merge-base + soft-reset workaround ([#185](https://github.com/scanaislop/aislop/issues/185)).
+- **`forceFixable` flag.** `scan --json` diagnostics now carry an explicit `forceFixable` boolean for findings that only `aislop fix -f` resolves (npm/pnpm dependency vulnerabilities, unused files/deps, Expo dependency alignment), so tools can surface a force-fix action without parsing help text ([#192](https://github.com/scanaislop/aislop/pull/192)).
 
 ### Changed
 
