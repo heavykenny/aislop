@@ -17,12 +17,24 @@ const diag = (over: Partial<Diagnostic>): Diagnostic => ({
 });
 
 describe("isForceFixable", () => {
-	it("flags dependency vulnerabilities (fix -f only) as force-fixable", () => {
-		expect(isForceFixable(diag({}))).toBe(true);
+	it("flags npm/pnpm dependency vulnerabilities", () => {
+		expect(isForceFixable(diag({ detail: "npm" }))).toBe(true);
+		expect(isForceFixable(diag({ detail: "pnpm" }))).toBe(true);
+	});
+
+	it("does NOT flag non-JS dependency vulnerabilities (pip/go/cargo have no fix -f path)", () => {
+		expect(isForceFixable(diag({ detail: undefined }))).toBe(false);
 	});
 
 	it("flags knip unused files/deps as force-fixable", () => {
 		expect(isForceFixable(diag({ engine: "code-quality", rule: "knip/files" }))).toBe(true);
+	});
+
+	it("flags expo dependency-alignment findings but not config errors", () => {
+		expect(
+			isForceFixable(diag({ engine: "lint", rule: "expo-doctor/check-dependency-versions" })),
+		).toBe(true);
+		expect(isForceFixable(diag({ engine: "lint", rule: "expo-doctor/config-error" }))).toBe(false);
 	});
 
 	it("does not flag a normally auto-fixable finding", () => {
@@ -32,7 +44,7 @@ describe("isForceFixable", () => {
 	});
 
 	it("exposes forceFixable on assessed diagnostics for JSON output", () => {
-		const [assessed] = withFindingAssessments([diag({})]);
+		const [assessed] = withFindingAssessments([diag({ detail: "npm" })]);
 		expect(assessed.forceFixable).toBe(true);
 	});
 });
