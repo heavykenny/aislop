@@ -16,7 +16,20 @@ export interface FindingAssessment {
 
 export interface AssessedDiagnostic extends Diagnostic {
 	assessment: FindingAssessment;
+	forceFixable: boolean;
 }
+
+// Findings that `aislop fix` leaves alone but `aislop fix -f` resolves (dependency
+// overrides, unused-file/dep pruning). Exposed so consumers need not parse help text.
+const FORCE_FIXABLE_RULES = new Set([
+	"security/vulnerable-dependency",
+	"knip/files",
+	"knip/dependencies",
+	"knip/devDependencies",
+]);
+
+export const isForceFixable = (diagnostic: Diagnostic): boolean =>
+	!diagnostic.fixable && FORCE_FIXABLE_RULES.has(diagnostic.rule);
 
 export interface FindingAssessmentRow {
 	kind: FindingKind;
@@ -107,6 +120,7 @@ export const withFindingAssessments = (diagnostics: Diagnostic[]): AssessedDiagn
 	diagnostics.map((diagnostic) => ({
 		...diagnostic,
 		assessment: assessDiagnostic(diagnostic),
+		forceFixable: isForceFixable(diagnostic),
 	}));
 
 export const summarizeFindingAssessments = (
