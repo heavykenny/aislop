@@ -86,8 +86,10 @@ pipelines:
             depth: full   # branch diffs need history
           script:
             - git fetch origin "$BITBUCKET_PR_DESTINATION_BRANCH"
-            - npx --yes aislop@latest ci --changes --base "origin/$BITBUCKET_PR_DESTINATION_BRANCH"
+            - npx --yes aislop@latest ci --changes --base FETCH_HEAD
 ```
+
+Bitbucket's clone has only the source branch, so `git fetch origin <branch>` sets `FETCH_HEAD` without creating `origin/<branch>` — diff against `FETCH_HEAD` directly.
 
 ## Pre-commit hook
 
@@ -105,7 +107,7 @@ A plain `--changes` diffs the working tree against `HEAD`, so in CI (where PR ch
 npx aislop ci --changes --base origin/main
 ```
 
-The base ref must exist in the checkout, so fetch it first (`git fetch origin <branch>`, or a full clone). If an explicit `--base` cannot be resolved, the run fails instead of silently passing an empty scan. The score gate and exit code behave exactly as a full `ci` run.
+The base ref must exist in the checkout. With a full clone, `origin/<branch>` works directly; on a shallow or single-branch clone, run `git fetch origin <branch>` and pass `--base FETCH_HEAD` (the fetch sets `FETCH_HEAD` without creating `origin/<branch>`). If an explicit `--base` cannot be resolved, the run fails instead of silently passing an empty scan. The score gate and exit code behave exactly as a full `ci` run.
 
 ## Quality gate
 

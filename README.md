@@ -372,7 +372,7 @@ pipelines:
             depth: full   # branch diffs need history
           script:
             - git fetch origin "$BITBUCKET_PR_DESTINATION_BRANCH"
-            - npx --yes aislop@latest ci --changes --base "origin/$BITBUCKET_PR_DESTINATION_BRANCH"
+            - npx --yes aislop@latest ci --changes --base FETCH_HEAD
 ```
 
 `ci` applies the score gate and exit code, so no JSON parsing or hand-rolled threshold is needed. More providers: [CI/CD](docs/ci.md).
