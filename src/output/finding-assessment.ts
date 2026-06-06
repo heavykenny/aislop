@@ -19,19 +19,15 @@ export interface AssessedDiagnostic extends Diagnostic {
 	forceFixable: boolean;
 }
 
-// Unused files/deps — `aislop fix -f` prunes these in any project.
 const KNIP_FORCE_RULES = new Set(["knip/files", "knip/dependencies", "knip/devDependencies"]);
 
-// Findings that `aislop fix` leaves alone but `aislop fix -f` resolves. Gated by context,
-// not just rule id, so we never advertise a force fix that would be a no-op.
 export const isForceFixable = (diagnostic: Diagnostic): boolean => {
 	if (diagnostic.fixable) return false;
 	if (KNIP_FORCE_RULES.has(diagnostic.rule)) return true;
-	// Only JS audits have a force-fix path (pnpm.overrides / npm audit fix); pip/govulncheck/cargo do not.
+	// Only JS audits have a `fix -f` path; pip/govulncheck/cargo do not.
 	if (diagnostic.rule === "security/vulnerable-dependency") {
 		return diagnostic.detail === "npm" || diagnostic.detail === "pnpm";
 	}
-	// Expo dependency alignment runs under `-f` (expo install --fix); the config error is not a dep fix.
 	if (diagnostic.rule.startsWith("expo-doctor/")) {
 		return diagnostic.rule !== "expo-doctor/config-error";
 	}
