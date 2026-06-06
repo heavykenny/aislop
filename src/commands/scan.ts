@@ -14,7 +14,7 @@ import { renderHeader } from "../ui/header.js";
 import { type GridRow, type GridRowOutcome, LiveGrid } from "../ui/live-grid.js";
 import { log } from "../ui/logger.js";
 import { discoverProject } from "../utils/discover.js";
-import { getChangedFiles, getStagedFiles } from "../utils/git.js";
+import { baseRefExists, getChangedFiles, getStagedFiles } from "../utils/git.js";
 import { appendHistory } from "../utils/history.js";
 import {
 	filterProjectFiles,
@@ -72,6 +72,18 @@ export const scanCommand = async (
 	}
 	if (!fs.statSync(resolvedDir).isDirectory()) {
 		const msg = `Not a directory: ${resolvedDir}`;
+		if (options.json) {
+			console.log(JSON.stringify({ error: msg }, null, 2));
+		} else {
+			log.error(msg);
+		}
+		return { exitCode: 1 };
+	}
+
+	// An explicit --base that cannot be resolved must fail the run, not silently
+	// scan zero changed files and pass the gate.
+	if (options.changes && options.base && !baseRefExists(resolvedDir, options.base)) {
+		const msg = `Could not resolve base ref "${options.base}". Make sure it exists and was fetched (e.g. \`git fetch origin ${options.base}\`).`;
 		if (options.json) {
 			console.log(JSON.stringify({ error: msg }, null, 2));
 		} else {

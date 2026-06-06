@@ -71,4 +71,13 @@ describe("ci --changes --base", () => {
 		const full = runCli(["scan", tmpDir, "--json"]);
 		expect(rulesOf(full.stdout)).toContain("security/hardcoded-secret");
 	});
+
+	it("fails loudly when an explicit --base ref cannot be resolved", () => {
+		// A misspelled or unfetched base ref must NOT degrade into a clean
+		// zero-file pass: that would let a broken PR gate go green.
+		const res = runCli(["ci", tmpDir, "--changes", "--base", "origin/does-not-exist", "--json"]);
+		expect(res.status).not.toBe(0);
+		const parsed = JSON.parse(res.stdout) as { error?: string };
+		expect(parsed.error).toMatch(/does-not-exist/);
+	});
 });
