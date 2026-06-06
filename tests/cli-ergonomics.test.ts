@@ -40,7 +40,7 @@ describe("cli ergonomics", () => {
 		const result = runCli(["version"]);
 
 		expect(result.status).toBe(0);
-		expect(result.stdout.trim()).toBe("0.10.2");
+		expect(result.stdout.trim()).toBe("0.11.0");
 		expect(result.stderr).not.toContain("Path does not exist");
 	});
 
@@ -48,7 +48,7 @@ describe("cli ergonomics", () => {
 		const result = runCli(["-V"]);
 
 		expect(result.status).toBe(0);
-		expect(result.stdout.trim()).toBe("0.10.2");
+		expect(result.stdout.trim()).toBe("0.11.0");
 		expect(result.stderr).not.toContain("unknown option");
 	});
 

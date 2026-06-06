@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## Unreleased
 
+## 0.11.0 (2026-06-06)
+
+PR-scoped quality gates and set-and-forget CI. `scan` and `ci` can now gate a pull request on only the files it changed (`--changes --base <ref>`), and an explicit base ref that cannot be resolved fails the run instead of silently passing an empty scan. A moving `v1` Action tag plus `version: latest` mean workflows never need a version bump, and every CI example now standardizes on Node 24.
+
 ### Added
 
 - **`--base <ref>` and `ci --changes`.** Both `scan` and `ci` now accept `--changes --base <ref>` to diff against a branch instead of `HEAD`, so a pull request can be gated on only the files it touches even when those files are already committed (a plain `--changes` diffs the working tree against `HEAD` and sees nothing in CI). `ci` also accepts `--changes` and `--staged` directly, applying the score gate and exit code to the scoped set. New Bitbucket Pipelines recipe in the docs uses `aislop ci --changes --base "origin/$BITBUCKET_PR_DESTINATION_BRANCH"`, removing the previous merge-base + soft-reset workaround ([#185](https://github.com/scanaislop/aislop/issues/185)).
@@ -14,6 +18,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - **Set-and-forget CI.** A moving `v1` Action tag now tracks the latest release, so workflows can pin `uses: scanaislop/aislop@v1` instead of a per-release tag. `aislop init` generates a workflow using `@v1` with `version: latest`, and the CI docs lead with `npx --yes aislop@latest ci`. The release pipeline re-points `v1` automatically on each published release.
 - **Node standardized on 24.** `.nvmrc`, the Action's default `node-version`, and every CI docs example now use Node 24. The supported runtime floor is unchanged (`engines: ">=20"`).
+- **Marketplace Action renamed** to `aislop — AI Code Quality Gate`, published by `scanaislop`. Display metadata only; the action slug is unchanged.
 
 ## 0.10.2 (2026-06-02)
 
