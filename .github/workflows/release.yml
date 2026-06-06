@@ -79,3 +79,19 @@ jobs:
         run: npm publish --access public --registry=https://npm.pkg.github.com
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  move-major-tag:
+    name: Move v1 Action tag to this release
+    runs-on: ubuntu-latest
+    needs: publish-npm
+    if: ${{ !github.event.release.prerelease }}
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      - name: Re-point v1 to ${{ github.event.release.tag_name }}
+        run: |
+          git tag -f v1
+          git push origin v1 --force

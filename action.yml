@@ -13,7 +13,7 @@ inputs:
   node-version:
     description: Node.js version to install before running aislop.
     required: false
-    default: "20"
+    default: "24"
   format:
     description: Output format — "json" (default, CI-friendly) or "human".
     required: false

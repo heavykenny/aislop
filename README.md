@@ -317,14 +317,14 @@ Or wire it into the [pre-commit](https://pre-commit.com) framework via the bundl
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/scanaislop/aislop
-    rev: v0.10.2
+    rev: v1
     hooks:
       - id: aislop
 ```
 
 ### GitHub Actions
 
-Run `aislop init` and accept the workflow prompt, or add manually:
+Run `aislop init` and accept the workflow prompt, or add manually. The self-contained form always runs the latest CLI, so there's nothing to bump:
 
 ```yaml
 name: aislop
@@ -339,30 +339,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - uses: scanaislop/aislop@v0.10.2
+      - uses: actions/setup-node@v4
         with:
-          version: latest
+          node-version: 24
+      - run: npx --yes aislop@latest ci
 ```
 
-`uses: scanaislop/aislop@v0.10.2` pins the GitHub Action wrapper. `version: latest` follows the latest npm CLI. For fully deterministic CI, set both to the same release:
+Prefer the Marketplace Action? `@v1` tracks the latest release and `version: latest` keeps the CLI current. Pin `@v0.10.2` and a `version` for reproducible builds:
 
 ```yaml
 - uses: actions/checkout@v4
-
-- uses: scanaislop/aislop@v0.10.2
+- uses: scanaislop/aislop@v1
   with:
-    version: "0.10.2"
-```
-
-Manual workflow without the Marketplace Action:
-
-```yaml
-- uses: actions/checkout@v4
-- uses: actions/setup-node@v4
-  with:
-    node-version: 20
-- run: npx --yes aislop@latest ci .
+    version: latest
 ```
 
 **GitHub code scanning (SARIF)**: emit a SARIF 2.1.0 report and upload it so findings appear in the Security tab:
@@ -385,7 +374,7 @@ pipelines:
     "**":
       - step:
           name: aislop gate
-          image: node:20
+          image: node:24
           clone:
             depth: full   # branch diffs need history
           script:

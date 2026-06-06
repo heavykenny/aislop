@@ -1,14 +1,14 @@
 # CI / CD
 
+aislop runs the same gate everywhere. `aislop ci` scans, prints JSON, and exits non-zero when the score drops below your threshold or any error-severity diagnostic is present. The set-and-forget command is `npx --yes aislop@latest ci`: it always runs the latest published CLI, so there is no version to bump.
+
 ## Fastest path: `aislop init`
 
 Run `npx aislop init` and answer "yes" to the GitHub Actions workflow prompt. It writes `.aislop/config.yml` and `.github/workflows/aislop.yml` for you. Commit both and your quality gate is live.
 
-`.github/workflows/aislop.yml` is the GitHub Actions workflow file. You can rename the file, but it must live under `.github/workflows/`. `.aislop/config.yml` is the aislop policy file: thresholds, engines, scoring, and telemetry live there.
+`.github/workflows/aislop.yml` is the workflow file (it must live under `.github/workflows/`). `.aislop/config.yml` is the policy file: thresholds, engines, scoring, and telemetry live there.
 
 ## GitHub Actions
-
-Recommended Marketplace Action:
 
 ```yaml
 # .github/workflows/aislop.yml
@@ -24,47 +24,29 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - uses: scanaislop/aislop@v0.10.2
+      - uses: actions/setup-node@v4
         with:
-          version: latest
+          node-version: 24
+      - run: npx --yes aislop@latest ci
 ```
 
-For deterministic CI, pin both layers:
+Prefer the Marketplace Action? It wraps `setup-node` and runs the same gate. `@v1` tracks the latest release and `version: latest` keeps the CLI current, so there is still nothing to bump:
 
 ```yaml
 - uses: actions/checkout@v4
-
-- uses: scanaislop/aislop@v0.10.2
+- uses: scanaislop/aislop@v1   # or pin a release, e.g. @v0.10.2, for reproducible builds
   with:
-    version: "0.10.2"
+    version: latest            # CLI version; or pin one, e.g. "0.10.2"
 ```
-
-Versioning has two separate knobs:
-
-- `uses: scanaislop/aislop@v0.10.2` is the GitHub Action wrapper ref. It must be a real Git tag, branch, or SHA. GitHub does not resolve `@latest` unless this repository creates and maintains such a ref.
-- `version: latest` is the npm CLI version the Action runs. It maps to the npm `latest` dist-tag.
-
-Manual workflow without the Marketplace Action:
-
-```yaml
-- uses: actions/checkout@v4
-- uses: actions/setup-node@v4
-  with:
-    node-version: 20
-- run: npx --yes aislop@latest ci .
-```
-
-`aislop ci` outputs JSON and exits with code 1 if the score is below the configured threshold or any error-severity diagnostic is present.
 
 ## GitLab CI
 
 ```yaml
 # .gitlab-ci.yml
 aislop:
-  image: node:20
+  image: node:24
   script:
-    - npx --yes aislop@latest ci .
+    - npx --yes aislop@latest ci
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH == "main"
@@ -78,10 +60,10 @@ version: 2.1
 jobs:
   aislop:
     docker:
-      - image: cimg/node:20.0
+      - image: cimg/node:24.0
     steps:
       - checkout
-      - run: npx --yes aislop@latest ci .
+      - run: npx --yes aislop@latest ci
 workflows:
   quality-gate:
     jobs:
@@ -90,7 +72,7 @@ workflows:
 
 ## Bitbucket Pipelines
 
-Bitbucket clones shallow by default and exposes the PR target branch as `$BITBUCKET_PR_DESTINATION_BRANCH`. Fetch the base, then gate on the changed files with `ci --changes --base`:
+Bitbucket clones shallow by default and exposes the PR target branch as `$BITBUCKET_PR_DESTINATION_BRANCH`. Fetch the base, then gate on only the changed files (see [PR-scoped gating](#pr-scoped-gating)):
 
 ```yaml
 # bitbucket-pipelines.yml
@@ -99,15 +81,31 @@ pipelines:
     "**":
       - step:
           name: aislop gate
-          image: node:20
+          image: node:24
           clone:
-            depth: full # branch diffs need history; the default shallow clone hides it
+            depth: full   # branch diffs need history
           script:
             - git fetch origin "$BITBUCKET_PR_DESTINATION_BRANCH"
             - npx --yes aislop@latest ci --changes --base "origin/$BITBUCKET_PR_DESTINATION_BRANCH"
 ```
 
-`ci` handles the score gate and the non-zero exit code, so there is no need to parse the JSON or hand-roll a threshold check. Drop `--changes --base ...` to gate the whole repository instead of just the PR diff.
+## Pre-commit hook
+
+Scan only staged files to keep commits clean:
+
+```bash
+npx aislop scan --staged
+```
+
+## PR-scoped gating
+
+A plain `--changes` diffs the working tree against `HEAD`, so in CI (where PR changes are already committed) it sees nothing. Pass `--base <ref>` to diff against the target branch instead. Both `scan` and `ci` accept `--changes` and `--base`, so you can gate a PR on only the files it touches:
+
+```bash
+npx aislop ci --changes --base origin/main
+```
+
+The base ref must exist in the checkout, so fetch it first (`git fetch origin <branch>`, or a full clone). If an explicit `--base` cannot be resolved, the run fails instead of silently passing an empty scan. The score gate and exit code behave exactly as a full `ci` run.
 
 ## Quality gate
 
@@ -119,41 +117,16 @@ ci:
   format: json
 ```
 
-The CI command exits with code 1 when the score drops below `failBelow`, or when any error-severity diagnostic is present.
-
-## Pre-commit hook
-
-Scan only staged files to keep commits clean:
-
-```bash
-npx aislop scan --staged
-```
-
-## Scan changed files
-
-Scan only files that differ from `HEAD` (uncommitted work, useful locally):
-
-```bash
-npx aislop scan --changes
-```
-
-In a PR the changes are already committed, so a plain `--changes` (which diffs against `HEAD`) sees nothing. Pass `--base <ref>` to diff against the target branch instead. Both `scan` and `ci` accept `--changes` and `--base`, so you can gate a PR on only the files it touches:
-
-```bash
-# Gate only the files this PR changes, relative to main
-npx aislop ci --changes --base origin/main
-```
-
-The base ref must exist in the checkout, so make sure CI fetches it (a full clone, or `git fetch origin <branch>`). The score gate (`failBelow`) and exit code behave exactly as they do for a full `ci` run.
+The CI command exits 1 when the score drops below `failBelow`, or when any error-severity diagnostic is present.
 
 ## JSON output
 
-Both `aislop ci` and `aislop scan --json` produce structured JSON output suitable for parsing in CI pipelines:
+Both `aislop ci` and `aislop scan --json` emit structured JSON for parsing in CI. Example shape (values illustrative):
 
 ```json
 {
   "schemaVersion": "1",
-  "cliVersion": "0.10.2",
+  "cliVersion": "<version>",
   "score": 87,
   "label": "Healthy",
   "engines": {
