@@ -3,6 +3,7 @@ import { findConfigDir, RULES_FILE } from "../config/index.js";
 import { loadArchitectureRules } from "../engines/architecture/rule-loader.js";
 import { descriptionForRule } from "../output/rule-labels.js";
 import { scoreImpactForRule } from "../scoring/rule-impact.js";
+import { highlightAislop } from "../ui/brand.js";
 import { renderHeader } from "../ui/header.js";
 import { detectInvocation } from "../ui/invocation.js";
 import { renderHintLine } from "../ui/logger.js";
@@ -163,10 +164,10 @@ export const buildRuleDetailRender = (
 	];
 	const labelWidth = Math.max(...rows.map(([label]) => label.length));
 	const body = rows
-		.map(
-			([label, value]) =>
-				` ${style(theme, "muted", padEnd(label, labelWidth))}  ${style(theme, label === "Severity" && rule.severity === "error" ? "danger" : "fg", value)}`,
-		)
+		.map(([label, value]) => {
+			const valueToken = label === "Severity" && rule.severity === "error" ? "danger" : "fg";
+			return ` ${style(theme, "muted", padEnd(label, labelWidth))}  ${highlightAislop(value, theme, valueToken)}`;
+		})
 		.join("\n");
 	const tail = renderHintLine(
 		rule.fixable

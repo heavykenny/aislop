@@ -10,6 +10,7 @@ import { calculateScore } from "../scoring/index.js";
 import { applyRuleSeverities } from "../scoring/rule-severity.js";
 import { isCiEnv } from "../telemetry/env.js";
 import { type EngineCounts, withCommandLifecycle } from "../telemetry/index.js";
+import { renderDisplayRows } from "../ui/display.js";
 import { renderHeader } from "../ui/header.js";
 import { type GridRow, type GridRowOutcome, LiveGrid } from "../ui/live-grid.js";
 import { log } from "../ui/logger.js";
@@ -52,6 +53,9 @@ const shouldUseSpinner = (): boolean =>
 	Boolean(process.stderr.isTTY) && process.env.CI !== "true" && process.env.CI !== "1";
 
 const ALL_ENGINE_NAMES = Object.keys(ENGINE_INFO) as EngineName[];
+
+const renderScopeRow = (value: string): string =>
+	`${renderDisplayRows([{ label: "Scope", value }], { indent: 1 }).join("\n")}\n`;
 
 export const scanCommand = async (
 	directory: string,
@@ -134,7 +138,7 @@ const runScanBody = async (
 	if (options.staged) {
 		files = filterProjectFiles(resolvedDir, getStagedFiles(resolvedDir), [], excludePatterns);
 		if (!machineOutput) {
-			log.muted(`Scope: ${files.length} staged file(s)`);
+			process.stdout.write(renderScopeRow(`${files.length} staged file(s)`));
 		}
 	} else if (options.changes) {
 		files = filterProjectFiles(
@@ -145,13 +149,13 @@ const runScanBody = async (
 		);
 		if (!machineOutput) {
 			const scope = options.base ? `changed vs ${options.base}` : "changed";
-			log.muted(`Scope: ${files.length} ${scope} file(s)`);
+			process.stdout.write(renderScopeRow(`${files.length} ${scope} file(s)`));
 		}
 	} else {
 		const allFiles = listProjectFiles(resolvedDir);
 		files = filterProjectFiles(resolvedDir, allFiles, [], excludePatterns);
 		if (!machineOutput) {
-			log.muted(`Scope: ${files.length} file(s) after exclusions`);
+			process.stdout.write(renderScopeRow(`${files.length} file(s) after exclusions`));
 		}
 	}
 

@@ -1,5 +1,6 @@
 import type { FindingAssessmentSummary } from "../output/finding-assessment.js";
 import { labelForRule } from "../output/rule-labels.js";
+import { highlightAislop } from "./brand.js";
 import { symbols as defaultSymbols, type Symbols } from "./symbols.js";
 import { theme as defaultTheme, style, type Theme, type Token } from "./theme.js";
 import { padEnd } from "./width.js";
@@ -149,7 +150,7 @@ export const renderSummary = (input: SummaryInput, deps: SummaryDeps = {}): stri
 		for (const step of input.nextSteps) {
 			const glyph = step.emphasis === "primary" ? s.hint : s.bullet;
 			const tokenFor: Token = step.emphasis === "primary" ? "accent" : "muted";
-			lines.push(` ${style(t, tokenFor, glyph)} ${step.text}`);
+			lines.push(` ${style(t, tokenFor, glyph)} ${highlightAislop(step.text, t)}`);
 		}
 		lines.push("");
 	}
@@ -160,6 +161,11 @@ export const renderSummary = (input: SummaryInput, deps: SummaryDeps = {}): stri
 export const renderStarCta = (deps: SummaryDeps = {}): string => {
 	const t = deps.theme ?? defaultTheme;
 	return `\n ${style(t, "muted", "★ Found this useful? Star us at github.com/scanaislop/aislop")}\n`;
+};
+
+export const renderTeamCta = (deps: SummaryDeps = {}): string => {
+	const t = deps.theme ?? defaultTheme;
+	return `\n ${style(t, "muted", "→ Make this your team's standard. Gate every PR free at scanaislop.com")}\n`;
 };
 
 export const renderCleanRun = (

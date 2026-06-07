@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { registerAgentCommand } from "./cli/agent-command.js";
 import { registerHookAliases, registerHookCommand } from "./cli/hook-command.js";
 import { badgeCommand } from "./commands/badge.js";
 import { ciCommand } from "./commands/ci.js";
@@ -215,6 +216,8 @@ fixProgram.action(async (directory = ".", _flags, command) => {
 	});
 });
 
+registerAgentCommand(program);
+
 program
 	.command("init [directory]")
 	.description("Create aislop config and optional CI workflow")
@@ -330,6 +333,7 @@ program
 
 program
 	.command("trend [directory]")
+	.alias("trends")
 	.description("Show local score history")
 	.option("--limit <n>", "number of recent runs to show", (v) => Number.parseInt(v, 10))
 	.action(async (directory = ".", _flags, command) => {

@@ -9,6 +9,7 @@ import {
 	renderCleanRun,
 	renderStarCta,
 	renderSummary,
+	renderTeamCta,
 } from "../ui/summary.js";
 import { createSymbols } from "../ui/symbols.js";
 import { createTheme } from "../ui/theme.js";
@@ -94,13 +95,18 @@ export const buildScanRender = (input: BuildScanRenderInput): string => {
 		(d) => d.rule === "security/vulnerable-dependency",
 	);
 
-	const starCta = input.printBrand !== false ? renderStarCta(deps) : "";
+	const cta =
+		input.printBrand === false
+			? ""
+			: errors + warnings > 0
+				? renderTeamCta(deps)
+				: renderStarCta(deps);
 
 	if (input.diagnostics.length === 0 && input.score.score === 100) {
 		return `${header}${renderCleanRun(
 			{ score: input.score.score, label: input.score.label, elapsedMs: input.elapsedMs },
 			deps,
-		)}${starCta}`;
+		)}${cta}`;
 	}
 
 	const diagBlock =
@@ -144,5 +150,5 @@ export const buildScanRender = (input: BuildScanRenderInput): string => {
 		deps,
 	);
 
-	return `${header}${diagBlock}${summary}${starCta}`;
+	return `${header}${diagBlock}${summary}${cta}`;
 };
