@@ -30,7 +30,7 @@ export const DEFAULT_CONFIG: AislopConfig = {
 			format: 0.3,
 			lint: 0.6,
 			"code-quality": 0.8,
-			"ai-slop": 2.5,
+			"ai-slop": 1.0,
 			architecture: 1.0,
 			security: 1.5,
 		},

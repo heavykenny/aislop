@@ -282,7 +282,7 @@ aislop                         # interactive menu
 aislop init                    # create .aislop/config.yml
 aislop init --strict           # enterprise-grade gate: all engines, typecheck, failBelow 85
 aislop doctor                  # check which engines can run here
-aislop rules                   # list rules
+aislop rules                   # list rules with severity, fixability, and score impact
 aislop rules --search          # searchable rule explorer
 aislop badge                   # print badge URL
 aislop badge --owner o --repo r --json

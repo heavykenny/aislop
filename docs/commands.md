@@ -18,7 +18,7 @@ npx aislop@latest scan
 | `aislop ci [directory]` | Run the CI quality gate with thresholded exit codes |
 | `aislop init [directory]` | Create `.aislop/config.yml`, `.aislop/rules.yml`, and optional workflow |
 | `aislop doctor [directory]` | Check installed engines and project coverage |
-| `aislop rules [directory]` | Explain rule IDs, severity, fixability, and meaning |
+| `aislop rules [directory]` | Explain rule IDs, severity, fixability, score impact, and meaning |
 | `aislop hook install [agents...]` | Install coding-agent hooks |
 | `aislop hook uninstall [agents...]` | Remove coding-agent hooks |
 | `aislop hook status` | Show installed hook status |
