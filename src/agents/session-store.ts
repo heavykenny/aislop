@@ -23,6 +23,8 @@ export interface AgentSessionSummary {
 	scoreBefore: number | null;
 	scoreAfter: number | null;
 	changedFiles: number | null;
+	totalTokens: number | null;
+	costUsd: number | null;
 	applied: boolean;
 	published: boolean;
 }
@@ -82,6 +84,8 @@ export const summarizeAgentSession = (
 	const applied = events.find((event) => event.type === "diff.applied");
 	const verified = events.find((event) => event.type === "diff.verified");
 	const verifiedScan = isObject(verified?.scan) ? verified.scan : null;
+	const usage = [...events].reverse().find((event) => event.type === "provider.usage");
+	const usagePayload = isObject(usage?.usage) ? usage.usage : null;
 	const status = failed
 		? "failed"
 		: stopped
@@ -107,6 +111,8 @@ export const summarizeAgentSession = (
 		scoreBefore: asNumber(completed?.scoreBefore) ?? asNumber(baseline?.score),
 		scoreAfter: asNumber(completed?.scoreAfter) ?? asNumber(verifiedScan?.score),
 		changedFiles: asNumber(completed?.changedFiles),
+		totalTokens: asNumber(usagePayload?.totalTokens),
+		costUsd: asNumber(usagePayload?.costUsd),
 		applied: completed?.applied === true || Boolean(applied),
 		published: completed?.published === true,
 	};

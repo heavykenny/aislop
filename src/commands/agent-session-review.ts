@@ -41,6 +41,14 @@ const publishOutcome = (events: AgentSessionEvent[], summary: AgentSessionSummar
 	return events.some((item) => item.type === "publish.started") ? "started" : "not requested";
 };
 
+const usageOutcome = (summary: AgentSessionSummary): string => {
+	if (summary.totalTokens === null && summary.costUsd === null) return "n/a";
+	const parts: string[] = [];
+	if (summary.totalTokens !== null) parts.push(`${summary.totalTokens.toLocaleString()} tokens`);
+	if (summary.costUsd !== null) parts.push(`$${summary.costUsd.toFixed(4)}`);
+	return parts.join(" / ");
+};
+
 const providerNotes = (events: AgentSessionEvent[]): string[] =>
 	events
 		.filter((event) => event.type === "provider.output" && typeof event.line === "string")
@@ -69,6 +77,7 @@ export const renderAgentSessionReview = (input: {
 				{ label: "Selected", value: String(selected ?? "n/a") },
 				{ label: "Remaining", value: String(remaining ?? "n/a") },
 				{ label: "Changed", value: String(input.summary.changedFiles ?? 0) },
+				{ label: "Usage", value: usageOutcome(input.summary) },
 				{ label: "Provider", value: providerOutcome(input.events) },
 				{ label: "Apply", value: applyOutcome(input.events, input.summary) },
 				{ label: "Publish", value: publishOutcome(input.events, input.summary) },

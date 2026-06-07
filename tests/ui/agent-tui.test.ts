@@ -34,6 +34,19 @@ describe("AgentTui", () => {
 
 		tui.start("Preparing local session");
 		tui.setMetric("Score", "72 -> ...");
+		tui.setMetric("Tokens", "1,680 total / 1,200 in / 80 out / 400 cached");
+		tui.setMetric("Remaining", "3");
+		tui.setFiles([
+			{
+				filePath: "src/a.ts",
+				updatedAt: "2026-06-07T20:00:00.000Z",
+				source: "git diff",
+			},
+		]);
+		tui.setActions([
+			"Continue: 3 actionable findings remain; target is 90/100",
+			"Apply: accept diff",
+		]);
 		tui.appendLog("codex", "assistant: edited src/a.ts");
 		tui.complete({ status: "done", label: "Created worktree .aislop/agent/worktrees/run" });
 		tui.finish({ footer: "Done · codex · 1200ms" });
@@ -47,9 +60,15 @@ describe("AgentTui", () => {
 		expect(stripped).toContain("Codex");
 		expect(stripped).toContain("Metrics");
 		expect(stripped).toContain("Score");
+		expect(stripped).toContain("Tokens");
+		expect(stripped).toContain("Remaining");
+		expect(stripped).toContain("Edited files");
+		expect(stripped).toContain("src/a.ts");
 		expect(stripped).toContain("Live output");
 		expect(stripped).toContain("codex");
 		expect(stripped).toContain("assistant: edited src/a.ts");
+		expect(stripped).toContain("Actions");
+		expect(stripped).toContain("Continue: 3 actionable findings remain");
 	});
 
 	it("leaves the alternate screen while prompting and resumes the dashboard after", () => {

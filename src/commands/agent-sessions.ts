@@ -48,6 +48,14 @@ const changedText = (summary: AgentSessionSummary): string => {
 	return `${count} file${count === 1 ? "" : "s"}`;
 };
 
+const usageText = (summary: AgentSessionSummary): string => {
+	if (summary.totalTokens === null && summary.costUsd === null) return "tokens n/a";
+	const parts: string[] = [];
+	if (summary.totalTokens !== null) parts.push(`${summary.totalTokens.toLocaleString()} tokens`);
+	if (summary.costUsd !== null) parts.push(`$${summary.costUsd.toFixed(4)}`);
+	return parts.join(" / ");
+};
+
 const providerText = (summary: AgentSessionSummary): string =>
 	summary.providerLabel ?? summary.provider ?? "unknown provider";
 
@@ -59,6 +67,7 @@ const sessionStatusItem = (root: string, session: AgentSessionSummary): DisplayS
 		{ label: "Provider", value: providerText(session) },
 		{ label: "Score", value: scoreText(session) },
 		{ label: "Changed", value: changedText(session) },
+		{ label: "Usage", value: usageText(session) },
 		{ label: "Started", value: session.startedAt ?? "unknown time" },
 		{ label: "Record", value: path.relative(root, session.path) },
 	],
@@ -147,10 +156,22 @@ const eventLine = (event: AgentSessionEvent): string | null => {
 };
 
 const changedFilesFrom = (events: AgentSessionEvent[]): string[] => {
-	const event = events.find((item) => item.type === "diff.verified");
+	const event = [...events].reverse().find((item) => item.type === "diff.verified");
 	return Array.isArray(event?.changedFiles)
 		? event.changedFiles.filter((file) => typeof file === "string")
 		: [];
+};
+
+const editedFilesFrom = (events: AgentSessionEvent[]): string[] => {
+	const latestByFile = new Map<string, AgentSessionEvent>();
+	for (const event of events) {
+		if (event.type !== "file.changed" || typeof event.filePath !== "string") continue;
+		latestByFile.set(event.filePath, event);
+	}
+	return [...latestByFile.values()].map((event) => {
+		const source = typeof event.source === "string" ? ` · ${event.source}` : "";
+		return `${event.filePath} · ${event.updatedAt ?? event.timestamp}${source}`;
+	});
 };
 
 const selectedFindingsFrom = (events: AgentSessionEvent[]): string[] => {
@@ -195,6 +216,7 @@ export const renderAgentSessionShow = (input: {
 				{ label: "Provider", value: providerText(input.summary) },
 				{ label: "Score", value: scoreText(input.summary) },
 				{ label: "Changed", value: changedText(input.summary) },
+				{ label: "Usage", value: usageText(input.summary) },
 				{ label: "Started", value: input.summary.startedAt ?? "unknown" },
 				{ label: "Transcript", value: input.summary.path },
 				...(input.summary.worktreePath
@@ -229,6 +251,13 @@ export const renderAgentSessionShow = (input: {
 		lines.push("", renderDisplaySection("Changed files"));
 		for (const file of changedFiles.slice(0, 12)) lines.push(` - ${file}`);
 		if (changedFiles.length > 12) lines.push(` - ...and ${changedFiles.length - 12} more`);
+	}
+
+	const editedFiles = editedFilesFrom(input.events);
+	if (editedFiles.length > 0) {
+		lines.push("", renderDisplaySection("File activity"));
+		for (const file of editedFiles.slice(0, 12)) lines.push(` - ${file}`);
+		if (editedFiles.length > 12) lines.push(` - ...and ${editedFiles.length - 12} more`);
 	}
 
 	const output = providerOutputFrom(input.events);

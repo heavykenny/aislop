@@ -1,8 +1,6 @@
 import path from "node:path";
 import { performance } from "node:perf_hooks";
-import { buildRepairPrompt, selectAgentFindings } from "../agents/prompt.js";
-import { formatProviderOutputLine } from "../agents/provider-output.js";
-import { runProvider } from "../agents/provider-runner.js";
+import { selectAgentFindings } from "../agents/prompt.js";
 import type { ProviderStatus } from "../agents/providers.js";
 import { type PublishAgentDiffResult, publishAgentDiff } from "../agents/publish.js";
 import {
@@ -10,17 +8,18 @@ import {
 	createAgentSessionRecorder,
 	summarizeAgentFinding,
 } from "../agents/session.js";
-import {
-	createAgentWorktree,
-	diffNameOnly,
-	readBinaryDiff,
-	removeAgentWorktree,
-} from "../agents/worktree.js";
+import { createChangedFileTracker, createUsageTotals } from "../agents/session-activity.js";
+import { createAgentWorktree, removeAgentWorktree } from "../agents/worktree.js";
 import type { Diagnostic } from "../engines/types.js";
 import { AgentTui } from "../ui/agent-tui.js";
 import { log } from "../ui/logger.js";
-import { confirm, isCancel } from "../ui/prompts.js";
-import { applyDiff, runSafeFix, scanJson } from "./agent-local-cli.js";
+import { runSafeFix, scanJson } from "./agent-local-cli.js";
+import {
+	maybeApplyDiff,
+	maybeContinueSession,
+	runProviderStep,
+	verifyDiff,
+} from "./agent-session-steps.js";
 import { printAgentSessionSummary, providerSourceLabel } from "./agent-session-summary.js";
 import { type AgentOptions, type AgentScanJson, summarizeAgentScan } from "./agent-types.js";
 
@@ -80,121 +79,6 @@ const selectFindings = (tui: AgentTui, cwd: string, limit: number): Diagnostic[]
 	return findings;
 };
 
-const runProviderStep = async (input: {
-	tui: AgentTui;
-	session: AgentSessionRecorder;
-	selected: ProviderStatus;
-	worktreePath: string;
-	findings: Diagnostic[];
-	score: number | null;
-	options: AgentOptions;
-}): Promise<void> => {
-	if (input.findings.length === 0) {
-		input.session.append("provider.skipped", {
-			reason: "no_selected_findings",
-			provider: input.selected.provider.id,
-		});
-		return;
-	}
-	if ((input.score ?? 0) >= input.options.targetScore) {
-		input.session.append("provider.skipped", {
-			reason: "target_score_met",
-			provider: input.selected.provider.id,
-			score: input.score,
-			targetScore: input.options.targetScore,
-		});
-		return;
-	}
-	input.tui.start(`Running ${input.selected.provider.label}`);
-	const prompt = buildRepairPrompt({
-		rootDirectory: input.worktreePath,
-		findings: input.findings,
-		score: input.score,
-		targetScore: input.options.targetScore,
-		maxTurns: input.options.maxTurns,
-	});
-	input.session.append("provider.started", {
-		provider: input.selected.provider.id,
-		label: input.selected.provider.label,
-		score: input.score,
-		targetScore: input.options.targetScore,
-		findings: input.findings.length,
-		maxTurns: input.options.maxTurns,
-	});
-	input.tui.setActiveLabel(`${input.selected.provider.label} is editing`);
-	const exitCode = await runProvider(input.selected.provider, {
-		cwd: input.worktreePath,
-		prompt,
-		maxTurns: input.options.maxTurns,
-		onEvent: (event) => {
-			const displayLine = formatProviderOutputLine(event.line);
-			if (displayLine) input.tui.appendLog(input.selected.provider.id, displayLine);
-			input.session.append("provider.output", {
-				provider: input.selected.provider.id,
-				stream: event.stream,
-				line: event.line,
-				displayLine,
-			});
-		},
-	});
-	input.session.append("provider.finished", {
-		provider: input.selected.provider.id,
-		exitCode,
-	});
-	input.tui.complete({
-		status: exitCode === 0 ? "done" : "warn",
-		label: `${input.selected.provider.label} exited ${exitCode ?? "unknown"}`,
-	});
-};
-
-const verifyDiff = async (
-	tui: AgentTui,
-	cwd: string,
-	before: AgentScanJson,
-): Promise<{ after: AgentScanJson; changedFiles: string[] }> => {
-	tui.start("Verifying agent diff");
-	const after = scanJson(cwd);
-	const changedFiles = await diffNameOnly(cwd);
-	tui.setMetric("Score", `${before.score ?? "not scored"} -> ${after.score ?? "not scored"}`);
-	tui.setMetric("Changes", changedFiles.length);
-	tui.complete({
-		status: (after.score ?? 0) >= (before.score ?? 0) && changedFiles.length > 0 ? "done" : "warn",
-		label: `Verified ${before.score ?? "not scored"} → ${after.score ?? "not scored"} · ${changedFiles.length} file${changedFiles.length === 1 ? "" : "s"} changed`,
-	});
-	return { after, changedFiles };
-};
-
-const maybeApplyDiff = async (input: {
-	options: AgentOptions;
-	changedFiles: string[];
-	worktreePath: string;
-	originalRoot: string;
-	tui: AgentTui;
-}): Promise<boolean> => {
-	if (
-		input.changedFiles.length === 0 ||
-		input.worktreePath === input.originalRoot ||
-		!input.options.apply
-	) {
-		return false;
-	}
-	input.tui.pause();
-	const shouldApply =
-		input.options.yes ||
-		(await confirm({
-			message: `Apply ${input.changedFiles.length} file change${input.changedFiles.length === 1 ? "" : "s"} back to ${path.basename(input.originalRoot)}?`,
-			initialValue: false,
-		}));
-	input.tui.resume();
-	if (isCancel(shouldApply)) {
-		log.warn("Apply cancelled. Worktree left for review.");
-		return false;
-	}
-	if (!shouldApply) return false;
-	await applyDiff(input.originalRoot, await readBinaryDiff(input.worktreePath));
-	return true;
-};
-
 export const runAgentSession = async (
 	selected: ProviderStatus,
 	resolvedDir: string,
@@ -217,6 +101,14 @@ export const runAgentSession = async (
 		created = await prepareWorktree(tui, resolvedDir, options);
 		session = createAgentSessionRecorder(created.state.root, {
 			id: process.env.AISLOP_AGENT_SESSION_ID,
+		});
+		const usage = createUsageTotals();
+		const tracker = createChangedFileTracker({
+			cwd: created.worktree.path,
+			session,
+			onChange: (files) => {
+				tui.setFiles(files);
+			},
 		});
 		tui.setMetric("Session", session.id);
 		session.append("session.started", {
@@ -250,6 +142,7 @@ export const runAgentSession = async (
 		const before = scanBaseline(tui, created.worktree.path);
 		session.append("scan.baseline", summarizeAgentScan(before));
 		runSafeFixStep(tui, created.worktree.path, options);
+		await tracker.refresh("safe fix");
 		const afterFix = scanJson(created.worktree.path);
 		tui.setMetric("Score", `${before.score ?? "not scored"} -> ${afterFix.score ?? "not scored"}`);
 		session.append(options.noFix ? "fix.safe.skipped" : "fix.safe.finished", {
@@ -268,8 +161,37 @@ export const runAgentSession = async (
 			findings,
 			score: afterFix.score,
 			options,
+			usage,
+			tracker,
 		});
-		const verified = await verifyDiff(tui, created.worktree.path, before);
+		let verified = await verifyDiff(tui, created.worktree.path, before, options);
+		while (
+			await maybeContinueSession({
+				tui,
+				session,
+				scan: verified.after,
+				options,
+			})
+		) {
+			const nextFindings = selectFindings(tui, created.worktree.path, options.limit);
+			session.append("findings.selected", {
+				count: nextFindings.length,
+				findings: nextFindings.map(summarizeAgentFinding),
+				source: "continue",
+			});
+			await runProviderStep({
+				tui,
+				session,
+				selected,
+				worktreePath: created.worktree.path,
+				findings: nextFindings,
+				score: verified.after.score,
+				options,
+				usage,
+				tracker,
+			});
+			verified = await verifyDiff(tui, created.worktree.path, before, options);
+		}
 		changedFiles = verified.changedFiles;
 		session.append("diff.verified", {
 			scan: summarizeAgentScan(verified.after),

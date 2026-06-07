@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { extractProviderOutputMetadata } from "../../src/agents/provider-metadata.js";
 import { formatProviderOutputLine } from "../../src/agents/provider-output.js";
 
 describe("provider output formatting", () => {
@@ -38,5 +39,53 @@ describe("provider output formatting", () => {
 		expect(formatProviderOutputLine(JSON.stringify({ type: "result", subtype: "success" }))).toBe(
 			"result: success",
 		);
+	});
+
+	it("extracts token usage and file paths from provider JSON", () => {
+		const metadata = extractProviderOutputMetadata(
+			JSON.stringify({
+				type: "turn.completed",
+				usage: {
+					input_tokens: 1200,
+					cached_input_tokens: 400,
+					output_tokens: 80,
+				},
+				item: {
+					type: "file_change",
+					path: "src/app.ts",
+				},
+			}),
+		);
+
+		expect(metadata.usage).toMatchObject({
+			inputTokens: 1200,
+			cachedInputTokens: 400,
+			outputTokens: 80,
+			totalTokens: 1680,
+		});
+		expect(metadata.files).toEqual(["src/app.ts"]);
+	});
+
+	it("extracts Claude-style final cost and cache token usage", () => {
+		const metadata = extractProviderOutputMetadata(
+			JSON.stringify({
+				type: "result",
+				total_cost_usd: 0.0123,
+				usage: {
+					input_tokens: 100,
+					cache_read_input_tokens: 250,
+					cache_creation_input_tokens: 50,
+					output_tokens: 25,
+				},
+			}),
+		);
+
+		expect(metadata.usage).toMatchObject({
+			inputTokens: 100,
+			cachedInputTokens: 300,
+			outputTokens: 25,
+			totalTokens: 425,
+			costUsd: 0.0123,
+		});
 	});
 });

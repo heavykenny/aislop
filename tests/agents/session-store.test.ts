@@ -115,6 +115,22 @@ describe("agent session store", () => {
 					findings: [{ filePath: "src/a.ts", line: 7, rule: "ai-slop/example" }],
 				},
 				{ type: "provider.output", line: "edited src/a.ts" },
+				{
+					type: "provider.usage",
+					usage: {
+						totalTokens: 1680,
+						inputTokens: 1200,
+						cachedInputTokens: 400,
+						outputTokens: 80,
+						costUsd: 0.0123,
+					},
+				},
+				{
+					type: "file.changed",
+					filePath: "src/a.ts",
+					updatedAt: "2026-06-07T10:00:03.000Z",
+					source: "git diff",
+				},
 				{ type: "provider.output", line: "skipped likely false positive in src/b.ts" },
 				{ type: "diff.verified", changedFiles: ["src/a.ts"], scan: { score: 95, diagnostics: 0 } },
 				{ type: "session.completed", scoreBefore: 82, scoreAfter: 95, changedFiles: 1 },
@@ -131,6 +147,7 @@ describe("agent session store", () => {
 		expect(list).toContain("20260607-100000-1");
 		expect(list).toMatch(/Status\s+completed/);
 		expect(list).toContain("82 -> 95");
+		expect(list).toContain("1,680 tokens");
 		expect(list).not.toMatch(/20260607-100000-1\s+completed/);
 
 		const listLines = list.split("\n");
@@ -142,11 +159,15 @@ describe("agent session store", () => {
 		expect(show).toContain("Review summary");
 		expect(show).toMatch(/Selected\s+1/);
 		expect(show).toMatch(/Remaining\s+0/);
+		expect(show).toContain("Usage");
+		expect(show).toContain("$0.0123");
 		expect(show).toContain("Provider notes");
 		expect(show).toContain("skipped likely false positive");
 		expect(show).toContain("Timeline");
 		expect(show).toContain("Selected findings");
 		expect(show).toContain("Changed files");
+		expect(show).toContain("File activity");
+		expect(show).toContain("src/a.ts · 2026-06-07T10:00:03.000Z · git diff");
 		expect(show).toContain("Provider output");
 		expect(show).toContain("edited src/a.ts");
 	});

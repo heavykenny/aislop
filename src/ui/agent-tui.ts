@@ -14,6 +14,12 @@ interface AgentLogLine {
 	line: string;
 }
 
+interface AgentTuiFile {
+	filePath: string;
+	updatedAt: string;
+	source?: string;
+}
+
 interface AgentTuiContext {
 	provider: string;
 	source: string;
@@ -79,7 +85,17 @@ const valueLines = (items: [string, string][], columns: number): string[] => {
 };
 
 const orderedMetrics = (metrics: Map<string, string>): [string, string][] => {
-	const order = ["Score", "Target", "Findings", "Selected", "Changes", "Worktree", "Session"];
+	const order = [
+		"Score",
+		"Target",
+		"Remaining",
+		"Findings",
+		"Selected",
+		"Changes",
+		"Tokens",
+		"Worktree",
+		"Session",
+	];
 	const rows: [string, string][] = [];
 	for (const label of order) {
 		const value = metrics.get(label);
@@ -109,6 +125,8 @@ export class AgentTui {
 	private readonly metrics = new Map<string, string>();
 	private readonly steps: AgentStep[] = [];
 	private readonly logs: AgentLogLine[] = [];
+	private files: AgentTuiFile[] = [];
+	private actions: string[] = [];
 	private frame = 0;
 	private timer: NodeJS.Timeout | undefined;
 	private active = false;
@@ -182,6 +200,16 @@ export class AgentTui {
 		this.render();
 	}
 
+	setFiles(files: AgentTuiFile[]): void {
+		this.files = files;
+		if (this.tty) this.render();
+	}
+
+	setActions(actions: string[]): void {
+		this.actions = actions.filter((action) => action.trim().length > 0);
+		if (this.tty) this.render();
+	}
+
 	pause(): void {
 		if (!this.tty || !this.active) return;
 		this.stopTimer();
@@ -248,7 +276,8 @@ export class AgentTui {
 	private frameText(footer?: string): string {
 		const columns = Math.max(72, Math.min(this.columns(), 120));
 		const rows = Math.max(20, this.rows());
-		const logRows = Math.max(4, Math.min(8, rows - 13));
+		const fileRows = Math.max(2, Math.min(5, Math.floor((rows - 14) / 2)));
+		const logRows = Math.max(4, Math.min(8, rows - 16 - Math.min(this.files.length, fileRows)));
 		const active = findActiveStep(this.steps);
 		const lines: string[] = [];
 		const title = style(this.theme, "bold", "aislop agent");
@@ -281,6 +310,25 @@ export class AgentTui {
 			lines.push(` ${style(this.theme, "muted", this.symbols.pending)} Waiting to start`);
 		}
 		lines.push("");
+		lines.push(` ${style(this.theme, "muted", "Edited files")}`);
+		if (this.files.length === 0) {
+			lines.push(` ${style(this.theme, "muted", "No file changes yet")}`);
+		} else {
+			for (const file of this.files.slice(-fileRows)) {
+				const time = new Date(file.updatedAt).toLocaleTimeString();
+				const suffix = file.source ? ` · ${file.source}` : "";
+				lines.push(
+					` ${style(this.theme, "accent", this.symbols.stepDone)} ${truncate(
+						`${file.filePath} · ${time}${suffix}`,
+						Math.max(12, columns - 4),
+					)}`,
+				);
+			}
+			if (this.files.length > fileRows) {
+				lines.push(` ${style(this.theme, "muted", `+${this.files.length - fileRows} more`)}`);
+			}
+		}
+		lines.push("");
 		lines.push(` ${style(this.theme, "muted", "Live output")}`);
 		const visibleLogs = this.logs.slice(-logRows);
 		if (visibleLogs.length === 0) {
@@ -298,6 +346,18 @@ export class AgentTui {
 						this.theme,
 						"dim",
 						truncate(cleanValue(log.line), Math.max(12, columns - stringWidth(prefix) - 1)),
+					)}`,
+				);
+			}
+		}
+		if (this.actions.length > 0) {
+			lines.push("");
+			lines.push(` ${style(this.theme, "muted", "Actions")}`);
+			for (const action of this.actions.slice(0, 4)) {
+				lines.push(
+					` ${style(this.theme, "info", this.symbols.hint)} ${truncate(
+						action,
+						Math.max(12, columns - 4),
 					)}`,
 				);
 			}
