@@ -17,34 +17,27 @@ import {
 	removeAgentWorktree,
 } from "../agents/worktree.js";
 import type { Diagnostic } from "../engines/types.js";
-import {
-	renderDisplayCommandRows,
-	renderDisplayRows,
-	renderDisplaySection,
-} from "../ui/display.js";
-import { LiveRail } from "../ui/live-rail.js";
+import { AgentTui } from "../ui/agent-tui.js";
 import { log } from "../ui/logger.js";
 import { confirm, isCancel } from "../ui/prompts.js";
-import { style, theme } from "../ui/theme.js";
 import { applyDiff, runSafeFix, scanJson } from "./agent-local-cli.js";
+import { printAgentSessionSummary, providerSourceLabel } from "./agent-session-summary.js";
 import { type AgentOptions, type AgentScanJson, summarizeAgentScan } from "./agent-types.js";
 
 type AgentWorktreeState = Awaited<ReturnType<typeof createAgentWorktree>>;
 
-const renderProviderLine = (provider: string, line: string): void => {
-	process.stdout.write(
-		`   ${style(theme, "muted", provider.padEnd(8))} ${style(theme, "dim", line)}\n`,
-	);
-};
-
 const prepareWorktree = async (
-	rail: LiveRail,
+	tui: AgentTui,
 	resolvedDir: string,
 	options: AgentOptions,
 ): Promise<AgentWorktreeState> => {
-	rail.start("Preparing local session");
+	tui.start("Preparing local session");
 	const created = await createAgentWorktree(resolvedDir, { inPlace: options.inPlace });
-	rail.complete({
+	tui.setMetric(
+		"Worktree",
+		created.worktree.created ? path.relative(created.state.root, created.worktree.path) : "current",
+	);
+	tui.complete({
 		status: "done",
 		label: created.worktree.created
 			? `Created worktree ${path.relative(created.state.root, created.worktree.path)}`
@@ -53,28 +46,31 @@ const prepareWorktree = async (
 	return created;
 };
 
-const scanBaseline = (rail: LiveRail, cwd: string): AgentScanJson => {
-	rail.start("Scanning baseline");
+const scanBaseline = (tui: AgentTui, cwd: string): AgentScanJson => {
+	tui.start("Scanning baseline");
 	const scan = scanJson(cwd);
-	rail.complete({
+	tui.setMetric("Score", `${scan.score ?? "not scored"} -> ...`);
+	tui.setMetric("Findings", scan.diagnostics.length);
+	tui.complete({
 		status: scan.summary.errors > 0 ? "warn" : "done",
 		label: `Baseline ${scan.score ?? "not scored"} / 100 · ${scan.diagnostics.length} findings`,
 	});
 	return scan;
 };
 
-const runSafeFixStep = (rail: LiveRail, cwd: string, options: AgentOptions): void => {
+const runSafeFixStep = (tui: AgentTui, cwd: string, options: AgentOptions): void => {
 	if (options.noFix) return;
-	rail.start("Applying deterministic safe fixes");
+	tui.start("Applying deterministic safe fixes");
 	runSafeFix(cwd);
-	rail.complete({ status: "done", label: "Safe fixer finished" });
+	tui.complete({ status: "done", label: "Safe fixer finished" });
 };
 
-const selectFindings = (rail: LiveRail, cwd: string, limit: number): Diagnostic[] => {
-	rail.start("Selecting findings for agent");
+const selectFindings = (tui: AgentTui, cwd: string, limit: number): Diagnostic[] => {
+	tui.start("Selecting findings for agent");
 	const scan = scanJson(cwd);
 	const findings = selectAgentFindings(scan.diagnostics, limit);
-	rail.complete({
+	tui.setMetric("Selected", findings.length);
+	tui.complete({
 		status: findings.length > 0 ? "done" : "skipped",
 		label:
 			findings.length > 0
@@ -85,7 +81,7 @@ const selectFindings = (rail: LiveRail, cwd: string, limit: number): Diagnostic[
 };
 
 const runProviderStep = async (input: {
-	rail: LiveRail;
+	tui: AgentTui;
 	session: AgentSessionRecorder;
 	selected: ProviderStatus;
 	worktreePath: string;
@@ -109,7 +105,7 @@ const runProviderStep = async (input: {
 		});
 		return;
 	}
-	input.rail.start(`Running ${input.selected.provider.label}`);
+	input.tui.start(`Running ${input.selected.provider.label}`);
 	const prompt = buildRepairPrompt({
 		rootDirectory: input.worktreePath,
 		findings: input.findings,
@@ -125,14 +121,14 @@ const runProviderStep = async (input: {
 		findings: input.findings.length,
 		maxTurns: input.options.maxTurns,
 	});
-	input.rail.setActiveLabel(`${input.selected.provider.label} is editing`);
+	input.tui.setActiveLabel(`${input.selected.provider.label} is editing`);
 	const exitCode = await runProvider(input.selected.provider, {
 		cwd: input.worktreePath,
 		prompt,
 		maxTurns: input.options.maxTurns,
 		onEvent: (event) => {
 			const displayLine = formatProviderOutputLine(event.line);
-			if (displayLine) renderProviderLine(input.selected.provider.id, displayLine);
+			if (displayLine) input.tui.appendLog(input.selected.provider.id, displayLine);
 			input.session.append("provider.output", {
 				provider: input.selected.provider.id,
 				stream: event.stream,
@@ -145,21 +141,23 @@ const runProviderStep = async (input: {
 		provider: input.selected.provider.id,
 		exitCode,
 	});
-	input.rail.complete({
+	input.tui.complete({
 		status: exitCode === 0 ? "done" : "warn",
 		label: `${input.selected.provider.label} exited ${exitCode ?? "unknown"}`,
 	});
 };
 
 const verifyDiff = async (
-	rail: LiveRail,
+	tui: AgentTui,
 	cwd: string,
 	before: AgentScanJson,
 ): Promise<{ after: AgentScanJson; changedFiles: string[] }> => {
-	rail.start("Verifying agent diff");
+	tui.start("Verifying agent diff");
 	const after = scanJson(cwd);
 	const changedFiles = await diffNameOnly(cwd);
-	rail.complete({
+	tui.setMetric("Score", `${before.score ?? "not scored"} -> ${after.score ?? "not scored"}`);
+	tui.setMetric("Changes", changedFiles.length);
+	tui.complete({
 		status: (after.score ?? 0) >= (before.score ?? 0) && changedFiles.length > 0 ? "done" : "warn",
 		label: `Verified ${before.score ?? "not scored"} → ${after.score ?? "not scored"} · ${changedFiles.length} file${changedFiles.length === 1 ? "" : "s"} changed`,
 	});
@@ -171,6 +169,7 @@ const maybeApplyDiff = async (input: {
 	changedFiles: string[];
 	worktreePath: string;
 	originalRoot: string;
+	tui: AgentTui;
 }): Promise<boolean> => {
 	if (
 		input.changedFiles.length === 0 ||
@@ -179,12 +178,14 @@ const maybeApplyDiff = async (input: {
 	) {
 		return false;
 	}
+	input.tui.pause();
 	const shouldApply =
 		input.options.yes ||
 		(await confirm({
 			message: `Apply ${input.changedFiles.length} file change${input.changedFiles.length === 1 ? "" : "s"} back to ${path.basename(input.originalRoot)}?`,
 			initialValue: false,
 		}));
+	input.tui.resume();
 	if (isCancel(shouldApply)) {
 		log.warn("Apply cancelled. Worktree left for review.");
 		return false;
@@ -194,89 +195,30 @@ const maybeApplyDiff = async (input: {
 	return true;
 };
 
-const printSummary = (input: {
-	before: AgentScanJson;
-	after: AgentScanJson;
-	changedFiles: string[];
-	applied: boolean;
-	published: PublishAgentDiffResult | null;
-	provider: ProviderStatus;
-	options: AgentOptions;
-	session: AgentSessionRecorder;
-	worktreePath: string;
-	originalRoot: string;
-}): void => {
-	log.break();
-	process.stdout.write(
-		`${[
-			renderDisplaySection("Agent summary"),
-			...renderDisplayRows(
-				[
-					{ label: "Provider", value: input.provider.provider.label },
-					{ label: "Source", value: input.options.providerSource },
-					{ label: "Session", value: input.session.id },
-					{ label: "Transcript", value: input.session.path },
-					{
-						label: "Score",
-						value: `${input.before.score ?? "not scored"} -> ${input.after.score ?? "not scored"}`,
-					},
-					...(input.worktreePath !== input.originalRoot
-						? [{ label: "Worktree", value: input.worktreePath }]
-						: []),
-				],
-				{ indent: 3, labelWidth: 10 },
-			),
-			"",
-		].join("\n")}`,
-	);
-	if (input.changedFiles.length === 0) {
-		log.muted("No files changed.");
-		return;
-	}
-	process.stdout.write(`${renderDisplaySection("Changed files")}\n`);
-	for (const file of input.changedFiles.slice(0, 12)) {
-		process.stdout.write(` - ${file}\n`);
-	}
-	if (input.changedFiles.length > 12) {
-		process.stdout.write(` - ...and ${input.changedFiles.length - 12} more\n`);
-	}
-	if (input.applied) {
-		log.success("Applied diff to the original worktree.");
-	}
-	if (input.published) {
-		log.success(`Committed ${input.published.commitSha} on ${input.published.branch}.`);
-		if (input.published.prUrl) log.success(`Opened PR: ${input.published.prUrl}`);
-	} else if (!input.applied && input.worktreePath !== input.originalRoot) {
-		process.stdout.write(
-			`\n${[
-				renderDisplaySection("Next"),
-				...renderDisplayRows([{ label: "Review", value: input.worktreePath }]),
-				...renderDisplayCommandRows([
-					{ label: "Apply", command: `aislop agent apply ${input.session.id}` },
-				]),
-				"",
-			].join("\n")}`,
-		);
-	}
-};
-
 export const runAgentSession = async (
 	selected: ProviderStatus,
 	resolvedDir: string,
 	options: AgentOptions,
 	started: number,
 ): Promise<void> => {
-	const rail = new LiveRail();
+	const tui = new AgentTui({
+		provider: selected.provider.label,
+		source: providerSourceLabel(options),
+		directory: resolvedDir,
+		mode: options.inPlace ? "current worktree" : "isolated git worktree",
+		targetScore: options.targetScore,
+	});
 	let created: AgentWorktreeState | undefined;
 	let session: AgentSessionRecorder | undefined;
 	let changedFiles: string[] = [];
 	let applied = false;
 	let published: PublishAgentDiffResult | null = null;
 	try {
-		created = await prepareWorktree(rail, resolvedDir, options);
+		created = await prepareWorktree(tui, resolvedDir, options);
 		session = createAgentSessionRecorder(created.state.root, {
 			id: process.env.AISLOP_AGENT_SESSION_ID,
 		});
+		tui.setMetric("Session", session.id);
 		session.append("session.started", {
 			root: created.state.root,
 			requestedDirectory: resolvedDir,
@@ -305,20 +247,21 @@ export const runAgentSession = async (
 			branch: created.state.branch,
 			head: created.state.head,
 		});
-		const before = scanBaseline(rail, created.worktree.path);
+		const before = scanBaseline(tui, created.worktree.path);
 		session.append("scan.baseline", summarizeAgentScan(before));
-		runSafeFixStep(rail, created.worktree.path, options);
+		runSafeFixStep(tui, created.worktree.path, options);
 		const afterFix = scanJson(created.worktree.path);
+		tui.setMetric("Score", `${before.score ?? "not scored"} -> ${afterFix.score ?? "not scored"}`);
 		session.append(options.noFix ? "fix.safe.skipped" : "fix.safe.finished", {
 			scan: summarizeAgentScan(afterFix),
 		});
-		const findings = selectFindings(rail, created.worktree.path, options.limit);
+		const findings = selectFindings(tui, created.worktree.path, options.limit);
 		session.append("findings.selected", {
 			count: findings.length,
 			findings: findings.map(summarizeAgentFinding),
 		});
 		await runProviderStep({
-			rail,
+			tui,
 			session,
 			selected,
 			worktreePath: created.worktree.path,
@@ -326,7 +269,7 @@ export const runAgentSession = async (
 			score: afterFix.score,
 			options,
 		});
-		const verified = await verifyDiff(rail, created.worktree.path, before);
+		const verified = await verifyDiff(tui, created.worktree.path, before);
 		changedFiles = verified.changedFiles;
 		session.append("diff.verified", {
 			scan: summarizeAgentScan(verified.after),
@@ -337,13 +280,14 @@ export const runAgentSession = async (
 			changedFiles,
 			worktreePath: created.worktree.path,
 			originalRoot: created.state.root,
+			tui,
 		});
 		session.append(applied ? "diff.applied" : "diff.apply_skipped", {
 			applyRequested: options.apply,
 			changedFiles: changedFiles.length,
 		});
 		if (changedFiles.length > 0 && (options.commit || options.pr)) {
-			rail.start(options.pr ? "Creating local branch and PR" : "Creating local commit");
+			tui.start(options.pr ? "Creating local branch and PR" : "Creating local commit");
 			session.append("publish.started", {
 				commit: options.commit,
 				pr: options.pr,
@@ -371,7 +315,7 @@ export const runAgentSession = async (
 			session.append(published ? "publish.finished" : "publish.skipped", {
 				result: published,
 			});
-			rail.complete({
+			tui.complete({
 				status: published ? "done" : "skipped",
 				label: published?.prUrl
 					? `Opened PR ${published.prUrl}`
@@ -394,10 +338,10 @@ export const runAgentSession = async (
 			applied,
 			published: Boolean(published),
 		});
-		rail.finish({
+		tui.finish({
 			footer: `Done · ${selected.provider.id} · ${Math.round(performance.now() - started)}ms`,
 		});
-		printSummary({
+		printAgentSessionSummary({
 			before,
 			after: verified.after,
 			changedFiles,
@@ -413,7 +357,7 @@ export const runAgentSession = async (
 		session?.append("session.failed", {
 			message: error instanceof Error ? error.message : String(error),
 		});
-		rail.abort();
+		tui.abort();
 		log.error(error instanceof Error ? error.message : String(error));
 		process.exitCode = 1;
 	} finally {
