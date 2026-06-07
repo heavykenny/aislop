@@ -22,6 +22,7 @@ import type { AgentTui } from "../ui/agent-tui.js";
 import { renderDisplayRows, renderDisplaySection } from "../ui/display.js";
 import { log } from "../ui/logger.js";
 import { isCancel, select } from "../ui/prompts.js";
+import { displayAgentPath } from "./agent-display-path.js";
 import { applyDiff, scanJson } from "./agent-local-cli.js";
 import { type AgentOptions, type AgentScanJson, summarizeAgentScan } from "./agent-types.js";
 
@@ -233,6 +234,7 @@ export const maybeContinueSession = async (input: {
 	stats: AgentSessionStats;
 	files: EditedFileActivity[];
 	nextPass: number;
+	originalRoot: string;
 }): Promise<boolean> => {
 	if (!needsAnotherPass(input.scan)) return false;
 	const findings = selectAgentFindings(input.scan.diagnostics, input.options.limit);
@@ -261,7 +263,7 @@ export const maybeContinueSession = async (input: {
 			{ label: "Edited", value: plural(input.files.length || input.changedFiles.length, "file") },
 			{ label: "Tools", value: formatToolCalls(input.stats.toolCalls) },
 			{ label: "Tokens", value: formatUsageTotals(input.usage) },
-			{ label: "Transcript", value: input.session.path },
+			{ label: "Transcript", value: displayAgentPath(input.originalRoot, input.session.path) },
 		],
 		files: input.files,
 	});
@@ -319,18 +321,18 @@ export const maybeApplyDiff = async (input: {
 			{ label: "Edited", value: plural(input.files.length || input.changedFiles.length, "file") },
 			{ label: "Tools", value: formatToolCalls(input.stats.toolCalls) },
 			{ label: "Tokens", value: formatUsageTotals(input.usage) },
-			{ label: "Worktree", value: input.worktreePath },
-			{ label: "Target repo", value: input.originalRoot },
+			{ label: "Worktree", value: displayAgentPath(input.originalRoot, input.worktreePath) },
+			{ label: "Target repo", value: path.basename(input.originalRoot) },
 		],
 		files: input.files,
 	});
-	const choice = await select<"review" | "apply">({
+	const choice = await select<"apply" | "review">({
 		message: `Next step for ${plural(input.changedFiles.length, "changed file")}`,
 		options: [
-			{ value: "review", label: "Keep worktree for review" },
 			{ value: "apply", label: `Apply changes to ${path.basename(input.originalRoot)}` },
+			{ value: "review", label: "Keep worktree for review" },
 		],
-		initialValue: input.options.apply ? "apply" : "review",
+		initialValue: "apply",
 	});
 	input.tui.resume();
 	if (isCancel(choice)) {

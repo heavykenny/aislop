@@ -20,6 +20,7 @@ import { renderHeader } from "../ui/header.js";
 import { log } from "../ui/logger.js";
 import { style, theme } from "../ui/theme.js";
 import { APP_VERSION } from "../version.js";
+import { displayAgentPath } from "./agent-display-path.js";
 import { renderAgentSessionReview } from "./agent-session-review.js";
 import { resolveAgentGitRoot } from "./agent-session-root.js";
 
@@ -243,9 +244,9 @@ export const renderAgentSessionShow = (input: {
 				{ label: "Passes", value: passText(input.summary) },
 				{ label: "Tools", value: toolText(input.summary) },
 				{ label: "Started", value: input.summary.startedAt ?? "unknown" },
-				{ label: "Transcript", value: input.summary.path },
+				{ label: "Transcript", value: displayAgentPath(input.root, input.summary.path) },
 				...(input.summary.worktreePath
-					? [{ label: "Worktree", value: input.summary.worktreePath }]
+					? [{ label: "Worktree", value: displayAgentPath(input.root, input.summary.worktreePath) }]
 					: []),
 				...(input.summary.backgroundPid
 					? [{ label: "PID", value: String(input.summary.backgroundPid) }]

@@ -47,6 +47,8 @@ describe("agent watch", () => {
 		expect(out).toContain("background process stopped with SIGTERM");
 		expect(out).toContain("Review summary");
 		expect(out).toMatch(/Provider\s+not started/);
+		expect(out).toMatch(/Transcript\s+\.aislop\/agent\/sessions\/session-1\.jsonl/);
+		expect(out).not.toContain("/repo/.aislop/agent/sessions/session-1.jsonl");
 	});
 
 	it("renders terminal session review details from scan and provider events", () => {
@@ -79,6 +81,7 @@ describe("agent watch", () => {
 
 		expect(out).toContain("Review summary");
 		expect(out).toMatch(/Score\s+71 -> 94/);
+		expect(out).toMatch(/Transcript\s+\.aislop\/agent\/sessions\/session-2\.jsonl/);
 		expect(out).toMatch(/Selected\s+2/);
 		expect(out).toMatch(/Remaining\s+1/);
 		expect(out).toContain("5 tool calls");

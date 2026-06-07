@@ -193,6 +193,7 @@ export const runAgentSession = async (
 				stats,
 				files: tracker.files(),
 				nextPass: pass + 1,
+				originalRoot: created.state.root,
 			})
 		) {
 			pass += 1;

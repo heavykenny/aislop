@@ -119,7 +119,11 @@ describe("agent session store", () => {
 					providerLabel: "Codex",
 					mode: "isolated_worktree",
 				},
-				{ type: "worktree.prepared", path: "/tmp/worktree", created: true },
+				{
+					type: "worktree.prepared",
+					path: path.join(root, ".aislop", "worktrees", "agent-1"),
+					created: true,
+				},
 				{
 					type: "findings.selected",
 					pass: 1,
@@ -193,6 +197,9 @@ describe("agent session store", () => {
 		expect(show).toContain("$0.0123");
 		expect(show).toMatch(/Passes\s+1/);
 		expect(show).toContain("4 tool calls");
+		expect(show).toMatch(/Transcript\s+\.aislop\/agent\/sessions\/20260607-100000-1\.jsonl/);
+		expect(show).toMatch(/Worktree\s+\.aislop\/worktrees\/agent-1/);
+		expect(show).not.toContain(sessionPath);
 		expect(show).toContain("Provider notes");
 		expect(show).toContain("skipped likely false positive");
 		expect(show).toContain("Timeline");

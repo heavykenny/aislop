@@ -12,6 +12,7 @@ import { renderHeader } from "../ui/header.js";
 import { log } from "../ui/logger.js";
 import { style, theme } from "../ui/theme.js";
 import { APP_VERSION } from "../version.js";
+import { displayAgentPath } from "./agent-display-path.js";
 import { renderAgentSessionReview } from "./agent-session-review.js";
 import { resolveAgentGitRoot } from "./agent-session-root.js";
 
@@ -107,7 +108,7 @@ export const renderAgentWatchSnapshot = (input: {
 					label: "Provider",
 					value: summary.providerLabel ?? summary.provider ?? "unknown provider",
 				},
-				{ label: "Transcript", value: input.sessionPath },
+				{ label: "Transcript", value: displayAgentPath(input.root, input.sessionPath) },
 			],
 			{ indent: 3, labelWidth: 10 },
 		),

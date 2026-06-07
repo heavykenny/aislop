@@ -15,6 +15,7 @@ import {
 	renderDisplaySection,
 } from "../ui/display.js";
 import { log } from "../ui/logger.js";
+import { displayAgentPath } from "./agent-display-path.js";
 import type { AgentOptions, AgentScanJson } from "./agent-types.js";
 
 export const providerSourceLabel = (options: AgentOptions): string => {
@@ -57,7 +58,7 @@ export const printAgentSessionSummary = (input: {
 					{ label: "Provider", value: input.provider.provider.label },
 					{ label: "Source", value: providerSourceLabel(input.options) },
 					{ label: "Session", value: input.session.id },
-					{ label: "Transcript", value: input.session.path },
+					{ label: "Transcript", value: displayAgentPath(input.originalRoot, input.session.path) },
 					{
 						label: "Score",
 						value: `${input.before.score ?? "not scored"} -> ${input.after.score ?? "not scored"}`,
@@ -69,7 +70,12 @@ export const printAgentSessionSummary = (input: {
 					{ label: "Files edited", value: String(editedFileCount) },
 					{ label: "Changed", value: String(input.changedFiles.length) },
 					...(input.worktreePath !== input.originalRoot
-						? [{ label: "Worktree", value: input.worktreePath }]
+						? [
+								{
+									label: "Worktree",
+									value: displayAgentPath(input.originalRoot, input.worktreePath),
+								},
+							]
 						: []),
 				],
 				{ indent: 3, labelWidth: 12 },
@@ -108,7 +114,9 @@ export const printAgentSessionSummary = (input: {
 		process.stdout.write(
 			`\n${[
 				renderDisplaySection("Next"),
-				...renderDisplayRows([{ label: "Review", value: input.worktreePath }]),
+				...renderDisplayRows([
+					{ label: "Review", value: displayAgentPath(input.originalRoot, input.worktreePath) },
+				]),
 				...renderDisplayCommandRows([
 					{ label: "Apply", command: `aislop agent apply ${input.session.id}` },
 				]),
