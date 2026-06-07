@@ -33,7 +33,9 @@ describe("AgentTui", () => {
 		const { tui, chunks } = mkTui(true);
 
 		tui.start("Preparing local session");
+		tui.setMetric("Pass", "2");
 		tui.setMetric("Score", "72 -> ...");
+		tui.setMetric("Tools", "14");
 		tui.setMetric("Tokens", "1,680 total / 1,200 in / 80 out / 400 cached");
 		tui.setMetric("Remaining", "3");
 		tui.setFiles([
@@ -59,7 +61,9 @@ describe("AgentTui", () => {
 		expect(stripped).toContain("aislop agent");
 		expect(stripped).toContain("Codex");
 		expect(stripped).toContain("Metrics");
+		expect(stripped).toContain("Pass");
 		expect(stripped).toContain("Score");
+		expect(stripped).toContain("Tools");
 		expect(stripped).toContain("Tokens");
 		expect(stripped).toContain("Remaining");
 		expect(stripped).toContain("Edited files");

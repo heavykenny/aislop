@@ -46,34 +46,42 @@ function usageFrom(value: unknown): Partial<ProviderUsage> | null {
 		"prompt_tokens",
 		"promptTokens",
 	]);
-	const cacheReadTokens =
-		tokenValue(value, ["cache_read_input_tokens", "cacheReadInputTokens"]) ?? 0;
-	const cacheCreationTokens =
-		tokenValue(value, ["cache_creation_input_tokens", "cacheCreationInputTokens"]) ?? 0;
+	const cacheReadTokenValue = tokenValue(value, [
+		"cache_read_input_tokens",
+		"cacheReadInputTokens",
+	]);
+	const cacheCreationTokenValue = tokenValue(value, [
+		"cache_creation_input_tokens",
+		"cacheCreationInputTokens",
+	]);
+	const cacheReadTokens = cacheReadTokenValue ?? 0;
+	const cacheCreationTokens = cacheCreationTokenValue ?? 0;
 	const cachedInputTokens =
 		tokenValue(value, ["cached_input_tokens", "cachedInputTokens"]) ??
-		cacheReadTokens + cacheCreationTokens;
+		(cacheReadTokenValue !== null || cacheCreationTokenValue !== null
+			? cacheReadTokens + cacheCreationTokens
+			: null);
 	const outputTokens = tokenValue(value, [
 		"output_tokens",
 		"outputTokens",
 		"completion_tokens",
 		"completionTokens",
 	]);
+	const directTotalTokens = tokenValue(value, ["total_tokens", "totalTokens"]);
+	const costUsd = tokenValue(value, ["cost_usd", "total_cost_usd", "costUsd", "totalCostUsd"]);
+	const hasTokenUsage =
+		inputTokens !== null ||
+		cachedInputTokens !== null ||
+		outputTokens !== null ||
+		directTotalTokens !== null;
+	if (!hasTokenUsage && costUsd === null) {
+		return null;
+	}
 	const totalTokens =
-		tokenValue(value, ["total_tokens", "totalTokens"]) ??
+		directTotalTokens ??
 		[inputTokens, cachedInputTokens, outputTokens]
 			.filter((item): item is number => item !== null)
 			.reduce((sum, item) => sum + item, 0);
-	const costUsd = tokenValue(value, ["cost_usd", "total_cost_usd", "costUsd", "totalCostUsd"]);
-	if (
-		inputTokens === null &&
-		cachedInputTokens === null &&
-		outputTokens === null &&
-		totalTokens === 0 &&
-		costUsd === null
-	) {
-		return null;
-	}
 	return {
 		inputTokens: inputTokens ?? 0,
 		cachedInputTokens: cachedInputTokens ?? 0,

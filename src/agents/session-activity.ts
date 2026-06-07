@@ -4,7 +4,7 @@ import type { ProviderUsage } from "./provider-metadata.js";
 import type { AgentSessionRecorder } from "./session.js";
 import { diffNameOnly } from "./worktree.js";
 
-interface EditedFileActivity {
+export interface EditedFileActivity {
 	filePath: string;
 	updatedAt: string;
 	source: string;
@@ -18,11 +18,23 @@ export interface AgentUsageTotals {
 	costUsd?: number;
 }
 
+export interface AgentSessionStats {
+	providerPasses: number;
+	toolCalls: number;
+	outputEvents: number;
+}
+
 export const createUsageTotals = (): AgentUsageTotals => ({
 	inputTokens: 0,
 	cachedInputTokens: 0,
 	outputTokens: 0,
 	totalTokens: 0,
+});
+
+export const createSessionStats = (): AgentSessionStats => ({
+	providerPasses: 0,
+	toolCalls: 0,
+	outputEvents: 0,
 });
 
 export const mergeProviderUsage = (
@@ -59,6 +71,12 @@ export const formatUsageTotals = (usage: AgentUsageTotals): string => {
 	if (usage.costUsd !== undefined) tokens.push(`$${usage.costUsd.toFixed(4)}`);
 	return tokens.join(" / ");
 };
+
+export const formatToolCalls = (count: number): string =>
+	`${count.toLocaleString()} tool call${count === 1 ? "" : "s"}`;
+
+export const isProviderToolLine = (line: string | null | undefined): boolean =>
+	Boolean(line?.startsWith("exec: ") || line?.startsWith("tool: "));
 
 export const createChangedFileTracker = (input: {
 	cwd: string;

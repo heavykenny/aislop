@@ -1,5 +1,6 @@
 import path from "node:path";
 import { formatProviderOutputLine } from "../agents/provider-output.js";
+import { formatToolCalls } from "../agents/session-activity.js";
 import {
 	type AgentSessionEvent,
 	type AgentSessionSummary,
@@ -59,6 +60,12 @@ const usageText = (summary: AgentSessionSummary): string => {
 const providerText = (summary: AgentSessionSummary): string =>
 	summary.providerLabel ?? summary.provider ?? "unknown provider";
 
+const passText = (summary: AgentSessionSummary): string =>
+	summary.providerPasses === null ? "passes n/a" : String(summary.providerPasses);
+
+const toolText = (summary: AgentSessionSummary): string =>
+	summary.toolCalls === null ? "tools n/a" : formatToolCalls(summary.toolCalls);
+
 const sessionStatusItem = (root: string, session: AgentSessionSummary): DisplayStatusItem => ({
 	marker: statusMarker(session.status),
 	label: session.id,
@@ -68,6 +75,8 @@ const sessionStatusItem = (root: string, session: AgentSessionSummary): DisplayS
 		{ label: "Score", value: scoreText(session) },
 		{ label: "Changed", value: changedText(session) },
 		{ label: "Usage", value: usageText(session) },
+		{ label: "Passes", value: passText(session) },
+		{ label: "Tools", value: toolText(session) },
 		{ label: "Started", value: session.startedAt ?? "unknown time" },
 		{ label: "Record", value: path.relative(root, session.path) },
 	],
@@ -132,15 +141,26 @@ const eventLine = (event: AgentSessionEvent): string | null => {
 	}
 	if (event.type === "fix.safe.finished") return "safe fixes finished";
 	if (event.type === "fix.safe.skipped") return "safe fixes skipped";
-	if (event.type === "findings.selected") return `selected ${event.count ?? 0} findings`;
+	if (event.type === "findings.selected")
+		return `pass ${event.pass ?? "?"} selected ${event.count ?? 0} findings`;
 	if (event.type === "provider.started")
-		return `provider started with ${event.findings ?? 0} findings`;
+		return `pass ${event.pass ?? "?"} provider started with ${event.findings ?? 0} findings`;
 	if (event.type === "provider.skipped")
 		return `provider skipped${event.reason ? `: ${event.reason}` : ""}`;
-	if (event.type === "provider.finished") return `provider exited ${event.exitCode ?? "unknown"}`;
+	if (event.type === "provider.finished") {
+		const exitCode =
+			event.exitCode === 0 ? "finished" : `finished with exit ${event.exitCode ?? "unknown"}`;
+		const tools =
+			typeof event.toolCalls === "number" ? ` · ${formatToolCalls(event.toolCalls)}` : "";
+		return `pass ${event.pass ?? "?"} provider ${exitCode}${tools}`;
+	}
 	if (event.type === "diff.verified") {
 		const files = Array.isArray(event.changedFiles) ? event.changedFiles.length : 0;
-		return `diff verified with ${files} changed file${files === 1 ? "" : "s"}`;
+		const score =
+			typeof event.scoreBefore === "number" && typeof event.scan === "object" && event.scan !== null
+				? ` · ${event.scoreBefore} -> ${(event.scan as { score?: unknown }).score ?? "n/a"}`
+				: "";
+		return `pass ${event.pass ?? "?"} diff verified${score} · ${files} changed file${files === 1 ? "" : "s"}`;
 	}
 	if (event.type === "diff.applied") return "diff applied to original worktree";
 	if (event.type === "diff.apply_skipped") return "diff apply skipped";
@@ -217,6 +237,8 @@ export const renderAgentSessionShow = (input: {
 				{ label: "Score", value: scoreText(input.summary) },
 				{ label: "Changed", value: changedText(input.summary) },
 				{ label: "Usage", value: usageText(input.summary) },
+				{ label: "Passes", value: passText(input.summary) },
+				{ label: "Tools", value: toolText(input.summary) },
 				{ label: "Started", value: input.summary.startedAt ?? "unknown" },
 				{ label: "Transcript", value: input.summary.path },
 				...(input.summary.worktreePath

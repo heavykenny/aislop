@@ -86,12 +86,14 @@ const valueLines = (items: [string, string][], columns: number): string[] => {
 
 const orderedMetrics = (metrics: Map<string, string>): [string, string][] => {
 	const order = [
+		"Pass",
 		"Score",
 		"Target",
 		"Remaining",
 		"Findings",
 		"Selected",
 		"Changes",
+		"Tools",
 		"Tokens",
 		"Worktree",
 		"Session",

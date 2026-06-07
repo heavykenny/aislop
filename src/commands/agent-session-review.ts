@@ -1,4 +1,5 @@
 import { formatProviderOutputLine } from "../agents/provider-output.js";
+import { formatToolCalls } from "../agents/session-activity.js";
 import type { AgentSessionEvent, AgentSessionSummary } from "../agents/session-store.js";
 import { renderDisplayRows, renderDisplaySection } from "../ui/display.js";
 
@@ -22,8 +23,21 @@ const verifiedDiagnostics = (events: AgentSessionEvent[]): number | null => {
 const providerOutcome = (events: AgentSessionEvent[]): string => {
 	const skipped = events.find((item) => item.type === "provider.skipped");
 	if (skipped) return `skipped (${skipped.reason ?? "not needed"})`;
-	const finished = events.find((item) => item.type === "provider.finished");
-	if (finished) return `exited ${finished.exitCode ?? "unknown"}`;
+	const finished = [...events].reverse().find((item) => item.type === "provider.finished");
+	if (finished) {
+		const pass = asNumber(finished.pass);
+		const tools = asNumber(finished.toolCalls);
+		const exitCode = asNumber(finished.exitCode);
+		const exitText =
+			exitCode === 0 || exitCode === null ? "finished" : `finished with exit ${exitCode}`;
+		return [
+			pass === null ? "provider" : `pass ${pass}`,
+			exitText,
+			tools === null ? null : formatToolCalls(tools),
+		]
+			.filter(Boolean)
+			.join(" · ");
+	}
 	const started = events.find((item) => item.type === "provider.started");
 	return started ? "running" : "not started";
 };
@@ -78,6 +92,12 @@ export const renderAgentSessionReview = (input: {
 				{ label: "Remaining", value: String(remaining ?? "n/a") },
 				{ label: "Changed", value: String(input.summary.changedFiles ?? 0) },
 				{ label: "Usage", value: usageOutcome(input.summary) },
+				{ label: "Passes", value: String(input.summary.providerPasses ?? "n/a") },
+				{
+					label: "Tools",
+					value:
+						input.summary.toolCalls === null ? "n/a" : formatToolCalls(input.summary.toolCalls),
+				},
 				{ label: "Provider", value: providerOutcome(input.events) },
 				{ label: "Apply", value: applyOutcome(input.events, input.summary) },
 				{ label: "Publish", value: publishOutcome(input.events, input.summary) },

@@ -1,4 +1,5 @@
 import { formatProviderOutputLine } from "../agents/provider-output.js";
+import { formatToolCalls } from "../agents/session-activity.js";
 import {
 	type AgentSessionEvent,
 	isTerminalAgentSession,
@@ -54,15 +55,22 @@ export const renderAgentWatchEvent = (event: AgentSessionEvent): string | null =
 	}
 	if (event.type === "fix.safe.finished") return "safe fixes finished";
 	if (event.type === "fix.safe.skipped") return "safe fixes skipped";
-	if (event.type === "findings.selected") return `selected ${event.count ?? 0} findings`;
+	if (event.type === "findings.selected")
+		return `pass ${event.pass ?? "?"} selected ${event.count ?? 0} findings`;
 	if (event.type === "provider.started")
-		return `provider started with ${event.findings ?? 0} findings`;
+		return `pass ${event.pass ?? "?"} provider started with ${event.findings ?? 0} findings`;
 	if (event.type === "provider.skipped")
 		return `provider skipped${event.reason ? `: ${event.reason}` : ""}`;
-	if (event.type === "provider.finished") return `provider exited ${event.exitCode ?? "unknown"}`;
+	if (event.type === "provider.finished") {
+		const exitCode =
+			event.exitCode === 0 ? "finished" : `finished with exit ${event.exitCode ?? "unknown"}`;
+		const tools =
+			typeof event.toolCalls === "number" ? ` · ${formatToolCalls(event.toolCalls)}` : "";
+		return `pass ${event.pass ?? "?"} provider ${exitCode}${tools}`;
+	}
 	if (event.type === "diff.verified") {
 		const files = Array.isArray(event.changedFiles) ? event.changedFiles.length : 0;
-		return `diff verified with ${files} changed file${files === 1 ? "" : "s"}`;
+		return `pass ${event.pass ?? "?"} diff verified with ${files} changed file${files === 1 ? "" : "s"}`;
 	}
 	if (event.type === "diff.applied") return "diff applied to original worktree";
 	if (event.type === "diff.apply_skipped") return "diff apply skipped";

@@ -66,6 +66,17 @@ describe("provider output formatting", () => {
 		expect(metadata.files).toEqual(["src/app.ts"]);
 	});
 
+	it("does not create zero-token usage for command-only events", () => {
+		const metadata = extractProviderOutputMetadata(
+			JSON.stringify({
+				type: "item.completed",
+				command: "sed -n 1,80p src/app.ts",
+			}),
+		);
+
+		expect(metadata.usage).toBeUndefined();
+	});
+
 	it("extracts Claude-style final cost and cache token usage", () => {
 		const metadata = extractProviderOutputMetadata(
 			JSON.stringify({

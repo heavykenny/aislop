@@ -57,14 +57,22 @@ describe("agent watch", () => {
 				events: [
 					event("session.started", { provider: "codex", providerLabel: "Codex" }),
 					event("scan.baseline", { score: 71, diagnostics: 4 }),
-					event("findings.selected", { count: 2 }),
-					event("provider.finished", { exitCode: 0 }),
+					event("findings.selected", { pass: 1, count: 2 }),
+					event("provider.finished", { pass: 1, exitCode: 0, toolCalls: 5 }),
 					event("provider.output", { line: "intentional skip for false positive" }),
 					event("diff.verified", {
+						pass: 1,
+						scoreBefore: 71,
 						changedFiles: ["src/a.ts"],
 						scan: { score: 94, diagnostics: 1 },
 					}),
-					event("session.completed", { scoreBefore: 71, scoreAfter: 94, changedFiles: 1 }),
+					event("session.completed", {
+						scoreBefore: 71,
+						scoreAfter: 94,
+						changedFiles: 1,
+						providerPasses: 1,
+						toolCalls: 5,
+					}),
 				],
 			}),
 		);
@@ -73,6 +81,8 @@ describe("agent watch", () => {
 		expect(out).toMatch(/Score\s+71 -> 94/);
 		expect(out).toMatch(/Selected\s+2/);
 		expect(out).toMatch(/Remaining\s+1/);
+		expect(out).toContain("5 tool calls");
+		expect(out).toContain("pass 1 provider finished");
 		expect(out).toContain("Provider notes");
 		expect(out).toContain("intentional skip for false positive");
 	});

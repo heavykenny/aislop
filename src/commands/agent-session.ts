@@ -8,7 +8,11 @@ import {
 	createAgentSessionRecorder,
 	summarizeAgentFinding,
 } from "../agents/session.js";
-import { createChangedFileTracker, createUsageTotals } from "../agents/session-activity.js";
+import {
+	createChangedFileTracker,
+	createSessionStats,
+	createUsageTotals,
+} from "../agents/session-activity.js";
 import { createAgentWorktree, removeAgentWorktree } from "../agents/worktree.js";
 import type { Diagnostic } from "../engines/types.js";
 import { AgentTui } from "../ui/agent-tui.js";
@@ -64,8 +68,8 @@ const runSafeFixStep = (tui: AgentTui, cwd: string, options: AgentOptions): void
 	tui.complete({ status: "done", label: "Safe fixer finished" });
 };
 
-const selectFindings = (tui: AgentTui, cwd: string, limit: number): Diagnostic[] => {
-	tui.start("Selecting findings for agent");
+const selectFindings = (tui: AgentTui, cwd: string, limit: number, pass: number): Diagnostic[] => {
+	tui.start(`Pass ${pass}: selecting findings`);
 	const scan = scanJson(cwd);
 	const findings = selectAgentFindings(scan.diagnostics, limit);
 	tui.setMetric("Selected", findings.length);
@@ -73,7 +77,7 @@ const selectFindings = (tui: AgentTui, cwd: string, limit: number): Diagnostic[]
 		status: findings.length > 0 ? "done" : "skipped",
 		label:
 			findings.length > 0
-				? `Selected ${findings.length} finding${findings.length === 1 ? "" : "s"}`
+				? `Pass ${pass}: selected ${findings.length} finding${findings.length === 1 ? "" : "s"}`
 				: "No remaining agent findings",
 	});
 	return findings;
@@ -111,6 +115,7 @@ export const runAgentSession = async (
 			},
 		});
 		tui.setMetric("Session", session.id);
+		const stats = createSessionStats();
 		session.append("session.started", {
 			root: created.state.root,
 			requestedDirectory: resolvedDir,
@@ -148,8 +153,10 @@ export const runAgentSession = async (
 		session.append(options.noFix ? "fix.safe.skipped" : "fix.safe.finished", {
 			scan: summarizeAgentScan(afterFix),
 		});
-		const findings = selectFindings(tui, created.worktree.path, options.limit);
+		let pass = 1;
+		const findings = selectFindings(tui, created.worktree.path, options.limit, pass);
 		session.append("findings.selected", {
+			pass,
 			count: findings.length,
 			findings: findings.map(summarizeAgentFinding),
 		});
@@ -162,19 +169,37 @@ export const runAgentSession = async (
 			score: afterFix.score,
 			options,
 			usage,
+			stats,
 			tracker,
+			pass,
 		});
-		let verified = await verifyDiff(tui, created.worktree.path, before, options);
+		let verified = await verifyDiff(
+			tui,
+			created.worktree.path,
+			before,
+			options,
+			session,
+			pass,
+			afterFix.score,
+		);
 		while (
 			await maybeContinueSession({
 				tui,
 				session,
 				scan: verified.after,
+				changedFiles: verified.changedFiles,
 				options,
+				usage,
+				stats,
+				files: tracker.files(),
+				nextPass: pass + 1,
 			})
 		) {
-			const nextFindings = selectFindings(tui, created.worktree.path, options.limit);
+			pass += 1;
+			const passStartScore = verified.after.score;
+			const nextFindings = selectFindings(tui, created.worktree.path, options.limit, pass);
 			session.append("findings.selected", {
+				pass,
 				count: nextFindings.length,
 				findings: nextFindings.map(summarizeAgentFinding),
 				source: "continue",
@@ -188,21 +213,31 @@ export const runAgentSession = async (
 				score: verified.after.score,
 				options,
 				usage,
+				stats,
 				tracker,
+				pass,
 			});
-			verified = await verifyDiff(tui, created.worktree.path, before, options);
+			verified = await verifyDiff(
+				tui,
+				created.worktree.path,
+				before,
+				options,
+				session,
+				pass,
+				passStartScore,
+			);
 		}
 		changedFiles = verified.changedFiles;
-		session.append("diff.verified", {
-			scan: summarizeAgentScan(verified.after),
-			changedFiles,
-		});
 		applied = await maybeApplyDiff({
 			options,
 			changedFiles,
 			worktreePath: created.worktree.path,
 			originalRoot: created.state.root,
 			tui,
+			session,
+			usage,
+			stats,
+			files: tracker.files(),
 		});
 		session.append(applied ? "diff.applied" : "diff.apply_skipped", {
 			applyRequested: options.apply,
@@ -257,6 +292,11 @@ export const runAgentSession = async (
 			scoreBefore: before.score,
 			scoreAfter: verified.after.score,
 			changedFiles: changedFiles.length,
+			providerPasses: stats.providerPasses,
+			toolCalls: stats.toolCalls,
+			outputEvents: stats.outputEvents,
+			totalTokens: usage.totalTokens,
+			costUsd: usage.costUsd,
 			applied,
 			published: Boolean(published),
 		});
@@ -274,6 +314,9 @@ export const runAgentSession = async (
 			session,
 			worktreePath: created.worktree.path,
 			originalRoot: created.state.root,
+			usage,
+			stats,
+			fileActivity: tracker.files(),
 		});
 	} catch (error) {
 		session?.append("session.failed", {

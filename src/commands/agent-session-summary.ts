@@ -2,6 +2,13 @@ import type { ProviderStatus } from "../agents/providers.js";
 import type { PublishAgentDiffResult } from "../agents/publish.js";
 import type { AgentSessionRecorder } from "../agents/session.js";
 import {
+	type AgentSessionStats,
+	type AgentUsageTotals,
+	type EditedFileActivity,
+	formatToolCalls,
+	formatUsageTotals,
+} from "../agents/session-activity.js";
+import {
 	renderDisplayCommandRows,
 	renderDisplayRows,
 	renderDisplaySection,
@@ -17,6 +24,14 @@ export const providerSourceLabel = (options: AgentOptions): string => {
 	return "auto-detect installed provider";
 };
 
+const actionableCount = (scan: AgentScanJson): number =>
+	scan.diagnostics.filter((diagnostic) => diagnostic.severity !== "info").length;
+
+const editedFileLine = (file: EditedFileActivity): string => {
+	const time = new Date(file.updatedAt).toLocaleTimeString();
+	return `${file.filePath} · ${time}${file.source ? ` · ${file.source}` : ""}`;
+};
+
 export const printAgentSessionSummary = (input: {
 	before: AgentScanJson;
 	after: AgentScanJson;
@@ -28,7 +43,11 @@ export const printAgentSessionSummary = (input: {
 	session: AgentSessionRecorder;
 	worktreePath: string;
 	originalRoot: string;
+	usage: AgentUsageTotals;
+	stats: AgentSessionStats;
+	fileActivity: EditedFileActivity[];
 }): void => {
+	const editedFileCount = input.fileActivity.length || input.changedFiles.length;
 	log.break();
 	process.stdout.write(
 		`${[
@@ -43,11 +62,17 @@ export const printAgentSessionSummary = (input: {
 						label: "Score",
 						value: `${input.before.score ?? "not scored"} -> ${input.after.score ?? "not scored"}`,
 					},
+					{ label: "Remaining", value: `${actionableCount(input.after)} actionable findings` },
+					{ label: "Passes", value: String(input.stats.providerPasses) },
+					{ label: "Tools", value: formatToolCalls(input.stats.toolCalls) },
+					{ label: "Tokens", value: formatUsageTotals(input.usage) },
+					{ label: "Files edited", value: String(editedFileCount) },
+					{ label: "Changed", value: String(input.changedFiles.length) },
 					...(input.worktreePath !== input.originalRoot
 						? [{ label: "Worktree", value: input.worktreePath }]
 						: []),
 				],
-				{ indent: 3, labelWidth: 10 },
+				{ indent: 3, labelWidth: 12 },
 			),
 			"",
 		].join("\n")}`,
@@ -62,6 +87,15 @@ export const printAgentSessionSummary = (input: {
 	}
 	if (input.changedFiles.length > 12) {
 		process.stdout.write(` - ...and ${input.changedFiles.length - 12} more\n`);
+	}
+	if (input.fileActivity.length > 0) {
+		process.stdout.write(`\n${renderDisplaySection("File activity")}\n`);
+		for (const file of input.fileActivity.slice(-8)) {
+			process.stdout.write(` - ${editedFileLine(file)}\n`);
+		}
+		if (input.fileActivity.length > 8) {
+			process.stdout.write(` - ...and ${input.fileActivity.length - 8} more\n`);
+		}
 	}
 	if (input.applied) {
 		log.success("Applied diff to the original worktree.");

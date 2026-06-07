@@ -25,6 +25,9 @@ export interface AgentSessionSummary {
 	changedFiles: number | null;
 	totalTokens: number | null;
 	costUsd: number | null;
+	providerPasses: number | null;
+	toolCalls: number | null;
+	outputEvents: number | null;
 	applied: boolean;
 	published: boolean;
 }
@@ -82,10 +85,20 @@ export const summarizeAgentSession = (
 	const worktree = events.find((event) => event.type === "worktree.prepared");
 	const baseline = events.find((event) => event.type === "scan.baseline");
 	const applied = events.find((event) => event.type === "diff.applied");
-	const verified = events.find((event) => event.type === "diff.verified");
+	const verified = [...events].reverse().find((event) => event.type === "diff.verified");
 	const verifiedScan = isObject(verified?.scan) ? verified.scan : null;
 	const usage = [...events].reverse().find((event) => event.type === "provider.usage");
 	const usagePayload = isObject(usage?.usage) ? usage.usage : null;
+	const providerFinished = events.filter((event) => event.type === "provider.finished");
+	const inferredPasses = Math.max(0, ...providerFinished.map((event) => asNumber(event.pass) ?? 0));
+	const summedToolCalls = providerFinished.reduce(
+		(sum, event) => sum + (asNumber(event.toolCalls) ?? 0),
+		0,
+	);
+	const summedOutputEvents = providerFinished.reduce(
+		(sum, event) => sum + (asNumber(event.outputEvents) ?? 0),
+		0,
+	);
 	const status = failed
 		? "failed"
 		: stopped
@@ -111,8 +124,13 @@ export const summarizeAgentSession = (
 		scoreBefore: asNumber(completed?.scoreBefore) ?? asNumber(baseline?.score),
 		scoreAfter: asNumber(completed?.scoreAfter) ?? asNumber(verifiedScan?.score),
 		changedFiles: asNumber(completed?.changedFiles),
-		totalTokens: asNumber(usagePayload?.totalTokens),
-		costUsd: asNumber(usagePayload?.costUsd),
+		totalTokens: asNumber(completed?.totalTokens) ?? asNumber(usagePayload?.totalTokens),
+		costUsd: asNumber(completed?.costUsd) ?? asNumber(usagePayload?.costUsd),
+		providerPasses:
+			asNumber(completed?.providerPasses) ?? (inferredPasses > 0 ? inferredPasses : null),
+		toolCalls: asNumber(completed?.toolCalls) ?? (summedToolCalls > 0 ? summedToolCalls : null),
+		outputEvents:
+			asNumber(completed?.outputEvents) ?? (summedOutputEvents > 0 ? summedOutputEvents : null),
 		applied: completed?.applied === true || Boolean(applied),
 		published: completed?.published === true,
 	};

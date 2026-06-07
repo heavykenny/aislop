@@ -64,7 +64,16 @@ describe("agent session store", () => {
 					mode: "isolated_worktree",
 				},
 				{ type: "scan.baseline", score: 81, diagnostics: 5 },
-				{ type: "session.completed", scoreBefore: 81, scoreAfter: 94, changedFiles: 2 },
+				{ type: "provider.finished", pass: 1, exitCode: 0, toolCalls: 3, outputEvents: 7 },
+				{
+					type: "session.completed",
+					scoreBefore: 81,
+					scoreAfter: 94,
+					changedFiles: 2,
+					providerPasses: 1,
+					toolCalls: 3,
+					outputEvents: 7,
+				},
 			],
 			new Date("2026-06-07T10:01:00.000Z"),
 		);
@@ -90,6 +99,8 @@ describe("agent session store", () => {
 			scoreBefore: 81,
 			scoreAfter: 94,
 			changedFiles: 2,
+			providerPasses: 1,
+			toolCalls: 3,
 		});
 		expect(resolveAgentSessionPath(root)).toBe(latest);
 		expect(resolveAgentSessionPath(root, "20260607-100000")).toContain("20260607-100000-1");
@@ -111,6 +122,7 @@ describe("agent session store", () => {
 				{ type: "worktree.prepared", path: "/tmp/worktree", created: true },
 				{
 					type: "findings.selected",
+					pass: 1,
 					count: 1,
 					findings: [{ filePath: "src/a.ts", line: 7, rule: "ai-slop/example" }],
 				},
@@ -132,8 +144,23 @@ describe("agent session store", () => {
 					source: "git diff",
 				},
 				{ type: "provider.output", line: "skipped likely false positive in src/b.ts" },
-				{ type: "diff.verified", changedFiles: ["src/a.ts"], scan: { score: 95, diagnostics: 0 } },
-				{ type: "session.completed", scoreBefore: 82, scoreAfter: 95, changedFiles: 1 },
+				{ type: "provider.finished", pass: 1, exitCode: 0, toolCalls: 4, outputEvents: 9 },
+				{
+					type: "diff.verified",
+					pass: 1,
+					scoreBefore: 82,
+					changedFiles: ["src/a.ts"],
+					scan: { score: 95, diagnostics: 0 },
+				},
+				{
+					type: "session.completed",
+					scoreBefore: 82,
+					scoreAfter: 95,
+					changedFiles: 1,
+					providerPasses: 1,
+					toolCalls: 4,
+					outputEvents: 9,
+				},
 			],
 			new Date("2026-06-07T10:01:00.000Z"),
 		);
@@ -148,6 +175,7 @@ describe("agent session store", () => {
 		expect(list).toMatch(/Status\s+completed/);
 		expect(list).toContain("82 -> 95");
 		expect(list).toContain("1,680 tokens");
+		expect(list).toContain("4 tool calls");
 		expect(list).not.toMatch(/20260607-100000-1\s+completed/);
 
 		const listLines = list.split("\n");
@@ -161,9 +189,13 @@ describe("agent session store", () => {
 		expect(show).toMatch(/Remaining\s+0/);
 		expect(show).toContain("Usage");
 		expect(show).toContain("$0.0123");
+		expect(show).toMatch(/Passes\s+1/);
+		expect(show).toContain("4 tool calls");
 		expect(show).toContain("Provider notes");
 		expect(show).toContain("skipped likely false positive");
 		expect(show).toContain("Timeline");
+		expect(show).toContain("pass 1 provider finished");
+		expect(show).toContain("pass 1 diff verified");
 		expect(show).toContain("Selected findings");
 		expect(show).toContain("Changed files");
 		expect(show).toContain("File activity");

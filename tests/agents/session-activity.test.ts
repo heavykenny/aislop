@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+	createSessionStats,
 	createUsageTotals,
+	formatToolCalls,
 	formatUsageTotals,
+	isProviderToolLine,
 	mergeProviderUsage,
 } from "../../src/agents/session-activity.js";
 
@@ -36,5 +39,17 @@ describe("agent session activity", () => {
 		});
 		expect(formatUsageTotals(usage)).toContain("1,820 total");
 		expect(formatUsageTotals(usage)).toContain("$0.0123");
+	});
+
+	it("tracks provider pass and tool-call counters", () => {
+		const stats = createSessionStats();
+		stats.providerPasses = 2;
+		stats.toolCalls = 14;
+		stats.outputEvents = 30;
+
+		expect(formatToolCalls(stats.toolCalls)).toBe("14 tool calls");
+		expect(isProviderToolLine("exec: pnpm test")).toBe(true);
+		expect(isProviderToolLine("tool: Edit")).toBe(true);
+		expect(isProviderToolLine("assistant: done")).toBe(false);
 	});
 });
