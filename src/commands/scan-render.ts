@@ -53,6 +53,55 @@ const computeBreakdown = (diagnostics: Diagnostic[]): BreakdownSummary => {
 	};
 };
 
+const buildScanNextSteps = (input: {
+	invocation: string;
+	errors: number;
+	warnings: number;
+	fixable: number;
+	hasVulnerableDeps: boolean;
+}): NextStep[] => {
+	const nextSteps: NextStep[] = [];
+	if (input.errors + input.warnings > 0) {
+		nextSteps.push(
+			{
+				emphasis: "primary",
+				label: "Agent",
+				command: `${input.invocation} agent`,
+				detail: "run a local worktree repair session",
+			},
+			{
+				emphasis: "primary",
+				label: "Provider",
+				command: `${input.invocation} agent --provider codex`,
+				detail: "or use --provider claude/opencode",
+			},
+			{
+				emphasis: "muted",
+				label: "Preview",
+				command: `${input.invocation} agent plan`,
+				detail: "preview provider, worktree, findings, and publish actions",
+			},
+		);
+	}
+	if (input.fixable > 0) {
+		nextSteps.push({
+			emphasis: "primary",
+			label: "Auto-fix",
+			command: `${input.invocation} fix`,
+			detail: `auto-fix ${input.fixable} issue${input.fixable === 1 ? "" : "s"}`,
+		});
+	}
+	if (input.hasVulnerableDeps) {
+		nextSteps.push({
+			emphasis: "primary",
+			label: "Force",
+			command: `${input.invocation} fix -f`,
+			detail: "aggressive fixes: dependency audit, unused files, framework alignment",
+		});
+	}
+	return nextSteps;
+};
+
 interface BuildScanRenderInput {
 	projectName: string;
 	language: string;
@@ -112,26 +161,6 @@ export const buildScanRender = (input: BuildScanRenderInput): string => {
 	const diagBlock =
 		input.diagnostics.length === 0 ? "" : renderDiagnostics(input.diagnostics, input.verbose);
 
-	const nextSteps: NextStep[] = [];
-	if (fixable > 0) {
-		nextSteps.push({
-			emphasis: "primary",
-			text: `Run ${invocation} fix to auto-fix ${fixable} issue${fixable === 1 ? "" : "s"}`,
-		});
-	}
-	if (hasVulnerableDeps) {
-		nextSteps.push({
-			emphasis: "primary",
-			text: `Run ${invocation} fix -f (or --force) to apply aggressive fixes (dependency audit, unused files, framework alignment)`,
-		});
-	}
-	if (errors + warnings > 0) {
-		nextSteps.push({
-			emphasis: "primary",
-			text: `Run ${invocation} fix --claude (or --codex, --cursor, --gemini, etc.) to hand off to agent`,
-		});
-	}
-
 	const summary = renderSummary(
 		{
 			score: input.score.score,
@@ -142,7 +171,13 @@ export const buildScanRender = (input: BuildScanRenderInput): string => {
 			files: input.fileCount,
 			engines: input.results.length,
 			elapsedMs: input.elapsedMs,
-			nextSteps,
+			nextSteps: buildScanNextSteps({
+				invocation,
+				errors,
+				warnings,
+				fixable,
+				hasVulnerableDeps,
+			}),
 			breakdown: computeBreakdown(input.diagnostics),
 			findingAssessment: summarizeFindingAssessments(input.diagnostics),
 			thresholds: input.thresholds,
