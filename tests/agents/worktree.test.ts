@@ -3,7 +3,11 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { createAgentWorktree, removeAgentWorktree } from "../../src/agents/worktree.js";
+import {
+	createAgentWorktree,
+	diffNumstat,
+	removeAgentWorktree,
+} from "../../src/agents/worktree.js";
 
 let tempDirs: string[] = [];
 
@@ -50,5 +54,22 @@ describe("agent worktrees", () => {
 		expect(exclude).toContain(".aislop/agent/monitors/");
 		expect(exclude).toContain(".aislop/agent/provider.json");
 		expect(exclude).not.toMatch(/^\.aislop\/$/m);
+	});
+
+	it("reads per-file added and deleted line counts", async () => {
+		const root = createRepo();
+		writeFileSync(
+			path.join(root, "index.ts"),
+			"export const value = 2;\nexport const next = 3;\n",
+			"utf-8",
+		);
+
+		const stats = await diffNumstat(root);
+
+		expect(stats.get("index.ts")).toMatchObject({
+			additions: 2,
+			deletions: 1,
+			binary: false,
+		});
 	});
 });

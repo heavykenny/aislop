@@ -18,6 +18,9 @@ interface AgentTuiFile {
 	filePath: string;
 	updatedAt: string;
 	source?: string;
+	additions?: number | null;
+	deletions?: number | null;
+	binary?: boolean;
 }
 
 interface AgentTuiContext {
@@ -114,6 +117,14 @@ const metricLine = (metrics: Map<string, string>, columns: number): string | nul
 	if (parts.length === 0) return null;
 	const prefix = " Metrics    ";
 	return `${prefix}${truncate(parts.join(" · "), Math.max(16, columns - stringWidth(prefix) - 1))}`;
+};
+
+const fileDiffStat = (file: AgentTuiFile): string => {
+	if (file.binary) return "binary";
+	if (typeof file.additions === "number" || typeof file.deletions === "number") {
+		return `+${file.additions ?? 0} -${file.deletions ?? 0}`;
+	}
+	return "changed";
 };
 
 export class AgentTui {
@@ -317,11 +328,9 @@ export class AgentTui {
 			lines.push(` ${style(this.theme, "muted", "No file changes yet")}`);
 		} else {
 			for (const file of this.files.slice(-fileRows)) {
-				const time = new Date(file.updatedAt).toLocaleTimeString();
-				const suffix = file.source ? ` · ${file.source}` : "";
 				lines.push(
 					` ${style(this.theme, "accent", this.symbols.stepDone)} ${truncate(
-						`${file.filePath} · ${time}${suffix}`,
+						`${file.filePath} · ${fileDiffStat(file)}`,
 						Math.max(12, columns - 4),
 					)}`,
 				);

@@ -1,6 +1,6 @@
 import path from "node:path";
 import { formatProviderOutputLine } from "../agents/provider-output.js";
-import { formatToolCalls } from "../agents/session-activity.js";
+import { formatDiffStat, formatToolCalls } from "../agents/session-activity.js";
 import {
 	type AgentSessionEvent,
 	type AgentSessionSummary,
@@ -189,8 +189,11 @@ const editedFilesFrom = (events: AgentSessionEvent[]): string[] => {
 		latestByFile.set(event.filePath, event);
 	}
 	return [...latestByFile.values()].map((event) => {
-		const source = typeof event.source === "string" ? ` · ${event.source}` : "";
-		return `${event.filePath} · ${event.updatedAt ?? event.timestamp}${source}`;
+		return `${event.filePath} · ${formatDiffStat({
+			additions: typeof event.additions === "number" ? event.additions : null,
+			deletions: typeof event.deletions === "number" ? event.deletions : null,
+			binary: event.binary === true,
+		})}`;
 	});
 };
 

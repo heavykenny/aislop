@@ -2,12 +2,15 @@ import fs from "node:fs";
 import path from "node:path";
 import type { ProviderUsage } from "./provider-metadata.js";
 import type { AgentSessionRecorder } from "./session.js";
-import { diffNameOnly } from "./worktree.js";
+import { type DiffNumstat, diffNameOnly, diffNumstat } from "./worktree.js";
 
 export interface EditedFileActivity {
 	filePath: string;
 	updatedAt: string;
 	source: string;
+	additions?: number | null;
+	deletions?: number | null;
+	binary?: boolean;
 }
 
 export interface AgentUsageTotals {
@@ -78,6 +81,16 @@ export const formatToolCalls = (count: number): string =>
 export const isProviderToolLine = (line: string | null | undefined): boolean =>
 	Boolean(line?.startsWith("exec: ") || line?.startsWith("tool: "));
 
+export const formatDiffStat = (
+	file: Pick<EditedFileActivity, "additions" | "deletions" | "binary">,
+): string => {
+	if (file.binary) return "binary";
+	if (typeof file.additions === "number" || typeof file.deletions === "number") {
+		return `+${file.additions ?? 0} -${file.deletions ?? 0}`;
+	}
+	return "changed";
+};
+
 export const createChangedFileTracker = (input: {
 	cwd: string;
 	session?: AgentSessionRecorder;
@@ -87,13 +100,31 @@ export const createChangedFileTracker = (input: {
 	let timer: NodeJS.Timeout | undefined;
 	let pending = false;
 
-	const noteFile = (filePath: string, source: string): void => {
+	const noteFile = (filePath: string, source: string, stat?: DiffNumstat): void => {
 		const absolute = path.join(input.cwd, filePath);
-		const stat = fs.existsSync(absolute) ? fs.statSync(absolute) : null;
-		const updatedAt = (stat?.mtime ?? new Date()).toISOString();
+		const fileStat = fs.existsSync(absolute) ? fs.statSync(absolute) : null;
+		const updatedAt = (fileStat?.mtime ?? new Date()).toISOString();
 		const prior = files.get(filePath);
-		if (prior?.updatedAt === updatedAt && prior.source === source) return;
-		const next = { filePath, updatedAt, source };
+		const additions = stat?.additions ?? prior?.additions;
+		const deletions = stat?.deletions ?? prior?.deletions;
+		const binary = stat?.binary ?? prior?.binary;
+		if (
+			prior?.updatedAt === updatedAt &&
+			prior.source === source &&
+			prior.additions === additions &&
+			prior.deletions === deletions &&
+			prior.binary === binary
+		) {
+			return;
+		}
+		const next = {
+			filePath,
+			updatedAt,
+			source,
+			...(additions !== undefined ? { additions } : {}),
+			...(deletions !== undefined ? { deletions } : {}),
+			...(binary !== undefined ? { binary } : {}),
+		};
 		files.set(filePath, next);
 		input.session?.append("file.changed", next);
 		input.onChange([...files.values()]);
@@ -103,8 +134,9 @@ export const createChangedFileTracker = (input: {
 		if (pending) return [...files.values()];
 		pending = true;
 		try {
+			const stats = await diffNumstat(input.cwd);
 			for (const filePath of await diffNameOnly(input.cwd)) {
-				noteFile(filePath, source);
+				noteFile(filePath, source, stats.get(filePath));
 			}
 			return [...files.values()];
 		} finally {

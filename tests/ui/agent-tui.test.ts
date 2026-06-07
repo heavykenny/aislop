@@ -43,6 +43,8 @@ describe("AgentTui", () => {
 				filePath: "src/a.ts",
 				updatedAt: "2026-06-07T20:00:00.000Z",
 				source: "git diff",
+				additions: 12,
+				deletions: 3,
 			},
 		]);
 		tui.setActions([
@@ -68,6 +70,8 @@ describe("AgentTui", () => {
 		expect(stripped).toContain("Remaining");
 		expect(stripped).toContain("Edited files");
 		expect(stripped).toContain("src/a.ts");
+		expect(stripped).toContain("+12 -3");
+		expect(stripped).not.toContain("git diff");
 		expect(stripped).toContain("Live output");
 		expect(stripped).toContain("codex");
 		expect(stripped).toContain("assistant: edited src/a.ts");

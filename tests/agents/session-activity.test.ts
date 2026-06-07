@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	createSessionStats,
 	createUsageTotals,
+	formatDiffStat,
 	formatToolCalls,
 	formatUsageTotals,
 	isProviderToolLine,
@@ -51,5 +52,11 @@ describe("agent session activity", () => {
 		expect(isProviderToolLine("exec: pnpm test")).toBe(true);
 		expect(isProviderToolLine("tool: Edit")).toBe(true);
 		expect(isProviderToolLine("assistant: done")).toBe(false);
+	});
+
+	it("formats edited file diff stats", () => {
+		expect(formatDiffStat({ additions: 12, deletions: 3 })).toBe("+12 -3");
+		expect(formatDiffStat({ additions: null, deletions: null, binary: true })).toBe("binary");
+		expect(formatDiffStat({})).toBe("changed");
 	});
 });

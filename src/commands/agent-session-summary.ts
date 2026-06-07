@@ -5,6 +5,7 @@ import {
 	type AgentSessionStats,
 	type AgentUsageTotals,
 	type EditedFileActivity,
+	formatDiffStat,
 	formatToolCalls,
 	formatUsageTotals,
 } from "../agents/session-activity.js";
@@ -27,10 +28,8 @@ export const providerSourceLabel = (options: AgentOptions): string => {
 const actionableCount = (scan: AgentScanJson): number =>
 	scan.diagnostics.filter((diagnostic) => diagnostic.severity !== "info").length;
 
-const editedFileLine = (file: EditedFileActivity): string => {
-	const time = new Date(file.updatedAt).toLocaleTimeString();
-	return `${file.filePath} · ${time}${file.source ? ` · ${file.source}` : ""}`;
-};
+const editedFileLine = (file: EditedFileActivity): string =>
+	`${file.filePath} · ${formatDiffStat(file)}`;
 
 export const printAgentSessionSummary = (input: {
 	before: AgentScanJson;
@@ -48,6 +47,7 @@ export const printAgentSessionSummary = (input: {
 	fileActivity: EditedFileActivity[];
 }): void => {
 	const editedFileCount = input.fileActivity.length || input.changedFiles.length;
+	const statsByFile = new Map(input.fileActivity.map((file) => [file.filePath, file]));
 	log.break();
 	process.stdout.write(
 		`${[
@@ -83,7 +83,8 @@ export const printAgentSessionSummary = (input: {
 	}
 	process.stdout.write(`${renderDisplaySection("Changed files")}\n`);
 	for (const file of input.changedFiles.slice(0, 12)) {
-		process.stdout.write(` - ${file}\n`);
+		const stat = statsByFile.get(file);
+		process.stdout.write(` - ${stat ? editedFileLine(stat) : file}\n`);
 	}
 	if (input.changedFiles.length > 12) {
 		process.stdout.write(` - ...and ${input.changedFiles.length - 12} more\n`);

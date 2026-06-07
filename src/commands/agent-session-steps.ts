@@ -10,6 +10,7 @@ import {
 	type AgentUsageTotals,
 	type createChangedFileTracker,
 	type EditedFileActivity,
+	formatDiffStat,
 	formatToolCalls,
 	formatUsageTotals,
 	isProviderToolLine,
@@ -30,10 +31,8 @@ const plural = (count: number, singular: string, pluralLabel = `${singular}s`): 
 const scoreText = (score: number | null): string =>
 	score === null ? "not scored" : `${score}/100`;
 
-const editedFileLine = (file: EditedFileActivity): string => {
-	const time = new Date(file.updatedAt).toLocaleTimeString();
-	return `${file.filePath} · ${time}${file.source ? ` · ${file.source}` : ""}`;
-};
+const editedFileLine = (file: EditedFileActivity): string =>
+	`${file.filePath} · ${formatDiffStat(file)}`;
 
 const printCheckpoint = (input: {
 	title: string;

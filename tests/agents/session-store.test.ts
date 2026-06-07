@@ -142,6 +142,8 @@ describe("agent session store", () => {
 					filePath: "src/a.ts",
 					updatedAt: "2026-06-07T10:00:03.000Z",
 					source: "git diff",
+					additions: 12,
+					deletions: 3,
 				},
 				{ type: "provider.output", line: "skipped likely false positive in src/b.ts" },
 				{ type: "provider.finished", pass: 1, exitCode: 0, toolCalls: 4, outputEvents: 9 },
@@ -199,7 +201,8 @@ describe("agent session store", () => {
 		expect(show).toContain("Selected findings");
 		expect(show).toContain("Changed files");
 		expect(show).toContain("File activity");
-		expect(show).toContain("src/a.ts · 2026-06-07T10:00:03.000Z · git diff");
+		expect(show).toContain("src/a.ts · +12 -3");
+		expect(show).not.toContain("src/a.ts · 2026-06-07T10:00:03.000Z");
 		expect(show).toContain("Provider output");
 		expect(show).toContain("edited src/a.ts");
 	});

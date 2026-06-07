@@ -130,6 +130,40 @@ export const diffNameOnly = async (cwd: string): Promise<string[]> => {
 	return result.stdout.split("\n").filter(Boolean);
 };
 
+export interface DiffNumstat {
+	filePath: string;
+	additions: number | null;
+	deletions: number | null;
+	binary: boolean;
+}
+
+const parseNumstatValue = (value: string): number | null => {
+	if (value === "-") return null;
+	const parsed = Number(value);
+	return Number.isFinite(parsed) ? parsed : null;
+};
+
+export const diffNumstat = async (cwd: string): Promise<Map<string, DiffNumstat>> => {
+	const result = await runSubprocess("git", ["diff", "--numstat"], { cwd });
+	const stats = new Map<string, DiffNumstat>();
+	if (result.exitCode !== 0) return stats;
+	for (const line of result.stdout.split("\n")) {
+		if (!line.trim()) continue;
+		const [rawAdditions, rawDeletions, ...pathParts] = line.split("\t");
+		const filePath = pathParts.join("\t");
+		if (!filePath) continue;
+		const additions = parseNumstatValue(rawAdditions ?? "");
+		const deletions = parseNumstatValue(rawDeletions ?? "");
+		stats.set(filePath, {
+			filePath,
+			additions,
+			deletions,
+			binary: additions === null || deletions === null,
+		});
+	}
+	return stats;
+};
+
 export const readBinaryDiff = async (cwd: string): Promise<string> => {
 	const result = await runSubprocess("git", ["diff", "--binary"], { cwd, timeout: 60_000 });
 	if (result.exitCode !== 0) throw new Error(result.stderr || "Failed to read worktree diff.");
