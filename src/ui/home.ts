@@ -18,7 +18,7 @@ const HOME_COMMANDS: HomeCommand[] = [
 	{ command: "aislop fix", summary: "Auto-fix safe issues or hand off to an agent", group: "Run" },
 	{
 		command: "aislop agent",
-		summary: "Run a local worktree repair session",
+		summary: "Run a coding agent to repair slop in an isolated worktree",
 		group: "Run",
 	},
 	{ command: "aislop ci", summary: "Run the quality gate for CI", group: "Run" },
@@ -88,7 +88,7 @@ const renderHelpDetails = (): string =>
 		"   > aislop                       open the menu",
 		"   Scan                           Score this project and show findings",
 		"   Fix                            Auto-fix safe issues or hand off findings",
-		"   Agent                          Run local worktree repair",
+		"   Agent                          Run a coding agent to repair slop",
 		"   Doctor                         Check installed engines and tools",
 		"   Install hooks                  Run aislop after agent edits",
 		"",
