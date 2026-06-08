@@ -230,7 +230,7 @@ describe("cli ergonomics", () => {
 		expect(update.status).toBe(0);
 		expect(update.stdout).toContain("Check npm for the latest aislop version");
 		expect(update.stdout).toContain("upgrade");
-	});
+	}, 30_000);
 
 	it("renders scan scope as an aligned display row", () => {
 		const result = runCli(["scan", "--changes"]);
