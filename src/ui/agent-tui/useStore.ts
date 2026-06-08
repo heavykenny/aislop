@@ -6,6 +6,8 @@ import type { AgentSessionState, SessionStore } from "../../agents/session-state
 // identity (which useSyncExternalStore would treat as "unchanged").
 export const useStore = (store: SessionStore): AgentSessionState => {
 	const [, setTick] = useState(0);
-	useEffect(() => store.subscribe(() => setTick((t) => t + 1)), [store]);
+	useEffect(() => {
+		return store.subscribe(() => setTick((t) => t + 1));
+	}, [store]);
 	return store.getState();
 };

@@ -1,5 +1,5 @@
 import { render } from "ink-testing-library";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createSessionState } from "../../../src/agents/session-state.js";
 import { ActivityPane } from "../../../src/ui/agent-tui/ActivityPane.js";
 import { AgentApp } from "../../../src/ui/agent-tui/AgentApp.js";
@@ -74,5 +74,17 @@ describe("AgentApp", () => {
 		void store.askDecision("Stop or continue?", [{ value: "stop", label: "Stop" }]);
 		const { lastFrame } = render(<AgentApp store={store} />);
 		expect(lastFrame() ?? "").toContain("Stop or continue?");
+	});
+
+	it("unsubscribes from store updates on unmount", () => {
+		const store = storeFor();
+		const unsubscribe = vi.fn();
+		const subscribe = vi.spyOn(store, "subscribe").mockReturnValue(unsubscribe);
+
+		const { unmount } = render(<AgentApp store={store} />);
+		expect(subscribe).toHaveBeenCalledTimes(1);
+
+		unmount();
+		expect(unsubscribe).toHaveBeenCalledTimes(1);
 	});
 });
