@@ -29,6 +29,19 @@ import { type AgentOptions, type AgentScanJson, summarizeAgentScan } from "./age
 
 type AgentWorktreeState = Awaited<ReturnType<typeof createAgentWorktree>>;
 
+export const resolveAgentSessionCwd = (
+	created: AgentWorktreeState,
+	requestedDirectory: string,
+): string => {
+	const relative = path.relative(created.state.root, requestedDirectory);
+	const outsideRoot =
+		relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative);
+	if (relative.length === 0 || outsideRoot) {
+		return created.worktree.path;
+	}
+	return path.resolve(created.worktree.path, relative);
+};
+
 const prepareWorktree = async (
 	tui: AgentTui,
 	resolvedDir: string,
@@ -103,6 +116,7 @@ export const runAgentSession = async (
 	let published: PublishAgentDiffResult | null = null;
 	try {
 		created = await prepareWorktree(tui, resolvedDir, options);
+		const sessionCwd = resolveAgentSessionCwd(created, resolvedDir);
 		session = createAgentSessionRecorder(created.state.root, {
 			id: process.env.AISLOP_AGENT_SESSION_ID,
 		});
@@ -140,21 +154,22 @@ export const runAgentSession = async (
 		});
 		session.append("worktree.prepared", {
 			path: created.worktree.path,
+			sessionCwd,
 			created: created.worktree.created,
 			branch: created.state.branch,
 			head: created.state.head,
 		});
-		const before = scanBaseline(tui, created.worktree.path);
+		const before = scanBaseline(tui, sessionCwd);
 		session.append("scan.baseline", summarizeAgentScan(before));
-		runSafeFixStep(tui, created.worktree.path, options);
+		runSafeFixStep(tui, sessionCwd, options);
 		await tracker.refresh("safe fix");
-		const afterFix = scanJson(created.worktree.path);
+		const afterFix = scanJson(sessionCwd);
 		tui.setMetric("Score", `${before.score ?? "not scored"} -> ${afterFix.score ?? "not scored"}`);
 		session.append(options.noFix ? "fix.safe.skipped" : "fix.safe.finished", {
 			scan: summarizeAgentScan(afterFix),
 		});
 		let pass = 1;
-		const findings = selectFindings(tui, created.worktree.path, options.limit, pass);
+		const findings = selectFindings(tui, sessionCwd, options.limit, pass);
 		session.append("findings.selected", {
 			pass,
 			count: findings.length,
@@ -183,7 +198,8 @@ export const runAgentSession = async (
 			tui,
 			session,
 			selected,
-			worktreePath: created.worktree.path,
+			worktreePath: sessionCwd,
+			diffRoot: created.worktree.path,
 			findings,
 			score: afterFix.score,
 			options,
@@ -194,7 +210,7 @@ export const runAgentSession = async (
 		});
 		let verified = await verifyDiff(
 			tui,
-			created.worktree.path,
+			sessionCwd,
 			before,
 			options,
 			session,
@@ -217,7 +233,7 @@ export const runAgentSession = async (
 		) {
 			pass += 1;
 			const passStartScore = verified.after.score;
-			const nextFindings = selectFindings(tui, created.worktree.path, options.limit, pass);
+			const nextFindings = selectFindings(tui, sessionCwd, options.limit, pass);
 			session.append("findings.selected", {
 				pass,
 				count: nextFindings.length,
@@ -228,7 +244,8 @@ export const runAgentSession = async (
 				tui,
 				session,
 				selected,
-				worktreePath: created.worktree.path,
+				worktreePath: sessionCwd,
+				diffRoot: created.worktree.path,
 				findings: nextFindings,
 				score: verified.after.score,
 				options,
@@ -237,15 +254,7 @@ export const runAgentSession = async (
 				tracker,
 				pass,
 			});
-			verified = await verifyDiff(
-				tui,
-				created.worktree.path,
-				before,
-				options,
-				session,
-				pass,
-				passStartScore,
-			);
+			verified = await verifyDiff(tui, sessionCwd, before, options, session, pass, passStartScore);
 		}
 		changedFiles = verified.changedFiles;
 		applied = await maybeApplyDiff({

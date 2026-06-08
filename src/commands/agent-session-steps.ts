@@ -29,6 +29,7 @@ export const runProviderStep = async (input: {
 	session: AgentSessionRecorder;
 	selected: ProviderStatus;
 	worktreePath: string;
+	diffRoot: string;
 	findings: Diagnostic[];
 	score: number | null;
 	options: AgentOptions;
@@ -101,7 +102,16 @@ export const runProviderStep = async (input: {
 					});
 				}
 				for (const filePath of metadata.files) {
-					input.tracker.noteFile(filePath, `${input.selected.provider.id} output`);
+					const absolutePath = path.isAbsolute(filePath)
+						? filePath
+						: path.resolve(input.worktreePath, filePath);
+					const relativePath = path.relative(input.diffRoot, absolutePath);
+					input.tracker.noteFile(
+						relativePath && !relativePath.startsWith("..") && !path.isAbsolute(relativePath)
+							? relativePath
+							: filePath,
+						`${input.selected.provider.id} output`,
+					);
 				}
 				input.session.append("provider.output", {
 					provider: input.selected.provider.id,
