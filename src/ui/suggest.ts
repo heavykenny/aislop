@@ -13,8 +13,6 @@ const editDistance = (a: string, b: string): number => {
 	return dist[a.length][b.length];
 };
 
-// Returns the closest candidate to `token` within a small edit-distance budget,
-// or null when nothing is close enough (so we don't suggest unrelated commands).
 export const suggestClosest = (token: string, candidates: string[]): string | null => {
 	const needle = token.toLowerCase();
 	let best: string | null = null;

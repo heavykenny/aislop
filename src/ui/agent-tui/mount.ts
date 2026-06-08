@@ -9,9 +9,7 @@ const ALT_SCREEN_OFF = "\x1b[?1049l";
 const HIDE_CURSOR = "\x1b[?25l";
 const SHOW_CURSOR = "\x1b[?25h";
 
-// Lazy-imports ink + react so they never touch the cold-start path of `scan`
-// and the other commands. Opens the alt-screen buffer so the agent takes over
-// the full terminal, then restores the shell exactly as it was on unmount.
+// ink + react are imported lazily so they never touch `scan`'s cold-start path.
 export const mountAgentTui = async (store: SessionStore): Promise<TuiHandle> => {
 	const [{ render }, React, { AgentApp }] = await Promise.all([
 		import("ink"),

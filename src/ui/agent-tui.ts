@@ -33,7 +33,6 @@ const parseScore = (value: string): number | null => {
 	return Number.isNaN(n) ? null : n;
 };
 
-// Unwrap `/bin/zsh -lc '…'` / `bash -c "…"` so the real command shows, not the shell.
 const unwrapShell = (cmd: string): string => {
 	const match = cmd.match(/-l?c\s+(['"])([\s\S]*)\1\s*$/);
 	return match ? match[2] : cmd;
@@ -51,8 +50,6 @@ const classify = (
 	return { kind: "event", text: line };
 };
 
-// Backs the agent run loop's reporter API with the session-state store. In a TTY
-// it renders the Ink TUI; otherwise it streams plain lines (CI-safe).
 export class AgentTui {
 	private readonly store: SessionStore;
 	private readonly write: (s: string) => void;
