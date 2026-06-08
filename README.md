@@ -374,7 +374,7 @@ jobs:
       - run: npx --yes aislop@latest ci
 ```
 
-Prefer the Marketplace Action? `@v1` tracks the latest release and `version: latest` keeps the CLI current. Pin `@v0.10.2` and a `version` for reproducible builds:
+Prefer the Marketplace Action? `@v1` tracks the latest release and `version: latest` keeps the CLI current. Pin `@v0.11.0` and a `version` for reproducible builds:
 
 ```yaml
 - uses: actions/checkout@v4
