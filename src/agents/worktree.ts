@@ -74,6 +74,11 @@ export const prepareAgentLocalState = async (cwd: string): Promise<{ root: strin
 	return { root: state.root };
 };
 
+export const readAgentRoot = async (cwd: string): Promise<{ root: string }> => {
+	const state = await readGitState(cwd);
+	return { root: state.root };
+};
+
 export const createAgentWorktree = async (cwd: string, opts: { inPlace: boolean }) => {
 	const state = await readGitState(cwd);
 	ensureLocalAislopExclude(state.gitCommonDir);

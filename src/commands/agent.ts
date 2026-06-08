@@ -2,7 +2,7 @@ import path from "node:path";
 import { performance } from "node:perf_hooks";
 import { resolveAgentProviderSelection } from "../agents/provider-preference.js";
 import { getProviderStatuses, type ProviderStatus, resolveProvider } from "../agents/providers.js";
-import { prepareAgentLocalState } from "../agents/worktree.js";
+import { readAgentRoot } from "../agents/worktree.js";
 import { renderDisplayRows, renderDisplaySection } from "../ui/display.js";
 import { renderHeader } from "../ui/header.js";
 import { log } from "../ui/logger.js";
@@ -106,7 +106,7 @@ export const agentCommand = async (directory: string, options: AgentOptions): Pr
 	const resolvedDir = path.resolve(directory);
 	let root: string;
 	try {
-		root = (await prepareAgentLocalState(resolvedDir)).root;
+		root = (await readAgentRoot(resolvedDir)).root;
 	} catch (error) {
 		log.error(error instanceof Error ? error.message : String(error));
 		process.exitCode = 1;

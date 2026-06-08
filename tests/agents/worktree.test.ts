@@ -1,11 +1,20 @@
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	realpathSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
 	createAgentWorktree,
 	diffNumstat,
+	readAgentRoot,
 	removeAgentWorktree,
 } from "../../src/agents/worktree.js";
 
@@ -54,6 +63,17 @@ describe("agent worktrees", () => {
 		expect(exclude).toContain(".aislop/agent/monitors/");
 		expect(exclude).toContain(".aislop/agent/provider.json");
 		expect(exclude).not.toMatch(/^\.aislop\/$/m);
+	});
+
+	it("can read the repo root without mutating local git excludes", async () => {
+		const root = createRepo();
+		const excludePath = path.join(root, ".git", "info", "exclude");
+		const before = existsSync(excludePath) ? readFileSync(excludePath, "utf-8") : "";
+
+		await expect(readAgentRoot(root)).resolves.toEqual({ root: realpathSync(root) });
+
+		const after = existsSync(excludePath) ? readFileSync(excludePath, "utf-8") : "";
+		expect(after).toBe(before);
 	});
 
 	it("reads per-file added and deleted line counts", async () => {
