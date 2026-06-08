@@ -189,6 +189,7 @@ const assertCanRepair = (provider: ProviderStatus | null, options: AgentMonitorO
 
 const runMonitorCycle = async (input: {
 	root: string;
+	directory: string;
 	snapshot: GitChangeSnapshot;
 	provider: ProviderStatus | null;
 	options: AgentMonitorOptions;
@@ -196,7 +197,7 @@ const runMonitorCycle = async (input: {
 }): Promise<MonitorCycleResult> => {
 	const rail = new LiveRail();
 	rail.start(`Scanning ${input.reason}`);
-	const scan = scanJson(input.root);
+	const scan = scanJson(input.directory);
 	const findings = selectAgentFindings(scan.diagnostics, input.options.limit);
 	rail.complete({
 		status: scan.summary.errors > 0 ? "warn" : "done",
@@ -235,7 +236,7 @@ const runMonitorCycle = async (input: {
 	rail.finish({ footer: "Monitor triggering repair session" });
 	await runAgentSession(
 		input.provider as ProviderStatus,
-		input.root,
+		input.directory,
 		input.options,
 		performance.now(),
 	);
@@ -258,6 +259,7 @@ const runMonitorCycle = async (input: {
 
 const monitorOnce = async (input: {
 	root: string;
+	directory: string;
 	provider: ProviderStatus | null;
 	options: AgentMonitorOptions;
 }): Promise<MonitorCycleResult> => {
@@ -271,6 +273,7 @@ const monitorOnce = async (input: {
 
 const monitorLoop = async (input: {
 	root: string;
+	directory: string;
 	provider: ProviderStatus | null;
 	options: AgentMonitorOptions;
 }): Promise<void> => {
@@ -307,21 +310,32 @@ export const agentMonitorCommand = async (
 	options: AgentMonitorOptions,
 ): Promise<void> => {
 	try {
-		const { root } = await prepareAgentLocalState(path.resolve(directory));
+		const requestedDirectory = path.resolve(directory);
+		const { root } = await prepareAgentLocalState(requestedDirectory);
 		const resolved = resolveMonitorProvider(root, options);
 		renderMonitorIntro({ root, provider: resolved.provider, options: resolved.options });
 		if (resolved.options.dryRun) return;
 		assertCanRepair(resolved.provider, resolved.options);
 		if (resolved.options.background) {
 			return renderMonitorBackgroundLaunch(
-				await launchMonitorInBackground(path.resolve(directory), resolved.options),
+				await launchMonitorInBackground(requestedDirectory, resolved.options),
 			);
 		}
 		if (resolved.options.once) {
-			await monitorOnce({ root, provider: resolved.provider, options: resolved.options });
+			await monitorOnce({
+				root,
+				directory: requestedDirectory,
+				provider: resolved.provider,
+				options: resolved.options,
+			});
 			return;
 		}
-		await monitorLoop({ root, provider: resolved.provider, options: resolved.options });
+		await monitorLoop({
+			root,
+			directory: requestedDirectory,
+			provider: resolved.provider,
+			options: resolved.options,
+		});
 	} catch (error) {
 		log.error(error instanceof Error ? error.message : String(error));
 		process.exitCode = 1;

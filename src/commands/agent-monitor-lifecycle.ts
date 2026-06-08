@@ -198,7 +198,7 @@ export const stopAgentMonitor = async (
 	}
 	const signal = options.force ? "SIGKILL" : "SIGTERM";
 	const alreadyExited = !isProcessRunning(summary.pid);
-	if (!alreadyExited && summary.pid) process.kill(summary.pid, signal);
+	if (!alreadyExited && summary.pid) signalMonitorProcess(summary.pid, signal);
 	const updated: AgentMonitorRecord = {
 		...summary,
 		stoppedAt: new Date().toISOString(),
@@ -206,6 +206,18 @@ export const stopAgentMonitor = async (
 	};
 	writeAgentMonitorRecord(root, updated);
 	return summarizeAgentMonitor(summary.path, updated);
+};
+
+export const signalMonitorProcess = (pid: number, signal: NodeJS.Signals): void => {
+	if (process.platform !== "win32") {
+		try {
+			process.kill(-pid, signal);
+			return;
+		} catch (error) {
+			if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error;
+		}
+	}
+	process.kill(pid, signal);
 };
 
 export const agentMonitorStopCommand = async (

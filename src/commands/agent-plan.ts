@@ -209,6 +209,7 @@ export const renderAgentPlan = (plan: AgentPlan): string => {
 
 export const agentPlanCommand = async (directory: string, options: AgentOptions): Promise<void> => {
 	try {
+		const requestedDirectory = path.resolve(directory);
 		const git = await readGitPlanState(directory);
 		const providerChoice = resolveAgentProviderSelection({
 			root: git.root,
@@ -223,10 +224,10 @@ export const agentPlanCommand = async (directory: string, options: AgentOptions)
 		};
 		const statuses = getProviderStatuses();
 		const provider = resolveProvider(resolvedOptions.provider, statuses);
-		const scan = scanJson(git.root);
+		const scan = scanJson(requestedDirectory);
 		const findings = selectAgentFindings(scan.diagnostics, resolvedOptions.limit);
 		const plan: AgentPlan = {
-			directory: path.resolve(directory),
+			directory: requestedDirectory,
 			git,
 			provider,
 			scan,
