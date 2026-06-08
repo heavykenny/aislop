@@ -1,5 +1,6 @@
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -8,9 +9,10 @@ const PKG_VERSION = (
 	JSON.parse(readFileSync(path.resolve("package.json"), "utf8")) as { version: string }
 ).version;
 
-const runCli = (args: string[]) =>
+const runCli = (args: string[], cwd?: string) =>
 	spawnSync(process.execPath, [CLI, ...args], {
 		encoding: "utf8",
+		...(cwd ? { cwd } : {}),
 		env: {
 			...process.env,
 			AISLOP_NO_TELEMETRY: "1",
@@ -240,7 +242,10 @@ describe("cli ergonomics", () => {
 
 	it("exposes local agent provider status and repair session help", () => {
 		const help = runCli(["agent", "--help"]);
-		const providers = runCli(["agent", "providers"]);
+		// Run in an isolated dir so a developer's local provider preference
+		// (.aislop/agent/provider.json, written by `aislop agent use`) can't make
+		// this assert the wrong default.
+		const providers = runCli(["agent", "providers"], mkdtempSync(path.join(tmpdir(), "aislop-")));
 		const connect = runCli(["agent", "connect", "codex", "--dry-run"]);
 
 		expect(help.status).toBe(0);
