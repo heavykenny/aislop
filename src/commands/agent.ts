@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
 import { resolveAgentProviderSelection } from "../agents/provider-preference.js";
@@ -6,6 +7,7 @@ import { prepareAgentLocalState } from "../agents/worktree.js";
 import { renderDisplayRows, renderDisplaySection } from "../ui/display.js";
 import { renderHeader } from "../ui/header.js";
 import { log } from "../ui/logger.js";
+import { confirm, isCancel } from "../ui/prompts.js";
 import { APP_VERSION } from "../version.js";
 import { launchAgentInBackground, renderBackgroundLaunch } from "./agent-background.js";
 import { runAgentSession } from "./agent-session.js";
@@ -19,27 +21,65 @@ const providerSourceText = (options: AgentOptions): string => {
 	return "auto-detect installed provider";
 };
 
-const resolveReadyProvider = (provider: AgentOptions["provider"]): ProviderStatus | null => {
-	const statuses = getProviderStatuses();
-	const selected = resolveProvider(provider, statuses);
+const loginCommandText = (status: ProviderStatus): string =>
+	[status.provider.loginCommand.command, ...status.provider.loginCommand.args].join(" ");
+
+const guideNoProvider = (statuses: ProviderStatus[]): void => {
+	const anyInstalled = statuses.some((status) => status.installed);
+	log.error(
+		anyInstalled
+			? "No coding agent is ready to run."
+			: "No coding agent is installed. `aislop agent` drives Codex, Claude Code, or OpenCode.",
+	);
+	for (const status of statuses) {
+		const state = !status.installed
+			? "not installed"
+			: status.authenticated === false
+				? `installed · sign in with \`${loginCommandText(status)}\``
+				: "ready";
+		log.muted(`  ${status.provider.label.padEnd(12)} ${state}`);
+	}
+	log.muted("Set one up, then re-run. `aislop agent connect` walks through it too.");
+};
+
+// Resolve a provider that is installed and signed in. When the chosen provider is
+// installed but not signed in, offer to run its login here (TTY only) and re-check.
+const resolveReadyProvider = async (
+	provider: AgentOptions["provider"],
+): Promise<ProviderStatus | null> => {
+	let selected = resolveProvider(provider);
 	if (!selected || !selected.installed) {
-		log.error(
-			`No usable provider found. Installed providers: ${
-				statuses
-					.filter((status) => status.installed)
-					.map((status) => status.provider.id)
-					.join(", ") || "none"
-			}.`,
-		);
-		log.muted("Run `aislop agent providers` to see setup hints.");
+		guideNoProvider(getProviderStatuses());
 		process.exitCode = 1;
 		return null;
 	}
 	if (selected.authenticated === false) {
-		log.error(`${selected.provider.label} is installed but not authenticated.`);
-		log.muted(selected.provider.loginHint);
-		process.exitCode = 1;
-		return null;
+		if (!process.stdin.isTTY) {
+			log.error(`${selected.provider.label} is installed but not signed in.`);
+			log.muted(selected.provider.loginHint);
+			process.exitCode = 1;
+			return null;
+		}
+		const proceed = await confirm({
+			message: `${selected.provider.label} is installed but not signed in. Run \`${loginCommandText(selected)}\` now?`,
+			initialValue: true,
+		});
+		if (isCancel(proceed) || !proceed) {
+			log.muted(`Sign in with \`${loginCommandText(selected)}\` and re-run.`);
+			process.exitCode = 1;
+			return null;
+		}
+		log.muted(`Running \`${loginCommandText(selected)}\`…`);
+		spawnSync(selected.provider.loginCommand.command, selected.provider.loginCommand.args, {
+			stdio: "inherit",
+		});
+		selected = resolveProvider(selected.provider.id);
+		if (!selected || selected.authenticated === false) {
+			log.error(`Still not signed in to ${provider}. ${selected?.provider.loginHint ?? ""}`.trim());
+			process.exitCode = 1;
+			return null;
+		}
+		log.success(`Signed in to ${selected.provider.label}.`);
 	}
 	return selected;
 };
@@ -112,7 +152,7 @@ export const agentCommand = async (directory: string, options: AgentOptions): Pr
 	if (providerChoice.source === "preference") {
 		log.muted(`Using saved provider preference: ${providerChoice.selection}.`);
 	}
-	const selected = resolveReadyProvider(resolvedOptions.provider);
+	const selected = await resolveReadyProvider(resolvedOptions.provider);
 	if (!selected) return;
 	if (resolvedOptions.dryRun) return renderDryRun(selected, resolvedDir, resolvedOptions);
 	if (resolvedOptions.background) {
