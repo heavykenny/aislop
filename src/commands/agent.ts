@@ -9,7 +9,7 @@ import { log } from "../ui/logger.js";
 import { agentConnectCommand } from "./agent-connect.js";
 import { APP_VERSION } from "../version.js";
 import { launchAgentInBackground, renderBackgroundLaunch } from "./agent-background.js";
-import { runAgentSession } from "./agent-session.js";
+import { runAgentSession, type AgentSessionRunTelemetry } from "./agent-session.js";
 import type { AgentOptions } from "./agent-types.js";
 
 const providerSourceText = (options: AgentOptions): string => {
@@ -101,7 +101,18 @@ const renderDryRun = (
 	);
 };
 
-export const agentCommand = async (directory: string, options: AgentOptions): Promise<void> => {
+const providerTelemetry = (
+	selected: ProviderStatus,
+	options: AgentOptions,
+): Record<string, unknown> => ({
+	provider: selected.provider.id,
+	provider_source: options.providerSource,
+});
+
+export const agentCommand = async (
+	directory: string,
+	options: AgentOptions,
+): Promise<AgentSessionRunTelemetry | Record<string, unknown> | null> => {
 	const started = performance.now();
 	const resolvedDir = path.resolve(directory);
 	let root: string;
@@ -110,7 +121,7 @@ export const agentCommand = async (directory: string, options: AgentOptions): Pr
 	} catch (error) {
 		log.error(error instanceof Error ? error.message : String(error));
 		process.exitCode = 1;
-		return;
+		return { agent_result: "no_git_root" };
 	}
 	const providerChoice = resolveAgentProviderSelection({
 		root,
@@ -140,16 +151,24 @@ export const agentCommand = async (directory: string, options: AgentOptions): Pr
 		log.muted(`Using saved provider preference: ${providerChoice.selection}.`);
 	}
 	const selected = await resolveReadyProvider(resolvedOptions.provider);
-	if (!selected) return;
-	if (resolvedOptions.dryRun) return renderDryRun(selected, resolvedDir, resolvedOptions);
+	if (!selected) return { agent_result: "provider_unavailable" };
+	if (resolvedOptions.dryRun) {
+		renderDryRun(selected, resolvedDir, resolvedOptions);
+		return { agent_result: "dry_run", ...providerTelemetry(selected, resolvedOptions) };
+	}
 	if (resolvedOptions.background) {
 		try {
-			return renderBackgroundLaunch(await launchAgentInBackground(resolvedDir, resolvedOptions));
+			renderBackgroundLaunch(await launchAgentInBackground(resolvedDir, resolvedOptions));
+			return {
+				agent_result: "background_started",
+				...providerTelemetry(selected, resolvedOptions),
+			};
 		} catch (error) {
 			log.error(error instanceof Error ? error.message : String(error));
 			process.exitCode = 1;
-			return;
+			return { agent_result: "failed", ...providerTelemetry(selected, resolvedOptions) };
 		}
 	}
-	await runAgentSession(selected, resolvedDir, resolvedOptions, started);
+	const result = await runAgentSession(selected, resolvedDir, resolvedOptions, started);
+	return result ? { ...result, ...providerTelemetry(selected, resolvedOptions) } : null;
 };

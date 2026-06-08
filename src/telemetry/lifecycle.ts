@@ -13,6 +13,7 @@ interface CommandLifecycleStart {
 	config?: TelemetryConfig;
 	languages?: ReadonlyArray<string>;
 	fileCount?: number;
+	properties?: Record<string, unknown>;
 }
 
 interface CommandCompletionInfo {
@@ -28,6 +29,7 @@ interface CommandCompletionInfo {
 	fixSteps?: number;
 	fixResolved?: number;
 	fixScoreDelta?: number;
+	properties?: Record<string, unknown>;
 }
 
 export const withCommandLifecycle = async <T extends CommandCompletionInfo>(
@@ -38,6 +40,7 @@ export const withCommandLifecycle = async <T extends CommandCompletionInfo>(
 		command: start.command,
 		languages: start.languages,
 		fileCount: start.fileCount,
+		properties: start.properties,
 	});
 
 	track({
@@ -67,6 +70,7 @@ export const withCommandLifecycle = async <T extends CommandCompletionInfo>(
 				fixSteps: result.fixSteps,
 				fixResolved: result.fixResolved,
 				fixScoreDelta: result.fixScoreDelta,
+				properties: result.properties,
 			}),
 			config: start.config,
 		});

@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## Unreleased
 
+### Fixed
+
+- **Agent telemetry coverage.** `aislop agent` and its provider, plan, monitor, session, apply, watch, and stop subcommands now emit the same `cli_command_started` / `cli_command_completed` lifecycle events as the rest of the CLI. Events include only aggregate provider/options/outcome fields; paths, branch names, session ids, prompts, raw findings, and transcripts stay local.
+
 ## 0.12.0 (2026-06-08)
 
 Local agent repair sessions get a full terminal-native workflow, CLI output is tighter across the command surface, and scoring now separates cosmetic cleanup from higher-impact findings.

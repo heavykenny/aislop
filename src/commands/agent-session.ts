@@ -29,6 +29,26 @@ import { type AgentOptions, type AgentScanJson, summarizeAgentScan } from "./age
 
 type AgentWorktreeState = Awaited<ReturnType<typeof createAgentWorktree>>;
 
+export interface AgentSessionRunTelemetry {
+	[key: string]: unknown;
+	agent_result: "completed" | "no_agent_findings" | "failed";
+	score_before?: number | null;
+	score_after?: number | null;
+	score_delta?: number;
+	changed_files?: number;
+	provider_passes?: number;
+	tool_calls?: number;
+	output_events?: number;
+	total_tokens?: number;
+	cost_usd?: number;
+	applied?: boolean;
+	published?: boolean;
+	target_met?: boolean;
+}
+
+const scoreDelta = (before: number | null, after: number | null): number | undefined =>
+	typeof before === "number" && typeof after === "number" ? after - before : undefined;
+
 export const resolveAgentSessionCwd = (
 	created: AgentWorktreeState,
 	requestedDirectory: string,
@@ -101,7 +121,7 @@ export const runAgentSession = async (
 	resolvedDir: string,
 	options: AgentOptions,
 	started: number,
-): Promise<void> => {
+): Promise<AgentSessionRunTelemetry | null> => {
 	const tui = new AgentTui({
 		provider: selected.provider.label,
 		source: providerSourceLabel(options),
@@ -192,7 +212,21 @@ export const runAgentSession = async (
 					? `Already at ${afterFix.score ?? "?"}/100 — nothing to do.`
 					: `Score ${afterFix.score ?? "?"}/100. No agent-fixable findings; run \`aislop fix\` for any auto-fixable issues.`,
 			);
-			return;
+			return {
+				agent_result: "no_agent_findings",
+				score_before: before.score,
+				score_after: afterFix.score,
+				score_delta: scoreDelta(before.score, afterFix.score),
+				changed_files: tracker.files().length,
+				provider_passes: 0,
+				tool_calls: 0,
+				output_events: 0,
+				total_tokens: 0,
+				cost_usd: 0,
+				applied: false,
+				published: false,
+				target_met: atTarget,
+			};
 		}
 		await runProviderStep({
 			tui,
@@ -347,6 +381,21 @@ export const runAgentSession = async (
 			stats,
 			fileActivity: tracker.files(),
 		});
+		return {
+			agent_result: "completed",
+			score_before: before.score,
+			score_after: verified.after.score,
+			score_delta: scoreDelta(before.score, verified.after.score),
+			changed_files: changedFiles.length,
+			provider_passes: stats.providerPasses,
+			tool_calls: stats.toolCalls,
+			output_events: stats.outputEvents,
+			total_tokens: usage.totalTokens,
+			cost_usd: usage.costUsd,
+			applied,
+			published: Boolean(published),
+			target_met: verified.after.score !== null && verified.after.score >= options.targetScore,
+		};
 	} catch (error) {
 		session?.append("session.failed", {
 			message: error instanceof Error ? error.message : String(error),
@@ -354,6 +403,7 @@ export const runAgentSession = async (
 		await tui.abort();
 		log.error(error instanceof Error ? error.message : String(error));
 		process.exitCode = 1;
+		return { agent_result: "failed" };
 	} finally {
 		const safeToCleanup =
 			changedFiles.length === 0 || applied || Boolean(published) || options.cleanup;
