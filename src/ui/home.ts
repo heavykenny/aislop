@@ -16,10 +16,14 @@ interface HomeCommand {
 
 const HOME_COMMANDS: HomeCommand[] = [
 	{ command: "aislop scan", summary: "Score this project and show findings", group: "Run" },
-	{ command: "aislop fix", summary: "Auto-fix safe issues or hand off to an agent", group: "Run" },
 	{
 		command: "aislop agent",
-		summary: "Run a coding agent to repair slop in an isolated worktree",
+		summary: "Repair slop with your coding agent in an isolated worktree",
+		group: "Run",
+	},
+	{
+		command: "aislop fix",
+		summary: "Auto-fix the mechanical issues deterministically",
 		group: "Run",
 	},
 	{ command: "aislop ci", summary: "Run the quality gate for CI", group: "Run" },
@@ -70,8 +74,8 @@ const renderHelpDetails = (): string =>
 		` ${style(theme, "dim", "Usage")}`,
 		"   aislop                         Open interactive menu",
 		"   aislop scan [options] [directory]",
-		"   aislop fix [options] [directory]",
 		"   aislop agent [options] [directory]",
+		"   aislop fix [options] [directory]",
 		"   aislop ci [options] [directory]",
 		"   aislop init [options] [directory]",
 		"   aislop doctor [directory]",
@@ -88,8 +92,8 @@ const renderHelpDetails = (): string =>
 		` ${style(theme, "dim", "Interactive")}`,
 		"   > aislop                       open the menu",
 		"   Scan                           Score this project and show findings",
-		"   Fix                            Auto-fix safe issues or hand off findings",
 		"   Agent                          Run a coding agent to repair slop",
+		"   Fix                            Auto-fix the mechanical issues",
 		"   Doctor                         Check installed engines and tools",
 		"   Install hooks                  Run aislop after agent edits",
 		"",

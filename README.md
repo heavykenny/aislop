@@ -29,9 +29,9 @@ pipx install aislop                  # Python
 See [Installation](#installation) for every option.
 
 ```bash
-aislop fix                   # auto-fix issues after installing
+aislop agent                 # repair with your coding agent (Codex/Claude/OpenCode)
+aislop fix                   # auto-fix the mechanical issues
 aislop fix -f                # aggressive fixes (deps, unused files)
-aislop agent                 # local worktree repair with Codex/Claude/OpenCode
 aislop ci                    # CI mode (JSON + gate)
 aislop hook install --claude # per-edit hook
 ```
@@ -187,7 +187,7 @@ ci:
 
 ### Fix
 
-Auto-fix what's mechanical (formatters, unused imports, dead code). For issues that need context, hand off to your agent with full diagnostic info.
+The deterministic layer beneath [`aislop agent`](#run-a-local-repair-agent): auto-fix what's purely mechanical (formatters, unused imports, dead code). For anything that needs judgement, reach for `aislop agent` or hand off to your coding agent with full diagnostic info.
 
 ```bash
 aislop fix                 # auto-fixes

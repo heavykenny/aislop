@@ -14,8 +14,8 @@ npx aislop@latest scan
 |---|---|
 | `aislop [directory]` | Interactive TTY menu, or scan current directory in non-TTY shells |
 | `aislop scan [directory]` | Score code quality and show findings |
-| `aislop fix [directory]` | Apply auto-fixes or hand remaining findings to an agent |
 | `aislop agent [directory]` | Run a local worktree repair session with Codex, Claude Code, or OpenCode |
+| `aislop fix [directory]` | Apply deterministic auto-fixes, or hand remaining findings to an agent |
 | `aislop agent plan [directory]` | Preview provider, worktree, findings, and publish actions |
 | `aislop agent providers` | Show installed local provider status and setup hints |
 | `aislop agent connect [provider]` | Run a provider's local CLI login flow |

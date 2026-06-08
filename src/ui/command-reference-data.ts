@@ -133,14 +133,14 @@ export const COMMAND_REFERENCE: CommandReference[] = [
 		flags: SCAN_FLAGS,
 	},
 	{
-		command: "aislop fix [directory]",
-		summary: "Apply safe auto-fixes or hand remaining findings to an agent",
-		flags: FIX_FLAGS,
-	},
-	{
 		command: "aislop agent [directory]",
 		summary: "Create a local worktree, stream a provider repair session, verify, and summarize",
 		flags: AGENT_FLAGS,
+	},
+	{
+		command: "aislop fix [directory]",
+		summary: "Apply deterministic auto-fixes, or hand remaining findings to an agent",
+		flags: FIX_FLAGS,
 	},
 	{
 		command: "aislop agent plan [directory]",
