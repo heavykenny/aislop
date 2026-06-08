@@ -249,7 +249,7 @@ export const runForceSteps = async (deps: PipelineDeps): Promise<void> => {
 		);
 	}
 
-	if (deps.projectInfo.frameworks.includes("expo")) {
+	if (deps.projectInfo.frameworks.includes("expo") && deps.config.lint.expoDoctor) {
 		await deps.runStep(
 			"Expo dependency alignment",
 			() => runExpoDoctor(deps.context),

@@ -20,6 +20,7 @@ export const DEFAULT_CONFIG: AislopConfig = {
 	},
 	lint: {
 		typecheck: false,
+		expoDoctor: false,
 	},
 	security: {
 		audit: true,
