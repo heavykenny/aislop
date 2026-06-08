@@ -1,4 +1,3 @@
-import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
 import { resolveAgentProviderSelection } from "../agents/provider-preference.js";
@@ -7,7 +6,7 @@ import { prepareAgentLocalState } from "../agents/worktree.js";
 import { renderDisplayRows, renderDisplaySection } from "../ui/display.js";
 import { renderHeader } from "../ui/header.js";
 import { log } from "../ui/logger.js";
-import { confirm, isCancel } from "../ui/prompts.js";
+import { agentConnectCommand } from "./agent-connect.js";
 import { APP_VERSION } from "../version.js";
 import { launchAgentInBackground, renderBackgroundLaunch } from "./agent-background.js";
 import { runAgentSession } from "./agent-session.js";
@@ -60,26 +59,14 @@ const resolveReadyProvider = async (
 			process.exitCode = 1;
 			return null;
 		}
-		const proceed = await confirm({
-			message: `${selected.provider.label} is installed but not signed in. Run \`${loginCommandText(selected)}\` now?`,
-			initialValue: true,
-		});
-		if (isCancel(proceed) || !proceed) {
-			log.muted(`Sign in with \`${loginCommandText(selected)}\` and re-run.`);
-			process.exitCode = 1;
-			return null;
-		}
-		log.muted(`Running \`${loginCommandText(selected)}\`…`);
-		spawnSync(selected.provider.loginCommand.command, selected.provider.loginCommand.args, {
-			stdio: "inherit",
-		});
+		// Run the connect flow inline (it runs the provider's interactive login), then re-check.
+		log.muted(`${selected.provider.label} is not signed in — connecting…`);
+		await agentConnectCommand(selected.provider.id, { dryRun: false });
 		selected = resolveProvider(selected.provider.id);
 		if (!selected || selected.authenticated === false) {
-			log.error(`Still not signed in to ${provider}. ${selected?.provider.loginHint ?? ""}`.trim());
 			process.exitCode = 1;
 			return null;
 		}
-		log.success(`Signed in to ${selected.provider.label}.`);
 	}
 	return selected;
 };
