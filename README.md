@@ -191,12 +191,12 @@ Auto-fix what's mechanical (formatters, unused imports, dead code). For issues t
 ```bash
 aislop fix                 # auto-fixes
 aislop fix -d              # detailed fix progress
-aislop fix --safe          # only reversible fixes (imports, comment removal, formatting)
+aislop fix --safe          # only reversible fixes (imports, comment removal, safe formatters)
 aislop fix -f              # aggressive: deps, unused files
 aislop fix -p              # print an agent handoff prompt
 ```
 
-`--safe` restricts the run to fixes that cannot change behaviour — unused-import removal, import merging, narrative-comment removal, and formatting. Anything that deletes code or rewrites behaviour/attributes (console/dead-code removal, lint autofixes, unused-declaration and dependency pruning) is skipped, so a `--safe` run is genuinely "apply and commit".
+`--safe` restricts the run to fixes that cannot change behaviour — unused-import removal, import merging, narrative-comment removal, and formatter runs that do not execute project-controlled configuration. Anything that deletes code, rewrites behaviour/attributes, or can load executable formatter configuration (console/dead-code removal, lint autofixes, Ruby/PHP formatter config, unused-declaration and dependency pruning) is skipped, so a `--safe` run is genuinely "apply and commit".
 
 ### Hand off to agent
 

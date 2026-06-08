@@ -198,7 +198,7 @@ const fixProgram = program
 	.option("-f, --force", "run aggressive fixes (audit and framework dependency alignment)")
 	.option(
 		"--safe",
-		"only apply reversible fixes (imports, comment removal, formatting); skip anything that deletes code or rewrites behaviour",
+		"only apply reversible fixes (imports, comment removal, safe formatters); skip anything that deletes code, rewrites behaviour, or runs unsafe formatter configs",
 	)
 	.option("-p, --prompt", "print a prompt for your coding agent to fix remaining issues");
 
