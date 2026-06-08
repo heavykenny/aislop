@@ -167,5 +167,7 @@ export const diffNumstat = async (cwd: string): Promise<Map<string, DiffNumstat>
 export const readBinaryDiff = async (cwd: string): Promise<string> => {
 	const result = await runSubprocess("git", ["diff", "--binary"], { cwd, timeout: 60_000 });
 	if (result.exitCode !== 0) throw new Error(result.stderr || "Failed to read worktree diff.");
-	return result.stdout;
+	// runSubprocess trims trailing whitespace, but `git apply` is byte-strict and
+	// rejects a patch missing its final newline ("corrupt patch at line N").
+	return result.stdout.length > 0 ? `${result.stdout}\n` : result.stdout;
 };

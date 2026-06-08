@@ -3,15 +3,6 @@ import { maybeApplyDiff } from "../../src/commands/agent-session-steps.js";
 import type { AgentOptions } from "../../src/commands/agent-types.js";
 import type { AgentTui } from "../../src/ui/agent-tui.js";
 
-const promptMock = vi.hoisted(() => ({
-	select: vi.fn(),
-}));
-
-vi.mock("../../src/ui/prompts.js", () => ({
-	isCancel: () => false,
-	select: promptMock.select,
-}));
-
 const options: AgentOptions = {
 	provider: "auto",
 	providerSource: "auto",
@@ -35,25 +26,22 @@ const options: AgentOptions = {
 describe("agent session steps", () => {
 	afterEach(() => {
 		vi.restoreAllMocks();
-		promptMock.select.mockReset();
 	});
 
 	it("offers apply before keeping the worktree for review", async () => {
 		const originalIsTty = process.stdin.isTTY;
 		const stdoutWrite = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
 		Object.defineProperty(process.stdin, "isTTY", { configurable: true, value: true });
-		promptMock.select.mockResolvedValue("review");
+		const askDecision = vi.fn().mockResolvedValue("review");
 
+		let applied: boolean | undefined;
 		try {
-			await maybeApplyDiff({
+			applied = await maybeApplyDiff({
 				options,
 				changedFiles: ["src/a.ts"],
 				worktreePath: "/repo/flashwave/.aislop/worktrees/agent-1",
 				originalRoot: "/repo/flashwave",
-				tui: {
-					pause: vi.fn(),
-					resume: vi.fn(),
-				} as unknown as AgentTui,
+				tui: { askDecision } as unknown as AgentTui,
 				session: {
 					id: "session-1",
 					path: "/repo/flashwave/.aislop/agent/sessions/session-1.jsonl",
@@ -79,13 +67,10 @@ describe("agent session steps", () => {
 			stdoutWrite.mockRestore();
 		}
 
-		const prompt = promptMock.select.mock.calls[0]?.[0];
-		expect(prompt).toMatchObject({
-			initialValue: "apply",
-			options: [
-				{ value: "apply", label: "Apply changes to flashwave" },
-				{ value: "review", label: "Keep worktree for review" },
-			],
-		});
+		expect(applied).toBe(false);
+		expect(askDecision).toHaveBeenCalledWith("Next step for 1 changed file", [
+			{ value: "apply", label: "Apply changes to flashwave" },
+			{ value: "review", label: "Keep worktree for review" },
+		]);
 	});
 });

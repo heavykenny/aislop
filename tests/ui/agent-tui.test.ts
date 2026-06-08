@@ -1,109 +1,48 @@
 import { describe, expect, it } from "vitest";
 import { AgentTui } from "../../src/ui/agent-tui.js";
-import { createSymbols } from "../../src/ui/symbols.js";
-import { createTheme } from "../../src/ui/theme.js";
-import { stripAnsi as strip } from "../helpers/ansi.js";
 
-const ALT_SCREEN_ON = "\x1B[?1049h";
-const ALT_SCREEN_OFF = "\x1B[?1049l";
-const HIDE_CURSOR = "\x1B[?25l";
-const SHOW_CURSOR = "\x1B[?25h";
-const CLEAR_SCREEN = "\x1B[H\x1B[2J";
-
-const mkTui = (tty: boolean) => {
+const mkTui = () => {
 	const chunks: string[] = [];
 	const tui = new AgentTui({
-		provider: "Codex",
-		source: "--provider flag",
-		directory: "/repo",
-		mode: "isolated worktree",
-		targetScore: 90,
-		tty,
-		columns: 90,
-		rows: 24,
 		write: (chunk) => chunks.push(chunk),
-		theme: createTheme({ color: "truecolor", tty: true }),
-		symbols: createSymbols({ plain: false }),
+		tty: false,
+		provider: "Codex",
+		source: "auto-detect installed provider",
+		directory: "/repo",
+		mode: "isolated git worktree",
+		targetScore: 90,
 	});
-	return { tui, chunks };
+	return { tui, out: () => chunks.join("") };
 };
 
-describe("AgentTui", () => {
-	it("renders an alternate-screen dashboard and exits back to the terminal on finish", () => {
-		const { tui, chunks } = mkTui(true);
-
+describe("AgentTui adapter (non-TTY)", () => {
+	it("streams step completions, provider output, and the footer", async () => {
+		const { tui, out } = mkTui();
 		tui.start("Preparing local session");
-		tui.setMetric("Pass", "2");
-		tui.setMetric("Score", "72 -> ...");
-		tui.setMetric("Tools", "14");
-		tui.setMetric("Tokens", "1,680 total / 1,200 in / 80 out / 400 cached");
-		tui.setMetric("Remaining", "3");
-		tui.setFiles([
-			{
-				filePath: "src/a.ts",
-				updatedAt: "2026-06-07T20:00:00.000Z",
-				source: "git diff",
-				additions: 12,
-				deletions: 3,
-			},
-		]);
-		tui.setActions([
-			"Continue: 3 actionable findings remain; target is 90/100",
-			"Apply: accept diff",
-		]);
-		tui.appendLog("codex", "assistant: edited src/a.ts");
-		tui.complete({ status: "done", label: "Created worktree .aislop/agent/worktrees/run" });
-		tui.finish({ footer: "Done · codex · 1200ms" });
-
-		const raw = chunks.join("");
-		const stripped = strip(raw);
-		expect(raw.startsWith(`${ALT_SCREEN_ON}${HIDE_CURSOR}`)).toBe(true);
-		expect(raw).toContain(CLEAR_SCREEN);
-		expect(raw.endsWith(`${SHOW_CURSOR}${ALT_SCREEN_OFF}`)).toBe(true);
-		expect(stripped).toContain("aislop agent");
-		expect(stripped).toContain("Codex");
-		expect(stripped).toContain("Metrics");
-		expect(stripped).toContain("Pass");
-		expect(stripped).toContain("Score");
-		expect(stripped).toContain("Tools");
-		expect(stripped).toContain("Tokens");
-		expect(stripped).toContain("Remaining");
-		expect(stripped).toContain("Edited files");
-		expect(stripped).toContain("src/a.ts");
-		expect(stripped).toContain("+12 -3");
-		expect(stripped).not.toContain("git diff");
-		expect(stripped).toContain("Live output");
-		expect(stripped).toContain("codex");
-		expect(stripped).toContain("assistant: edited src/a.ts");
-		expect(stripped).toContain("Actions");
-		expect(stripped).toContain("Continue: 3 actionable findings remain");
-	});
-
-	it("leaves the alternate screen while prompting and resumes the dashboard after", () => {
-		const { tui, chunks } = mkTui(true);
-
-		tui.start("Verifying agent diff");
-		tui.pause();
-		tui.resume();
-		tui.finish({ footer: "Done · codex · 900ms" });
-
-		const raw = chunks.join("");
-		expect(raw).toContain(`${SHOW_CURSOR}${ALT_SCREEN_OFF}${ALT_SCREEN_ON}${HIDE_CURSOR}`);
-		expect(raw.endsWith(`${SHOW_CURSOR}${ALT_SCREEN_OFF}`)).toBe(true);
-	});
-
-	it("uses append-only output in non-TTY environments", () => {
-		const { tui, chunks } = mkTui(false);
-
-		tui.start("Preparing local session");
+		tui.complete({ status: "done", label: "Created worktree agent-2680" });
 		tui.appendLog("codex", "assistant: fixed issue");
-		tui.complete({ status: "done", label: "Using current worktree" });
-		tui.finish({ footer: "Done · codex · 800ms" });
+		tui.setFiles([{ filePath: "src/a.ts", updatedAt: "now", additions: 12, deletions: 3 }]);
+		await tui.finish({ footer: "Done · codex · 800ms" });
 
-		const out = strip(chunks.join(""));
-		expect(out).not.toContain(ALT_SCREEN_ON);
-		expect(out).toContain("codex    assistant: fixed issue");
-		expect(out).toContain("Using current worktree");
-		expect(out).toContain("Done · codex · 800ms");
+		const text = out();
+		expect(text).toContain("Created worktree agent-2680");
+		expect(text).toContain("codex");
+		expect(text).toContain("assistant: fixed issue");
+		expect(text).toContain("Done · codex · 800ms");
+		// No alt-screen takeover in the plain path.
+		expect(text).not.toContain("\x1b[?1049h");
+	});
+
+	it("does not throw on the full reporter API", async () => {
+		const { tui } = mkTui();
+		tui.start("step");
+		tui.setActiveLabel("step working");
+		tui.setMetric("Score", "14 -> 24");
+		tui.setMetric("Remaining", 51);
+		tui.setMetric("Pass", 1);
+		tui.setUsage({ inputTokens: 1000, totalTokens: 2000, costUsd: 0.05 });
+		tui.setActions(["Continue: 3 actionable findings remain"]);
+		tui.complete({ status: "done", label: "step done" });
+		await expect(tui.abort()).resolves.toBeUndefined();
 	});
 });

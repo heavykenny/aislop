@@ -1,11 +1,11 @@
 import type { ProviderStatus } from "../agents/providers.js";
 import type { PublishAgentDiffResult } from "../agents/publish.js";
 import type { AgentSessionRecorder } from "../agents/session.js";
+import pc from "picocolors";
 import {
 	type AgentSessionStats,
 	type AgentUsageTotals,
 	type EditedFileActivity,
-	formatDiffStat,
 	formatToolCalls,
 	formatUsageTotals,
 } from "../agents/session-activity.js";
@@ -29,8 +29,16 @@ export const providerSourceLabel = (options: AgentOptions): string => {
 const actionableCount = (scan: AgentScanJson): number =>
 	scan.diagnostics.filter((diagnostic) => diagnostic.severity !== "info").length;
 
+const coloredDiffStat = (file: EditedFileActivity): string => {
+	if (file.binary) return pc.dim("binary");
+	if (typeof file.additions === "number" || typeof file.deletions === "number") {
+		return `${pc.green(`+${file.additions ?? 0}`)} ${pc.red(`-${file.deletions ?? 0}`)}`;
+	}
+	return pc.dim("changed");
+};
+
 const editedFileLine = (file: EditedFileActivity): string =>
-	`${file.filePath} · ${formatDiffStat(file)}`;
+	`${file.filePath} · ${coloredDiffStat(file)}`;
 
 export const printAgentSessionSummary = (input: {
 	before: AgentScanJson;

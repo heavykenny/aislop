@@ -160,6 +160,25 @@ export const runAgentSession = async (
 			count: findings.length,
 			findings: findings.map(summarizeAgentFinding),
 		});
+		// No findings for the agent (LLM). If the deterministic safe fix already
+		// changed files, fall through so those changes get applied; only short-circuit
+		// when nothing changed at all (otherwise the safe fix would be discarded).
+		if (findings.length === 0 && tracker.files().length === 0) {
+			session.append("session.completed", {
+				durationMs: Math.round(performance.now() - started),
+				scoreBefore: before.score,
+				scoreAfter: afterFix.score,
+				reason: "no_agent_findings",
+			});
+			const atTarget = (afterFix.score ?? 0) >= options.targetScore;
+			await tui.finish({ footer: `Score ${afterFix.score ?? "?"}/100 · nothing to repair` });
+			log.success(
+				atTarget
+					? `Already at ${afterFix.score ?? "?"}/100 — nothing to do.`
+					: `Score ${afterFix.score ?? "?"}/100. No agent-fixable findings; run \`aislop fix\` for any auto-fixable issues.`,
+			);
+			return;
+		}
 		await runProviderStep({
 			tui,
 			session,
@@ -301,7 +320,7 @@ export const runAgentSession = async (
 			applied,
 			published: Boolean(published),
 		});
-		tui.finish({
+		await tui.finish({
 			footer: `Done · ${selected.provider.id} · ${Math.round(performance.now() - started)}ms`,
 		});
 		printAgentSessionSummary({
@@ -323,7 +342,7 @@ export const runAgentSession = async (
 		session?.append("session.failed", {
 			message: error instanceof Error ? error.message : String(error),
 		});
-		tui.abort();
+		await tui.abort();
 		log.error(error instanceof Error ? error.message : String(error));
 		process.exitCode = 1;
 	} finally {

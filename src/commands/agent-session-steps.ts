@@ -10,7 +10,6 @@ import {
 	type AgentUsageTotals,
 	type createChangedFileTracker,
 	type EditedFileActivity,
-	formatDiffStat,
 	formatToolCalls,
 	formatUsageTotals,
 	isProviderToolLine,
@@ -19,40 +18,11 @@ import {
 import { diffNameOnly, readBinaryDiff } from "../agents/worktree.js";
 import type { Diagnostic } from "../engines/types.js";
 import type { AgentTui } from "../ui/agent-tui.js";
-import { renderDisplayRows, renderDisplaySection } from "../ui/display.js";
-import { log } from "../ui/logger.js";
-import { isCancel, select } from "../ui/prompts.js";
-import { displayAgentPath } from "./agent-display-path.js";
 import { applyDiff, scanJson } from "./agent-local-cli.js";
 import { type AgentOptions, type AgentScanJson, summarizeAgentScan } from "./agent-types.js";
 
 const plural = (count: number, singular: string, pluralLabel = `${singular}s`): string =>
 	`${count.toLocaleString()} ${count === 1 ? singular : pluralLabel}`;
-
-const scoreText = (score: number | null): string =>
-	score === null ? "not scored" : `${score}/100`;
-
-const editedFileLine = (file: EditedFileActivity): string =>
-	`${file.filePath} · ${formatDiffStat(file)}`;
-
-const printCheckpoint = (input: {
-	title: string;
-	rows: Array<{ label: string; value: string }>;
-	files: EditedFileActivity[];
-}): void => {
-	const lines = [
-		"",
-		renderDisplaySection(input.title),
-		...renderDisplayRows(input.rows, { indent: 3, labelWidth: 12 }),
-	];
-	const recent = input.files.slice(-5);
-	if (recent.length > 0) {
-		lines.push("", renderDisplaySection("Recent edits"));
-		for (const file of recent) lines.push(` - ${editedFileLine(file)}`);
-	}
-	lines.push("");
-	process.stdout.write(`${lines.join("\n")}\n`);
-};
 
 export const runProviderStep = async (input: {
 	tui: AgentTui;
@@ -120,6 +90,11 @@ export const runProviderStep = async (input: {
 				if (metadata.usage) {
 					Object.assign(input.usage, mergeProviderUsage(input.usage, metadata.usage));
 					input.tui.setMetric("Tokens", formatUsageTotals(input.usage));
+					input.tui.setUsage({
+						inputTokens: input.usage.inputTokens,
+						totalTokens: input.usage.totalTokens,
+						costUsd: input.usage.costUsd,
+					});
 					input.session.append("provider.usage", {
 						provider: input.selected.provider.id,
 						usage: input.usage,
@@ -247,39 +222,14 @@ export const maybeContinueSession = async (input: {
 		actionableFindings: remaining,
 		targetScore: input.options.targetScore,
 	});
-	input.tui.pause();
-	printCheckpoint({
-		title: `Agent checkpoint · before pass ${input.nextPass}`,
-		rows: [
-			{
-				label: "Score",
-				value: `${scoreText(input.scan.score)} · target ${input.options.targetScore}/100`,
-			},
-			{
-				label: "Remaining",
-				value: `${plural(remaining, "actionable finding")} · ${findings.length} selected next`,
-			},
-			{ label: "Changed", value: plural(input.changedFiles.length, "file") },
-			{ label: "Edited", value: plural(input.files.length || input.changedFiles.length, "file") },
-			{ label: "Tools", value: formatToolCalls(input.stats.toolCalls) },
-			{ label: "Tokens", value: formatUsageTotals(input.usage) },
-			{ label: "Transcript", value: displayAgentPath(input.originalRoot, input.session.path) },
-		],
-		files: input.files,
-	});
-	const choice = await select<"continue" | "stop">({
-		message: `Next step for pass ${input.nextPass}`,
-		options: [
-			{
-				value: "continue",
-				label: `Run pass ${input.nextPass} (${findings.length} selected findings)`,
-			},
-			{ value: "stop", label: "Stop and review/apply current diff" },
-		],
-		initialValue: "continue",
-	});
-	input.tui.resume();
-	const accepted = !isCancel(choice) && choice === "continue";
+	const choice = await input.tui.askDecision(`Next step for pass ${input.nextPass}`, [
+		{
+			value: "continue",
+			label: `Run pass ${input.nextPass} (${findings.length} selected findings)`,
+		},
+		{ value: "stop", label: "Stop and review/apply current diff" },
+	]);
+	const accepted = choice === "continue";
 	input.session.append(accepted ? "continue.accepted" : "continue.skipped", {
 		nextPass: input.nextPass,
 		score: input.scan.score,
@@ -313,33 +263,13 @@ export const maybeApplyDiff = async (input: {
 		changedFiles: input.changedFiles.length,
 		editedFiles: input.files.length || input.changedFiles.length,
 	});
-	input.tui.pause();
-	printCheckpoint({
-		title: "Agent checkpoint · apply decision",
-		rows: [
-			{ label: "Changed", value: plural(input.changedFiles.length, "file") },
-			{ label: "Edited", value: plural(input.files.length || input.changedFiles.length, "file") },
-			{ label: "Tools", value: formatToolCalls(input.stats.toolCalls) },
-			{ label: "Tokens", value: formatUsageTotals(input.usage) },
-			{ label: "Worktree", value: displayAgentPath(input.originalRoot, input.worktreePath) },
-			{ label: "Target repo", value: path.basename(input.originalRoot) },
-		],
-		files: input.files,
-	});
-	const choice = await select<"apply" | "review">({
-		message: `Next step for ${plural(input.changedFiles.length, "changed file")}`,
-		options: [
+	const choice = await input.tui.askDecision(
+		`Next step for ${plural(input.changedFiles.length, "changed file")}`,
+		[
 			{ value: "apply", label: `Apply changes to ${path.basename(input.originalRoot)}` },
 			{ value: "review", label: "Keep worktree for review" },
 		],
-		initialValue: "apply",
-	});
-	input.tui.resume();
-	if (isCancel(choice)) {
-		log.warn("Apply cancelled. Worktree left for review.");
-		input.session.append("apply.cancelled");
-		return false;
-	}
+	);
 	if (choice !== "apply") {
 		input.session.append("apply.declined");
 		return false;

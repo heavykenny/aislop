@@ -38,8 +38,8 @@ describe("agent session activity", () => {
 			totalTokens: 1820,
 			costUsd: 0.0123,
 		});
-		expect(formatUsageTotals(usage)).toContain("1,820 total");
-		expect(formatUsageTotals(usage)).toContain("$0.0123");
+		expect(formatUsageTotals(usage)).toContain("2k total");
+		expect(formatUsageTotals(usage)).toContain("$0.01");
 	});
 
 	it("tracks provider pass and tool-call counters", () => {

@@ -62,16 +62,22 @@ export const mergeProviderUsage = (
 	};
 };
 
+const abbreviateTokens = (n: number): string => {
+	if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+	if (n >= 1_000) return `${Math.round(n / 1_000)}k`;
+	return String(n);
+};
+
 export const formatUsageTotals = (usage: AgentUsageTotals): string => {
 	if (usage.totalTokens === 0 && usage.costUsd === undefined) return "unknown";
 	const tokens = [
-		`${usage.totalTokens.toLocaleString()} total`,
-		`${usage.inputTokens.toLocaleString()} in`,
-		`${usage.outputTokens.toLocaleString()} out`,
+		`${abbreviateTokens(usage.totalTokens)} total`,
+		`${abbreviateTokens(usage.inputTokens)} in`,
+		`${abbreviateTokens(usage.outputTokens)} out`,
 	];
 	if (usage.cachedInputTokens > 0)
-		tokens.push(`${usage.cachedInputTokens.toLocaleString()} cached`);
-	if (usage.costUsd !== undefined) tokens.push(`$${usage.costUsd.toFixed(4)}`);
+		tokens.push(`${abbreviateTokens(usage.cachedInputTokens)} cached`);
+	if (usage.costUsd !== undefined) tokens.push(`$${usage.costUsd.toFixed(2)}`);
 	return tokens.join(" / ");
 };
 
