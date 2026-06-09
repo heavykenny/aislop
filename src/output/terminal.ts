@@ -1,4 +1,5 @@
 import type { Diagnostic, EngineResult } from "../engines/types.js";
+import { highlightAislop } from "../ui/brand.js";
 import { log } from "../ui/logger.js";
 import { symbols } from "../ui/symbols.js";
 import { style, theme } from "../ui/theme.js";
@@ -168,7 +169,7 @@ export const renderDiagnostics = (diagnostics: Diagnostic[], verbose: boolean): 
 			renderLocations(ruleDiags, verbose, lines);
 			if (first.help) {
 				const wrapped = wrapHelpText(first.help, terminalWidth(), "      ");
-				for (const line of wrapped) lines.push(style(theme, "muted", line));
+				for (const line of wrapped) lines.push(highlightAislop(line, theme, "muted"));
 			}
 			lines.push("");
 		}

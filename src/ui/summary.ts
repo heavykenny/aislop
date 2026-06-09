@@ -1,12 +1,17 @@
 import type { FindingAssessmentSummary } from "../output/finding-assessment.js";
 import { labelForRule } from "../output/rule-labels.js";
+import { highlightAislop } from "./brand.js";
+import { terminalLink } from "./link.js";
 import { symbols as defaultSymbols, type Symbols } from "./symbols.js";
 import { theme as defaultTheme, style, type Theme, type Token } from "./theme.js";
 import { padEnd } from "./width.js";
 
 export interface NextStep {
 	emphasis: "primary" | "muted";
-	text: string;
+	text?: string;
+	label?: string;
+	command?: string;
+	detail?: string;
 }
 
 export interface BreakdownRow {
@@ -73,6 +78,41 @@ const renderFindingAssessment = (
 	return [`   ${style(t, "muted", "Verdict mix:")} ${parts.join(`  ${sep}  `)}${confidence}`];
 };
 
+const severitySummary = (row: BreakdownRow, t: Theme, sep: string): string => {
+	const tags: string[] = [];
+	if (row.errors > 0) tags.push(style(t, "danger", `${row.errors} err`));
+	if (row.warnings > 0) tags.push(style(t, "warn", `${row.warnings} warn`));
+	if (row.info > 0) tags.push(style(t, "muted", `${row.info} info`));
+	if (row.fixable > 0) tags.push(style(t, "success", `${row.fixable} fixable`));
+	return tags.join(` ${sep} `);
+};
+
+const renderActionRows = (steps: NextStep[], t: Theme): string[] => {
+	const actionSteps = steps.filter((step) => step.command && step.label);
+	if (actionSteps.length === 0) return [];
+
+	const labelWidth = Math.max(...actionSteps.map((step) => step.label?.length ?? 0));
+	const commandWidth = Math.max(...actionSteps.map((step) => step.command?.length ?? 0));
+	const lines = [` ${style(t, "bold", "Agent repair plan")}`];
+	for (const step of actionSteps) {
+		const label = padEnd(step.label ?? "", labelWidth);
+		const command = padEnd(step.command ?? "", commandWidth);
+		const labelToken: Token = step.emphasis === "primary" ? "accent" : "muted";
+		const detail = step.detail ? `  ${style(t, "muted", step.detail)}` : "";
+		lines.push(`   ${style(t, labelToken, label)}  ${highlightAislop(command, t)}${detail}`);
+	}
+	return lines;
+};
+
+const renderTextSteps = (steps: NextStep[], t: Theme, s: Symbols): string[] => {
+	const textSteps = steps.filter((step) => step.text);
+	return textSteps.map((step) => {
+		const glyph = step.emphasis === "primary" ? s.hint : s.bullet;
+		const tokenFor: Token = step.emphasis === "primary" ? "accent" : "muted";
+		return ` ${style(t, tokenFor, glyph)} ${highlightAislop(step.text ?? "", t)}`;
+	});
+};
+
 export const renderSummary = (input: SummaryInput, deps: SummaryDeps = {}): string => {
 	const t = deps.theme ?? defaultTheme;
 	const s = deps.symbols ?? defaultSymbols;
@@ -109,19 +149,27 @@ export const renderSummary = (input: SummaryInput, deps: SummaryDeps = {}): stri
 		);
 		const labels = input.breakdown.rows.map((r) => labelForRule(r.rule));
 		const maxLabelWidth = labels.reduce((w, l) => Math.max(w, l.length), 0);
+		const maxRuleWidth = input.breakdown.rows.reduce((w, r) => Math.max(w, r.rule.length), 0);
+		lines.push(
+			`   ${style(t, "muted", padEnd("#", maxCountWidth))}  ${style(
+				t,
+				"muted",
+				padEnd("Finding", maxLabelWidth),
+			)}  ${style(t, "muted", padEnd("Rule", maxRuleWidth))}  ${style(t, "muted", "Status")}`,
+		);
 		for (let i = 0; i < input.breakdown.rows.length; i++) {
 			const row = input.breakdown.rows[i];
 			const total = row.errors + row.warnings + row.info;
 			const count = String(total).padStart(maxCountWidth);
 			const label = padEnd(labels[i], maxLabelWidth);
-			const tags: string[] = [];
-			if (row.errors > 0) tags.push(style(t, "danger", `${row.errors} err`));
-			if (row.warnings > 0) tags.push(style(t, "warn", `${row.warnings} warn`));
-			if (row.info > 0) tags.push(style(t, "muted", `${row.info} info`));
-			if (row.fixable > 0) tags.push(style(t, "success", `${row.fixable} fix`));
-			const tagBlock = tags.length > 0 ? `  ${style(t, "muted", "·")}  ${tags.join("  ")}` : "";
-			const ruleHint = style(t, "muted", `(${row.rule})`);
-			lines.push(`   ${style(t, "muted", count)}  ${label}  ${ruleHint}${tagBlock}`);
+			const rule = padEnd(row.rule, maxRuleWidth);
+			lines.push(
+				`   ${style(t, "muted", count)}  ${label}  ${style(t, "muted", rule)}  ${severitySummary(
+					row,
+					t,
+					sep,
+				)}`,
+			);
 		}
 		if (input.breakdown.hiddenRules > 0) {
 			const hiddenParts: string[] = [];
@@ -146,11 +194,8 @@ export const renderSummary = (input: SummaryInput, deps: SummaryDeps = {}): stri
 	}
 
 	if (input.nextSteps.length > 0) {
-		for (const step of input.nextSteps) {
-			const glyph = step.emphasis === "primary" ? s.hint : s.bullet;
-			const tokenFor: Token = step.emphasis === "primary" ? "accent" : "muted";
-			lines.push(` ${style(t, tokenFor, glyph)} ${step.text}`);
-		}
+		lines.push(...renderActionRows(input.nextSteps, t));
+		lines.push(...renderTextSteps(input.nextSteps, t, s));
 		lines.push("");
 	}
 
@@ -159,7 +204,14 @@ export const renderSummary = (input: SummaryInput, deps: SummaryDeps = {}): stri
 
 export const renderStarCta = (deps: SummaryDeps = {}): string => {
 	const t = deps.theme ?? defaultTheme;
-	return `\n ${style(t, "muted", "★ Found this useful? Star us at github.com/scanaislop/aislop")}\n`;
+	const repository = terminalLink("https://github.com/scanaislop/aislop");
+	return `\n ${style(t, "muted", `★ Found this useful? Star us at ${repository}`)}\n`;
+};
+
+export const renderTeamCta = (deps: SummaryDeps = {}): string => {
+	const t = deps.theme ?? defaultTheme;
+	const href = terminalLink("https://scanaislop.com");
+	return `\n ${style(t, "muted", `→ Make this your team's standard. Gate every PR free at ${href}`)}\n`;
 };
 
 export const renderCleanRun = (

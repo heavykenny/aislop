@@ -1,4 +1,6 @@
+import { existsSync } from "node:fs";
 import { Command } from "commander";
+import { registerAgentCommand } from "./cli/agent-command.js";
 import { registerHookAliases, registerHookCommand } from "./cli/hook-command.js";
 import { badgeCommand } from "./commands/badge.js";
 import { ciCommand } from "./commands/ci.js";
@@ -20,6 +22,8 @@ import {
 	withCommandLifecycle,
 } from "./telemetry/index.js";
 import { renderCommandReference, renderRootHelp } from "./ui/home.js";
+import { log } from "./ui/logger.js";
+import { suggestClosest } from "./ui/suggest.js";
 import { maybeNotifyUpdate } from "./update-notifier.js";
 import { APP_VERSION } from "./version.js";
 
@@ -128,6 +132,7 @@ const program = new Command()
 		commaSeparatedParser,
 		[],
 	)
+	.showSuggestionAfterError()
 	.action(async (directory: string, flags: ScanFlags) => {
 		if (hasNoUserArgs() && noFlagsPassed(flags) && process.stdin.isTTY) {
 			try {
@@ -214,6 +219,8 @@ fixProgram.action(async (directory = ".", _flags, command) => {
 		agent: matchFixAgent(flags),
 	});
 });
+
+registerAgentCommand(program);
 
 program
 	.command("init [directory]")
@@ -330,6 +337,7 @@ program
 
 program
 	.command("trend [directory]")
+	.alias("trends")
 	.description("Show local score history")
 	.option("--limit <n>", "number of recent runs to show", (v) => Number.parseInt(v, 10))
 	.action(async (directory = ".", _flags, command) => {
@@ -377,6 +385,23 @@ const main = async () => {
 	if (shouldRenderRootHelp()) {
 		process.stdout.write(renderRootHelp({ version: APP_VERSION }));
 		return;
+	}
+	// A bare first token that isn't a known command, a flag, or an existing path is
+	// almost always a mistyped command. Catch it up front (any arg count) and suggest
+	// the closest command, rather than scanning a non-existent directory or erroring obscurely.
+	const firstArg = process.argv[2];
+	if (firstArg && !firstArg.startsWith("-")) {
+		const known = new Set(
+			program.commands.flatMap((command) => [command.name(), ...command.aliases()]),
+		);
+		if (!known.has(firstArg) && !existsSync(firstArg)) {
+			const guess = suggestClosest(firstArg, [...known]);
+			log.error(`"${firstArg}" is not a known command or an existing path.`);
+			if (guess) log.muted(`Did you mean \`aislop ${guess}\`?`);
+			log.muted("Run `aislop --help` to see all commands.");
+			process.exitCode = 1;
+			return;
+		}
 	}
 	await program.parseAsync();
 	await flushTelemetry();

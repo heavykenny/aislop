@@ -9,7 +9,7 @@ Six events:
 | Event | When |
 |---|---|
 | `cli_installed` | First-ever run on a machine (when `~/.aislop/install_id` is created) |
-| `cli_command_started` | Beginning of any command (`scan`, `fix`, `ci`, `init`, `doctor`, `rules`, `badge`, `hook install/uninstall/status/baseline`) |
+| `cli_command_started` | Beginning of any command (`scan`, `fix`, `ci`, `init`, `doctor`, `rules`, `badge`, `agent`, `agent plan/providers/connect/use/monitor/sessions/show/apply/watch/stop`, `hook install/uninstall/status/baseline`) |
 | `cli_command_completed` | End of any command — success or failure (carries `exit_code`, `duration_ms`, score, finding counts, engine stats) |
 | `mcp_server_started` | After the `aislop-mcp` stdio transport connects |
 | `mcp_tool_called` | Each `aislop_scan` / `aislop_fix` / `aislop_why` / `aislop_baseline` invocation |
@@ -24,6 +24,8 @@ Each event carries:
 - `is_ci` — true only if `CI=true` AND you've explicitly opted in via config
 
 Command events additionally carry: `command`, `language_summary`, per-language flags (`lang_typescript`, `lang_javascript`, `lang_python`, `lang_java`), `file_count_bucket` (`0-10` / `10-50` / `50-100` / `100-500` / `500-1000` / `1000+`), `score_bucket`, score, finding counts, and per-engine timings.
+
+Agent command events add only aggregate options and outcomes: provider (`auto` / `codex` / `claude` / `opencode` / `unknown`), provider source, target score, max turns, finding limit, worktree mode, dry-run/background/apply/publish flags, and foreground session outcomes such as before/after score, score delta, changed-file count, provider pass count, tool-call count, total tokens, cost, applied/published state, and target-met status. Session ids, paths, branch names, prompts, raw findings, provider output, and transcript contents stay local.
 
 Properties are filtered through an allowlist before being sent — anything not on the list is dropped, even if a future caller passes it.
 

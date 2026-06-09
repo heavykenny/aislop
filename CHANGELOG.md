@@ -6,6 +6,38 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## Unreleased
 
+### Fixed
+
+- **Agent telemetry coverage.** `aislop agent` and its provider, plan, monitor, session, apply, watch, and stop subcommands now emit the same `cli_command_started` / `cli_command_completed` lifecycle events as the rest of the CLI. Events include only aggregate provider/options/outcome fields; paths, branch names, session ids, prompts, raw findings, and transcripts stay local.
+
+## 0.12.0 (2026-06-08)
+
+Local agent repair sessions get a full terminal-native workflow, CLI output is tighter across the command surface, and scoring now separates cosmetic cleanup from higher-impact findings.
+
+### Added
+
+- **`aislop agent` terminal UI.** Foreground agent sessions now render a live Ink TUI with steps, activity, edited files, score/target, passes, token usage, and in-terminal decisions. Non-TTY and CI runs keep plain streamed output.
+- **Agent workflow commands.** Added local provider status/connect/default-provider flows, background sessions, session list/show/watch/apply/stop commands, monitor mode, safe local apply, and optional commit/PR publishing from a reviewed agent diff.
+- **Command suggestions.** Mistyped commands now get nearest-command guidance instead of falling through to confusing directory-scan errors.
+- **Rule impact metadata.** JSON output, finding assessment, and `aislop rules` now expose per-rule score-impact tiers so integrations can distinguish mechanical cleanup from stronger quality/security signals.
+
+### Changed
+
+- **Scoring calibration.** The default `ai-slop` weight is softer and rule scoring now uses impact multipliers and caps, preserving real findings while reducing score swings from low-impact style signals.
+- **Terminal rendering.** Scan summaries, badges, rules, doctor, hook, update, trend, provider, and agent outputs use aligned display sections and clearer action guidance.
+- **Source filtering and lint context.** Generated/vendor/package-manager artifacts are excluded more consistently, ESLint globals and ignores are respected, PHP-served browser JavaScript gets softer `no-undef` handling, and `ruff` linting follows the same scoped file selection as `aislop`.
+
+### Fixed
+
+- **Agent subdirectory scope.** `aislop agent`, `agent plan`, and monitor repair now honor a requested subdirectory in monorepos instead of scanning/fixing the repository root.
+- **Background stop handling.** Monitor stop now signals the monitor process group on non-Windows platforms, matching background session stop behavior so active provider subprocesses are not left editing.
+- **Installer and CI stability.** Tool downloads retry transient GitHub/network failures, the TUI dependency stays compatible with the documented Node `>=20` floor, and long CLI help-surface tests have explicit CI-safe timeouts.
+- **Python and Go calibration.** Python manifest/import resolution handles nested manifests and additional stdlib/package aliases, and Go panic heuristics exempt test-support code.
+
+### Tests
+
+Full suite at 1228 passing, plus self-scan at 100 with zero diagnostics. New coverage locks the agent TUI, session state/activity, provider flows, background monitor lifecycle, scoped agent directories, rule impact metadata, command suggestions, source filtering, and calibration regressions.
+
 ## 0.11.0 (2026-06-06)
 
 PR-scoped quality gates and set-and-forget CI. `scan` and `ci` can now gate a pull request on only the files it changed (`--changes --base <ref>`), and an explicit base ref that cannot be resolved fails the run instead of silently passing an empty scan. A moving `v1` Action tag plus `version: latest` mean workflows never need a version bump, and every CI example now standardizes on Node 24.
