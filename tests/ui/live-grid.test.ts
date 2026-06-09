@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { renderGridFrame } from "../../src/ui/live-grid.js";
+import { LiveGrid, renderGridFrame, renderProgressLine } from "../../src/ui/live-grid.js";
 import { createSymbols } from "../../src/ui/symbols.js";
 import { createTheme } from "../../src/ui/theme.js";
 import { stripAnsi as strip } from "../helpers/ansi.js";
@@ -71,5 +71,51 @@ describe("live-grid", () => {
 	it("renders queued rows with pending glyph", () => {
 		const out = strip(renderGridFrame({ rows: [{ label: "Linting", status: "queued" }] }, opts));
 		expect(out).toMatch(/• Linting\s+queued\s+—/);
+	});
+
+	it("renders live progress as a compact single line", () => {
+		const out = strip(
+			renderProgressLine(
+				{
+					rows: [
+						{ label: "Formatting", status: "done", summary: "0 issues" },
+						{ label: "Linting", status: "running" },
+						{ label: "Security", status: "queued" },
+					],
+				},
+				{ ...opts, columns: 80 },
+			),
+		);
+
+		expect(out).toContain("Scan 1/3 engines · running Linting");
+		expect(out).not.toContain("\n");
+	});
+
+	it("clears the transient progress line instead of leaving a final grid", () => {
+		const chunks: string[] = [];
+		const grid = new LiveGrid(
+			[
+				{ label: "Formatting", status: "queued", key: "format" },
+				{ label: "Linting", status: "queued", key: "lint" },
+			],
+			{
+				columns: 80,
+				tty: true,
+				write: (chunk) => chunks.push(chunk),
+			},
+		);
+
+		grid.start();
+		grid.update("format", { status: "running" });
+		grid.update("format", { status: "done", outcome: "ok", summary: "0 issues", elapsedMs: 20 });
+		grid.stop();
+
+		const raw = chunks.join("");
+		const stripped = strip(raw);
+		expect(raw).toContain("\r\x1B[2K");
+		expect(raw.endsWith("\r\x1B[2K")).toBe(true);
+		expect(stripped).toContain("Scan 0/2 engines · starting");
+		expect(stripped).toContain("Scan 1/2 engines · finishing");
+		expect(stripped).not.toMatch(/Formatting\s+queued\s+—\n.*Linting/s);
 	});
 });

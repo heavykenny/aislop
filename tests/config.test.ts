@@ -131,6 +131,16 @@ describe("DEFAULT_CONFIG", () => {
 		);
 	});
 
+	it("uses balanced ai-slop weighting by default", () => {
+		expect(DEFAULT_CONFIG.scoring.weights["ai-slop"]).toBe(1.0);
+		expect(DEFAULT_CONFIG.scoring.weights["ai-slop"]).toBe(
+			DEFAULT_CONFIG.scoring.weights.architecture,
+		);
+		expect(DEFAULT_CONFIG.scoring.weights.security).toBeGreaterThan(
+			DEFAULT_CONFIG.scoring.weights["ai-slop"],
+		);
+	});
+
 	it("thresholds are ordered: ok < good", () => {
 		expect(DEFAULT_CONFIG.scoring.thresholds.ok).toBeLessThan(
 			DEFAULT_CONFIG.scoring.thresholds.good,
