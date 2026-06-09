@@ -90,6 +90,11 @@ describe("parseConfig", () => {
 		const result = parseConfig({ version: 2 });
 		expect(result.version).toBe(2);
 	});
+
+	it("defaults Expo Doctor to disabled unless explicitly enabled", () => {
+		expect(parseConfig({}).lint.expoDoctor).toBe(false);
+		expect(parseConfig({ lint: { expoDoctor: true } }).lint.expoDoctor).toBe(true);
+	});
 });
 
 // ─── DEFAULT_CONFIG ────────────────────────────────────────────────────────────
@@ -153,6 +158,10 @@ describe("DEFAULT_CONFIG", () => {
 
 	it("ci failBelow defaults to the public quality gate", () => {
 		expect(DEFAULT_CONFIG.ci.failBelow).toBe(70);
+	});
+
+	it("keeps Expo Doctor disabled by default", () => {
+		expect(DEFAULT_CONFIG.lint.expoDoctor).toBe(false);
 	});
 });
 

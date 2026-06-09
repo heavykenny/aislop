@@ -51,7 +51,7 @@ export const runScopedScan = async (
 			// Network-bound audit exceeds every agent's hook timeout, so always off here.
 			security: { audit: false, auditTimeout: 0 },
 			// tsc is too slow for per-edit hooks; opt back in via the full scan if needed.
-			lint: { typecheck: false },
+			lint: { typecheck: false, expoDoctor: false },
 			architectureRulesPath: config.engines.architecture ? rulesPath : undefined,
 		},
 	};

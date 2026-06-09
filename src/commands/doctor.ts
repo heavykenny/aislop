@@ -229,7 +229,7 @@ const withTypecheckSuffix = (baseTool: string, ctx: PlanContext): ToolDecision =
 
 const planLint = (ctx: PlanContext): ToolDecision => {
 	const { languages, frameworks, installedTools } = ctx.projectInfo;
-	if (frameworks.includes("expo")) {
+	if (frameworks.includes("expo") && ctx.config.lint?.expoDoctor) {
 		return withTypecheckSuffix("expo-doctor + oxlint (bundled)", ctx);
 	}
 	if (hasJsLike(languages)) return withTypecheckSuffix("oxlint (bundled)", ctx);
