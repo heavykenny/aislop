@@ -242,7 +242,10 @@ export const handleAislopWhy = (input: z.infer<typeof aislopWhyInputSchema>) => 
 };
 
 export const aislopBaselineInputSchema = z.object({
-	path: z.string().optional().describe("Project directory, confined to the MCP server's cwd. Defaults to that cwd."),
+	path: z
+		.string()
+		.optional()
+		.describe("Project directory, confined to the MCP server's cwd. Defaults to that cwd."),
 });
 
 export const aislopBaselineTool = {
