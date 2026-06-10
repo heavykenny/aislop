@@ -12,8 +12,9 @@ export const codeQualityEngine: Engine = {
 
 		const promises: Promise<Diagnostic[]>[] = [];
 
+		const canRunProjectLocalTools = context.config.allowProjectLocalTools !== false;
 		if (
-			!context.config.hookSafe &&
+			canRunProjectLocalTools &&
 			(context.languages.includes("typescript") || context.languages.includes("javascript"))
 		) {
 			promises.push(runKnip(context.rootDirectory));

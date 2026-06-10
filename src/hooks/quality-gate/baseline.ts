@@ -71,7 +71,7 @@ export const captureBaseline = async (
 			quality: config.quality,
 			security: { audit: false, auditTimeout: 0 },
 			lint: { typecheck: false, expoDoctor: false },
-			hookSafe: true,
+			allowProjectLocalTools: false,
 		},
 	};
 	const enabled: Record<EngineName, boolean> = {

@@ -56,8 +56,7 @@ export interface EngineConfig {
 		typecheck: boolean;
 		expoDoctor: boolean;
 	};
-	/** True for automatically-invoked agent hooks; engines must avoid project-code execution. */
-	hookSafe?: boolean;
+	allowProjectLocalTools?: boolean;
 	architectureRulesPath?: string;
 }
 
