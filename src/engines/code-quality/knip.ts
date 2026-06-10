@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { runSubprocess } from "../../utils/subprocess.js";
@@ -132,21 +133,73 @@ const findMonorepoRoot = (directory: string): string | null => {
 	return null;
 };
 
+const isSubpath = (parent: string, child: string): boolean => {
+	const relative = path.relative(parent, child);
+	return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+};
+
+const getRelativePathWithinRoot = (
+	rootDirectory: string,
+	baseDirectory: string,
+	reportedPath: string,
+): string | null => {
+	const rootPath = path.resolve(rootDirectory);
+	const absolutePath = path.resolve(baseDirectory, reportedPath);
+	if (!isSubpath(rootPath, absolutePath)) return null;
+	return path.relative(rootPath, absolutePath);
+};
+
+const getSafeUnusedFilePath = (rootDirectory: string, filePath: string): string | null => {
+	const rootPath = fs.realpathSync(rootDirectory);
+	const absolutePath = path.resolve(rootDirectory, filePath);
+
+	let stat: fs.Stats;
+	let realPath: string;
+	try {
+		stat = fs.lstatSync(absolutePath);
+		realPath = fs.realpathSync(absolutePath);
+	} catch {
+		return null;
+	}
+
+	if (!stat.isFile()) return null;
+	if (!isSubpath(rootPath, realPath)) return null;
+	return absolutePath;
+};
+
 const KNIP_RELATIVE_BIN = path.join("node_modules", "knip", "bin", "knip.js");
 
-const findKnipBin = (
+const isTrackedByGit = (filePath: string, cwd: string): boolean => {
+	const relativePath = path.relative(cwd, filePath);
+	if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) return false;
+
+	const result = spawnSync("git", ["-C", cwd, "ls-files", "--error-unmatch", "--", relativePath], {
+		stdio: "ignore",
+	});
+	return result.status === 0;
+};
+
+const trustedKnipRuntime = (
+	binPath: string,
+	cwd: string,
+): { binPath: string; cwd: string } | null => {
+	if (isTrackedByGit(binPath, cwd)) return null;
+	return { binPath, cwd };
+};
+
+export const findKnipRuntime = (
 	rootDirectory: string,
 	monorepoRoot: string | null,
 ): { binPath: string; cwd: string } | null => {
 	const localPath = path.join(rootDirectory, KNIP_RELATIVE_BIN);
 	if (fs.existsSync(localPath)) {
-		return { binPath: localPath, cwd: rootDirectory };
+		return trustedKnipRuntime(localPath, rootDirectory);
 	}
 
 	if (monorepoRoot) {
 		const monorepoPath = path.join(monorepoRoot, KNIP_RELATIVE_BIN);
 		if (fs.existsSync(monorepoPath)) {
-			return { binPath: monorepoPath, cwd: monorepoRoot };
+			return trustedKnipRuntime(monorepoPath, monorepoRoot);
 		}
 	}
 
@@ -210,8 +263,8 @@ export const runKnipUnusedFiles = async (rootDirectory: string): Promise<Diagnos
 export const fixUnusedFiles = async (rootDirectory: string): Promise<void> => {
 	const diagnostics = await runKnipUnusedFiles(rootDirectory);
 	for (const d of diagnostics) {
-		const absolutePath = path.resolve(rootDirectory, d.filePath);
-		if (fs.existsSync(absolutePath)) {
+		const absolutePath = getSafeUnusedFilePath(rootDirectory, d.filePath);
+		if (absolutePath) {
 			fs.unlinkSync(absolutePath);
 		}
 	}
@@ -219,7 +272,7 @@ export const fixUnusedFiles = async (rootDirectory: string): Promise<void> => {
 
 export const runKnip = async (rootDirectory: string): Promise<Diagnostic[]> => {
 	const monorepoRoot = findMonorepoRoot(rootDirectory);
-	const knipRuntime = findKnipBin(rootDirectory, monorepoRoot);
+	const knipRuntime = findKnipRuntime(rootDirectory, monorepoRoot);
 	if (!knipRuntime) return [];
 
 	try {
@@ -235,8 +288,10 @@ export const runKnip = async (rootDirectory: string): Promise<Diagnostic[]> => {
 		const diagnostics: Diagnostic[] = [];
 		const files = parsed.files ?? [];
 		for (const unusedFile of files) {
+			const filePath = getRelativePathWithinRoot(rootDirectory, knipRuntime.cwd, unusedFile);
+			if (!filePath) continue;
 			diagnostics.push({
-				filePath: path.relative(rootDirectory, path.resolve(knipRuntime.cwd, unusedFile)),
+				filePath,
 				engine: "code-quality",
 				rule: "knip/files",
 				severity: "warning",
