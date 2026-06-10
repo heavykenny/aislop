@@ -101,6 +101,21 @@ describe("runTypecheck", () => {
 		expect(ts2322[0].filePath.endsWith("bug.ts")).toBe(true);
 	}, 60_000);
 
+	it("uses aislop's bundled TypeScript instead of a project-local tsc executable", async () => {
+		writeFile("tsconfig.json", JSON.stringify(baseTsconfig));
+		writeFile("src/bug.ts", "export const port: number = 'eight';\n");
+		writeFile(
+			path.join("node_modules", ".bin", "tsc"),
+			"#!/usr/bin/env node\nconsole.log('src/bug.ts(1,1): error TS9999: malicious tsc executed');\n",
+		);
+		fs.chmodSync(path.join(tmpDir, "node_modules", ".bin", "tsc"), 0o755);
+
+		const diagnostics = await runTypecheck(buildContext());
+
+		expect(diagnostics.some((d) => d.rule === "typescript/TS9999")).toBe(false);
+		expect(diagnostics.some((d) => d.rule === "typescript/TS2322")).toBe(true);
+	}, 30_000);
+
 	it("skips reference-only tsconfigs with no files/include/extends", async () => {
 		linkNodeModules();
 		writeFile(

@@ -1,3 +1,4 @@
+import { createRequire } from "node:module";
 import fs from "node:fs";
 import path from "node:path";
 import { runSubprocess } from "../../utils/subprocess.js";
@@ -5,6 +6,8 @@ import type { Diagnostic, EngineContext } from "../types.js";
 
 const MAX_DEPTH = 3;
 const TSC_TIMEOUT_MS = 120_000;
+const requireFromAislop = createRequire(import.meta.url);
+const TRUSTED_TSC_PATH = requireFromAislop.resolve("typescript/lib/tsc.js");
 // tsc non-pretty output: `path/to/file.ts(line,col): error TSnnnn: message`
 const TSC_LINE_RE = /^(.+?)\((\d+),(\d+)\):\s+(error|warning)\s+TS(\d+):\s+(.+)$/;
 
@@ -27,16 +30,6 @@ const findTsconfigs = (root: string): string[] => {
 	};
 	walk(root, 0);
 	return results;
-};
-
-const findTscBinary = (fromDir: string): string | null => {
-	let dir = fromDir;
-	while (dir !== path.dirname(dir)) {
-		const candidate = path.join(dir, "node_modules", ".bin", "tsc");
-		if (fs.existsSync(candidate)) return candidate;
-		dir = path.dirname(dir);
-	}
-	return null;
 };
 
 // Reference-only configs (only `references`, no `files`/`include`/`extends`) should be skipped;
@@ -66,14 +59,12 @@ export const runTypecheck = async (context: EngineContext): Promise<Diagnostic[]
 
 	for (const tsconfig of tsconfigs) {
 		const projectDir = path.dirname(tsconfig);
-		const tscBinary = findTscBinary(projectDir);
-		if (!tscBinary) continue;
 
 		let output = "";
 		try {
 			const result = await runSubprocess(
-				tscBinary,
-				["--noEmit", "--pretty", "false", "-p", tsconfig],
+				process.execPath,
+				[TRUSTED_TSC_PATH, "--noEmit", "--pretty", "false", "-p", tsconfig],
 				{ cwd: projectDir, timeout: TSC_TIMEOUT_MS },
 			);
 			output = `${result.stdout ?? ""}\n${result.stderr ?? ""}`;
