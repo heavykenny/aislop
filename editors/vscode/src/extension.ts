@@ -1,4 +1,6 @@
 import { execFile } from "node:child_process";
+import { accessSync, constants } from "node:fs";
+import { delimiter, isAbsolute, join } from "node:path";
 import * as vscode from "vscode";
 
 interface AislopDiagnostic {
@@ -30,6 +32,7 @@ interface ScanOutcome {
 }
 
 class AislopNotInstalledError extends Error {}
+class UnsafeCliPathError extends Error {}
 
 const SEVERITY_MAP: Record<AislopDiagnostic["severity"], vscode.DiagnosticSeverity> = {
 	error: vscode.DiagnosticSeverity.Error,
@@ -40,8 +43,71 @@ const SEVERITY_MAP: Record<AislopDiagnostic["severity"], vscode.DiagnosticSeveri
 const toSeverity = (severity: AislopDiagnostic["severity"]): vscode.DiagnosticSeverity =>
 	SEVERITY_MAP[severity] ?? vscode.DiagnosticSeverity.Warning;
 
-const getCliPath = (): string =>
-	vscode.workspace.getConfiguration("aislop").get<string>("path", "aislop");
+const DEFAULT_CLI = "aislop";
+
+const getConfiguredCliPath = (): string => {
+	const inspected = vscode.workspace.getConfiguration("aislop").inspect<string>("path");
+	return inspected?.globalValue ?? inspected?.defaultValue ?? DEFAULT_CLI;
+};
+
+const isPathLike = (command: string): boolean =>
+	isAbsolute(command) || command.includes("/") || command.includes("\\");
+
+const candidateNames = (command: string): string[] => {
+	if (process.platform !== "win32") {
+		return [command];
+	}
+	const hasExtension = /\.[^\\/]+$/.test(command);
+	if (hasExtension) {
+		return [command];
+	}
+	const extensions = (process.env.PATHEXT ?? ".COM;.EXE;.BAT;.CMD")
+		.split(";")
+		.filter(Boolean);
+	return [command, ...extensions.map((extension) => `${command}${extension.toLowerCase()}`)];
+};
+
+const canExecute = (filePath: string): boolean => {
+	try {
+		accessSync(filePath, process.platform === "win32" ? constants.F_OK : constants.X_OK);
+		return true;
+	} catch {
+		return false;
+	}
+};
+
+const resolveCliPath = (command: string): string | undefined => {
+	if (isPathLike(command)) {
+		return isAbsolute(command) ? command : undefined;
+	}
+	for (const directory of (process.env.PATH ?? "").split(delimiter)) {
+		if (!directory || directory === "." || !isAbsolute(directory)) {
+			continue;
+		}
+		for (const candidate of candidateNames(command)) {
+			const filePath = join(directory, candidate);
+			if (canExecute(filePath)) {
+				return filePath;
+			}
+		}
+	}
+	return undefined;
+};
+
+const getCliPath = (): string => {
+	const configuredPath = getConfiguredCliPath().trim();
+	if (!configuredPath) {
+		throw new AislopNotInstalledError("aislop CLI path is empty");
+	}
+	const resolvedPath = resolveCliPath(configuredPath);
+	if (!resolvedPath) {
+		if (isPathLike(configuredPath)) {
+			throw new UnsafeCliPathError("aislop.path must be an absolute path or a command on PATH");
+		}
+		throw new AislopNotInstalledError("aislop CLI not found on PATH");
+	}
+	return resolvedPath;
+};
 
 const isMissingBinary = (error: NodeJS.ErrnoException): boolean =>
 	error.code === "ENOENT" || /not found|not recognized/i.test(error.message);
@@ -114,8 +180,15 @@ const reportFailure = (error: unknown, status: vscode.StatusBarItem): void => {
 		status.tooltip = "Install the aislop CLI: npm i -g aislop";
 		status.show();
 		void vscode.window.showWarningMessage(
-			"aislop CLI not found. Install it with `npm i -g aislop` or set `aislop.path`.",
+			"aislop CLI not found. Install it with `npm i -g aislop` or set the user-level `aislop.path` setting.",
 		);
+		return;
+	}
+	if (error instanceof UnsafeCliPathError) {
+		status.text = "$(shield) aislop: invalid CLI path";
+		status.tooltip = error.message;
+		status.show();
+		void vscode.window.showWarningMessage(error.message);
 		return;
 	}
 	const message = error instanceof Error ? error.message : String(error);
