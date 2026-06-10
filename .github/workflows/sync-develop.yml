@@ -56,8 +56,9 @@ jobs:
         if: steps.plan.outputs.needs_sync == 'true'
         env:
           GH_TOKEN: ${{ secrets.SYNC_BOT_PAT }}
+          SYNC_HEAD: ${{ github.repository_owner }}:bot/sync-from-main
         run: |
-          existing=$(gh pr list --base develop --head bot/sync-from-main --state open --json number --jq '.[0].number // empty')
+          existing=$(gh pr list --base develop --head "$SYNC_HEAD" --state open --json number --jq '.[0].number // empty')
           if [ -z "$existing" ]; then
             num=$(gh pr create \
               --base develop \
