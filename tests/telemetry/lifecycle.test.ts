@@ -54,6 +54,60 @@ describe("withCommandLifecycle", () => {
 		}
 	});
 
+	it("carries allowlisted agent properties and drops unsafe ones", async () => {
+		const cap = captureStderr();
+		try {
+			const result = await withCommandLifecycle(
+				{
+					command: "agent",
+					properties: {
+						provider: "codex",
+						provider_source: "cli",
+						target_score: 90,
+						dry_run: true,
+						file_path: "/Users/me/project/secret.ts",
+					},
+				},
+				async () => ({
+					exitCode: 0,
+					properties: {
+						agent_result: "dry_run",
+						score_before: 82,
+						score_after: 91,
+						score_delta: 9,
+						changed_files: 2,
+					},
+				}),
+			);
+			expect(result.exitCode).toBe(0);
+			const events = cap.lines
+				.map((l) => l.match(/^\[telemetry\] (\{.*\})\n?$/))
+				.filter((m): m is RegExpMatchArray => !!m)
+				.map((m) => JSON.parse(m[1]));
+			const started = events.find((e) => e.event === "cli_command_started");
+			const completed = events.find((e) => e.event === "cli_command_completed");
+			expect(started?.properties).toMatchObject({
+				command: "agent",
+				provider: "codex",
+				provider_source: "cli",
+				target_score: 90,
+				dry_run: true,
+			});
+			expect(started?.properties.file_path).toBeUndefined();
+			expect(completed?.properties).toMatchObject({
+				command: "agent",
+				agent_result: "dry_run",
+				score_before: 82,
+				score_after: 91,
+				score_delta: 9,
+				changed_files: 2,
+			});
+			expect(cap.lines).toContain("[telemetry] dropped non-allowlisted property: file_path\n");
+		} finally {
+			cap.restore();
+		}
+	});
+
 	it("fires _completed with exit_code=1 and error_kind on throw", async () => {
 		const cap = captureStderr();
 		try {

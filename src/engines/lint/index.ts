@@ -20,8 +20,8 @@ export const lintEngine: Engine = {
 			}
 		}
 
-		if (context.frameworks.includes("expo")) {
-			// Lazy-load expo-doctor only when Expo is detected
+		if (context.frameworks.includes("expo") && context.config.lint.expoDoctor) {
+			// Expo Doctor may evaluate project config, so only run it when explicitly enabled.
 			promises.push(import("./expo-doctor.js").then((mod) => mod.runExpoDoctor(context)));
 		}
 

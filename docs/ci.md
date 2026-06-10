@@ -34,9 +34,9 @@ Prefer the Marketplace Action? It wraps `setup-node` and runs the same gate. `@v
 
 ```yaml
 - uses: actions/checkout@v4
-- uses: scanaislop/aislop@v1   # or pin a release, e.g. @v0.10.2, for reproducible builds
+- uses: scanaislop/aislop@v1   # or pin a release, e.g. @v0.11.0, for reproducible builds
   with:
-    version: latest            # CLI version; or pin one, e.g. "0.10.2"
+    version: latest            # CLI version; or pin one, e.g. "0.11.0"
 ```
 
 ## GitLab CI

@@ -1,3 +1,4 @@
+import { highlightAislop } from "./brand.js";
 import { symbols as defaultSymbols, type Symbols } from "./symbols.js";
 import { theme as defaultTheme, style, type Theme, type Token } from "./theme.js";
 
@@ -19,7 +20,7 @@ interface HintLineDeps {
 export const renderHintLine = (hint: string, deps: HintLineDeps = {}): string => {
 	const t = deps.theme ?? defaultTheme;
 	const s = deps.symbols ?? defaultSymbols;
-	return ` ${style(t, "accent", s.hint)} ${hint}\n`;
+	return ` ${style(t, "accent", s.hint)} ${highlightAislop(hint, t)}\n`;
 };
 
 interface Logger {
@@ -40,7 +41,7 @@ export const createLogger = (deps: LoggerDeps = {}): Logger => {
 	const write = deps.write ?? ((out: string) => process.stdout.write(out));
 
 	const line = (glyph: string, token: Token, msg: string) => {
-		write(` ${style(t, token, glyph)} ${msg}\n`);
+		write(` ${style(t, token, glyph)} ${highlightAislop(msg, t)}\n`);
 	};
 
 	return {
@@ -49,7 +50,7 @@ export const createLogger = (deps: LoggerDeps = {}): Logger => {
 		warn: (msg) => line(s.warn, "warn", msg),
 		info: (msg) => line(s.bullet, "info", msg),
 		hint: (msg) => line(s.hint, "accent", msg),
-		muted: (msg) => write(` ${style(t, "muted", msg)}\n`),
+		muted: (msg) => write(` ${highlightAislop(msg, t, "muted")}\n`),
 		step: (msg) => line(s.stepActive, "accent", msg),
 		break: () => write("\n"),
 		raw: (msg) => write(`${msg}\n`),
