@@ -28,7 +28,8 @@
         "aislop.path": {
           "type": "string",
           "default": "aislop",
-          "description": "Path to the aislop CLI executable."
+          "scope": "application",
+          "description": "User-level absolute path or PATH command for the aislop CLI executable. Workspace settings are ignored for security."
         },
         "aislop.scanOnSave": {
           "type": "boolean",

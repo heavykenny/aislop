@@ -28,7 +28,21 @@ const EXCLUDED_DIRS = [
 	".git",
 	".agents",
 	".pnpm-store",
+	".yarn",
+	"bower",
+	"bower_components",
+	"jspm_packages",
+	"schemaspy",
+	"generated",
+	"__generated__",
+	"auto-generated",
 	"vendor",
+	"vendors",
+	"_vendor",
+	"vendored",
+	"third_party",
+	"third-party",
+	"3rdparty",
 	"examples",
 	"example",
 	"demos",
@@ -38,6 +52,10 @@ const EXCLUDED_DIRS = [
 	"benchmarks",
 	"fixtures",
 	"fixture",
+	"stories",
+	"story",
+	"storybook",
+	"__stories__",
 	"samples",
 	"sample",
 	"tutorials",
@@ -47,6 +65,8 @@ const EXCLUDED_DIRS = [
 	"notebooks",
 	"tests",
 	"test",
+	"testdata",
+	"e2e",
 	"__tests__",
 	"__test__",
 	"spec",
@@ -56,7 +76,6 @@ const EXCLUDED_DIRS = [
 	".nuxt",
 	"coverage",
 	".turbo",
-	"public",
 ];
 
 const FIND_PRUNE_DIRS = [
@@ -66,7 +85,21 @@ const FIND_PRUNE_DIRS = [
 	".git",
 	".agents",
 	".pnpm-store",
+	".yarn",
+	"bower",
+	"bower_components",
+	"jspm_packages",
+	"schemaspy",
+	"generated",
+	"__generated__",
+	"auto-generated",
 	"vendor",
+	"vendors",
+	"_vendor",
+	"vendored",
+	"third_party",
+	"third-party",
+	"3rdparty",
 	"examples",
 	"example",
 	"demos",
@@ -76,6 +109,10 @@ const FIND_PRUNE_DIRS = [
 	"benchmarks",
 	"fixtures",
 	"fixture",
+	"stories",
+	"story",
+	"storybook",
+	"__stories__",
 	"samples",
 	"sample",
 	"tutorials",
@@ -83,25 +120,27 @@ const FIND_PRUNE_DIRS = [
 	"code_samples",
 	"code-samples",
 	"notebooks",
+	"testdata",
+	"e2e",
 	".next",
 	".nuxt",
 	"coverage",
 	".turbo",
-	"public",
 ];
 
-const BUILD_CACHE_FILE_PATTERNS = [
-	/\.timestamp-\d+-[a-z0-9]+\.[mc]?js$/i,
+const GENERATED_ARTIFACT_FILE_PATTERNS = [
 	/\.min\.(?:js|css|mjs|cjs)$/i,
 	/\.bundle\.(?:js|css|mjs|cjs)$/i,
+	/(?:^|\/)\.pnp(?:\.loader)?\.[mc]?js$/i,
 ];
 
-const isBuildCacheFile = (filePath: string): boolean =>
-	BUILD_CACHE_FILE_PATTERNS.some((pattern) => pattern.test(filePath));
+const isGeneratedArtifactFile = (filePath: string): boolean =>
+	GENERATED_ARTIFACT_FILE_PATTERNS.some((pattern) => pattern.test(filePath));
 
 const TEST_FILE_PATTERNS = [
 	/(?:^|\/).*\.test\.[^/]+$/i,
 	/(?:^|\/).*\.spec\.[^/]+$/i,
+	/(?:^|\/).*\.stories?\.[^/]+$/i,
 	/(?:^|\/)test_[^/]+\.(?:py|rb|php|js|jsx|ts|tsx|java)$/i,
 	/(?:^|\/)[^/]+_test\.(?:py|go|rb|php|js|jsx|ts|tsx|java)$/i,
 ];
@@ -123,46 +162,43 @@ const toProjectPath = (rootDirectory: string, filePath: string): string => {
 const isWithinProject = (relativePath: string): boolean =>
 	relativePath.length > 0 && !relativePath.startsWith("..");
 
+const isSafeRegularProjectFile = (rootDirectory: string, absolutePath: string): boolean => {
+	try {
+		const stat = fs.lstatSync(absolutePath);
+		if (!stat.isFile()) return false;
+
+		const realRoot = fs.realpathSync(rootDirectory);
+		const realFile = fs.realpathSync(absolutePath);
+		const relativePath = path.relative(realRoot, realFile);
+		return isWithinProject(relativePath) && !path.isAbsolute(relativePath);
+	} catch {
+		return false;
+	}
+};
+
 const hasAllowedExtension = (filePath: string, extraExtensions: Set<string>): boolean => {
 	const extension = path.extname(filePath);
 	return SOURCE_EXTENSIONS.has(extension) || extraExtensions.has(extension);
 };
 
-const isExcludedPath = (filePath: string): boolean =>
-	EXCLUDED_DIRS.some(
-		(dir) => filePath === dir || filePath.startsWith(`${dir}/`) || filePath.includes(`/${dir}/`),
+const isExcludedPath = (filePath: string): boolean => {
+	const normalized = filePath.toLowerCase();
+	return EXCLUDED_DIRS.some(
+		(dir) =>
+			normalized === dir || normalized.startsWith(`${dir}/`) || normalized.includes(`/${dir}/`),
 	);
+};
 
 export const isExcludedFromScan = (relativePath: string): boolean =>
-	isExcludedPath(relativePath) || isBuildCacheFile(relativePath);
+	isExcludedPath(relativePath) || isGeneratedArtifactFile(relativePath);
 
 const isTestFile = (filePath: string): boolean =>
 	TEST_FILE_PATTERNS.some((pattern) => pattern.test(filePath));
 
-const readBiomeExcludePatterns = (rootDirectory: string): string[] => {
-	const biomePath = path.join(rootDirectory, "biome.json");
-	if (!fs.existsSync(biomePath)) return [];
-
-	try {
-		const config = JSON.parse(fs.readFileSync(biomePath, "utf-8")) as {
-			files?: { includes?: unknown };
-		};
-		const includes = config.files?.includes;
-		if (!Array.isArray(includes)) return [];
-
-		return includes
-			.filter((entry): entry is string => typeof entry === "string")
-			.filter((entry) => entry.startsWith("!") && entry.length > 1)
-			.map((entry) => entry.slice(1));
-	} catch {
-		return [];
-	}
-};
-
 const getIgnoredPaths = (rootDirectory: string, files: string[]): Set<string> => {
 	if (files.length === 0) return new Set<string>();
 
-	const result = spawnSync("git", ["check-ignore", "--no-index", "--stdin"], {
+	const result = spawnSync("git", ["check-ignore", "--stdin"], {
 		cwd: rootDirectory,
 		encoding: "utf-8",
 		input: files.join("\n"),
@@ -268,10 +304,7 @@ export const filterProjectFiles = (
 	const relativePaths = normalizedFiles.map(({ relativePath }) => relativePath);
 
 	const ignoredPaths = getIgnoredPaths(rootDirectory, relativePaths);
-	const excludePatterns = [...readBiomeExcludePatterns(rootDirectory), ...exclude];
-	const normalizedExcludePatterns = excludePatterns.length
-		? normalizeExcludePatterns(excludePatterns)
-		: [];
+	const normalizedExcludePatterns = exclude.length ? normalizeExcludePatterns(exclude) : [];
 	const isUserExcluded = (relativePath: string) => {
 		if (!normalizedExcludePatterns.length) return false;
 		return micromatch.isMatch(relativePath, normalizedExcludePatterns, {
@@ -292,11 +325,11 @@ export const filterProjectFiles = (
 	return normalizedFiles
 		.filter(({ absolutePath, relativePath }) => {
 			if (
-				!fs.existsSync(absolutePath) ||
+				!isSafeRegularProjectFile(rootDirectory, absolutePath) ||
 				!isWithinProject(relativePath) ||
 				isExcludedPath(relativePath) ||
 				isTestFile(relativePath) ||
-				isBuildCacheFile(relativePath) ||
+				isGeneratedArtifactFile(relativePath) ||
 				ignoredPaths.has(relativePath)
 			) {
 				return false;
@@ -327,8 +360,10 @@ const filterExplicitFiles = (
 			return { absolutePath, relativePath };
 		})
 		.filter(
-			({ relativePath }) =>
-				isWithinProject(relativePath) && hasAllowedExtension(relativePath, extraSet),
+			({ absolutePath, relativePath }) =>
+				isWithinProject(relativePath) &&
+				isSafeRegularProjectFile(rootDirectory, absolutePath) &&
+				hasAllowedExtension(relativePath, extraSet),
 		)
 		.map(({ absolutePath }) => absolutePath);
 };

@@ -1,3 +1,4 @@
+import { highlightAislop } from "./brand.js";
 import { symbols as defaultSymbols, type Symbols } from "./symbols.js";
 import { theme as defaultTheme, style, type Theme, type Token } from "./theme.js";
 
@@ -41,7 +42,7 @@ export const renderRailStep = (step: RailStep, deps: RailDeps = {}): string => {
 	const { glyph, token } = glyphFor(step.status, s);
 	const lines: string[] = [` ${style(t, token, glyph)} ${step.label}`];
 	for (const note of step.notes ?? []) {
-		lines.push(` ${rail} ${style(t, "accent", s.hint)} ${note}`);
+		lines.push(` ${rail} ${style(t, "accent", s.hint)} ${highlightAislop(note, t)}`);
 	}
 	return `${lines.join("\n")}\n`;
 };
@@ -62,7 +63,7 @@ export const renderRailConnector = (deps: RailDeps = {}): string => {
 export const renderRailFooter = (footer: string, deps: RailDeps = {}): string => {
 	const t = deps.theme ?? defaultTheme;
 	const s = deps.symbols ?? defaultSymbols;
-	return ` ${style(t, "accentDim", s.railEnd)}  ${footer}\n`;
+	return ` ${style(t, "accentDim", s.railEnd)}  ${highlightAislop(footer, t)}\n`;
 };
 
 export const renderRail = (input: RailInput, deps: RailDeps = {}): string => {
@@ -76,7 +77,7 @@ export const renderRail = (input: RailInput, deps: RailDeps = {}): string => {
 		const { glyph, token } = glyphFor(step.status, s);
 		lines.push(` ${style(t, token, glyph)} ${step.label}`);
 		for (const note of step.notes ?? []) {
-			lines.push(` ${rail} ${style(t, "accent", s.hint)} ${note}`);
+			lines.push(` ${rail} ${style(t, "accent", s.hint)} ${highlightAislop(note, t)}`);
 		}
 		if (i < input.steps.length - 1) lines.push(` ${rail}`);
 	});
@@ -85,7 +86,7 @@ export const renderRail = (input: RailInput, deps: RailDeps = {}): string => {
 		if (input.steps.length > 0) {
 			lines.push(` ${rail}`);
 		}
-		lines.push(` ${railEnd}  ${input.footer}`);
+		lines.push(` ${railEnd}  ${highlightAislop(input.footer, t)}`);
 	}
 
 	return `\n${lines.join("\n")}\n`;

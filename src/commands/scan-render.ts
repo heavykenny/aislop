@@ -9,6 +9,7 @@ import {
 	renderCleanRun,
 	renderStarCta,
 	renderSummary,
+	renderTeamCta,
 } from "../ui/summary.js";
 import { createSymbols } from "../ui/symbols.js";
 import { createTheme } from "../ui/theme.js";
@@ -50,6 +51,55 @@ const computeBreakdown = (diagnostics: Diagnostic[]): BreakdownSummary => {
 		hiddenErrors: hidden.reduce((acc, r) => acc + r.errors, 0),
 		hiddenWarnings: hidden.reduce((acc, r) => acc + r.warnings, 0),
 	};
+};
+
+const buildScanNextSteps = (input: {
+	invocation: string;
+	errors: number;
+	warnings: number;
+	fixable: number;
+	hasVulnerableDeps: boolean;
+}): NextStep[] => {
+	const nextSteps: NextStep[] = [];
+	if (input.errors + input.warnings > 0) {
+		nextSteps.push(
+			{
+				emphasis: "primary",
+				label: "Agent",
+				command: `${input.invocation} agent`,
+				detail: "run a local worktree repair session",
+			},
+			{
+				emphasis: "primary",
+				label: "Provider",
+				command: `${input.invocation} agent --provider codex`,
+				detail: "or use --provider claude/opencode",
+			},
+			{
+				emphasis: "muted",
+				label: "Preview",
+				command: `${input.invocation} agent plan`,
+				detail: "preview provider, worktree, findings, and publish actions",
+			},
+		);
+	}
+	if (input.fixable > 0) {
+		nextSteps.push({
+			emphasis: "primary",
+			label: "Auto-fix",
+			command: `${input.invocation} fix`,
+			detail: `auto-fix ${input.fixable} issue${input.fixable === 1 ? "" : "s"}`,
+		});
+	}
+	if (input.hasVulnerableDeps) {
+		nextSteps.push({
+			emphasis: "primary",
+			label: "Force",
+			command: `${input.invocation} fix -f`,
+			detail: "aggressive fixes: dependency audit, unused files, framework alignment",
+		});
+	}
+	return nextSteps;
 };
 
 interface BuildScanRenderInput {
@@ -94,37 +144,22 @@ export const buildScanRender = (input: BuildScanRenderInput): string => {
 		(d) => d.rule === "security/vulnerable-dependency",
 	);
 
-	const starCta = input.printBrand !== false ? renderStarCta(deps) : "";
+	const cta =
+		input.printBrand === false
+			? ""
+			: errors + warnings > 0
+				? renderTeamCta(deps)
+				: renderStarCta(deps);
 
 	if (input.diagnostics.length === 0 && input.score.score === 100) {
 		return `${header}${renderCleanRun(
 			{ score: input.score.score, label: input.score.label, elapsedMs: input.elapsedMs },
 			deps,
-		)}${starCta}`;
+		)}${cta}`;
 	}
 
 	const diagBlock =
 		input.diagnostics.length === 0 ? "" : renderDiagnostics(input.diagnostics, input.verbose);
-
-	const nextSteps: NextStep[] = [];
-	if (fixable > 0) {
-		nextSteps.push({
-			emphasis: "primary",
-			text: `Run ${invocation} fix to auto-fix ${fixable} issue${fixable === 1 ? "" : "s"}`,
-		});
-	}
-	if (hasVulnerableDeps) {
-		nextSteps.push({
-			emphasis: "primary",
-			text: `Run ${invocation} fix -f (or --force) to apply aggressive fixes (dependency audit, unused files, framework alignment)`,
-		});
-	}
-	if (errors + warnings > 0) {
-		nextSteps.push({
-			emphasis: "primary",
-			text: `Run ${invocation} fix --claude (or --codex, --cursor, --gemini, etc.) to hand off to agent`,
-		});
-	}
 
 	const summary = renderSummary(
 		{
@@ -136,7 +171,13 @@ export const buildScanRender = (input: BuildScanRenderInput): string => {
 			files: input.fileCount,
 			engines: input.results.length,
 			elapsedMs: input.elapsedMs,
-			nextSteps,
+			nextSteps: buildScanNextSteps({
+				invocation,
+				errors,
+				warnings,
+				fixable,
+				hasVulnerableDeps,
+			}),
 			breakdown: computeBreakdown(input.diagnostics),
 			findingAssessment: summarizeFindingAssessments(input.diagnostics),
 			thresholds: input.thresholds,
@@ -144,5 +185,5 @@ export const buildScanRender = (input: BuildScanRenderInput): string => {
 		deps,
 	);
 
-	return `${header}${diagBlock}${summary}${starCta}`;
+	return `${header}${diagBlock}${summary}${cta}`;
 };

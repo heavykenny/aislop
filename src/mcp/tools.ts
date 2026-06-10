@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import fs from "node:fs";
 import path from "node:path";
 import { z } from "zod";
 import { findConfigDir, loadConfig, RULES_FILE } from "../config/index.js";
@@ -12,8 +13,18 @@ import { discoverProject } from "../utils/discover.js";
 const MAX_FINDINGS = 25;
 
 const resolveCwd = (raw: string | undefined): string => {
-	if (!raw || raw.trim().length === 0) return process.cwd();
-	return path.isAbsolute(raw) ? raw : path.resolve(process.cwd(), raw);
+	const root = fs.realpathSync(process.cwd());
+	const requested = !raw || raw.trim().length === 0 ? root : path.resolve(root, raw);
+	const resolved = fs.existsSync(requested) ? fs.realpathSync(requested) : requested;
+	const relative = path.relative(root, resolved);
+
+	if (relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative))) {
+		return resolved;
+	}
+
+	throw new Error(
+		`MCP path must stay within the server cwd (${root}); received ${raw ?? "<default>"}.`,
+	);
 };
 
 const buildEngineContext = (
@@ -107,7 +118,7 @@ export const aislopScanInputSchema = z.object({
 	path: z
 		.string()
 		.optional()
-		.describe("Project directory to scan. Defaults to the MCP server's cwd."),
+		.describe("Project directory to scan, confined to the MCP server's cwd. Defaults to that cwd."),
 });
 
 export const aislopScanTool = {
@@ -135,7 +146,7 @@ export const aislopFixInputSchema = z.object({
 	path: z
 		.string()
 		.optional()
-		.describe("Project directory to fix. Defaults to the MCP server's cwd."),
+		.describe("Project directory to fix, confined to the MCP server's cwd. Defaults to that cwd."),
 	force: z
 		.boolean()
 		.optional()
@@ -231,7 +242,7 @@ export const handleAislopWhy = (input: z.infer<typeof aislopWhyInputSchema>) => 
 };
 
 export const aislopBaselineInputSchema = z.object({
-	path: z.string().optional().describe("Project directory. Defaults to the MCP server's cwd."),
+	path: z.string().optional().describe("Project directory, confined to the MCP server's cwd. Defaults to that cwd."),
 });
 
 export const aislopBaselineTool = {
