@@ -93,8 +93,19 @@ describe("buildFixStepNames", () => {
 		expect(steps).toContain("Dependency audit fixes");
 	});
 
-	it("includes Expo step when framework is expo and force is on", () => {
+	it("skips Expo step by default even when framework is expo and force is on", () => {
 		const steps = buildFixStepNames(makeProjectInfo({ frameworks: ["expo"] }), DEFAULT_CONFIG, {
+			force: true,
+		});
+		expect(steps).not.toContain("Expo dependency alignment");
+	});
+
+	it("includes Expo step only when Expo Doctor is explicitly enabled", () => {
+		const config: AislopConfig = {
+			...DEFAULT_CONFIG,
+			lint: { ...DEFAULT_CONFIG.lint, expoDoctor: true },
+		};
+		const steps = buildFixStepNames(makeProjectInfo({ frameworks: ["expo"] }), config, {
 			force: true,
 		});
 		expect(steps).toContain("Expo dependency alignment");

@@ -13,8 +13,10 @@ Every diagnostic contributes a weighted penalty based on its severity:
 | Info | 0.25 |
 
 Penalties are multiplied by the engine weight (configurable in `.aislop/config.yml`).
+They are also multiplied by the rule's impact tier. Run `aislop rules` to see the
+impact tier and rationale for each rule.
 
-By default, aislop now uses an **AI-slop-first** weighting profile:
+By default, aislop uses a balanced weighting profile:
 
 ```yaml
 scoring:
@@ -22,22 +24,56 @@ scoring:
     format: 0.3
     lint: 0.6
     code-quality: 0.8
-    ai-slop: 2.5
+    ai-slop: 1.0
     architecture: 1.0
     security: 1.5
   smoothing: 20
   maxPerRule: 40
 ```
 
-This means AI-slop findings are weighted more heavily than generic lint/format noise,
-while security still carries significant impact.
+This keeps AI-slop findings visible without letting a single warning make an otherwise
+healthy repo look unhealthy. Security still carries stronger impact.
 
-## Style findings count for half
+## Rule impact tiers
 
-Style and maintainability rules (`trivial-comment`, `narrative-comment`, `file-too-large`,
-`function-too-long`) still surface as findings, but contribute half their normal weight to the
-score. This keeps the number driven by genuine slop (swallowed errors, dead code, hallucinated
-imports) rather than house style, without hiding the style findings themselves.
+Each native rule has an explicit impact tier so scoring is strict only where the signal justifies it:
+
+| Tier | Multiplier | Typical use |
+|---|---:|---|
+| `strict` | 1.0 | High-confidence defects, security issues, missing imports, swallowed failures |
+| `standard` | 1.0 | Real quality issues that may still need human judgment |
+| `maintainability` | 0.75 | Refactoring and design debt that should count, but not like a defect |
+| `mechanical` | 0.5 | Cleanup that `aislop fix` or a simple edit can usually handle |
+| `style` | 0.5 | Style/policy findings and size/readability pressure |
+| `advisory` | 0.25 | Medium-confidence signals such as hardcoded config values |
+
+Many forgiving tiers also have tighter per-rule caps so one noisy family cannot dominate a score.
+JSON output includes the same metadata on each diagnostic as `scoreImpact`:
+
+```json
+{
+  "rule": "ai-slop/hardcoded-url",
+  "scoreImpact": {
+    "tier": "advisory",
+    "multiplier": 0.25,
+    "cap": 4,
+    "rationale": "Hardcoded URLs are medium-confidence config signals and can be intentional canonical URLs."
+  }
+}
+```
+
+## Style and cleanup findings score gently
+
+Style and cleanup rules (`trivial-comment`, `narrative-comment`, `unused-import`, formatter
+findings, and similar) still surface as findings, but contribute less than strict defects. This
+keeps the number driven by genuine slop (swallowed errors, broken imports, risky security
+constructs) rather than house style, without hiding the findings themselves.
+
+## Advisory config signals score softly
+
+Medium-confidence config signals (`hardcoded-url`, `hardcoded-id`) still surface as warnings, but
+they contribute less to the score and saturate earlier when repeated. This preserves the finding
+without turning ordinary hardcoded-value cleanup into a severe repo-health penalty.
 
 ## Repeated findings saturate by rule
 
@@ -72,7 +108,7 @@ scoring:
 
 ## Tuning guidance
 
-- Increase `ai-slop` weight if you want strict AI-output hygiene.
+- Increase `ai-slop` weight if you want stricter AI-output hygiene.
 - Increase `security` weight if dependency/runtime risk should dominate your score.
 - Increase `smoothing` for large legacy codebases so a few warnings are less punitive.
 - Increase `maxPerRule` if repeated findings from one rule should punish the score more heavily.

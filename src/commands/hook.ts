@@ -17,11 +17,24 @@ import {
 	detectInstalledAgents,
 	REGISTRY,
 } from "../hooks/install/registry.js";
-import type { HookInstallOpts } from "../hooks/install/types.js";
+import type {
+	HookInstallOpts,
+	HookInstallResult,
+	HookUninstallResult,
+} from "../hooks/install/types.js";
 import { captureBaseline } from "../hooks/quality-gate/baseline.js";
 import { flushTelemetry } from "../telemetry/client.js";
+import {
+	type DisplayRow,
+	type DisplayStatusItem,
+	renderDisplayRows,
+	renderDisplaySection,
+	renderDisplayStatusItems,
+} from "../ui/display.js";
+import { renderHeader } from "../ui/header.js";
 import { searchMultiselect } from "../ui/search-select.js";
 import { style, theme } from "../ui/theme.js";
+import { APP_VERSION } from "../version.js";
 
 // A per-edit hook must not stall the agent on telemetry. Give the queued event a
 // brief window to send before the process exits, then give up.
@@ -48,6 +61,24 @@ interface InstallFlags {
 	qualityGate: boolean;
 }
 
+interface HookInstallRenderItem {
+	agent: AgentName;
+	scope: "global" | "project";
+	result: HookInstallResult;
+}
+
+interface HookUninstallRenderItem {
+	agent: AgentName;
+	scope: "global" | "project";
+	result: HookUninstallResult;
+}
+
+interface HookOperationRenderItem {
+	agent: AgentName;
+	status: string;
+	rows: DisplayRow[];
+}
+
 const resolveOpts = (agent: AgentName, flags: InstallFlags): HookInstallOpts => {
 	const scope: "global" | "project" = AGENTS_PROJECT_ONLY.includes(agent) ? "project" : flags.scope;
 	return {
@@ -59,73 +90,160 @@ const resolveOpts = (agent: AgentName, flags: InstallFlags): HookInstallOpts => 
 	};
 };
 
-const printPlan = (
-	agent: AgentName,
-	result: { planned: { path: string; summary: string }[] },
-): void => {
-	if (result.planned.length === 0) {
-		process.stdout.write(`  ${agent}: already up to date\n`);
-		return;
-	}
-	process.stdout.write(`  ${agent}:\n`);
-	for (const op of result.planned) {
-		process.stdout.write(`    ${style(theme, "dim", "+")} ${op.path} — ${op.summary}\n`);
-	}
-};
-
 export const hookInstall = async (flags: InstallFlags): Promise<void> => {
-	if (flags.dryRun) {
-		process.stdout.write("aislop hook install (dry-run)\n\n");
-	}
+	const items: HookInstallRenderItem[] = [];
 	for (const agent of flags.agents) {
 		const opts = resolveOpts(agent, flags);
 		const result = REGISTRY[agent].install(opts);
-		if (flags.dryRun) {
-			printPlan(agent, result);
-			continue;
-		}
-		if (result.wrote.length === 0) {
-			process.stdout.write(`${agent}: nothing to do (already up to date)\n`);
-			continue;
-		}
-		for (const f of result.wrote) process.stdout.write(`  wrote  ${f}\n`);
-		for (const f of result.skipped) process.stdout.write(`  skip   ${f}\n`);
+		items.push({ agent, scope: opts.scope, result });
 	}
-	if (flags.dryRun) {
-		process.stdout.write("\nNo files touched. Re-run without --dry-run to apply.\n");
-	}
+	process.stdout.write(renderHookInstall({ dryRun: flags.dryRun, items }));
 };
 
 export const hookUninstall = async (flags: InstallFlags): Promise<void> => {
-	if (flags.dryRun) {
-		process.stdout.write("aislop hook uninstall (dry-run)\n\n");
-	}
+	const items: HookUninstallRenderItem[] = [];
 	for (const agent of flags.agents) {
 		const opts = resolveOpts(agent, flags);
 		const result = REGISTRY[agent].uninstall(opts);
-		if (result.removed.length === 0) {
-			process.stdout.write(`${agent}: nothing installed\n`);
-			continue;
-		}
-		for (const f of result.removed) process.stdout.write(`  remove  ${f}\n`);
-		for (const f of result.skipped) process.stdout.write(`  skip    ${f}\n`);
+		items.push({ agent, scope: opts.scope, result });
 	}
+	process.stdout.write(renderHookUninstall({ dryRun: flags.dryRun, items }));
 };
+
+const installStatus = (item: HookInstallRenderItem, dryRun: boolean): string => {
+	if (dryRun) return item.result.planned.length > 0 ? "planned" : "up to date";
+	return item.result.wrote.length > 0 ? "updated" : "up to date";
+};
+
+const hookMarker = (active: boolean): string =>
+	active ? style(theme, "success", "✓") : style(theme, "muted", "·");
+
+const hookOperationItem = (item: HookOperationRenderItem): DisplayStatusItem => ({
+	marker: hookMarker(item.status !== "up to date" && item.status !== "nothing installed"),
+	label: item.agent,
+	rows: [{ label: "Status", value: item.status }, ...item.rows],
+});
+
+const renderHookOperation = (input: {
+	command: string;
+	dryRun: boolean;
+	items: HookOperationRenderItem[];
+}): string => {
+	const lines = [
+		renderHeader({
+			version: APP_VERSION,
+			command: input.command,
+			context: input.dryRun ? ["dry-run"] : [],
+		}).trimEnd(),
+		"",
+		renderDisplaySection("Agents"),
+		...renderDisplayStatusItems(input.items.map(hookOperationItem)),
+	];
+	if (input.dryRun) {
+		lines.push(
+			"",
+			renderDisplaySection("Next"),
+			...renderDisplayRows([{ label: "Apply", value: "rerun without --dry-run" }]),
+		);
+	}
+	return `${lines.join("\n")}\n`;
+};
+
+const installRows = (item: HookInstallRenderItem, dryRun: boolean): DisplayRow[] => {
+	const rows: DisplayRow[] = [{ label: "Scope", value: item.scope }];
+	if (dryRun) {
+		for (const op of item.result.planned) {
+			rows.push({ label: "Path", value: op.path }, { label: "Change", value: op.summary });
+		}
+		return rows;
+	}
+	for (const path of item.result.wrote) rows.push({ label: "Wrote", value: path });
+	for (const path of item.result.skipped) rows.push({ label: "Skipped", value: path });
+	return rows;
+};
+
+export const renderHookInstall = (input: {
+	dryRun: boolean;
+	items: HookInstallRenderItem[];
+}): string =>
+	renderHookOperation({
+		command: "Hook install",
+		dryRun: input.dryRun,
+		items: input.items.map((item) => ({
+			agent: item.agent,
+			status: installStatus(item, input.dryRun),
+			rows: installRows(item, input.dryRun),
+		})),
+	});
+
+const uninstallRows = (item: HookUninstallRenderItem, dryRun: boolean): DisplayRow[] => [
+	{ label: "Scope", value: item.scope },
+	...item.result.removed.map((path) => ({
+		label: dryRun ? "Remove" : "Removed",
+		value: path,
+	})),
+	...item.result.skipped.map((path) => ({ label: "Skipped", value: path })),
+];
+
+export const renderHookUninstall = (input: {
+	dryRun: boolean;
+	items: HookUninstallRenderItem[];
+}): string =>
+	renderHookOperation({
+		command: "Hook uninstall",
+		dryRun: input.dryRun,
+		items: input.items.map((item) => {
+			const changed = item.result.removed.length > 0;
+			return {
+				agent: item.agent,
+				status: changed ? (input.dryRun ? "planned" : "removed") : "nothing installed",
+				rows: uninstallRows(item, input.dryRun),
+			};
+		}),
+	});
 
 export const hookStatus = async (): Promise<void> => {
 	const home = os.homedir();
 	const cwd = process.cwd();
-	process.stdout.write("aislop hook status\n\n");
 	const installed = new Set(detectInstalledAgents({ home, cwd }));
-	for (const agent of ALL_AGENTS) {
+	const items = ALL_AGENTS.map((agent) => {
 		const scope = defaultScopeFor(agent);
 		const targets = REGISTRY[agent].paths({ home, cwd, scope });
-		const hits = targets.filter((p) => fs.existsSync(p));
-		const status = installed.has(agent) ? "installed" : "not installed";
-		const marker = installed.has(agent) ? "✓" : "·";
-		process.stdout.write(`  ${marker} ${agent.padEnd(12)} ${scope.padEnd(8)} ${status}\n`);
-		for (const p of hits) process.stdout.write(`      ${p}\n`);
-	}
+		return {
+			agent,
+			scope,
+			installed: installed.has(agent),
+			paths: targets.filter((p) => fs.existsSync(p)),
+		};
+	});
+	process.stdout.write(renderHookStatus(items));
+};
+
+export const renderHookStatus = (
+	items: Array<{
+		agent: AgentName;
+		scope: "global" | "project";
+		installed: boolean;
+		paths: string[];
+	}>,
+): string => {
+	const lines = [
+		renderHeader({ version: APP_VERSION, command: "Hook status", context: [] }).trimEnd(),
+		"",
+		renderDisplaySection("Hooks"),
+		...renderDisplayStatusItems(
+			items.map((item) => ({
+				marker: hookMarker(item.installed),
+				label: item.agent,
+				rows: [
+					{ label: "Status", value: item.installed ? "installed" : "not installed" },
+					{ label: "Scope", value: item.scope },
+					...item.paths.map((p) => ({ label: "Path", value: p })),
+				],
+			})),
+		),
+	];
+	return `${lines.join("\n")}\n`;
 };
 
 export const hookRun = async (
@@ -166,9 +284,27 @@ export const hookRun = async (
 export const hookBaseline = async (): Promise<void> => {
 	const cwd = process.cwd();
 	const result = await captureBaseline(cwd);
-	process.stdout.write(`baseline captured: score=${result.score} files=${result.fileCount}\n`);
-	process.stdout.write(`  -> ${result.path}\n`);
+	process.stdout.write(
+		renderHookBaseline({ score: result.score, fileCount: result.fileCount, path: result.path }),
+	);
 };
+
+export const renderHookBaseline = (input: {
+	score: number;
+	fileCount: number;
+	path: string;
+}): string =>
+	[
+		renderHeader({ version: APP_VERSION, command: "Hook baseline", context: [] }).trimEnd(),
+		"",
+		renderDisplaySection("Baseline"),
+		...renderDisplayRows([
+			{ label: "Score", value: `${input.score}/100` },
+			{ label: "Files", value: String(input.fileCount) },
+			{ label: "Path", value: input.path },
+		]),
+		"",
+	].join("\n");
 
 export const parseAgentFlag = (raw: string | undefined, fallback: AgentName[]): AgentName[] => {
 	if (!raw) return fallback;

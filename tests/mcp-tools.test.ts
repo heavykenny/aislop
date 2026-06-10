@@ -2,7 +2,12 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { handleAislopBaseline, handleAislopScan, handleAislopWhy } from "../src/mcp/tools.js";
+import {
+	handleAislopBaseline,
+	handleAislopFix,
+	handleAislopScan,
+	handleAislopWhy,
+} from "../src/mcp/tools.js";
 
 let tmpDir: string;
 
@@ -10,6 +15,16 @@ const writeFile = (relative: string, content: string): void => {
 	const absolute = path.join(tmpDir, relative);
 	fs.mkdirSync(path.dirname(absolute), { recursive: true });
 	fs.writeFileSync(absolute, content);
+};
+
+const withCwd = async <T>(cwd: string, fn: () => Promise<T> | T): Promise<T> => {
+	const original = process.cwd();
+	try {
+		process.chdir(cwd);
+		return await fn();
+	} finally {
+		process.chdir(original);
+	}
 };
 
 beforeEach(() => {
@@ -25,7 +40,7 @@ describe("aislop_scan tool", () => {
 		writeFile("package.json", JSON.stringify({ name: "tiny" }));
 		writeFile("src/index.ts", `export const x = 1\n`);
 
-		const result = await handleAislopScan({ path: tmpDir });
+		const result = await withCwd(tmpDir, () => handleAislopScan({ path: "." }));
 
 		expect(typeof result.score).toBe("number");
 		expect(result.score).toBeGreaterThanOrEqual(0);
@@ -51,7 +66,7 @@ describe("aislop_scan tool", () => {
 			),
 		);
 
-		const result = await handleAislopScan({ path: tmpDir });
+		const result = await withCwd(tmpDir, () => handleAislopScan({ path: "." }));
 
 		const matches = result.findings.filter(
 			(f) => f.rule === "ai-slop/unsafe-type-assertion" || f.message.includes("as any"),
@@ -95,13 +110,13 @@ describe("aislop_why tool", () => {
 });
 
 describe("aislop_baseline tool", () => {
-	it("returns exists=false with a hint when no baseline exists", () => {
-		const result = handleAislopBaseline({ path: tmpDir });
+	it("returns exists=false with a hint when no baseline exists", async () => {
+		const result = await withCwd(tmpDir, () => handleAislopBaseline({ path: "." }));
 		expect(result.exists).toBe(false);
 		expect("hint" in result ? result.hint : "").toContain("aislop hook baseline");
 	});
 
-	it("returns score + lastScanAt when baseline.json is present", () => {
+	it("returns score + lastScanAt when baseline.json is present", async () => {
 		const baselineDir = path.join(tmpDir, ".aislop");
 		fs.mkdirSync(baselineDir);
 		fs.writeFileSync(
@@ -115,10 +130,33 @@ describe("aislop_baseline tool", () => {
 			}),
 		);
 
-		const result = handleAislopBaseline({ path: tmpDir });
+		const result = await withCwd(tmpDir, () => handleAislopBaseline({ path: "." }));
 		expect(result.exists).toBe(true);
 		expect("score" in result ? result.score : 0).toBe(87);
 		expect("lastScanAt" in result ? result.lastScanAt : "").toBe("2026-04-19T00:00:00Z");
 		expect("fileCount" in result ? result.fileCount : 0).toBe(42);
+	});
+});
+
+describe("MCP path confinement", () => {
+	it("rejects scan paths outside the server cwd", async () => {
+		const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), "aislop-mcp-outside-"));
+		try {
+			await withCwd(tmpDir, async () => {
+				await expect(handleAislopScan({ path: outsideDir })).rejects.toThrow(
+					/MCP path must stay within the server cwd/,
+				);
+			});
+		} finally {
+			fs.rmSync(outsideDir, { recursive: true, force: true });
+		}
+	});
+
+	it("rejects traversal before the fix tool can spawn a fixer", async () => {
+		await withCwd(tmpDir, async () => {
+			await expect(handleAislopFix({ path: "..", force: true })).rejects.toThrow(
+				/MCP path must stay within the server cwd/,
+			);
+		});
 	});
 });

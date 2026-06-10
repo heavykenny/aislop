@@ -20,9 +20,13 @@ describe("rules render", () => {
 		);
 		expect(out).toContain("Rules catalog");
 		expect(out).toContain("auto = aislop fix can change it");
+		expect(out).toContain("impact = how strongly the finding contributes to the score");
+		expect(out).toContain("Impact");
 		expect(out.indexOf("AI Slop")).toBeLessThan(out.indexOf("Lint"));
 		expect(out).toContain("ai-slop/swallowed-exception");
 		expect(out).toContain("ai-slop/trivial-comment");
+		expect(out).toMatch(/ai-slop\/swallowed-exception\s+error\s+review\s+strict/);
+		expect(out).toMatch(/ai-slop\/trivial-comment\s+warn\s+auto\s+style/);
 		expect(out).toContain("Catch block hides an error without handling it.");
 		expect(out).toMatch(/lint\/no-any\s+warn/);
 	});
@@ -70,6 +74,9 @@ describe("rules render", () => {
 		expect(out).toContain("ai-slop/console-leftover");
 		expect(out).toContain("AI Slop");
 		expect(out).toContain("review");
+		expect(out).toContain("Impact");
+		expect(out).toContain("style");
+		expect(out).toContain("Leftover debug output is visible cleanup");
 		expect(out).toContain("console/debug output was left in application code.");
 	});
 });

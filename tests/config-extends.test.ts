@@ -103,10 +103,43 @@ describe("loadConfigChain", () => {
 		expect(() => loadConfigChain(c)).toThrow(/string or array of strings/);
 	});
 
-	it("absolute path target resolves and merges", () => {
+	it("rejects absolute path targets", () => {
 		const parentAbs = write("p.yml", "quality:\n  maxFileLoc: 1234");
 		const c = write("c.yml", `extends: ${parentAbs}\nquality:\n  maxFunctionLoc: 50`);
-		const merged = loadConfigChain(c) as { quality: Record<string, number> };
-		expect(merged.quality).toEqual({ maxFileLoc: 1234, maxFunctionLoc: 50 });
+		expect(() => loadConfigChain(c)).toThrow(/Absolute extends paths are not allowed/);
+	});
+
+	it("rejects relative targets outside the allowed root", () => {
+		const repo = path.join(tmp, "repo");
+		const secret = write("secret.yml", "quality:\n  maxFileLoc: 1234");
+		const config = path.join(repo, ".aislop", "config.yml");
+		fs.mkdirSync(path.dirname(config), { recursive: true });
+		fs.writeFileSync(config, `extends: ${path.relative(path.dirname(config), secret)}\n`);
+
+		expect(() => loadConfigChain(config, { rootDir: repo })).toThrow(
+			/extends target must stay within/,
+		);
+	});
+
+	it("rejects symlink targets that resolve outside the allowed root", () => {
+		const repo = path.join(tmp, "repo");
+		const secret = write("secret.yml", "quality:\n  maxFileLoc: 1234");
+		const configDir = path.join(repo, ".aislop");
+		fs.mkdirSync(configDir, { recursive: true });
+		fs.symlinkSync(secret, path.join(configDir, "parent.yml"));
+		const config = path.join(configDir, "config.yml");
+		fs.writeFileSync(config, "extends: ./parent.yml\n");
+
+		expect(() => loadConfigChain(config, { rootDir: repo })).toThrow(
+			/extends target must stay within/,
+		);
+	});
+
+	it("rejects non-regular file targets before reading", () => {
+		const dir = path.join(tmp, "config-dir");
+		fs.mkdirSync(dir);
+		const c = write("c.yml", "extends: ./config-dir");
+
+		expect(() => loadConfigChain(c)).toThrow(/extends target must be a regular file/);
 	});
 });

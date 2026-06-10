@@ -1,4 +1,5 @@
 import type { Diagnostic } from "../engines/types.js";
+import { type RuleScoreImpact, scoreImpactForRule } from "../scoring/rule-impact.js";
 
 export type FindingKind =
 	| "confirmed-defect"
@@ -16,6 +17,7 @@ export interface FindingAssessment {
 
 export interface AssessedDiagnostic extends Diagnostic {
 	assessment: FindingAssessment;
+	scoreImpact: RuleScoreImpact;
 	forceFixable: boolean;
 }
 
@@ -123,6 +125,7 @@ export const withFindingAssessments = (diagnostics: Diagnostic[]): AssessedDiagn
 	diagnostics.map((diagnostic) => ({
 		...diagnostic,
 		assessment: assessDiagnostic(diagnostic),
+		scoreImpact: scoreImpactForRule(diagnostic.rule),
 		forceFixable: isForceFixable(diagnostic),
 	}));
 

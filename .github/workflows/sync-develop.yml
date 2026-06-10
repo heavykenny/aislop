@@ -57,7 +57,13 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.SYNC_BOT_PAT }}
         run: |
-          existing=$(gh pr list --base develop --head bot/sync-from-main --state open --json number --jq '.[0].number // empty')
+          existing=$(gh pr list \
+            --base develop \
+            --head bot/sync-from-main \
+            --state open \
+            --json number,headRefName,headRepository \
+            --jq '.[] | select(.headRefName == "bot/sync-from-main" and .headRepository.nameWithOwner == env.GITHUB_REPOSITORY) | .number' \
+            | head -n 1)
           if [ -z "$existing" ]; then
             num=$(gh pr create \
               --base develop \

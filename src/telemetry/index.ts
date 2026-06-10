@@ -2,6 +2,7 @@ export { flushTelemetry, isTelemetryDisabled, track } from "./client.js";
 export {
 	buildHookScanCompletedProps,
 	buildMcpToolCalledProps,
+	type CommandName,
 	type EngineCounts,
 	errorKindFromException,
 } from "./events.js";
