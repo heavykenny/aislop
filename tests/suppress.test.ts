@@ -4,7 +4,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { collectBlocks, getCommentSyntax } from "../src/engines/ai-slop/comment-blocks.js";
 import type { Diagnostic, EngineResult } from "../src/engines/types.js";
-import { applySuppressions } from "../src/utils/suppress.js";
+import { applySuppressions, isAislopDirectiveLine } from "../src/utils/suppress.js";
 
 let tmpDir: string;
 
@@ -126,6 +126,33 @@ describe("applySuppressions", () => {
 		write("a.ts", 'const help = "pass aislop-ignore-file to skip a file";\nconst y = 2;\n');
 		const { suppressedCount } = applySuppressions(
 			wrap([diag("a.ts", 1, "ai-slop/other"), diag("a.ts", 2, "ai-slop/other")]),
+			tmpDir,
+		);
+		expect(suppressedCount).toBe(0);
+	});
+
+	it("ignores directive-looking URL text inside string literals", () => {
+		write("a.ts", 'const url = "https://aislop-ignore-file";\nconst y = 2;\n');
+		const { results, suppressedCount } = applySuppressions(
+			wrap([diag("a.ts", 1, "ai-slop/other"), diag("a.ts", 2, "ai-slop/other")]),
+			tmpDir,
+		);
+		expect(suppressedCount).toBe(0);
+		expect(results[0].diagnostics).toHaveLength(2);
+		expect(isAislopDirectiveLine('const url = "https://aislop-ignore-file";')).toBe(false);
+	});
+
+	it("ignores directive-looking block and hash markers inside string literals", () => {
+		write(
+			"a.ts",
+			'const block = "/* aislop-ignore-file";\nconst hash = "# aislop-ignore-next-line";\nconst y = 2;\n',
+		);
+		const { suppressedCount } = applySuppressions(
+			wrap([
+				diag("a.ts", 1, "ai-slop/other"),
+				diag("a.ts", 2, "ai-slop/other"),
+				diag("a.ts", 3, "ai-slop/other"),
+			]),
 			tmpDir,
 		);
 		expect(suppressedCount).toBe(0);

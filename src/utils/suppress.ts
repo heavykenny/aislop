@@ -2,11 +2,13 @@ import fs from "node:fs";
 import path from "node:path";
 import type { Diagnostic, EngineResult } from "../engines/types.js";
 
-// Require a comment marker before the directive so the bare words in a string
-// literal or doc text don't silently suppress diagnostics for the whole file.
-const DIRECTIVE_RE = /(?:\/\/|\/\*|#|<!--|\*)\s*aislop-ignore-(next-line|line|file)\b([^\n]*)/;
+// Directives are only honored when they appear in an actual comment segment.
+// Inline comments are found by scanning outside common string literal delimiters
+// so text like "https://aislop-ignore-file" cannot hide diagnostics.
+const DIRECTIVE_RE = /^\s*(?:\/\/|\/\*|#|<!--|\*)\s*aislop-ignore-(next-line|line|file)\b([^\n]*)/;
+const INLINE_COMMENT_MARKERS = ["//", "/*", "#", "<!--"] as const;
 
-export const isAislopDirectiveLine = (line: string): boolean => DIRECTIVE_RE.test(line);
+export const isAislopDirectiveLine = (line: string): boolean => findDirective(line) !== null;
 
 type SuppressScope = "next-line" | "line" | "file";
 
@@ -19,6 +21,36 @@ interface FileDirectives {
 	file: Directive[];
 	byLine: Map<number, Directive[]>;
 }
+
+const findDirective = (line: string): RegExpExecArray | null => {
+	const leading = DIRECTIVE_RE.exec(line);
+	if (leading) return leading;
+
+	let quote: '"' | "'" | "`" | null = null;
+	let escaped = false;
+	for (let i = 0; i < line.length; i++) {
+		const char = line[i];
+		if (quote) {
+			if (escaped) {
+				escaped = false;
+			} else if (char === "\\") {
+				escaped = true;
+			} else if (char === quote) {
+				quote = null;
+			}
+			continue;
+		}
+		if (char === '"' || char === "'" || char === "`") {
+			quote = char;
+			continue;
+		}
+		if (INLINE_COMMENT_MARKERS.some((marker) => line.startsWith(marker, i))) {
+			const match = DIRECTIVE_RE.exec(line.slice(i));
+			if (match) return match;
+		}
+	}
+	return null;
+};
 
 const parseDirective = (rest: string): Directive => {
 	const beforeReason = rest.split("--")[0];
@@ -40,7 +72,7 @@ const parseFileDirectives = (content: string): FileDirectives => {
 		byLine.set(target, list);
 	};
 	for (let i = 0; i < lines.length; i++) {
-		const match = DIRECTIVE_RE.exec(lines[i]);
+		const match = findDirective(lines[i]);
 		if (!match) continue;
 		const scope = match[1] as SuppressScope;
 		const directive = parseDirective(match[2] ?? "");
