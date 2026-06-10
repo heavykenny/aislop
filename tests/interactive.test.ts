@@ -6,6 +6,7 @@ describe("interactive options", () => {
 		expect(INTERACTIVE_OPTIONS.map((o) => o.value)).toEqual([
 			"scan",
 			"fix",
+			"agent",
 			"doctor",
 			"init",
 			"rules",
