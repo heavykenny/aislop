@@ -54,4 +54,22 @@ describe("scanSecrets", () => {
 
 		expect(diagnostics).toEqual([]);
 	});
+
+	it("does not flag pure environment placeholders in config files", async () => {
+		writeFile("deploy.yml", `database:\n  password: "\${DB_PASSWORD}"\n`);
+		writeFile("settings.toml", `secret = "\${APP_SECRET}"\n`);
+
+		const diagnostics = await scanSecrets(buildContext());
+
+		expect(diagnostics).toEqual([]);
+	});
+
+	it("still flags mixed strings that contain an environment placeholder", async () => {
+		writeFile("deploy.yml", `secret: "prod-\${tenant}-secret"\n`);
+
+		const diagnostics = await scanSecrets(buildContext());
+
+		expect(diagnostics).toHaveLength(1);
+		expect(diagnostics[0].rule).toBe("security/hardcoded-secret");
+	});
 });

@@ -23,10 +23,36 @@ export const renderSparkline = (scores: number[]): string => {
 		.join("");
 };
 
-const formatDate = (timestamp: string): string => {
+const relativePhrase = (count: number, unit: string, future: boolean): string => {
+	const suffix = count === 1 ? unit : `${unit}s`;
+	const phrase = `${count} ${suffix}`;
+	return future ? `in ${phrase}` : `${phrase} ago`;
+};
+
+export const formatRelativeTime = (timestamp: string, now = new Date()): string => {
 	const date = new Date(timestamp);
-	if (Number.isNaN(date.getTime())) return timestamp;
-	return date.toISOString().slice(0, 16).replace("T", " ");
+	const nowMs = now.getTime();
+	if (Number.isNaN(date.getTime()) || Number.isNaN(nowMs)) return timestamp;
+
+	const diffMs = nowMs - date.getTime();
+	const future = diffMs < 0;
+	const absMs = Math.abs(diffMs);
+	if (absMs < 45_000) return "just now";
+
+	const minute = 60_000;
+	const hour = 60 * minute;
+	const day = 24 * hour;
+	const week = 7 * day;
+	const month = 30 * day;
+	const year = 365 * day;
+
+	if (absMs < hour)
+		return relativePhrase(Math.max(1, Math.round(absMs / minute)), "minute", future);
+	if (absMs < day) return relativePhrase(Math.max(1, Math.round(absMs / hour)), "hour", future);
+	if (absMs < week) return relativePhrase(Math.max(1, Math.round(absMs / day)), "day", future);
+	if (absMs < month) return relativePhrase(Math.max(1, Math.round(absMs / week)), "week", future);
+	if (absMs < year) return relativePhrase(Math.max(1, Math.round(absMs / month)), "month", future);
+	return relativePhrase(Math.max(1, Math.round(absMs / year)), "year", future);
 };
 
 const delta = (current: number, previous: number | undefined): string => {
@@ -40,6 +66,7 @@ const delta = (current: number, previous: number | undefined): string => {
 interface BuildTrendRenderInput {
 	records: HistoryRecord[];
 	limit?: number;
+	now?: Date;
 	printBrand?: boolean;
 }
 
@@ -52,7 +79,7 @@ export const buildTrendRender = (input: BuildTrendRenderInput): string => {
 	});
 
 	if (input.records.length === 0) {
-		return `${header}\n  ${style(
+		return `${header.trimEnd()}\n\n  ${style(
 			theme,
 			"muted",
 			"No score history yet. Run a scan to start tracking trends.",
@@ -62,21 +89,23 @@ export const buildTrendRender = (input: BuildTrendRenderInput): string => {
 	const limit = input.limit ?? DEFAULT_LIMIT;
 	const recent = input.records.slice(-limit);
 	const scores = recent.map((r) => r.score);
+	const whenLabels = recent.map((record) => formatRelativeTime(record.timestamp, input.now));
+	const whenWidth = Math.max(14, ...whenLabels.map((label) => label.length)) + 2;
 
-	const lines: string[] = [header];
+	const lines: string[] = [header.trimEnd(), ""];
 	lines.push(
-		`  ${style(theme, "dim", padEnd("Date", 18))}${style(theme, "dim", padEnd("Score", 8))}${style(
+		`  ${style(theme, "dim", padEnd("When", whenWidth))}${style(theme, "dim", padEnd("Score", 8))}${style(
 			theme,
 			"dim",
-			padEnd("Δ", 6),
+			padEnd("Change", 8),
 		)}${style(theme, "dim", padEnd("Err", 6))}${style(theme, "dim", "Warn")}`,
 	);
 	recent.forEach((record, index) => {
 		const previous = index > 0 ? recent[index - 1]?.score : undefined;
 		lines.push(
-			`  ${padEnd(formatDate(record.timestamp), 18)}${padEnd(String(record.score), 8)}${padEnd(
+			`  ${padEnd(whenLabels[index] ?? "", whenWidth)}${padEnd(String(record.score), 8)}${padEnd(
 				delta(record.score, previous),
-				6,
+				8,
 			)}${padEnd(String(record.errors), 6)}${record.warnings}`,
 		);
 	});

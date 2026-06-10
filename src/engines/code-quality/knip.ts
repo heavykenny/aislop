@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import { createRequire } from "node:module";
 import path from "node:path";
 import { runSubprocess } from "../../utils/subprocess.js";
 import type { Diagnostic } from "../types.js";
@@ -132,25 +133,105 @@ const findMonorepoRoot = (directory: string): string | null => {
 	return null;
 };
 
-const KNIP_RELATIVE_BIN = path.join("node_modules", "knip", "bin", "knip.js");
+const isSubpath = (parent: string, child: string): boolean => {
+	const relative = path.relative(parent, child);
+	return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+};
 
-const findKnipBin = (
+export const getRelativePathWithinRoot = (
+	rootDirectory: string,
+	baseDirectory: string,
+	reportedPath: string,
+): string | null => {
+	const rootPath = path.resolve(rootDirectory);
+	const absolutePath = path.resolve(baseDirectory, reportedPath);
+	if (!isSubpath(rootPath, absolutePath)) return null;
+	return path.relative(rootPath, absolutePath);
+};
+
+export const getSafeUnusedFilePath = (rootDirectory: string, filePath: string): string | null => {
+	const rootPath = fs.realpathSync(rootDirectory);
+	const absolutePath = path.resolve(rootDirectory, filePath);
+
+	let stat: fs.Stats;
+	let realPath: string;
+	try {
+		stat = fs.lstatSync(absolutePath);
+		realPath = fs.realpathSync(absolutePath);
+	} catch {
+		return null;
+	}
+
+	if (!stat.isFile()) return null;
+	if (!isSubpath(rootPath, realPath)) return null;
+	return absolutePath;
+};
+
+const KNIP_BIN = path.join("bin", "knip.js");
+const requireFromAislop = createRequire(import.meta.url);
+
+const findPackageRoot = (entryPath: string, packageName: string): string | null => {
+	let current = path.dirname(entryPath);
+	while (current !== path.dirname(current)) {
+		const pkgPath = path.join(current, "package.json");
+		if (fs.existsSync(pkgPath)) {
+			try {
+				const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
+				if (pkg.name === packageName) return current;
+			} catch {
+				return null;
+			}
+		}
+		current = path.dirname(current);
+	}
+	return null;
+};
+
+const findBundledKnipBin = (): string | null => {
+	try {
+		const knipEntry = requireFromAislop.resolve("knip");
+		const knipRoot = findPackageRoot(knipEntry, "knip");
+		if (!knipRoot) return null;
+
+		const binPath = path.join(knipRoot, KNIP_BIN);
+		return fs.existsSync(binPath) ? binPath : null;
+	} catch {
+		return null;
+	}
+};
+
+const packageDeclaresKnip = (directory: string): boolean => {
+	const pkgPath = path.join(directory, "package.json");
+	if (!fs.existsSync(pkgPath)) return false;
+
+	try {
+		const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
+		return Boolean(
+			pkg.dependencies?.knip ||
+				pkg.devDependencies?.knip ||
+				pkg.peerDependencies?.knip ||
+				pkg.optionalDependencies?.knip,
+		);
+	} catch {
+		return false;
+	}
+};
+
+export const findKnipRuntime = (
 	rootDirectory: string,
 	monorepoRoot: string | null,
 ): { binPath: string; cwd: string } | null => {
-	const localPath = path.join(rootDirectory, KNIP_RELATIVE_BIN);
-	if (fs.existsSync(localPath)) {
-		return { binPath: localPath, cwd: rootDirectory };
+	const monorepoDeclaresKnip = monorepoRoot ? packageDeclaresKnip(monorepoRoot) : false;
+	const packageDeclaresKnipDependency = packageDeclaresKnip(rootDirectory);
+	if (!monorepoDeclaresKnip && !packageDeclaresKnipDependency) {
+		return null;
 	}
 
-	if (monorepoRoot) {
-		const monorepoPath = path.join(monorepoRoot, KNIP_RELATIVE_BIN);
-		if (fs.existsSync(monorepoPath)) {
-			return { binPath: monorepoPath, cwd: monorepoRoot };
-		}
-	}
+	const binPath = findBundledKnipBin();
+	if (!binPath) return null;
 
-	return null;
+	const cwd = monorepoRoot && monorepoDeclaresKnip ? monorepoRoot : rootDirectory;
+	return { binPath, cwd };
 };
 
 export const runKnipDependencyCheck = async (rootDirectory: string): Promise<Diagnostic[]> => {
@@ -210,8 +291,8 @@ export const runKnipUnusedFiles = async (rootDirectory: string): Promise<Diagnos
 export const fixUnusedFiles = async (rootDirectory: string): Promise<void> => {
 	const diagnostics = await runKnipUnusedFiles(rootDirectory);
 	for (const d of diagnostics) {
-		const absolutePath = path.resolve(rootDirectory, d.filePath);
-		if (fs.existsSync(absolutePath)) {
+		const absolutePath = getSafeUnusedFilePath(rootDirectory, d.filePath);
+		if (absolutePath) {
 			fs.unlinkSync(absolutePath);
 		}
 	}
@@ -219,7 +300,7 @@ export const fixUnusedFiles = async (rootDirectory: string): Promise<void> => {
 
 export const runKnip = async (rootDirectory: string): Promise<Diagnostic[]> => {
 	const monorepoRoot = findMonorepoRoot(rootDirectory);
-	const knipRuntime = findKnipBin(rootDirectory, monorepoRoot);
+	const knipRuntime = findKnipRuntime(rootDirectory, monorepoRoot);
 	if (!knipRuntime) return [];
 
 	try {
@@ -235,8 +316,10 @@ export const runKnip = async (rootDirectory: string): Promise<Diagnostic[]> => {
 		const diagnostics: Diagnostic[] = [];
 		const files = parsed.files ?? [];
 		for (const unusedFile of files) {
+			const filePath = getRelativePathWithinRoot(rootDirectory, knipRuntime.cwd, unusedFile);
+			if (!filePath) continue;
 			diagnostics.push({
-				filePath: path.relative(rootDirectory, path.resolve(knipRuntime.cwd, unusedFile)),
+				filePath,
 				engine: "code-quality",
 				rule: "knip/files",
 				severity: "warning",

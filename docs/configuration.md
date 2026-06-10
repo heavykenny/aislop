@@ -30,7 +30,7 @@ scoring:
     format: 0.3
     lint: 0.6
     code-quality: 0.8
-    ai-slop: 2.5
+    ai-slop: 1.0
     architecture: 1.0
     security: 1.5
   thresholds:
@@ -82,7 +82,7 @@ scoring:
     format: 0.3       # formatting issues have lighter impact
     lint: 0.6
     code-quality: 0.8
-    ai-slop: 2.5      # AI-slop signals carry stronger weight
+    ai-slop: 1.0      # AI-slop signals stay visible without dominating warnings
     architecture: 1.0
     security: 1.5
   smoothing: 20        # increase to reduce penalty spikes on larger repos
@@ -111,7 +111,7 @@ extends:
 
 **Resolution rules**
 
-- Paths are relative to the config file declaring `extends:`. Absolute paths are accepted; package or URL forms are not yet supported and will fail with a clear error.
+- Paths are relative to the config file declaring `extends:`. Absolute paths are rejected, and resolved targets must stay inside the project root to avoid reading local files outside the repository. Package or URL forms are not yet supported and will fail with a clear error. Extends targets must be regular files no larger than 1 MiB.
 - Nested objects (`engines`, `scoring.weights`, `quality`) are deep-merged key-by-key. The child's keys win on conflict.
 - Arrays (e.g. `exclude:`) are replaced wholesale, not concatenated. Append in the child if you want to extend rather than overwrite.
 - Cycles and chains deeper than 5 levels are rejected at load time, not silently ignored.

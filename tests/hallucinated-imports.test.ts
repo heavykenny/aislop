@@ -527,6 +527,19 @@ x = 1
 		expect(diagnostics).toEqual([]);
 	});
 
+	it("recognizes platform-specific stdlib modules", async () => {
+		writeFile("pyproject.toml", `[project]\ndependencies = ["click"]\n`);
+		writeFile(
+			"src/platform_io.py",
+			`import fcntl
+import msvcrt
+import posixpath
+`,
+		);
+		const diagnostics = await detectHallucinatedImports(buildContext());
+		expect(diagnostics).toEqual([]);
+	});
+
 	it("resolves install-name vs import-name divergences from the HN/issue-143 report", async () => {
 		writeFile(
 			"requirements.txt",
@@ -644,6 +657,87 @@ from _pytest import runner
 		writeFile("app/__init__.py", "");
 		const diagnostics = await detectHallucinatedImports(buildContext());
 		expect(diagnostics).toHaveLength(0);
+	});
+
+	it("does not truncate pyproject dependencies when a package uses extras", async () => {
+		writeFile(
+			"pyproject.toml",
+			`[project]
+name = "demo"
+dependencies = [
+  "pydantic[email] >= 2.0.0",
+  "django == 5.1.15",
+  "fastapi >= 0.110.0",
+]
+`,
+		);
+		writeFile(
+			"src/app.py",
+			`from pydantic import BaseModel
+import django
+from starlette.requests import Request
+`,
+		);
+		const diagnostics = await detectHallucinatedImports(buildContext());
+		expect(diagnostics).toEqual([]);
+	});
+
+	it("uses nested Python manifests only for files under that nested project", async () => {
+		writeFile("pyproject.toml", `[project]\nname = "root-demo"\ndependencies = ["requests"]\n`);
+		writeFile(
+			"packages/worker/pyproject.toml",
+			`[project]
+name = "worker"
+dependencies = ["pydantic[email] >= 2.0.0"]
+`,
+		);
+		writeFile("packages/worker/src/worker/job.py", `from pydantic import BaseModel\n`);
+		writeFile("src/root.py", `from pydantic import BaseModel\n`);
+
+		const diagnostics = await detectHallucinatedImports(buildContext());
+
+		expect(diagnostics).toHaveLength(1);
+		expect(diagnostics[0].filePath).toBe(path.join("src", "root.py"));
+		expect(diagnostics[0].message).toContain("pydantic");
+	});
+
+	it("resolves common Python framework and distribution-backed import names", async () => {
+		writeFile(
+			"pyproject.toml",
+			`[project]
+dependencies = [
+  "paddlepaddle>=3.2.1",
+  "langchain-community>=0.3",
+  "huggingface-hub>=0.22",
+  "markdown-it-py>=3",
+  "cron-descriptor==1.4.3",
+  "email-validator==2.2.0",
+  "e2b-code-interpreter~=1.0",
+  "django-phonenumber-field==7.3.0",
+  "python-frontmatter",
+  "opentelemetry-api>=1.39.0",
+  "ag-ui-protocol>=0.1.10",
+]
+`,
+		);
+		writeFile(
+			"src/integrations.py",
+			`import paddle
+import langchain_core
+import langchain_community
+import huggingface_hub
+import markdown_it
+import cron_descriptor
+import email_validator
+import e2b_code_interpreter
+import phonenumber_field
+import frontmatter
+import opentelemetry
+import ag_ui
+`,
+		);
+		const diagnostics = await detectHallucinatedImports(buildContext());
+		expect(diagnostics).toEqual([]);
 	});
 
 	it("resolves deps declared only in [project.optional-dependencies] extras", async () => {

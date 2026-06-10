@@ -68,8 +68,9 @@ describe("renderHintLine", () => {
 			symbols: createSymbols({ plain: false }),
 		});
 		expect(strip(line)).toBe(" → Run npx aislop scan\n");
-		// Accent-green truecolor escape must appear around the arrow.
+		// Accent-green truecolor escape must appear around the arrow and command token.
 		expect(line).toContain("\x1B[38;2;34;197;94m→\x1B[39m");
+		expect(line).toContain("\x1B[38;2;34;197;94maislop\x1B[39m scan");
 	});
 
 	it("falls back to defaults when deps are not provided", () => {
