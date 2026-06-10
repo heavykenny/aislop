@@ -67,7 +67,7 @@ jobs:
           if [ -z "$existing" ]; then
             num=$(gh pr create \
               --base develop \
-              --head "$GITHUB_REPOSITORY_OWNER:bot/sync-from-main" \
+              --head bot/sync-from-main \
               --title "chore: sync main → develop" \
               --body "Auto-opened by \`.github/workflows/sync-develop.yml\`. Brings develop up to main. Auto-merge enabled (squash) — merges itself once CI passes." \
               | grep -oE '[0-9]+$')
