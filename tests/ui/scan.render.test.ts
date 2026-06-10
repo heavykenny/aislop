@@ -47,8 +47,17 @@ describe("scan render", () => {
 		expect(out).toContain("Scan result");
 		expect(out).toContain("my-app");
 		expect(out).toMatch(/89 \/ 100\s+Healthy/);
-		expect(out).toContain("→ Run aislop fix");
-		expect(out).toMatch(/Run aislop fix --claude .*--codex.*--cursor.*--gemini/);
+		expect(out).toContain("Agent repair plan");
+		expect(out).toMatch(/Agent\s+aislop agent\s+run a local worktree repair session/);
+		expect(out).toMatch(
+			/Provider\s+aislop agent --provider codex\s+or use --provider claude\/opencode/,
+		);
+		expect(out).toMatch(
+			/Preview\s+aislop agent plan\s+preview provider, worktree, findings, and publish actions/,
+		);
+		expect(out).toMatch(/Auto-fix\s+aislop fix\s+auto-fix 1 issue/);
+		expect(out).not.toContain("aislop fix --claude");
+		expect(out).toContain("Gate every PR free at https://scanaislop.com");
 	});
 
 	it("renders clean-run one-liner when score is 100 and 0 issues", () => {

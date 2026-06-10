@@ -10,6 +10,7 @@ export interface FixStepResult {
 	beforeFiles: number;
 	failed: boolean;
 	elapsedMs: number;
+	afterDiagnostics?: Diagnostic[];
 }
 
 const uniqueFileCount = (diagnostics: Diagnostic[]): number =>
@@ -39,6 +40,7 @@ export const runOneFixStep = async (
 		beforeFiles: uniqueFileCount(before),
 		failed: applyError !== null && before.length === after.length,
 		elapsedMs: performance.now() - started,
+		afterDiagnostics: after,
 	};
 };
 
