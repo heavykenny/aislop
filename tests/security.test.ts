@@ -63,6 +63,21 @@ describe("scanSecrets", () => {
 		expect(diagnostics[0].engine).toBe("security");
 	});
 
+	it("detects secret values that contain placeholder-like text", async () => {
+		const filePath = writeFile(
+			"placeholder-looking-secrets.ts",
+			[
+				'const apiKey = "your_abcdefghijklmnopqrstu12345";',
+				'const password = "prod-env(db)-password";',
+				'const secret = "prod-${tenant}-secret";',
+				'const passwd = "process.env.REAL_PASSWORD";',
+				'const pwd = "<prod-password-value>";',
+			].join("\n"),
+		);
+		const diagnostics = await scanSecrets(makeContext([filePath]));
+		expect(diagnostics.filter((d) => d.rule === "security/hardcoded-secret")).toHaveLength(5);
+	});
+
 	it("detects an AWS Access Key ID", async () => {
 		const filePath = writeFile("aws.ts", "const accessKeyId = 'AKIAIOSFODNN7EXAMPLE';");
 		const diagnostics = await scanSecrets(makeContext([filePath]));
@@ -693,6 +708,24 @@ describe("detectRiskyConstructs", () => {
 		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));
 		const sqlDiags = diagnostics.filter((d) => d.rule === "security/sql-injection");
 		expect(sqlDiags.length).toBeGreaterThanOrEqual(1);
+	});
+
+	it("detects SQL injection in migration and seeder paths", async () => {
+		const migrationFile = writeFile(
+			"src/migrations/runtime-helper.ts",
+			"const rows = await db.query(`SELECT * FROM users WHERE id = ${userId}`);",
+		);
+		const seederFile = writeFile(
+			"src/seeders/runtime-helper.ts",
+			"const rows = await db.query(`SELECT * FROM users WHERE id = ${userId}`);",
+		);
+		const diagnostics = await detectRiskyConstructs(makeContext([migrationFile, seederFile]));
+		const sqlDiags = diagnostics.filter((d) => d.rule === "security/sql-injection");
+		expect(sqlDiags).toHaveLength(2);
+		expect(sqlDiags.map((d) => d.filePath).sort()).toEqual([
+			"src/migrations/runtime-helper.ts",
+			"src/seeders/runtime-helper.ts",
+		]);
 	});
 
 	it("detects SQL injection via chained DB member (client.pool.query)", async () => {

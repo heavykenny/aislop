@@ -112,12 +112,6 @@ const isPlaceholderCredentialUrl = (matchedText: string): boolean => {
 
 const isPlaceholderValue = (matchedText: string): boolean => {
 	if (isPlaceholderCredentialUrl(matchedText)) return true;
-	if (/env\(/i.test(matchedText)) return true;
-	if (matchedText.includes("process.env")) return true;
-	if (matchedText.includes("os.environ")) return true;
-	if (matchedText.includes("${")) return true;
-	if (matchedText.includes("<") && matchedText.includes(">")) return true;
-	if (/^your_/i.test(matchedText)) return true;
 	if (PLACEHOLDER_EXACT.has(matchedText.toLowerCase())) return true;
 	return false;
 };
