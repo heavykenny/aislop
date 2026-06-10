@@ -28,7 +28,21 @@ const EXCLUDED_DIRS = [
 	".git",
 	".agents",
 	".pnpm-store",
+	".yarn",
+	"bower",
+	"bower_components",
+	"jspm_packages",
+	"schemaspy",
+	"generated",
+	"__generated__",
+	"auto-generated",
 	"vendor",
+	"vendors",
+	"_vendor",
+	"vendored",
+	"third_party",
+	"third-party",
+	"3rdparty",
 	"examples",
 	"example",
 	"demos",
@@ -38,6 +52,10 @@ const EXCLUDED_DIRS = [
 	"benchmarks",
 	"fixtures",
 	"fixture",
+	"stories",
+	"story",
+	"storybook",
+	"__stories__",
 	"samples",
 	"sample",
 	"tutorials",
@@ -47,6 +65,8 @@ const EXCLUDED_DIRS = [
 	"notebooks",
 	"tests",
 	"test",
+	"testdata",
+	"e2e",
 	"__tests__",
 	"__test__",
 	"spec",
@@ -66,7 +86,21 @@ const FIND_PRUNE_DIRS = [
 	".git",
 	".agents",
 	".pnpm-store",
+	".yarn",
+	"bower",
+	"bower_components",
+	"jspm_packages",
+	"schemaspy",
+	"generated",
+	"__generated__",
+	"auto-generated",
 	"vendor",
+	"vendors",
+	"_vendor",
+	"vendored",
+	"third_party",
+	"third-party",
+	"3rdparty",
 	"examples",
 	"example",
 	"demos",
@@ -76,6 +110,10 @@ const FIND_PRUNE_DIRS = [
 	"benchmarks",
 	"fixtures",
 	"fixture",
+	"stories",
+	"story",
+	"storybook",
+	"__stories__",
 	"samples",
 	"sample",
 	"tutorials",
@@ -83,6 +121,8 @@ const FIND_PRUNE_DIRS = [
 	"code_samples",
 	"code-samples",
 	"notebooks",
+	"testdata",
+	"e2e",
 	".next",
 	".nuxt",
 	"coverage",
@@ -94,6 +134,7 @@ const BUILD_CACHE_FILE_PATTERNS = [
 	/\.timestamp-\d+-[a-z0-9]+\.[mc]?js$/i,
 	/\.min\.(?:js|css|mjs|cjs)$/i,
 	/\.bundle\.(?:js|css|mjs|cjs)$/i,
+	/(?:^|\/)\.pnp(?:\.loader)?\.[mc]?js$/i,
 ];
 
 const isBuildCacheFile = (filePath: string): boolean =>
@@ -102,6 +143,7 @@ const isBuildCacheFile = (filePath: string): boolean =>
 const TEST_FILE_PATTERNS = [
 	/(?:^|\/).*\.test\.[^/]+$/i,
 	/(?:^|\/).*\.spec\.[^/]+$/i,
+	/(?:^|\/).*\.stories?\.[^/]+$/i,
 	/(?:^|\/)test_[^/]+\.(?:py|rb|php|js|jsx|ts|tsx|java)$/i,
 	/(?:^|\/)[^/]+_test\.(?:py|go|rb|php|js|jsx|ts|tsx|java)$/i,
 ];
@@ -128,10 +170,13 @@ const hasAllowedExtension = (filePath: string, extraExtensions: Set<string>): bo
 	return SOURCE_EXTENSIONS.has(extension) || extraExtensions.has(extension);
 };
 
-const isExcludedPath = (filePath: string): boolean =>
-	EXCLUDED_DIRS.some(
-		(dir) => filePath === dir || filePath.startsWith(`${dir}/`) || filePath.includes(`/${dir}/`),
+const isExcludedPath = (filePath: string): boolean => {
+	const normalized = filePath.toLowerCase();
+	return EXCLUDED_DIRS.some(
+		(dir) =>
+			normalized === dir || normalized.startsWith(`${dir}/`) || normalized.includes(`/${dir}/`),
 	);
+};
 
 export const isExcludedFromScan = (relativePath: string): boolean =>
 	isExcludedPath(relativePath) || isBuildCacheFile(relativePath);

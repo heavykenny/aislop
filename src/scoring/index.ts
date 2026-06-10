@@ -1,4 +1,5 @@
 import type { Diagnostic } from "../engines/types.js";
+import { scoreImpactForRule } from "./rule-impact.js";
 
 export interface ScoreResult {
 	score: number;
@@ -6,17 +7,6 @@ export interface ScoreResult {
 }
 
 const PERFECT_SCORE = 100;
-
-// Style rules weigh half on the score so genuine slop drives it, not house style.
-const STYLE_RULES = new Set([
-	"ai-slop/trivial-comment",
-	"ai-slop/narrative-comment",
-	"complexity/file-too-large",
-	"complexity/function-too-long",
-]);
-const STYLE_WEIGHT = 0.5;
-const COMMENT_STYLE_RULE_CAP = 12;
-const COMMENT_STYLE_RULES = new Set(["ai-slop/trivial-comment", "ai-slop/narrative-comment"]);
 
 const getEffectiveFileCount = (diagnostics: Diagnostic[], sourceFileCount?: number): number => {
 	if (typeof sourceFileCount === "number" && sourceFileCount > 0) {
@@ -45,20 +35,19 @@ export const calculateScore = (
 	for (const d of diagnostics) {
 		const engineWeight = weights[d.engine] ?? 1.0;
 		const severityPenalty = d.severity === "error" ? 3 : d.severity === "warning" ? 1 : 0.25;
-		const styleFactor = STYLE_RULES.has(d.rule) ? STYLE_WEIGHT : 1;
+		const ruleImpact = scoreImpactForRule(d.rule);
 		const key = `${d.engine}:${d.rule}`;
 		deductionsByRule.set(
 			key,
-			(deductionsByRule.get(key) ?? 0) + severityPenalty * engineWeight * styleFactor,
+			(deductionsByRule.get(key) ?? 0) + severityPenalty * engineWeight * ruleImpact.multiplier,
 		);
 	}
 	const defaultRuleCap = typeof maxPerRule === "number" && maxPerRule > 0 ? maxPerRule : null;
 	const capForRule = (key: string): number | null => {
 		const rule = key.slice(key.indexOf(":") + 1);
-		if (COMMENT_STYLE_RULES.has(rule)) {
-			return defaultRuleCap
-				? Math.min(defaultRuleCap, COMMENT_STYLE_RULE_CAP)
-				: COMMENT_STYLE_RULE_CAP;
+		const ruleCap = scoreImpactForRule(rule).cap;
+		if (typeof ruleCap === "number") {
+			return defaultRuleCap ? Math.min(defaultRuleCap, ruleCap) : ruleCap;
 		}
 		return defaultRuleCap;
 	};

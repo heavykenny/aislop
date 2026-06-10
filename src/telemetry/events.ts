@@ -10,6 +10,20 @@ export type CommandName =
 	| "rules"
 	| "badge"
 	| "trend"
+	| "agent"
+	| "agent_plan"
+	| "agent_providers"
+	| "agent_connect"
+	| "agent_use"
+	| "agent_monitor"
+	| "agent_monitor_list"
+	| "agent_monitor_show"
+	| "agent_monitor_stop"
+	| "agent_sessions"
+	| "agent_show"
+	| "agent_apply"
+	| "agent_watch"
+	| "agent_stop"
 	| "hook_install"
 	| "hook_uninstall"
 	| "hook_status"
@@ -21,10 +35,11 @@ interface CommandStartedInput {
 	command: CommandName;
 	languages?: ReadonlyArray<string>;
 	fileCount?: number;
+	properties?: Record<string, unknown>;
 }
 
 export const buildCommandStartedProps = (input: CommandStartedInput): Record<string, unknown> => {
-	const props: Record<string, unknown> = { command: input.command };
+	const props: Record<string, unknown> = { ...input.properties, command: input.command };
 	if (input.languages) Object.assign(props, buildLanguageProperties(input.languages));
 	if (typeof input.fileCount === "number")
 		props.file_count_bucket = fileCountBucket(input.fileCount);
@@ -80,6 +95,7 @@ interface CommandCompletedInput {
 	fixSteps?: number;
 	fixResolved?: number;
 	fixScoreDelta?: number;
+	properties?: Record<string, unknown>;
 }
 
 export const buildCommandCompletedProps = (
@@ -87,6 +103,7 @@ export const buildCommandCompletedProps = (
 ): Record<string, unknown> => {
 	const props: Record<string, unknown> = {
 		...input.startProps,
+		...input.properties,
 		exit_code: input.exitCode,
 		duration_ms: Math.round(input.durationMs),
 	};

@@ -11,8 +11,10 @@ interface RuffDiagnostic {
 	fix?: { applicability: string };
 }
 
-export const runRuffLint = async (context: EngineContext): Promise<Diagnostic[]> => {
-	const ruffBinary = resolveToolBinary("ruff");
+export const runRuffLint = async (
+	context: EngineContext,
+	ruffBinary = resolveToolBinary("ruff"),
+): Promise<Diagnostic[]> => {
 	const targets = getPythonTargets(context);
 	if (targets.length === 0) return [];
 
