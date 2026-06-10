@@ -56,7 +56,6 @@ const EXCLUDED_DIRS = [
 	".nuxt",
 	"coverage",
 	".turbo",
-	"public",
 ];
 
 const FIND_PRUNE_DIRS = [
@@ -87,17 +86,7 @@ const FIND_PRUNE_DIRS = [
 	".nuxt",
 	"coverage",
 	".turbo",
-	"public",
 ];
-
-const BUILD_CACHE_FILE_PATTERNS = [
-	/\.timestamp-\d+-[a-z0-9]+\.[mc]?js$/i,
-	/\.min\.(?:js|css|mjs|cjs)$/i,
-	/\.bundle\.(?:js|css|mjs|cjs)$/i,
-];
-
-const isBuildCacheFile = (filePath: string): boolean =>
-	BUILD_CACHE_FILE_PATTERNS.some((pattern) => pattern.test(filePath));
 
 const TEST_FILE_PATTERNS = [
 	/(?:^|\/).*\.test\.[^/]+$/i,
@@ -132,9 +121,6 @@ const isExcludedPath = (filePath: string): boolean =>
 	EXCLUDED_DIRS.some(
 		(dir) => filePath === dir || filePath.startsWith(`${dir}/`) || filePath.includes(`/${dir}/`),
 	);
-
-export const isExcludedFromScan = (relativePath: string): boolean =>
-	isExcludedPath(relativePath) || isBuildCacheFile(relativePath);
 
 const isTestFile = (filePath: string): boolean =>
 	TEST_FILE_PATTERNS.some((pattern) => pattern.test(filePath));
@@ -296,7 +282,6 @@ export const filterProjectFiles = (
 				!isWithinProject(relativePath) ||
 				isExcludedPath(relativePath) ||
 				isTestFile(relativePath) ||
-				isBuildCacheFile(relativePath) ||
 				ignoredPaths.has(relativePath)
 			) {
 				return false;
