@@ -183,18 +183,20 @@ const packageDeclaresKnip = (directory: string): boolean => {
 	}
 };
 
-const findKnipRuntime = (
+export const findKnipRuntime = (
 	rootDirectory: string,
 	monorepoRoot: string | null,
 ): { binPath: string; cwd: string } | null => {
-	const cwd = monorepoRoot ?? rootDirectory;
-	if (!packageDeclaresKnip(cwd) && (!monorepoRoot || !packageDeclaresKnip(rootDirectory))) {
+	const monorepoDeclaresKnip = monorepoRoot ? packageDeclaresKnip(monorepoRoot) : false;
+	const packageDeclaresKnipDependency = packageDeclaresKnip(rootDirectory);
+	if (!monorepoDeclaresKnip && !packageDeclaresKnipDependency) {
 		return null;
 	}
 
 	const binPath = findBundledKnipBin();
 	if (!binPath) return null;
 
+	const cwd = monorepoRoot && monorepoDeclaresKnip ? monorepoRoot : rootDirectory;
 	return { binPath, cwd };
 };
 

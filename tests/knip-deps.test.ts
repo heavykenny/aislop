@@ -64,6 +64,26 @@ describe("knip dependency diagnostic shape", () => {
 });
 
 describe("runKnip", () => {
+	it("uses the package cwd when only the workspace package declares knip", async () => {
+		const workspaceRoot = tmpDir;
+		const packageRoot = path.join(workspaceRoot, "packages", "app");
+		fs.mkdirSync(packageRoot, { recursive: true });
+		fs.writeFileSync(path.join(workspaceRoot, "pnpm-workspace.yaml"), "packages:\n  - packages/*\n");
+		fs.writeFileSync(
+			path.join(packageRoot, "package.json"),
+			JSON.stringify({
+				name: "workspace-app",
+				version: "1.0.0",
+				devDependencies: { knip: "^5.85.0" },
+			}),
+		);
+
+		const mod = await import("../src/engines/code-quality/knip.js");
+		const runtime = mod.findKnipRuntime(packageRoot, workspaceRoot);
+
+		expect(runtime?.cwd).toBe(packageRoot);
+	});
+
 	it("does not execute a project-local knip binary", async () => {
 		const proofPath = path.join(tmpDir, "knip-rce-proof.txt");
 		const fakeBin = path.join(tmpDir, "node_modules", "knip", "bin", "knip.js");
