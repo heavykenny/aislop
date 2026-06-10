@@ -32,14 +32,15 @@ describe("source file selection", () => {
 		fs.rmSync(tmpDir, { recursive: true, force: true });
 	});
 
-	it("ignores test files and gitignored paths, even when they are tracked", async () => {
-		createFile(tmpDir, ".gitignore", "ignored.ts\nignored-dir/\n");
+	it("includes tracked source files even when gitignore matches them", async () => {
+		createFile(tmpDir, ".gitignore", "ignored.ts\nignored-dir/\nignored-untracked.ts\n");
 		createFile(tmpDir, "src/app.ts", "export const app = true;\n");
 		createFile(tmpDir, "src/worker.ts", "export const worker = true;\n");
 		createFile(tmpDir, "src/app.test.ts", "export const testFile = true;\n");
 		createFile(tmpDir, "tests/helper.ts", "export const helper = true;\n");
 		createFile(tmpDir, "ignored.ts", "export const ignored = true;\n");
 		createFile(tmpDir, "ignored-dir/task.ts", "export const ignoredTask = true;\n");
+		createFile(tmpDir, "ignored-untracked.ts", "export const untracked = true;\n");
 
 		git(tmpDir, [
 			"add",
@@ -56,7 +57,12 @@ describe("source file selection", () => {
 		const sourceFiles = getSourceFilesForRoot(tmpDir).sort();
 
 		expect(sourceFiles).toEqual(
-			[path.join(tmpDir, "src/app.ts"), path.join(tmpDir, "src/worker.ts")].sort(),
+			[
+				path.join(tmpDir, "ignored-dir/task.ts"),
+				path.join(tmpDir, "ignored.ts"),
+				path.join(tmpDir, "src/app.ts"),
+				path.join(tmpDir, "src/worker.ts"),
+			].sort(),
 		);
 
 		const filteredFiles = filterProjectFiles(tmpDir, [
@@ -64,12 +70,16 @@ describe("source file selection", () => {
 			path.join(tmpDir, "src/app.test.ts"),
 			path.join(tmpDir, "tests/helper.ts"),
 			path.join(tmpDir, "ignored.ts"),
+			path.join(tmpDir, "ignored-untracked.ts"),
 		]);
 
-		expect(filteredFiles).toEqual([path.join(tmpDir, "src/app.ts")]);
+		expect(filteredFiles).toEqual([
+			path.join(tmpDir, "src/app.ts"),
+			path.join(tmpDir, "ignored.ts"),
+		]);
 
 		const project = await discoverProject(tmpDir);
-		expect(project.sourceFileCount).toBe(2);
+		expect(project.sourceFileCount).toBe(4);
 	});
 
 	it("filters out files that no longer exist on disk", () => {
