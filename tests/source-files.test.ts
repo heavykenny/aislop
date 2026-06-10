@@ -83,6 +83,7 @@ describe("source file selection", () => {
 
 	it("skips common docs, tutorial, and sample code paths in zero-config scans", () => {
 		createFile(tmpDir, "src/app.py", "print('app')\n");
+		createFile(tmpDir, "app/bundles/ApiBundle/Tests/Functional/ControllerTest.php", "<?php\n");
 		createFile(tmpDir, "tutorials/lesson.py", "print('tutorial')\n");
 		createFile(tmpDir, "code_samples/demo.py", "print('sample')\n");
 		createFile(tmpDir, ".agents/skills/example.py", "print('skill')\n");
@@ -104,11 +105,49 @@ describe("source file selection", () => {
 		);
 	});
 
+	it("skips checked-in package manager and generated dependency artifacts", () => {
+		createFile(tmpDir, "src/app.ts", "export const app = true;\n");
+		createFile(tmpDir, "src/components/Button.stories.tsx", "export const Story = {};\n");
+		createFile(tmpDir, "src/components/__stories__/Button.tsx", "export const Story = {};\n");
+		createFile(tmpDir, "packages/sdk/src/metadata/generated/schema.ts", "export const generated = true;\n");
+		createFile(tmpDir, "backend/app/DomainObjects/Generated/Model.php", "<?php\n");
+		createFile(tmpDir, "src/parser/testdata/case.go", "package testdata\n");
+		createFile(tmpDir, "e2e/fixtures.ts", "export const fixture = true;\n");
+		createFile(tmpDir, "library/js/vendors/validate/plugin.js", "validate.extend({});\n");
+		createFile(tmpDir, "third_party/legacy/widget.js", "window.widget = true;\n");
+		createFile(tmpDir, ".yarn/releases/yarn-4.13.0.cjs", "// yarn release bundle\n");
+		createFile(
+			tmpDir,
+			"packages/app/constants/yarn-engine/.yarn/releases/yarn-4.9.2.cjs",
+			"// embedded yarn release bundle\n",
+		);
+		createFile(tmpDir, ".pnp.cjs", "// yarn pnp loader\n");
+		createFile(tmpDir, ".pnp.loader.mjs", "// yarn pnp esm loader\n");
+		createFile(
+			tmpDir,
+			"Documentation/EHI_Export/schemaspy/layout/schemaSpy.js",
+			"$(function () {});\n",
+		);
+		createFile(
+			tmpDir,
+			"Documentation/EHI_Export/schemaspy/layout/bower/jquery/jquery.js",
+			"window.jQuery = window.jQuery || {};\n",
+		);
+		createFile(tmpDir, "assets/bower_components/legacy/plugin.js", "define(function () {});\n");
+		createFile(tmpDir, "assets/jspm_packages/npm/pkg/index.js", "System.register([]);\n");
+
+		git(tmpDir, ["add", "-f", "."]);
+
+		const sourceFiles = getSourceFilesForRoot(tmpDir).sort();
+
+		expect(sourceFiles).toEqual([path.join(tmpDir, "src/app.ts")]);
+	});
+
 	it("keeps timestamp-named JavaScript files in shared scan coverage", () => {
 		createFile(tmpDir, "src/app.ts", "export const app = true;\n");
 		createFile(
 			tmpDir,
-			"apps/storybook/vite.config.ts.timestamp-1735325995918-46a167c39672.mjs",
+			"apps/admin/vite.config.ts.timestamp-1735325995918-46a167c39672.mjs",
 			"// vite cache\n",
 		);
 		createFile(
@@ -122,7 +161,7 @@ describe("source file selection", () => {
 			"add",
 			"-f",
 			"src/app.ts",
-			"apps/storybook/vite.config.ts.timestamp-1735325995918-46a167c39672.mjs",
+			"apps/admin/vite.config.ts.timestamp-1735325995918-46a167c39672.mjs",
 			"apps/web/vite.config.ts.timestamp-1700000000000-abc123def456.cjs",
 			"src/normal.timestamp-1.mjs",
 		]);
@@ -132,7 +171,7 @@ describe("source file selection", () => {
 
 		expect(sourceFiles).toEqual(
 			[
-				path.join(tmpDir, "apps/storybook/vite.config.ts.timestamp-1735325995918-46a167c39672.mjs"),
+				path.join(tmpDir, "apps/admin/vite.config.ts.timestamp-1735325995918-46a167c39672.mjs"),
 				path.join(tmpDir, "apps/web/vite.config.ts.timestamp-1700000000000-abc123def456.cjs"),
 				path.join(tmpDir, "src/app.ts"),
 				path.join(tmpDir, "src/normal.timestamp-1.mjs"),

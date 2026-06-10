@@ -14,6 +14,33 @@ const writeFile = (rootDirectory: string, filePath: string, content: string): st
 	return absolutePath;
 };
 
+const writeFakeRuff = (rootDirectory: string): string => {
+	const binDir = path.join(rootDirectory, "bin");
+	const ruffPath = path.join(binDir, "ruff");
+	fs.mkdirSync(binDir, { recursive: true });
+	fs.writeFileSync(
+		ruffPath,
+		`#!/usr/bin/env node
+const path = require("node:path");
+const targets = process.argv.slice(2).filter((arg) => !arg.startsWith("-") && arg !== "check");
+const diagnostics = targets
+  .filter((target) => path.basename(target) === "bad.py")
+  .map((target) => ({
+    code: "F401",
+    message: "\`definitely_unused\` imported but unused",
+    filename: target,
+    location: { row: 1, column: 8 },
+    fix: { applicability: "safe" }
+  }));
+process.stdout.write(JSON.stringify(diagnostics));
+process.exit(diagnostics.length > 0 ? 1 : 0);
+`,
+		"utf-8",
+	);
+	fs.chmodSync(ruffPath, 0o755);
+	return ruffPath;
+};
+
 const buildContext = (rootDirectory: string, files?: string[]): EngineContext => ({
 	rootDirectory,
 	languages: ["python"],
@@ -29,9 +56,11 @@ const buildContext = (rootDirectory: string, files?: string[]): EngineContext =>
 
 describe("ruff scope", () => {
 	let tmpDir: string;
+	let fakeRuffPath: string;
 
 	beforeEach(() => {
 		tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "aislop-ruff-scope-"));
+		fakeRuffPath = writeFakeRuff(tmpDir);
 	});
 
 	afterEach(() => {
@@ -42,7 +71,10 @@ describe("ruff scope", () => {
 		writeFile(tmpDir, "src/app.py", "def hello():\n    return 1\n");
 		writeFile(tmpDir, "code_samples/bad.py", "import definitely_unused\n");
 
-		const diagnostics = await runRuffLint(buildContext(tmpDir, getSourceFilesForRoot(tmpDir)));
+		const diagnostics = await runRuffLint(
+			buildContext(tmpDir, getSourceFilesForRoot(tmpDir)),
+			fakeRuffPath,
+		);
 
 		expect(diagnostics).toEqual([]);
 	});
@@ -50,7 +82,7 @@ describe("ruff scope", () => {
 	it("still lints an explicitly provided Python file", async () => {
 		const badFile = writeFile(tmpDir, "code_samples/bad.py", "import definitely_unused\n");
 
-		const diagnostics = await runRuffLint(buildContext(tmpDir, [badFile]));
+		const diagnostics = await runRuffLint(buildContext(tmpDir, [badFile]), fakeRuffPath);
 
 		expect(diagnostics.some((diagnostic) => diagnostic.rule === "ruff/F401")).toBe(true);
 	});

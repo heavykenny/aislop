@@ -2,6 +2,8 @@ import path from "node:path";
 import { findConfigDir, RULES_FILE } from "../config/index.js";
 import { loadArchitectureRules } from "../engines/architecture/rule-loader.js";
 import { descriptionForRule } from "../output/rule-labels.js";
+import { scoreImpactForRule } from "../scoring/rule-impact.js";
+import { highlightAislop } from "../ui/brand.js";
 import { renderHeader } from "../ui/header.js";
 import { detectInvocation } from "../ui/invocation.js";
 import { renderHintLine } from "../ui/logger.js";
@@ -69,6 +71,8 @@ const severityLabel = (severity: RuleEntry["severity"]): string =>
 
 const fixModeLabel = (fixable: boolean): "auto" | "review" => (fixable ? "auto" : "review");
 
+const impactLabel = (ruleId: string): string => scoreImpactForRule(ruleId).tier;
+
 export const buildRulesRender = (input: BuildRulesRenderInput): string => {
 	const header =
 		input.includeHeader === false
@@ -96,6 +100,7 @@ export const buildRulesRender = (input: BuildRulesRenderInput): string => {
 
 	const lines: string[] = [
 		` ${style(theme, "muted", "auto = aislop fix can change it; review = inspect and fix with a developer or agent.")}`,
+		` ${style(theme, "muted", "impact = how strongly the finding contributes to the score.")}`,
 		"",
 	];
 	for (const engine of engines) {
@@ -103,7 +108,7 @@ export const buildRulesRender = (input: BuildRulesRenderInput): string => {
 		lines.push(` ${style(theme, "accent", presentation.label)}`);
 		lines.push(`   ${style(theme, "muted", presentation.summary)}`);
 		lines.push(
-			`   ${style(theme, "dim", padEnd("Rule ID", idWidth))}  ${style(theme, "dim", "Sev")}    ${style(theme, "dim", "Fix")}     ${style(theme, "dim", "Meaning")}`,
+			`   ${style(theme, "dim", padEnd("Rule ID", idWidth))}  ${style(theme, "dim", "Sev")}    ${style(theme, "dim", "Fix")}     ${style(theme, "dim", "Impact")}          ${style(theme, "dim", "Meaning")}`,
 		);
 		const rules = (byEngine.get(engine) ?? []).sort((a, b) => a.id.localeCompare(b.id));
 		for (const r of rules) {
@@ -116,8 +121,9 @@ export const buildRulesRender = (input: BuildRulesRenderInput): string => {
 			const fixable = r.fixable
 				? style(theme, "accent", padEnd("auto", 6))
 				: style(theme, "muted", padEnd("review", 6));
+			const impact = style(theme, "muted", padEnd(impactLabel(r.id), 15));
 			lines.push(
-				`   ${padEnd(r.id, idWidth)}  ${severity}  ${fixable}  ${descriptionForRule(r.id)}`,
+				`   ${padEnd(r.id, idWidth)}  ${severity}  ${fixable}  ${impact}  ${descriptionForRule(r.id)}`,
 			);
 		}
 		lines.push("");
@@ -153,14 +159,15 @@ export const buildRuleDetailRender = (
 			"Fix",
 			`${fixModeLabel(rule.fixable)}${rule.fixable ? " (aislop fix can change it)" : " (review and fix intentionally)"}`,
 		],
+		["Impact", `${impactLabel(rule.id)} — ${scoreImpactForRule(rule.id).rationale}`],
 		["Meaning", descriptionForRule(rule.id)],
 	];
 	const labelWidth = Math.max(...rows.map(([label]) => label.length));
 	const body = rows
-		.map(
-			([label, value]) =>
-				` ${style(theme, "muted", padEnd(label, labelWidth))}  ${style(theme, label === "Severity" && rule.severity === "error" ? "danger" : "fg", value)}`,
-		)
+		.map(([label, value]) => {
+			const valueToken = label === "Severity" && rule.severity === "error" ? "danger" : "fg";
+			return ` ${style(theme, "muted", padEnd(label, labelWidth))}  ${highlightAislop(value, theme, valueToken)}`;
+		})
 		.join("\n");
 	const tail = renderHintLine(
 		rule.fixable

@@ -50,6 +50,7 @@ describe("init --strict", () => {
 		const config = fs.readFileSync(path.join(tmpDir, ".aislop/config.yml"), "utf-8");
 		expect(config).toContain("architecture: true");
 		expect(config).toContain("typecheck: true");
+		expect(config).toContain("expoDoctor: false");
 		expect(config).toContain("failBelow: 85");
 		expect(fs.existsSync(path.join(tmpDir, ".aislop/rules.yml"))).toBe(true);
 		expect(fs.existsSync(path.join(tmpDir, ".github/workflows/aislop.yml"))).toBe(true);

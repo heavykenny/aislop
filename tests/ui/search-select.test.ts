@@ -56,4 +56,36 @@ describe("search select", () => {
 		expect(out).toContain("type to filter");
 		expect(out).not.toContain("security/hardcoded-secret");
 	});
+
+	it("aligns hints after labels with different widths", () => {
+		const out = strip(
+			renderSearchLines({
+				message: "What would you like to do?",
+				items: [
+					{ value: "fix", label: "Fix", hint: "Auto-fix or hand off remaining findings" },
+					{ value: "agent", label: "Agent", hint: "Run local worktree repair" },
+					{
+						value: "hook-install",
+						label: "Install hooks",
+						hint: "Run aislop after agent edits",
+					},
+				],
+				query: "",
+				cursor: 0,
+				selected: new Set(),
+				mode: "single",
+				state: "active",
+			}).join("\n"),
+		);
+
+		const lines = out.split("\n");
+		const fixLine = lines.find((line) => line.includes("Fix"));
+		const agentLine = lines.find((line) => line.includes("Agent"));
+		const hookLine = lines.find((line) => line.includes("Install hooks"));
+		const hintColumn = fixLine?.indexOf("Auto-fix");
+
+		expect(hintColumn).toBeGreaterThan(-1);
+		expect(agentLine?.indexOf("Run local worktree repair")).toBe(hintColumn);
+		expect(hookLine?.indexOf("Run aislop after agent edits")).toBe(hintColumn);
+	});
 });
