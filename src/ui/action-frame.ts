@@ -1,3 +1,4 @@
+import { highlightAislop } from "./brand.js";
 import { style, theme } from "./theme.js";
 
 interface ActionFrameInput {
@@ -6,7 +7,7 @@ interface ActionFrameInput {
 }
 
 export const renderActionStart = (input: ActionFrameInput): string => {
-	const hint = input.hint ? ` ${style(theme, "muted", `· ${input.hint}`)}` : "";
+	const hint = input.hint ? ` ${highlightAislop(`· ${input.hint}`, theme, "muted")}` : "";
 	return `\n ${style(theme, "muted", "┌")} ${style(theme, "accent", input.label)}${hint}\n\n`;
 };
 

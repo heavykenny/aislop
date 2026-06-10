@@ -31,7 +31,7 @@ export { buildFixRender } from "./fix-render.js";
 interface FixOptions {
 	verbose: boolean;
 	force?: boolean;
-	/** Restrict to reversible fixes only (imports, comment removal, formatting) */
+	/** Restrict to reversible fixes only (imports, comment removal, safe formatter runs) */
 	safe?: boolean;
 	/** Agent CLI to launch with remaining issues (e.g. "claude", "codex") */
 	agent?: string;
@@ -45,11 +45,14 @@ const createEngineContext = (
 	rootDirectory: string,
 	projectInfo: ProjectInfo,
 	config: AislopConfig,
+	options: { safe?: boolean } = {},
 ): EngineContext => ({
 	rootDirectory,
 	languages: projectInfo.languages,
 	frameworks: projectInfo.frameworks,
-	installedTools: projectInfo.installedTools,
+	installedTools: options.safe
+		? { ...projectInfo.installedTools, rubocop: false, "php-cs-fixer": false }
+		: projectInfo.installedTools,
 	config: { quality: config.quality, security: config.security, lint: config.lint },
 });
 
@@ -102,7 +105,8 @@ const runFixBody = async (
 		);
 	}
 
-	const context = createEngineContext(resolvedDir, projectInfo, config);
+	const safe = Boolean(options.safe);
+	const context = createEngineContext(resolvedDir, projectInfo, config, { safe });
 	const steps: FixStepResult[] = [];
 	const rail = new LiveRail();
 
@@ -118,7 +122,6 @@ const runFixBody = async (
 		return result;
 	};
 
-	const safe = Boolean(options.safe);
 	const pipelineDeps: PipelineDeps = {
 		rail,
 		context,
@@ -159,7 +162,7 @@ const runFixBody = async (
 			rootDirectory: resolvedDir,
 			languages: projectInfo.languages,
 			frameworks: projectInfo.frameworks,
-			installedTools: projectInfo.installedTools,
+			installedTools: context.installedTools,
 			config: engineConfig,
 		},
 		config.engines,

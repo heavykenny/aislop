@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { renderCleanRun, renderSummary } from "../../src/ui/summary.js";
+import { renderCleanRun, renderSummary, renderTeamCta } from "../../src/ui/summary.js";
 import { createSymbols } from "../../src/ui/symbols.js";
 import { createTheme } from "../../src/ui/theme.js";
 import { ANSI_ESCAPE, stripAnsi as strip } from "../helpers/ansi.js";
@@ -74,6 +74,87 @@ describe("summary", () => {
 		);
 		expect(out).toContain("→ Run aislop fix to auto-fix 2 issues");
 		expect(out).toContain("→ Run aislop fix --agent to hand off");
+	});
+
+	it("renders command next-steps as an aligned action plan", () => {
+		const out = strip(
+			renderSummary(
+				{
+					score: 42,
+					label: "Critical",
+					errors: 4,
+					warnings: 8,
+					fixable: 3,
+					files: 100,
+					engines: 5,
+					elapsedMs: 1000,
+					nextSteps: [
+						{
+							emphasis: "primary",
+							label: "Agent",
+							command: "aislop agent",
+							detail: "run a local worktree repair session",
+						},
+						{
+							emphasis: "primary",
+							label: "Auto-fix",
+							command: "aislop fix",
+							detail: "auto-fix 3 issues",
+						},
+					],
+				},
+				opts,
+			),
+		);
+		expect(out).toContain("Agent repair plan");
+		expect(out).toMatch(/Agent\s+aislop agent\s+run a local worktree repair session/);
+		expect(out).toMatch(/Auto-fix\s+aislop fix\s+auto-fix 3 issues/);
+	});
+
+	it("renders top findings as a labeled table", () => {
+		const out = strip(
+			renderSummary(
+				{
+					score: 42,
+					label: "Critical",
+					errors: 4,
+					warnings: 8,
+					fixable: 3,
+					files: 100,
+					engines: 5,
+					elapsedMs: 1000,
+					nextSteps: [],
+					breakdown: {
+						rows: [
+							{
+								rule: "ai-slop/trivial-comment",
+								errors: 0,
+								warnings: 8,
+								info: 0,
+								fixable: 8,
+							},
+							{
+								rule: "security/vulnerable-dependency",
+								errors: 4,
+								warnings: 0,
+								info: 0,
+								fixable: 0,
+							},
+						],
+						hiddenRules: 0,
+						hiddenErrors: 0,
+						hiddenWarnings: 0,
+					},
+				},
+				opts,
+			),
+		);
+		expect(out).toContain("Top findings");
+		expect(out).toMatch(/#\s+Finding\s+Rule\s+Status/);
+		expect(out).toMatch(
+			/8\s+Trivial restating comment\s+ai-slop\/trivial-comment\s+8 warn\s+·\s+8 fixable/,
+		);
+		expect(out).not.toContain("(ai-slop/trivial-comment)");
 	});
 
 	it("renders the verdict mix when finding assessment is provided", () => {
@@ -154,5 +235,10 @@ describe("summary", () => {
 	it("renders a clean-run one-liner when score is 100 and no issues", () => {
 		const out = strip(renderCleanRun({ elapsedMs: 2300 }, opts));
 		expect(out).toContain("✓ Clean run  ·  no issues  ·  2.3s");
+	});
+
+	it("renders the team CTA with a visible https URL", () => {
+		const out = strip(renderTeamCta(opts));
+		expect(out).toContain("Gate every PR free at https://scanaislop.com");
 	});
 });

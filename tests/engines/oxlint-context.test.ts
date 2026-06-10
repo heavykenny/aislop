@@ -14,7 +14,7 @@ const writeFile = (relativePath: string, content: string): string => {
 	return absolutePath;
 };
 
-const context = (): EngineContext => ({
+const context = (overrides: Partial<EngineContext> = {}): EngineContext => ({
 	rootDirectory: tmpDir,
 	languages: ["typescript"],
 	frameworks: ["react"],
@@ -24,6 +24,7 @@ const context = (): EngineContext => ({
 		security: { audit: false, auditTimeout: 0 },
 		lint: { typecheck: false },
 	},
+	...overrides,
 });
 
 describe("runOxlint project context", () => {
@@ -148,6 +149,53 @@ describe("runOxlint project context", () => {
 					d.message.includes("'chrome' is not defined"),
 			),
 		).toBe(true);
+	});
+
+	it("honors declared ESLint globals and softens no-undef in PHP-served browser JS", async () => {
+		writeFile(
+			"eslint.config.mjs",
+			[
+				'import globals from "globals";',
+				"export default [{",
+				"  ignores: ['ignored/*'],",
+				"  languageOptions: {",
+				"    'globals': {",
+				"      ...globals.jquery,",
+				"      CFG_GLPI: true,",
+				"      'serverInjectedName': 'readonly',",
+				"    },",
+				"  },",
+				"}];",
+			].join("\n"),
+		);
+		writeFile("ignored/ignored.js", "missingIgnoredGlobal();\n");
+		writeFile(
+			"src/legacy-browser.js",
+			[
+				"jQuery(() => {",
+				"  $(document.body).data(CFG_GLPI.url);",
+				"  serverInjectedName.ready = true;",
+				"  missingTemplateGlobal();",
+				"});",
+			].join("\n"),
+		);
+
+		const diagnostics = await runOxlint(
+			context({ languages: ["php", "javascript"], frameworks: ["none"] }),
+		);
+
+		expect(diagnostics.some((d) => d.message.includes("'jQuery' is not defined"))).toBe(false);
+		expect(diagnostics.some((d) => d.message.includes("'$' is not defined"))).toBe(false);
+		expect(diagnostics.some((d) => d.message.includes("'CFG_GLPI' is not defined"))).toBe(false);
+		expect(
+			diagnostics.some((d) => d.message.includes("'serverInjectedName' is not defined")),
+		).toBe(false);
+		expect(
+			diagnostics.some((d) => d.message.includes("'missingIgnoredGlobal' is not defined")),
+		).toBe(false);
+		expect(
+			diagnostics.find((d) => d.message.includes("'missingTemplateGlobal' is not defined")),
+		).toMatchObject({ rule: "eslint/no-undef", severity: "warning" });
 	});
 
 	it("drops Solid JSX ref assignment false positives without disabling real no-undef", async () => {
