@@ -2,6 +2,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { isCiEnv } from "./telemetry/env.js";
+import { highlightAislop } from "./ui/brand.js";
+import { theme } from "./ui/theme.js";
 import { APP_VERSION } from "./version.js";
 
 const REGISTRY_URL = "https://registry.npmjs.org/aislop/latest";
@@ -52,8 +54,8 @@ export const formatUpdateNotice = (current: string, latest: string): string =>
 	[
 		"",
 		`Update available: ${current} -> ${latest}.`,
-		"Upgrade: npm i -g aislop@latest",
-		"One-off: npx aislop@latest",
+		highlightAislop("Upgrade: npm i -g aislop@latest", theme),
+		highlightAislop("One-off: npx aislop@latest", theme),
 		"",
 	].join("\n");
 

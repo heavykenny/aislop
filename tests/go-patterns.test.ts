@@ -89,6 +89,45 @@ describe("go: library-panic", () => {
 		expect(diagnostics).toEqual([]);
 	});
 
+	it("does NOT flag `panic()` in Go test support packages", async () => {
+		writeFile(
+			"internal/testutil/image.go",
+			[
+				"package testutil",
+				"",
+				"func MustImage() string {",
+				'    panic("missing test fixture")',
+				"}",
+				"",
+			].join("\n"),
+		);
+		writeFile(
+			"cmd/devp2p/internal/ethtest/framework.go",
+			[
+				"package ethtest",
+				"",
+				"func MustPeer() string {",
+				'    panic("bad test harness")',
+				"}",
+				"",
+			].join("\n"),
+		);
+		writeFile(
+			"pkg/parser/testdata/bad.go",
+			[
+				"package bad",
+				"",
+				"func Fixture() {",
+				'    panic("fixture")',
+				"}",
+				"",
+			].join("\n"),
+		);
+
+		const diagnostics = await detectGoPatterns(buildContext());
+		expect(diagnostics).toEqual([]);
+	});
+
 	it("does NOT flag the word `panic` inside a comment or string literal", async () => {
 		writeFile(
 			"pkg/lib/lib.go",

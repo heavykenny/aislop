@@ -90,6 +90,11 @@ describe("parseConfig", () => {
 		const result = parseConfig({ version: 2 });
 		expect(result.version).toBe(2);
 	});
+
+	it("defaults Expo Doctor to disabled unless explicitly enabled", () => {
+		expect(parseConfig({}).lint.expoDoctor).toBe(false);
+		expect(parseConfig({ lint: { expoDoctor: true } }).lint.expoDoctor).toBe(true);
+	});
 });
 
 // ─── DEFAULT_CONFIG ────────────────────────────────────────────────────────────
@@ -131,6 +136,16 @@ describe("DEFAULT_CONFIG", () => {
 		);
 	});
 
+	it("uses balanced ai-slop weighting by default", () => {
+		expect(DEFAULT_CONFIG.scoring.weights["ai-slop"]).toBe(1.0);
+		expect(DEFAULT_CONFIG.scoring.weights["ai-slop"]).toBe(
+			DEFAULT_CONFIG.scoring.weights.architecture,
+		);
+		expect(DEFAULT_CONFIG.scoring.weights.security).toBeGreaterThan(
+			DEFAULT_CONFIG.scoring.weights["ai-slop"],
+		);
+	});
+
 	it("thresholds are ordered: ok < good", () => {
 		expect(DEFAULT_CONFIG.scoring.thresholds.ok).toBeLessThan(
 			DEFAULT_CONFIG.scoring.thresholds.good,
@@ -143,6 +158,10 @@ describe("DEFAULT_CONFIG", () => {
 
 	it("ci failBelow defaults to the public quality gate", () => {
 		expect(DEFAULT_CONFIG.ci.failBelow).toBe(70);
+	});
+
+	it("keeps Expo Doctor disabled by default", () => {
+		expect(DEFAULT_CONFIG.lint.expoDoctor).toBe(false);
 	});
 });
 

@@ -29,7 +29,8 @@ pipx install aislop                  # Python
 See [Installation](#installation) for every option.
 
 ```bash
-aislop fix                   # auto-fix issues after installing
+aislop agent                 # repair with your coding agent (Codex/Claude/OpenCode)
+aislop fix                   # auto-fix the mechanical issues
 aislop fix -f                # aggressive fixes (deps, unused files)
 aislop ci                    # CI mode (JSON + gate)
 aislop hook install --claude # per-edit hook
@@ -186,17 +187,46 @@ ci:
 
 ### Fix
 
-Auto-fix what's mechanical (formatters, unused imports, dead code). For issues that need context, hand off to your agent with full diagnostic info.
+The deterministic layer beneath [`aislop agent`](#run-a-local-repair-agent): auto-fix what's purely mechanical (formatters, unused imports, dead code). For anything that needs judgement, reach for `aislop agent` or hand off to your coding agent with full diagnostic info.
 
 ```bash
 aislop fix                 # auto-fixes
 aislop fix -d              # detailed fix progress
-aislop fix --safe          # only reversible fixes (imports, comment removal, formatting)
+aislop fix --safe          # only reversible fixes (imports, comment removal, safe formatters)
 aislop fix -f              # aggressive: deps, unused files
 aislop fix -p              # print an agent handoff prompt
 ```
 
-`--safe` restricts the run to fixes that cannot change behaviour — unused-import removal, import merging, narrative-comment removal, and formatting. Anything that deletes code or rewrites behaviour/attributes (console/dead-code removal, lint autofixes, unused-declaration and dependency pruning) is skipped, so a `--safe` run is genuinely "apply and commit".
+`--safe` restricts the run to fixes that cannot change behaviour — unused-import removal, import merging, narrative-comment removal, and formatter runs that do not execute project-controlled configuration. Anything that deletes code, rewrites behaviour/attributes, or can load executable formatter configuration (console/dead-code removal, lint autofixes, Ruby/PHP formatter config, unused-declaration and dependency pruning) is skipped, so a `--safe` run is genuinely "apply and commit".
+
+### Run a local repair agent
+
+`aislop agent` keeps the deterministic scanner in charge while using the coding agent you already have installed. It creates a local git worktree, runs safe fixes, streams a headless Codex / Claude Code / OpenCode repair session, verifies the result with `aislop scan --json`, writes a local session transcript, and leaves the diff for review.
+
+```bash
+aislop agent providers        # see installed providers and setup hints
+aislop agent connect codex    # run the provider's own local login flow
+aislop agent use codex        # save a repo-local default provider
+aislop agent use auto         # clear the default and auto-detect
+aislop agent plan             # preview provider, worktree, findings, PR/apply behavior
+aislop agent monitor          # stream scans when local git changes settle
+aislop agent monitor --background
+aislop agent monitor list     # list background monitors
+aislop agent monitor stop     # stop the latest background monitor
+aislop agent monitor --repair --in-place
+aislop agent                  # auto-pick an installed provider
+aislop agent --provider codex # switch provider
+aislop agent --background     # run locally in the background
+aislop agent --apply          # apply verified diff back to this repo
+aislop agent --pr             # commit, push, and open a draft PR
+aislop agent sessions         # list recent local repair sessions
+aislop agent show             # show the latest session timeline and summary
+aislop agent apply            # apply a reviewed worktree session later
+aislop agent watch            # stream the latest session transcript
+aislop agent stop             # stop the latest running background session
+```
+
+No OpenAI or Anthropic API key is requested by `aislop`; provider CLIs use their own existing local auth. A saved provider default lives in `.aislop/agent/provider.json` and is kept out of commits through the repo's local Git exclude. Session transcripts live under `.aislop/agent/sessions/`, and agent sessions/worktrees are also excluded locally. Provider JSONL is normalized in the terminal stream while raw lines stay in the transcript.
 
 ### Hand off to agent
 
@@ -282,18 +312,19 @@ aislop                         # interactive menu
 aislop init                    # create .aislop/config.yml
 aislop init --strict           # enterprise-grade gate: all engines, typecheck, failBelow 85
 aislop doctor                  # check which engines can run here
-aislop rules                   # list rules
+aislop rules                   # list rules with severity, fixability, and score impact
 aislop rules --search          # searchable rule explorer
 aislop badge                   # print badge URL
 aislop badge --owner o --repo r --json
 aislop trend                   # show score history over time
+aislop trends                  # alias for trend
 aislop trend --limit 20
 aislop update                  # show current and latest npm versions
 aislop upgrade                 # alias for update
 aislop commands                # full command list
 ```
 
-**Score history**: a normal (full-project, interactive) `scan` appends a compact record to `.aislop/history.jsonl` (timestamp, score, error/warning counts, file count, CLI version). `aislop trend` reads it and prints a table plus an ASCII sparkline of recent scores. History is a local side effect only: it is never written for `--json`/`--sarif` output, in CI, or when `AISLOP_NO_HISTORY=1` is set, so machine output stays clean.
+**Score history**: a normal (full-project, interactive) `scan` appends a compact record to `.aislop/history.jsonl` (timestamp, score, error/warning counts, file count, CLI version). `aislop trend` and `aislop trends` read it and print a relative-time table plus an ASCII sparkline of recent scores. History is a local side effect only: it is never written for `--json`/`--sarif` output, in CI, or when `AISLOP_NO_HISTORY=1` is set, so machine output stays clean.
 
 Docs: [commands](docs/commands.md)
 
@@ -343,7 +374,7 @@ jobs:
       - run: npx --yes aislop@latest ci
 ```
 
-Prefer the Marketplace Action? `@v1` tracks the latest release and `version: latest` keeps the CLI current. Pin `@v0.10.2` and a `version` for reproducible builds:
+Prefer the Marketplace Action? `@v1` tracks the latest release and `version: latest` keeps the CLI current. Pin `@v0.11.0` and a `version` for reproducible builds:
 
 ```yaml
 - uses: actions/checkout@v4
