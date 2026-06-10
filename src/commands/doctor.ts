@@ -199,22 +199,9 @@ const planFormat = (ctx: PlanContext): ToolDecision => {
 	);
 };
 
-const findLocalTsc = (root: string): string | null => {
-	const candidate = path.join(root, "node_modules", ".bin", "tsc");
-	return fs.existsSync(candidate) ? candidate : null;
-};
-
 const withTypecheckSuffix = (baseTool: string, ctx: PlanContext): ToolDecision => {
 	if (!ctx.config.lint?.typecheck) return { tool: baseTool, status: "ok" };
-	if (findLocalTsc(ctx.rootDirectory)) {
-		return { tool: `${baseTool} + tsc`, status: "ok" };
-	}
-	return {
-		tool: `${baseTool} + tsc not found`,
-		status: "missing",
-		remediation:
-			"Install TypeScript locally (pnpm add -D typescript), or set lint.typecheck: false in .aislop/config.yml.",
-	};
+	return { tool: `${baseTool} + tsc (bundled)`, status: "ok" };
 };
 
 const planLint = (ctx: PlanContext): ToolDecision => {

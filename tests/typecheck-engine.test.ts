@@ -101,6 +101,21 @@ describe("runTypecheck", () => {
 		expect(ts2322[0].filePath.endsWith("bug.ts")).toBe(true);
 	}, 60_000);
 
+	it("does not execute a repository-controlled tsc shim", async () => {
+		writeFile("tsconfig.json", JSON.stringify(baseTsconfig));
+		writeFile("src/index.ts", "export const ok: number = 1;\n");
+		writeFile(
+			path.join("node_modules", ".bin", "tsc"),
+			`#!/usr/bin/env node\nimport fs from "node:fs";\nfs.writeFileSync(${JSON.stringify(path.join(tmpDir, "pwned.txt"))}, "executed");\n`,
+		);
+		fs.chmodSync(path.join(tmpDir, "node_modules", ".bin", "tsc"), 0o755);
+
+		const diagnostics = await runTypecheck(buildContext());
+
+		expect(diagnostics).toEqual([]);
+		expect(fs.existsSync(path.join(tmpDir, "pwned.txt"))).toBe(false);
+	}, 30_000);
+
 	it("skips reference-only tsconfigs with no files/include/extends", async () => {
 		linkNodeModules();
 		writeFile(
