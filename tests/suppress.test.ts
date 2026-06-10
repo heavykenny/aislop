@@ -50,6 +50,16 @@ describe("applySuppressions", () => {
 		expect(results[0].diagnostics.map((d) => d.line)).toEqual([3]);
 	});
 
+	it("suppresses the next line for a JSDoc-style block directive", () => {
+		write("a.ts", "/** aislop-ignore-next-line */\nconst x = {} || {};\n");
+		const { suppressedCount } = applySuppressions(
+			wrap([diag("a.ts", 2, "ai-slop/empty-fallback")]),
+			tmpDir,
+		);
+		expect(suppressedCount).toBe(1);
+		expect(isAislopDirectiveLine("/** aislop-ignore-next-line */")).toBe(true);
+	});
+
 	it("only suppresses the named rule when one is given", () => {
 		write("a.ts", "// aislop-ignore-next-line ai-slop/empty-fallback\nconst x = 1;\n");
 		const { results, suppressedCount } = applySuppressions(
