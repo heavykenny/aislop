@@ -13,8 +13,10 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
 	createAgentWorktree,
+	diffNameOnly,
 	diffNumstat,
 	readAgentRoot,
+	readBinaryDiff,
 	removeAgentWorktree,
 } from "../../src/agents/worktree.js";
 
@@ -22,6 +24,13 @@ let tempDirs: string[] = [];
 
 const git = (cwd: string, args: string[]): void => {
 	const result = spawnSync("git", args, { cwd, encoding: "utf-8" });
+	if (result.status !== 0) {
+		throw new Error(result.stderr || result.stdout || `git ${args.join(" ")} failed`);
+	}
+};
+
+const gitWithInput = (cwd: string, args: string[], input: string): void => {
+	const result = spawnSync("git", args, { cwd, input, encoding: "utf-8" });
 	if (result.status !== 0) {
 		throw new Error(result.stderr || result.stdout || `git ${args.join(" ")} failed`);
 	}
@@ -91,5 +100,30 @@ describe("agent worktrees", () => {
 			deletions: 1,
 			binary: false,
 		});
+	});
+
+	it("lists staged and untracked files as agent worktree changes", async () => {
+		const root = createRepo();
+		writeFileSync(path.join(root, "index.ts"), "export const value = 2;\n", "utf-8");
+		git(root, ["add", "index.ts"]);
+		writeFileSync(path.join(root, "new.ts"), "export const added = true;\n", "utf-8");
+
+		await expect(diffNameOnly(root)).resolves.toEqual(["index.ts", "new.ts"]);
+	});
+
+	it("reads staged and untracked files into an applyable patch", async () => {
+		const root = createRepo();
+		writeFileSync(path.join(root, "index.ts"), "export const value = 2;\n", "utf-8");
+		git(root, ["add", "index.ts"]);
+		writeFileSync(path.join(root, "new.ts"), "export const added = true;\n", "utf-8");
+		const target = mkdtempSync(path.join(tmpdir(), "aislop-agent-worktree-target-"));
+		tempDirs.push(target);
+		git(root, ["clone", root, target]);
+
+		const patch = await readBinaryDiff(root);
+		gitWithInput(target, ["apply"], patch);
+
+		expect(readFileSync(path.join(target, "index.ts"), "utf-8")).toBe("export const value = 2;\n");
+		expect(readFileSync(path.join(target, "new.ts"), "utf-8")).toBe("export const added = true;\n");
 	});
 });

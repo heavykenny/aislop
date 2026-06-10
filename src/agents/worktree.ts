@@ -25,6 +25,58 @@ const readDirty = async (gitRoot: string): Promise<boolean> => {
 	return status.stdout.trim().length > 0;
 };
 
+const splitNull = (value: string): string[] => value.split("\0").filter(Boolean);
+
+const unique = (values: string[]): string[] => [...new Set(values)];
+
+const parseStatusPaths = (stdout: string): string[] => {
+	const records = splitNull(stdout);
+	const paths: string[] = [];
+	for (let index = 0; index < records.length; index += 1) {
+		const record = records[index] ?? "";
+		const status = record.slice(0, 2);
+		const filePath = record.slice(3);
+		if (!filePath) continue;
+		paths.push(filePath);
+		if (status.includes("R") || status.includes("C")) index += 1;
+	}
+	return unique(paths);
+};
+
+const readUntrackedFiles = async (cwd: string): Promise<string[]> => {
+	const result = await runSubprocess("git", ["ls-files", "--others", "--exclude-standard", "-z"], {
+		cwd,
+	});
+	if (result.exitCode !== 0) return [];
+	return splitNull(result.stdout);
+};
+
+const runGit = async (cwd: string, args: string[], timeout?: number): Promise<string> => {
+	const result = await runSubprocess("git", args, { cwd, timeout });
+	if (result.exitCode !== 0) throw new Error(result.stderr || `git ${args.join(" ")} failed.`);
+	return result.stdout;
+};
+
+const readDiffIncludingUntracked = async (
+	cwd: string,
+	args: string[],
+	timeout?: number,
+): Promise<string> => {
+	const untrackedFiles = await readUntrackedFiles(cwd);
+	const cached = await runGit(cwd, ["diff", "--cached", ...args], timeout);
+	if (untrackedFiles.length === 0) {
+		const worktree = await runGit(cwd, ["diff", ...args], timeout);
+		return [cached, worktree].filter(Boolean).join("\n");
+	}
+	await runGit(cwd, ["add", "--intent-to-add", "--", ...untrackedFiles], timeout);
+	try {
+		const worktree = await runGit(cwd, ["diff", ...args], timeout);
+		return [cached, worktree].filter(Boolean).join("\n");
+	} finally {
+		await runGit(cwd, ["reset", "--", ...untrackedFiles], timeout);
+	}
+};
+
 const readGitState = async (cwd: string): Promise<GitState> => {
 	const root = await runSubprocess("git", ["rev-parse", "--show-toplevel"], { cwd });
 	if (root.exitCode !== 0 || !root.stdout) {
@@ -130,9 +182,9 @@ export const removeAgentWorktree = async (worktree: AgentWorktree): Promise<void
 };
 
 export const diffNameOnly = async (cwd: string): Promise<string[]> => {
-	const result = await runSubprocess("git", ["diff", "--name-only"], { cwd });
+	const result = await runSubprocess("git", ["status", "--porcelain=v1", "-z"], { cwd });
 	if (result.exitCode !== 0) return [];
-	return result.stdout.split("\n").filter(Boolean);
+	return parseStatusPaths(result.stdout);
 };
 
 export interface DiffNumstat {
@@ -149,30 +201,35 @@ const parseNumstatValue = (value: string): number | null => {
 };
 
 export const diffNumstat = async (cwd: string): Promise<Map<string, DiffNumstat>> => {
-	const result = await runSubprocess("git", ["diff", "--numstat"], { cwd });
+	const stdout = await readDiffIncludingUntracked(cwd, ["--numstat"]);
 	const stats = new Map<string, DiffNumstat>();
-	if (result.exitCode !== 0) return stats;
-	for (const line of result.stdout.split("\n")) {
+	for (const line of stdout.split("\n")) {
 		if (!line.trim()) continue;
 		const [rawAdditions, rawDeletions, ...pathParts] = line.split("\t");
 		const filePath = pathParts.join("\t");
 		if (!filePath) continue;
 		const additions = parseNumstatValue(rawAdditions ?? "");
 		const deletions = parseNumstatValue(rawDeletions ?? "");
+		const existing = stats.get(filePath);
 		stats.set(filePath, {
 			filePath,
-			additions,
-			deletions,
-			binary: additions === null || deletions === null,
+			additions:
+				existing?.additions === null || additions === null
+					? null
+					: (existing?.additions ?? 0) + additions,
+			deletions:
+				existing?.deletions === null || deletions === null
+					? null
+					: (existing?.deletions ?? 0) + deletions,
+			binary: existing?.binary === true || additions === null || deletions === null,
 		});
 	}
 	return stats;
 };
 
 export const readBinaryDiff = async (cwd: string): Promise<string> => {
-	const result = await runSubprocess("git", ["diff", "--binary"], { cwd, timeout: 60_000 });
-	if (result.exitCode !== 0) throw new Error(result.stderr || "Failed to read worktree diff.");
+	const patch = await readDiffIncludingUntracked(cwd, ["--binary"], 60_000);
 	// runSubprocess trims trailing whitespace, but `git apply` is byte-strict and
 	// rejects a patch missing its final newline ("corrupt patch at line N").
-	return result.stdout.length > 0 ? `${result.stdout}\n` : result.stdout;
+	return patch.length > 0 ? `${patch}\n` : patch;
 };

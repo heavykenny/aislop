@@ -161,7 +161,6 @@ export const agentWatchCommand = async (
 							events,
 						}).join("\n")}\n`,
 					);
-					printedReview = true;
 				}
 				return;
 			}
