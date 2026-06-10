@@ -1,8 +1,9 @@
 import * as readline from "node:readline";
 import { Writable } from "node:stream";
+import { highlightAislop } from "./brand.js";
 import { symbols } from "./symbols.js";
 import { style, theme } from "./theme.js";
-import { stringWidth, truncate } from "./width.js";
+import { padEnd, stringWidth, truncate } from "./width.js";
 
 const silentOutput = new Writable({
 	write(_chunk, _encoding, callback) {
@@ -83,6 +84,7 @@ export const renderSearchLines = <T>(options: RenderOptions<T>): string[] => {
 	);
 	const visible = filtered.slice(start, start + maxVisible);
 	const lines: string[] = [];
+	const labelWidth = visible.reduce((width, item) => Math.max(width, stringWidth(item.label)), 0);
 	const marker =
 		options.state === "cancel"
 			? style(theme, "danger", symbols.fail)
@@ -129,8 +131,9 @@ export const renderSearchLines = <T>(options: RenderOptions<T>): string[] => {
 					: active
 						? style(theme, "accent", symbols.bullet)
 						: style(theme, "muted", symbols.pending);
-			const label = active ? style(theme, "bold", item.label) : item.label;
-			const hint = item.hint ? ` ${style(theme, "muted", truncate(item.hint, 72))}` : "";
+			const paddedLabel = padEnd(item.label, labelWidth);
+			const label = active ? style(theme, "bold", paddedLabel) : paddedLabel;
+			const hint = item.hint ? ` ${highlightAislop(truncate(item.hint, 72), theme, "muted")}` : "";
 			lines.push(` ${style(theme, "muted", symbols.rail)} ${pointer} ${radio} ${label}${hint}`);
 		}
 	}

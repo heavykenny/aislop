@@ -70,6 +70,32 @@ describe("json output", () => {
 
 		expect(out.diagnostics[0].assessment.kind).toBe("confirmed-defect");
 		expect(out.diagnostics[0].assessment.confidence).toBe("high");
+		expect(out.diagnostics[0].scoreImpact.tier).toBe("strict");
+		expect(out.diagnostics[0].scoreImpact.rationale).toContain("Undefined identifiers");
 		expect(out.findingAssessment.byKind["confirmed-defect"]).toBe(1);
+	});
+
+	it("includes advisory score impact metadata for soft config warnings", () => {
+		const out = buildJsonOutput(
+			[
+				result([
+					diagnostic({
+						engine: "ai-slop",
+						rule: "ai-slop/hardcoded-url",
+						severity: "warning",
+					}),
+				]),
+			],
+			{ score: 99, label: "Healthy" },
+			10,
+			10,
+			scoreable,
+		);
+
+		expect(out.diagnostics[0].scoreImpact).toMatchObject({
+			tier: "advisory",
+			multiplier: 0.25,
+			cap: 4,
+		});
 	});
 });

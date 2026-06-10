@@ -8,6 +8,7 @@ interface OxlintConfigOptions {
 	testFramework?: TestFramework;
 	mode?: "detect" | "fix";
 	globals?: string[];
+	noUndefSeverity?: "error" | "warn" | "off";
 }
 
 const buildBaseRules = (): Record<string, string> => ({
@@ -76,6 +77,7 @@ const buildTestGlobals = (testFramework: TestFramework): Record<string, string> 
 
 export const createOxlintConfig = (options: OxlintConfigOptions): Record<string, unknown> => {
 	const rules = buildBaseRules();
+	rules["no-undef"] = options.noUndefSeverity ?? rules["no-undef"];
 	if (hasReact(options.framework)) Object.assign(rules, buildReactRules());
 	if (options.mode === "fix") {
 		rules["no-unused-vars"] = "off";
