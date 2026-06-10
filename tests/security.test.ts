@@ -10,11 +10,11 @@ import type { EngineContext } from "../src/engines/types.js";
 
 let tmpDir: string;
 
-const makeContext = (files: string[]): EngineContext => ({
+const makeContext = (files?: string[]): EngineContext => ({
 	rootDirectory: tmpDir,
 	languages: ["typescript"],
 	frameworks: ["none"],
-	files,
+	...(files === undefined ? {} : { files }),
 	installedTools: {},
 	config: {
 		quality: {
@@ -61,6 +61,37 @@ describe("scanSecrets", () => {
 		expect(diagnostics[0].rule).toBe("security/hardcoded-secret");
 		expect(diagnostics[0].severity).toBe("error");
 		expect(diagnostics[0].engine).toBe("security");
+	});
+
+	it("detects secret values that contain placeholder-like text", async () => {
+		const filePath = writeFile(
+			"placeholder-looking-secrets.ts",
+			[
+				'const apiKey = "your_abcdefghijklmnopqrstu12345";',
+				'const password = "prod-env(db)-password";',
+				'const secret = "prod-${tenant}-secret";',
+				'const passwd = "process.env.REAL_PASSWORD";',
+				'const pwd = "<prod-password-value>";',
+			].join("\n"),
+		);
+		const diagnostics = await scanSecrets(makeContext([filePath]));
+		expect(diagnostics.filter((d) => d.rule === "security/hardcoded-secret")).toHaveLength(5);
+	});
+
+	it("detects secrets in public assets during project-wide scans", async () => {
+		writeFile("public/config.js", 'const apiKey = "abcdefghijklmnopqrstu12345";');
+
+		const diagnostics = await scanSecrets(makeContext());
+
+		expect(diagnostics.some((d) => d.filePath === "public/config.js")).toBe(true);
+	});
+
+	it("detects secrets in timestamp-named JavaScript during project-wide scans", async () => {
+		writeFile("src/config.timestamp-123-abc.js", 'const apiKey = "abcdefghijklmnopqrstu12345";');
+
+		const diagnostics = await scanSecrets(makeContext());
+
+		expect(diagnostics.some((d) => d.filePath === "src/config.timestamp-123-abc.js")).toBe(true);
 	});
 
 	it("detects an AWS Access Key ID", async () => {
@@ -287,6 +318,28 @@ describe("detectRiskyConstructs", () => {
 		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));
 		expect(diagnostics.length).toBeGreaterThanOrEqual(1);
 		expect(diagnostics[0].rule).toBe("security/eval");
+	});
+
+	it("detects risky constructs in public assets during project-wide scans", async () => {
+		writeFile("public/vuln.js", "eval(userInput);");
+
+		const diagnostics = await detectRiskyConstructs(makeContext());
+
+		expect(
+			diagnostics.some((d) => d.filePath === "public/vuln.js" && d.rule === "security/eval"),
+		).toBe(true);
+	});
+
+	it("detects risky constructs in timestamp-named JavaScript during project-wide scans", async () => {
+		writeFile("src/vuln.timestamp-123-abc.js", "eval(userInput);");
+
+		const diagnostics = await detectRiskyConstructs(makeContext());
+
+		expect(
+			diagnostics.some(
+				(d) => d.filePath === "src/vuln.timestamp-123-abc.js" && d.rule === "security/eval",
+			),
+		).toBe(true);
 	});
 
 	it("does not flag 'evaluate' as eval", async () => {
@@ -693,6 +746,24 @@ describe("detectRiskyConstructs", () => {
 		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));
 		const sqlDiags = diagnostics.filter((d) => d.rule === "security/sql-injection");
 		expect(sqlDiags.length).toBeGreaterThanOrEqual(1);
+	});
+
+	it("detects SQL injection in migration and seeder paths", async () => {
+		const migrationFile = writeFile(
+			"src/migrations/runtime-helper.ts",
+			"const rows = await db.query(`SELECT * FROM users WHERE id = ${userId}`);",
+		);
+		const seederFile = writeFile(
+			"src/seeders/runtime-helper.ts",
+			"const rows = await db.query(`SELECT * FROM users WHERE id = ${userId}`);",
+		);
+		const diagnostics = await detectRiskyConstructs(makeContext([migrationFile, seederFile]));
+		const sqlDiags = diagnostics.filter((d) => d.rule === "security/sql-injection");
+		expect(sqlDiags).toHaveLength(2);
+		expect(sqlDiags.map((d) => d.filePath).sort()).toEqual([
+			"src/migrations/runtime-helper.ts",
+			"src/seeders/runtime-helper.ts",
+		]);
 	});
 
 	it("detects SQL injection via chained DB member (client.pool.query)", async () => {

@@ -1,7 +1,7 @@
 import type { EngineName } from "../engines/types.js";
 import { symbols as defaultSymbols, type Symbols } from "./symbols.js";
 import { theme as defaultTheme, style, type Theme, type Token } from "./theme.js";
-import { padEnd, padStart } from "./width.js";
+import { padEnd, padStart, truncate } from "./width.js";
 
 export type GridRowStatus = "queued" | "running" | "done" | "skipped";
 export type GridRowOutcome = "ok" | "warn" | "fail";
@@ -26,6 +26,7 @@ interface GridDeps {
 	statusWidth?: number;
 	elapsedWidth?: number;
 	spinnerFrame?: number;
+	columns?: number;
 }
 
 const SPINNER = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
@@ -69,18 +70,87 @@ export const renderGridFrame = (input: GridInput, deps: GridDeps = {}): string =
 	return `${lines.join("\n")}\n`;
 };
 
+const isComplete = (row: GridRow): boolean => row.status === "done" || row.status === "skipped";
+
+const summarizeActiveRows = (rows: GridRow[]): string => {
+	const running = rows.filter((row) => row.status === "running");
+	if (running.length > 0) {
+		const labels = running.slice(0, 2).map((row) => row.label);
+		const extra = running.length > labels.length ? ` +${running.length - labels.length}` : "";
+		return `running ${labels.join(", ")}${extra}`;
+	}
+
+	const queued = rows.filter((row) => row.status === "queued");
+	if (queued.length === rows.length) return "starting";
+
+	const issueRows = rows
+		.filter((row) => isComplete(row) && row.summary && row.summary !== "0 issues")
+		.slice(0, 2)
+		.map((row) => `${row.label}: ${row.summary}`);
+	if (issueRows.length > 0) return issueRows.join(" · ");
+
+	return "finishing";
+};
+
+const progressOutcome = (rows: GridRow[]): GridRowOutcome | "running" | "queued" => {
+	if (rows.some((row) => row.status === "running")) return "running";
+	if (rows.every((row) => row.status === "queued")) return "queued";
+	if (rows.some((row) => row.outcome === "fail")) return "fail";
+	if (rows.some((row) => row.outcome === "warn")) return "warn";
+	return "ok";
+};
+
+export const renderProgressLine = (input: GridInput, deps: GridDeps = {}): string => {
+	const t = deps.theme ?? defaultTheme;
+	const s = deps.symbols ?? defaultSymbols;
+	const rows = input.rows;
+	const total = rows.length;
+	const complete = rows.filter(isComplete).length;
+	const outcome = progressOutcome(rows);
+	const token: Token =
+		outcome === "fail"
+			? "danger"
+			: outcome === "warn"
+				? "warn"
+				: outcome === "running"
+					? "info"
+					: "muted";
+	const glyph =
+		outcome === "running"
+			? SPINNER[(deps.spinnerFrame ?? 0) % SPINNER.length]
+			: outcome === "fail"
+				? s.fail
+				: outcome === "warn"
+					? s.warn
+					: outcome === "ok"
+						? s.pass
+						: s.pending;
+	const status = summarizeActiveRows(rows);
+	const raw = `Scan ${complete}/${total} engines · ${status}`;
+	const columns = Math.max(32, deps.columns ?? 120);
+	const line = truncate(raw, Math.max(12, columns - 3));
+	return ` ${style(t, token, glyph)} ${style(t, "muted", line)}`;
+};
+
 export class LiveGrid {
 	private rows: GridRow[];
 	private frame = 0;
-	private previousLines = 0;
+	private visible = false;
 	private timer: NodeJS.Timeout | undefined;
 	private readonly write: (s: string) => void;
 	private readonly tty: boolean;
+	private readonly columns: () => number;
 
-	constructor(rows: GridRow[], opts: { write?: (s: string) => void; tty?: boolean } = {}) {
+	constructor(
+		rows: GridRow[],
+		opts: { write?: (s: string) => void; tty?: boolean; columns?: number | (() => number) } = {},
+	) {
 		this.rows = rows;
 		this.write = opts.write ?? ((s) => process.stderr.write(s));
 		this.tty = opts.tty ?? Boolean(process.stderr.isTTY);
+		const columns = opts.columns;
+		this.columns =
+			typeof columns === "function" ? columns : () => columns ?? process.stderr.columns ?? 120;
 	}
 
 	start(): void {
@@ -111,21 +181,24 @@ export class LiveGrid {
 			}
 			return;
 		}
-		this.render();
+		this.clear();
 	}
 
 	private render(): void {
 		if (!this.tty) return;
-		if (this.previousLines > 0) {
-			this.write(`\x1B[${this.previousLines}F`);
-			for (let i = 0; i < this.previousLines; i += 1) {
-				this.write("\x1B[2K");
-				if (i < this.previousLines - 1) this.write("\x1B[1E");
-			}
-			if (this.previousLines > 1) this.write(`\x1B[${this.previousLines - 1}F`);
-		}
-		const out = renderGridFrame({ rows: this.rows }, { spinnerFrame: this.frame });
-		this.write(out);
-		this.previousLines = out.split("\n").length - 1;
+		this.clear();
+		this.write(
+			renderProgressLine(
+				{ rows: this.rows },
+				{ spinnerFrame: this.frame, columns: this.columns() },
+			),
+		);
+		this.visible = true;
+	}
+
+	private clear(): void {
+		if (!this.visible) return;
+		this.write("\r\x1B[2K");
+		this.visible = false;
 	}
 }

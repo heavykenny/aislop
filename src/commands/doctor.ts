@@ -2,15 +2,19 @@ import fs from "node:fs";
 import path from "node:path";
 import { type AislopConfig, CONFIG_DIR, loadConfig, RULES_FILE } from "../config/index.js";
 import { loadArchitectureRules } from "../engines/architecture/rule-loader.js";
+import { resolveTrustedTscPath } from "../engines/lint/typecheck.js";
 import type { EngineName } from "../engines/types.js";
 import { getEngineLabel } from "../output/engine-info.js";
+import {
+	type DisplayRow,
+	type DisplayStatusItem,
+	renderDisplayRows,
+	renderDisplaySection,
+	renderDisplayStatusItems,
+} from "../ui/display.js";
 import { renderHeader } from "../ui/header.js";
 import { detectInvocation } from "../ui/invocation.js";
-import { renderHintLine } from "../ui/logger.js";
-import { type RailStep, renderRail } from "../ui/rail.js";
-import { createSymbols } from "../ui/symbols.js";
-import { createTheme, style, type Theme } from "../ui/theme.js";
-import { padEnd } from "../ui/width.js";
+import { style, theme } from "../ui/theme.js";
 import { discoverProject, type Language, type ProjectInfo } from "../utils/discover.js";
 import { APP_VERSION } from "../version.js";
 
@@ -30,64 +34,71 @@ interface BuildDoctorRenderInput {
 	printBrand?: boolean;
 }
 
-const renderToolCell = (theme: Theme, row: DoctorEngineRow): string => {
+const doctorMarker = (row: DoctorEngineRow): string => {
+	if (row.status === "missing") return style(theme, "danger", "✗");
+	if (row.status === "skipped") return style(theme, "muted", "·");
+	return style(theme, "success", "✓");
+};
+
+const doctorState = (row: DoctorEngineRow): string => {
+	if (row.status === "missing") return "missing";
+	if (row.status === "skipped") return "skipped";
+	return "ready";
+};
+
+const renderToolCell = (row: DoctorEngineRow): string => {
 	if (row.status === "missing") {
 		return style(theme, "danger", row.tool);
-	}
-	if (row.status === "skipped") {
-		const combined = row.skipReason ? `${row.tool} · ${row.skipReason}` : row.tool;
-		return style(theme, "muted", combined);
 	}
 	return style(theme, "muted", row.tool);
 };
 
+const doctorItem = (row: DoctorEngineRow): DisplayStatusItem => {
+	const rows: DisplayRow[] = [
+		{ label: "Status", value: doctorState(row) },
+		{ label: "Tool", value: renderToolCell(row) },
+	];
+	if (row.skipReason) rows.push({ label: "Reason", value: row.skipReason });
+	if (row.remediation) rows.push({ label: "Fix", value: row.remediation });
+	return { marker: doctorMarker(row), label: row.engine, rows };
+};
+
 export const buildDoctorRender = (input: BuildDoctorRenderInput): string => {
-	const theme = createTheme();
-	const symbols = createSymbols({ plain: false });
-	const deps = { theme, symbols };
-
-	const header = renderHeader(
-		{
-			version: APP_VERSION,
-			command: "Doctor report",
-			context: [input.projectName, input.languageLabel].filter((s) => s.length > 0),
-			brand: input.printBrand !== false,
-		},
-		deps,
-	);
-
-	const labelWidth = Math.max(12, ...input.rows.map((r) => r.engine.length)) + 2;
-	const enginesRunning = input.rows.filter((r) => r.status === "ok").length;
-	const missing = input.rows.filter((r) => r.status === "missing").length;
-
-	const steps: RailStep[] = input.rows.map((row) => {
-		const engineCol = padEnd(row.engine, labelWidth);
-		const toolCell = renderToolCell(theme, row);
-		const label = `${engineCol}${toolCell}`;
-
-		if (row.status === "missing") {
-			return {
-				status: "failed",
-				label,
-				notes: row.remediation ? [row.remediation] : undefined,
-			};
-		}
-		if (row.status === "skipped") {
-			return { status: "skipped", label };
-		}
-		return { status: "done", label };
+	const header = renderHeader({
+		version: APP_VERSION,
+		command: "Doctor report",
+		context: [input.projectName, input.languageLabel].filter((s) => s.length > 0),
+		brand: input.printBrand !== false,
 	});
 
-	const footer = `Ready · ${enginesRunning} engines · ${missing} missing`;
-
-	const rail = renderRail({ steps, footer }, deps);
-
-	const hintText =
+	const enginesRunning = input.rows.filter((r) => r.status === "ok").length;
+	const missing = input.rows.filter((r) => r.status === "missing").length;
+	const skipped = input.rows.filter((r) => r.status === "skipped").length;
+	const nextRows: DisplayRow[] =
 		missing > 0
-			? `Install the missing tools, then run ${input.invocation} scan`
-			: `Run ${input.invocation} scan to check this project`;
-	const tail = `\n${renderHintLine(hintText, deps)}`;
-	return `${header}${rail}${tail}`;
+			? [
+					{ label: "Action", value: "Install the missing tools" },
+					{ label: "Then", value: `${input.invocation} scan` },
+				]
+			: [{ label: "Scan", value: `${input.invocation} scan` }];
+
+	const lines = [
+		header.trimEnd(),
+		"",
+		renderDisplaySection("Engines"),
+		...renderDisplayStatusItems(input.rows.map(doctorItem)),
+		"",
+		renderDisplaySection("Summary"),
+		...renderDisplayRows([
+			{ label: "Ready", value: `${enginesRunning} engines` },
+			{ label: "Missing", value: String(missing) },
+			{ label: "Skipped", value: String(skipped) },
+		]),
+		"",
+		renderDisplaySection(missing > 0 ? "Fix" : "Next"),
+		...renderDisplayRows(nextRows),
+	];
+	return `${lines.join("\n")}\n`;
 };
 
 interface PlanContext {
@@ -199,27 +210,22 @@ const planFormat = (ctx: PlanContext): ToolDecision => {
 	);
 };
 
-const findLocalTsc = (root: string): string | null => {
-	const candidate = path.join(root, "node_modules", ".bin", "tsc");
-	return fs.existsSync(candidate) ? candidate : null;
-};
-
 const withTypecheckSuffix = (baseTool: string, ctx: PlanContext): ToolDecision => {
 	if (!ctx.config.lint?.typecheck) return { tool: baseTool, status: "ok" };
-	if (findLocalTsc(ctx.rootDirectory)) {
-		return { tool: `${baseTool} + tsc`, status: "ok" };
+	if (resolveTrustedTscPath()) {
+		return { tool: `${baseTool} + bundled tsc`, status: "ok" };
 	}
 	return {
-		tool: `${baseTool} + tsc not found`,
+		tool: `${baseTool} + bundled tsc not found`,
 		status: "missing",
 		remediation:
-			"Install TypeScript locally (pnpm add -D typescript), or set lint.typecheck: false in .aislop/config.yml.",
+			"Reinstall aislop so its TypeScript dependency is available, or set lint.typecheck: false in .aislop/config.yml.",
 	};
 };
 
 const planLint = (ctx: PlanContext): ToolDecision => {
 	const { languages, frameworks, installedTools } = ctx.projectInfo;
-	if (frameworks.includes("expo")) {
+	if (frameworks.includes("expo") && ctx.config.lint?.expoDoctor) {
 		return withTypecheckSuffix("expo-doctor + oxlint (bundled)", ctx);
 	}
 	if (hasJsLike(languages)) return withTypecheckSuffix("oxlint (bundled)", ctx);

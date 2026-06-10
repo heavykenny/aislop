@@ -443,6 +443,22 @@ describe("hardcoded config literals", () => {
 		expect(diagnostics.filter((d) => d.rule === "ai-slop/hardcoded-url")).toHaveLength(1);
 	});
 
+	it("reports canonical public app URL fallbacks as config signals", async () => {
+		const filePath = writeFile(
+			"app-url.ts",
+			[
+				'const CANONICAL = "https://app.scanaislop.com";',
+				"",
+				"export const resolveAppUrl = (candidate?: string | null): string => {",
+				"\tconst value = candidate?.trim();",
+				'\treturn value ? value.replace(/\\/$/, "") : CANONICAL;',
+				"};",
+			].join("\n"),
+		);
+		const diagnostics = await detectHardcodedConfigLiterals(makeContext([filePath]));
+		expect(diagnostics.filter((d) => d.rule === "ai-slop/hardcoded-url")).toHaveLength(1);
+	});
+
 	it("does not flag documentation links", async () => {
 		const filePath = writeFile(
 			"docs-link.ts",

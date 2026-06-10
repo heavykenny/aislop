@@ -9,6 +9,16 @@ describe("createOxlintConfig", () => {
 		expect(config.rules["no-undef"]).toBe("error");
 	});
 
+	it("allows callers to soften no-undef when undefined browser globals are lower-confidence", () => {
+		const config = createOxlintConfig({
+			framework: "none",
+			noUndefSeverity: "warn",
+		}) as {
+			rules: Record<string, string>;
+		};
+		expect(config.rules["no-undef"]).toBe("warn");
+	});
+
 	it("disables no-undef for Astro projects (Astro globals + define:vars inject runtime names oxlint can't resolve)", () => {
 		const config = createOxlintConfig({ framework: "astro" }) as {
 			rules: Record<string, string>;

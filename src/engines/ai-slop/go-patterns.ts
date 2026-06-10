@@ -10,6 +10,8 @@ const PANIC_CALL_RE = /\bpanic\s*\(/;
 const COMMENT_LINE_RE = /^\s*\/\//;
 const NIL_GUARD_RE = /^\s*if\s+[\w.]+(?:\(\))?\s*==\s*nil\s*\{?\s*$/;
 const SHORT_STRING_PANIC_RE = /\bpanic\s*\(\s*"[^"]{1,40}"\s*\)/;
+const GO_TEST_SUPPORT_PATH_RE =
+	/(?:^|\/)(?:testdata|testutil|testutils|tstest|ethtest|v4test|testing)(?:\/|$)/i;
 
 const detectPackageName = (lines: string[]): string | null => {
 	for (const line of lines) {
@@ -47,6 +49,7 @@ const flagLibraryPanic = (
 	out: Diagnostic[],
 ): void => {
 	if (pkg === "main") return;
+	if (GO_TEST_SUPPORT_PATH_RE.test(relPath) || /test$/i.test(pkg)) return;
 	for (let i = 0; i < lines.length; i++) {
 		const line = lines[i];
 		if (COMMENT_LINE_RE.test(line)) continue;
