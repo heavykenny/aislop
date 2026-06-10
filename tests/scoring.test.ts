@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { DEFAULT_CONFIG } from "../src/config/defaults.js";
 import type { Diagnostic } from "../src/engines/types.js";
 import { calculateScore, getScoreColor } from "../src/scoring/index.js";
 
@@ -233,6 +234,106 @@ describe("calculateScore", () => {
 		);
 
 		expect(commentScore.score).toBeGreaterThan(comparableRuleScore.score);
+	});
+
+	it("treats hardcoded config warnings as softer score signals", () => {
+		const genericAiSlop = calculateScore(
+			[
+				makeDiagnostic({
+					engine: "ai-slop",
+					rule: "ai-slop/unsafe-type-assertion",
+					severity: "warning",
+				}),
+			],
+			defaultWeights,
+			defaultThresholds,
+			24,
+			20,
+		);
+		const hardcodedConfig = calculateScore(
+			[
+				makeDiagnostic({
+					engine: "ai-slop",
+					rule: "ai-slop/hardcoded-url",
+					severity: "warning",
+				}),
+			],
+			defaultWeights,
+			defaultThresholds,
+			24,
+			20,
+		);
+
+		expect(hardcodedConfig.score).toBeGreaterThan(genericAiSlop.score);
+		expect(hardcodedConfig.score).toBe(99);
+	});
+
+	it("uses a tighter cap for repeated hardcoded config findings", () => {
+		const hardcodedFlood = Array.from({ length: 100 }, () =>
+			makeDiagnostic({ engine: "ai-slop", rule: "ai-slop/hardcoded-url" }),
+		);
+		const comparableRuleFlood = Array.from({ length: 100 }, () =>
+			makeDiagnostic({ engine: "ai-slop", rule: "ai-slop/unsafe-type-assertion" }),
+		);
+
+		const hardcodedScore = calculateScore(
+			hardcodedFlood,
+			defaultWeights,
+			defaultThresholds,
+			20,
+			20,
+			40,
+		);
+		const comparableRuleScore = calculateScore(
+			comparableRuleFlood,
+			defaultWeights,
+			defaultThresholds,
+			20,
+			20,
+			40,
+		);
+
+		expect(hardcodedScore.score).toBeGreaterThan(comparableRuleScore.score);
+	});
+
+	it("keeps isolated warnings proportionate under packaged defaults", () => {
+		const scoreFor = (diagnostic: Diagnostic): number =>
+			calculateScore(
+				[diagnostic],
+				DEFAULT_CONFIG.scoring.weights,
+				DEFAULT_CONFIG.scoring.thresholds,
+				24,
+				DEFAULT_CONFIG.scoring.smoothing,
+				DEFAULT_CONFIG.scoring.maxPerRule,
+			).score;
+
+		expect(scoreFor(makeDiagnostic({ engine: "format" }))).toBe(99);
+		expect(scoreFor(makeDiagnostic({ engine: "lint" }))).toBe(98);
+		expect(scoreFor(makeDiagnostic({ engine: "code-quality" }))).toBe(98);
+		expect(scoreFor(makeDiagnostic({ engine: "ai-slop", rule: "ai-slop/unsafe-type-assertion" }))).toBe(
+			98,
+		);
+		expect(scoreFor(makeDiagnostic({ engine: "ai-slop", rule: "ai-slop/hardcoded-url" }))).toBe(
+			99,
+		);
+		expect(scoreFor(makeDiagnostic({ engine: "security" }))).toBe(96);
+	});
+
+	it("bounds repeated advisory config findings under packaged defaults", () => {
+		const hardcodedFlood = Array.from({ length: 100 }, () =>
+			makeDiagnostic({ engine: "ai-slop", rule: "ai-slop/hardcoded-url" }),
+		);
+		const result = calculateScore(
+			hardcodedFlood,
+			DEFAULT_CONFIG.scoring.weights,
+			DEFAULT_CONFIG.scoring.thresholds,
+			24,
+			DEFAULT_CONFIG.scoring.smoothing,
+			DEFAULT_CONFIG.scoring.maxPerRule,
+		);
+
+		expect(result.score).toBeGreaterThanOrEqual(60);
+		expect(result.label).toBe("Needs Work");
 	});
 });
 

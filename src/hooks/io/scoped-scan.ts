@@ -48,17 +48,19 @@ export const runScopedScan = async (
 		installedTools: project.installedTools,
 		config: {
 			quality: config.quality,
-			// Network-bound audit exceeds every agent's hook timeout, so always off here.
+			// Agent hooks run automatically when an editor changes a file. Keep this
+			// path hook-safe: no network audits, no typecheck subprocesses, and no
+			// execution-capable project-local tools.
 			security: { audit: false, auditTimeout: 0 },
-			// tsc is too slow for per-edit hooks; opt back in via the full scan if needed.
-			lint: { typecheck: false },
+			lint: { typecheck: false, expoDoctor: false },
+			allowProjectLocalTools: false,
 			architectureRulesPath: config.engines.architecture ? rulesPath : undefined,
 		},
 	};
 
 	const enabled: Record<EngineName, boolean> = {
-		format: config.engines.format,
-		lint: config.engines.lint,
+		format: false,
+		lint: false,
 		"code-quality": config.engines["code-quality"],
 		"ai-slop": config.engines["ai-slop"],
 		architecture: config.engines.architecture,

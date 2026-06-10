@@ -4,7 +4,7 @@ const DEFAULT_WEIGHTS: Record<string, number> = {
 	format: 0.3,
 	lint: 0.6,
 	"code-quality": 0.8,
-	"ai-slop": 2.5,
+	"ai-slop": 1.0,
 	architecture: 1.0,
 	security: 1.5,
 };
@@ -27,6 +27,11 @@ const QualitySchema = z.object({
 
 const LintConfigSchema = z.object({
 	typecheck: z.boolean().default(false),
+	/**
+	 * Expo Doctor can evaluate Expo project configuration files. Keep it
+	 * disabled by default so scans do not execute code from untrusted repos.
+	 */
+	expoDoctor: z.boolean().default(false),
 });
 
 const SecurityConfigSchema = z.object({
@@ -80,6 +85,7 @@ const AislopConfigSchema = z.object({
 	})),
 	lint: LintConfigSchema.default(() => ({
 		typecheck: false,
+		expoDoctor: false,
 	})),
 	security: SecurityConfigSchema.default(() => ({
 		audit: true,
