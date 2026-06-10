@@ -55,6 +55,7 @@ export interface EngineConfig {
 	lint: {
 		typecheck: boolean;
 	};
+	allowProjectLocalTools?: boolean;
 	architectureRulesPath?: string;
 }
 
