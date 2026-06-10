@@ -132,6 +132,40 @@ const findMonorepoRoot = (directory: string): string | null => {
 	return null;
 };
 
+const isSubpath = (parent: string, child: string): boolean => {
+	const relative = path.relative(parent, child);
+	return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+};
+
+const getRelativePathWithinRoot = (
+	rootDirectory: string,
+	baseDirectory: string,
+	reportedPath: string,
+): string | null => {
+	const rootPath = path.resolve(rootDirectory);
+	const absolutePath = path.resolve(baseDirectory, reportedPath);
+	if (!isSubpath(rootPath, absolutePath)) return null;
+	return path.relative(rootPath, absolutePath);
+};
+
+const getSafeUnusedFilePath = (rootDirectory: string, filePath: string): string | null => {
+	const rootPath = fs.realpathSync(rootDirectory);
+	const absolutePath = path.resolve(rootDirectory, filePath);
+
+	let stat: fs.Stats;
+	let realPath: string;
+	try {
+		stat = fs.lstatSync(absolutePath);
+		realPath = fs.realpathSync(absolutePath);
+	} catch {
+		return null;
+	}
+
+	if (!stat.isFile()) return null;
+	if (!isSubpath(rootPath, realPath)) return null;
+	return absolutePath;
+};
+
 const KNIP_RELATIVE_BIN = path.join("node_modules", "knip", "bin", "knip.js");
 
 const findKnipBin = (
@@ -210,8 +244,8 @@ export const runKnipUnusedFiles = async (rootDirectory: string): Promise<Diagnos
 export const fixUnusedFiles = async (rootDirectory: string): Promise<void> => {
 	const diagnostics = await runKnipUnusedFiles(rootDirectory);
 	for (const d of diagnostics) {
-		const absolutePath = path.resolve(rootDirectory, d.filePath);
-		if (fs.existsSync(absolutePath)) {
+		const absolutePath = getSafeUnusedFilePath(rootDirectory, d.filePath);
+		if (absolutePath) {
 			fs.unlinkSync(absolutePath);
 		}
 	}
@@ -235,8 +269,10 @@ export const runKnip = async (rootDirectory: string): Promise<Diagnostic[]> => {
 		const diagnostics: Diagnostic[] = [];
 		const files = parsed.files ?? [];
 		for (const unusedFile of files) {
+			const filePath = getRelativePathWithinRoot(rootDirectory, knipRuntime.cwd, unusedFile);
+			if (!filePath) continue;
 			diagnostics.push({
-				filePath: path.relative(rootDirectory, path.resolve(knipRuntime.cwd, unusedFile)),
+				filePath,
 				engine: "code-quality",
 				rule: "knip/files",
 				severity: "warning",

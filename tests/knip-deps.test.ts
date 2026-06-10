@@ -96,3 +96,57 @@ describe("shouldIncludeIssue", () => {
 		expect(shouldIncludeIssue("unlisted", ".github/workflows/sync.yml")).toBe(true);
 	});
 });
+
+describe("unused file path safety", () => {
+	const writeFakeKnip = (directory: string, files: string[]) => {
+		const binDir = path.join(directory, "node_modules", "knip", "bin");
+		fs.mkdirSync(binDir, { recursive: true });
+		fs.writeFileSync(
+			path.join(binDir, "knip.js"),
+			`process.stdout.write(${JSON.stringify(JSON.stringify({ files, issues: [] }))});\n`,
+		);
+	};
+
+	it("ignores monorepo-root knip file reports outside the requested scan root", async () => {
+		const monorepoRoot = path.join(tmpDir, "repo");
+		const appRoot = path.join(monorepoRoot, "packages", "app");
+		fs.mkdirSync(path.join(appRoot, "src"), { recursive: true });
+		fs.writeFileSync(path.join(monorepoRoot, "pnpm-workspace.yaml"), "packages:\n  - packages/*\n");
+		writeFakeKnip(monorepoRoot, ["victim.ts", "packages/app/src/unused.ts"]);
+
+		const { runKnipUnusedFiles } = await import("../src/engines/code-quality/knip.js");
+		const diagnostics = await runKnipUnusedFiles(appRoot);
+
+		expect(diagnostics.map((d) => d.filePath)).toEqual([path.join("src", "unused.ts")]);
+	});
+
+	it("does not delete files reached through symlinked directories", async () => {
+		const appRoot = path.join(tmpDir, "app");
+		const outsideRoot = path.join(tmpDir, "outside");
+		fs.mkdirSync(appRoot, { recursive: true });
+		fs.mkdirSync(outsideRoot, { recursive: true });
+		const victimPath = path.join(outsideRoot, "victim.ts");
+		fs.writeFileSync(victimPath, "export const victim = true;\n");
+		fs.symlinkSync(outsideRoot, path.join(appRoot, "linked"), "dir");
+		writeFakeKnip(appRoot, ["linked/victim.ts"]);
+
+		const { fixUnusedFiles } = await import("../src/engines/code-quality/knip.js");
+		await fixUnusedFiles(appRoot);
+
+		expect(fs.existsSync(victimPath)).toBe(true);
+	});
+
+	it("deletes only regular unused files inside the requested scan root", async () => {
+		const appRoot = path.join(tmpDir, "app");
+		const srcRoot = path.join(appRoot, "src");
+		fs.mkdirSync(srcRoot, { recursive: true });
+		const unusedPath = path.join(srcRoot, "unused.ts");
+		fs.writeFileSync(unusedPath, "export const unused = true;\n");
+		writeFakeKnip(appRoot, ["src/unused.ts"]);
+
+		const { fixUnusedFiles } = await import("../src/engines/code-quality/knip.js");
+		await fixUnusedFiles(appRoot);
+
+		expect(fs.existsSync(unusedPath)).toBe(false);
+	});
+});
