@@ -53,6 +53,16 @@ const createEngineContext = (
 	config: { quality: config.quality, security: config.security, lint: config.lint },
 });
 
+export const buildPostFixVerificationEngines = (
+	engines: AislopConfig["engines"],
+): AislopConfig["engines"] => ({
+	...engines,
+	// `fix` should not silently run project-evaluating linters after applying
+	// fixes. The lint engine can invoke tools such as cargo clippy, RuboCop,
+	// and expo-doctor, which may execute repository-controlled code/config.
+	lint: false,
+});
+
 export const fixCommand = async (
 	directory: string,
 	config: AislopConfig,
@@ -162,7 +172,7 @@ const runFixBody = async (
 			installedTools: projectInfo.installedTools,
 			config: engineConfig,
 		},
-		config.engines,
+		buildPostFixVerificationEngines(config.engines),
 		() => {},
 		() => {},
 	);
