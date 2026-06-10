@@ -135,3 +135,48 @@ describe("shouldIncludeIssue", () => {
 		expect(shouldIncludeIssue("unlisted", ".github/workflows/sync.yml")).toBe(true);
 	});
 });
+
+describe("unused file path safety", () => {
+	it("ignores monorepo-root knip file reports outside the requested scan root", async () => {
+		const monorepoRoot = path.join(tmpDir, "repo");
+		const appRoot = path.join(monorepoRoot, "packages", "app");
+		fs.mkdirSync(path.join(appRoot, "src"), { recursive: true });
+
+		const { getRelativePathWithinRoot } = await import("../src/engines/code-quality/knip.js");
+
+		expect(getRelativePathWithinRoot(appRoot, monorepoRoot, "victim.ts")).toBeNull();
+		expect(getRelativePathWithinRoot(appRoot, monorepoRoot, "packages/app/src/unused.ts")).toBe(
+			path.join("src", "unused.ts"),
+		);
+	});
+
+	it("does not delete files reached through symlinked directories", async () => {
+		const appRoot = path.join(tmpDir, "app");
+		const outsideRoot = path.join(tmpDir, "outside");
+		fs.mkdirSync(appRoot, { recursive: true });
+		fs.mkdirSync(outsideRoot, { recursive: true });
+		const victimPath = path.join(outsideRoot, "victim.ts");
+		fs.writeFileSync(victimPath, "export const victim = true;\n");
+		fs.symlinkSync(outsideRoot, path.join(appRoot, "linked"), "dir");
+
+		const { getSafeUnusedFilePath } = await import("../src/engines/code-quality/knip.js");
+
+		expect(getSafeUnusedFilePath(appRoot, "linked/victim.ts")).toBeNull();
+		expect(fs.existsSync(victimPath)).toBe(true);
+	});
+
+	it("deletes only regular unused files inside the requested scan root", async () => {
+		const appRoot = path.join(tmpDir, "app");
+		const srcRoot = path.join(appRoot, "src");
+		fs.mkdirSync(srcRoot, { recursive: true });
+		const unusedPath = path.join(srcRoot, "unused.ts");
+		fs.writeFileSync(unusedPath, "export const unused = true;\n");
+
+		const { getSafeUnusedFilePath } = await import("../src/engines/code-quality/knip.js");
+		const safePath = getSafeUnusedFilePath(appRoot, "src/unused.ts");
+
+		expect(safePath).toBe(unusedPath);
+		if (safePath) fs.unlinkSync(safePath);
+		expect(fs.existsSync(unusedPath)).toBe(false);
+	});
+});
