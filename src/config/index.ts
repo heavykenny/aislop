@@ -30,7 +30,7 @@ export const loadConfig = (directory: string): AislopConfig => {
 	if (!fs.existsSync(configPath)) return DEFAULT_CONFIG;
 
 	try {
-		const merged = loadConfigChain(configPath, { rootDir: path.dirname(configDir) });
+		const merged = loadConfigChain(configPath);
 		return parseConfig(merged);
 	} catch (error) {
 		const msg = error instanceof Error ? error.message : String(error);
