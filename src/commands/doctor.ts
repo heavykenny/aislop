@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { type AislopConfig, CONFIG_DIR, loadConfig, RULES_FILE } from "../config/index.js";
 import { loadArchitectureRules } from "../engines/architecture/rule-loader.js";
+import { resolveTrustedTscPath } from "../engines/lint/typecheck.js";
 import type { EngineName } from "../engines/types.js";
 import { getEngineLabel } from "../output/engine-info.js";
 import { renderHeader } from "../ui/header.js";
@@ -199,21 +200,16 @@ const planFormat = (ctx: PlanContext): ToolDecision => {
 	);
 };
 
-const findLocalTsc = (root: string): string | null => {
-	const candidate = path.join(root, "node_modules", ".bin", "tsc");
-	return fs.existsSync(candidate) ? candidate : null;
-};
-
 const withTypecheckSuffix = (baseTool: string, ctx: PlanContext): ToolDecision => {
 	if (!ctx.config.lint?.typecheck) return { tool: baseTool, status: "ok" };
-	if (findLocalTsc(ctx.rootDirectory)) {
-		return { tool: `${baseTool} + tsc`, status: "ok" };
+	if (resolveTrustedTscPath()) {
+		return { tool: `${baseTool} + bundled tsc`, status: "ok" };
 	}
 	return {
-		tool: `${baseTool} + tsc not found`,
+		tool: `${baseTool} + bundled tsc not found`,
 		status: "missing",
 		remediation:
-			"Install TypeScript locally (pnpm add -D typescript), or set lint.typecheck: false in .aislop/config.yml.",
+			"Reinstall aislop so its TypeScript dependency is available, or set lint.typecheck: false in .aislop/config.yml.",
 	};
 };
 

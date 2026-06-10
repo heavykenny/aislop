@@ -1,10 +1,12 @@
 import fs from "node:fs";
+import { createRequire } from "node:module";
 import path from "node:path";
 import { runSubprocess } from "../../utils/subprocess.js";
 import type { Diagnostic, EngineContext } from "../types.js";
 
 const MAX_DEPTH = 3;
 const TSC_TIMEOUT_MS = 120_000;
+const esmRequire = createRequire(import.meta.url);
 // tsc non-pretty output: `path/to/file.ts(line,col): error TSnnnn: message`
 const TSC_LINE_RE = /^(.+?)\((\d+),(\d+)\):\s+(error|warning)\s+TS(\d+):\s+(.+)$/;
 
@@ -29,14 +31,12 @@ const findTsconfigs = (root: string): string[] => {
 	return results;
 };
 
-const findTscBinary = (fromDir: string): string | null => {
-	let dir = fromDir;
-	while (dir !== path.dirname(dir)) {
-		const candidate = path.join(dir, "node_modules", ".bin", "tsc");
-		if (fs.existsSync(candidate)) return candidate;
-		dir = path.dirname(dir);
+export const resolveTrustedTscPath = (): string | null => {
+	try {
+		return esmRequire.resolve("typescript/bin/tsc");
+	} catch {
+		return null;
 	}
-	return null;
 };
 
 // Reference-only configs (only `references`, no `files`/`include`/`extends`) should be skipped;
@@ -61,19 +61,20 @@ export const runTypecheck = async (context: EngineContext): Promise<Diagnostic[]
 	const tsconfigs = findTsconfigs(context.rootDirectory).filter((p) => !isReferenceOnlyConfig(p));
 	if (tsconfigs.length === 0) return [];
 
+	const tscPath = resolveTrustedTscPath();
+	if (!tscPath) return [];
+
 	const diagnostics: Diagnostic[] = [];
 	const seen = new Set<string>();
 
 	for (const tsconfig of tsconfigs) {
 		const projectDir = path.dirname(tsconfig);
-		const tscBinary = findTscBinary(projectDir);
-		if (!tscBinary) continue;
 
 		let output = "";
 		try {
 			const result = await runSubprocess(
-				tscBinary,
-				["--noEmit", "--pretty", "false", "-p", tsconfig],
+				process.execPath,
+				[tscPath, "--noEmit", "--pretty", "false", "-p", tsconfig],
 				{ cwd: projectDir, timeout: TSC_TIMEOUT_MS },
 			);
 			output = `${result.stdout ?? ""}\n${result.stderr ?? ""}`;
