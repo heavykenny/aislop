@@ -21,12 +21,18 @@ describe("doctor render", () => {
 		expect(out).toContain("Doctor report");
 		expect(out).toContain("my-app");
 		expect(out).toContain("typescript");
-		expect(out).toContain("◆ Formatting");
+		expect(out).toContain("Engines");
+		expect(out).toContain("✓ Formatting");
+		expect(out).toMatch(/Status\s+ready/);
 		expect(out).toContain("biome (bundled)");
-		expect(out).toContain("─ Architecture");
-		expect(out).toContain("opt-in · not configured");
-		expect(out).toContain("└  Ready · 3 engines · 0 missing");
-		expect(out).toContain("→ Run aislop scan to check this project");
+		expect(out).toContain("· Architecture");
+		expect(out).toMatch(/Reason\s+not configured/);
+		expect(out).toMatch(/Ready\s+3 engines/);
+		expect(out).toMatch(/Missing\s+0/);
+		expect(out).toMatch(/Scan\s+aislop scan/);
+		expect(out).not.toContain("◆ Formatting");
+		expect(out).not.toContain("│");
+		expect(out).not.toContain("└");
 	});
 
 	it("surfaces missing tools with remediation and an install hint", () => {
@@ -49,12 +55,16 @@ describe("doctor render", () => {
 		);
 		expect(out).toContain("✗ Linting");
 		expect(out).toContain("ruff not found");
-		expect(out).toContain("│ → Install: pipx install ruff");
-		expect(out).toContain("└  Ready · 1 engines · 1 missing");
-		expect(out).toContain("→ Install the missing tools, then run aislop scan");
+		expect(out).toMatch(/Fix\s+Install: pipx install ruff/);
+		expect(out).toMatch(/Ready\s+1 engines/);
+		expect(out).toMatch(/Missing\s+1/);
+		expect(out).toMatch(/Action\s+Install the missing tools/);
+		expect(out).toMatch(/Then\s+aislop scan/);
+		expect(out).not.toContain("│");
+		expect(out).not.toContain("└");
 	});
 
-	it("uses the invocation string in hint text", () => {
+	it("uses the invocation string in the next command", () => {
 		const out = strip(
 			buildDoctorRender({
 				projectName: "my-app",
@@ -63,6 +73,6 @@ describe("doctor render", () => {
 				invocation: "aislop",
 			}),
 		);
-		expect(out).toContain("→ Run aislop scan to check this project");
+		expect(out).toMatch(/Scan\s+aislop scan/);
 	});
 });
