@@ -20,9 +20,20 @@ import type { AgentMonitorOptions } from "./agent-monitor-types.js";
 import { runAgentSession } from "./agent-session.js";
 import type { AgentOptions, AgentScanJson } from "./agent-types.js";
 
-interface GitChangeSnapshot {
+export interface GitChangeSnapshot {
 	signature: string;
 	files: string[];
+}
+
+interface MonitorDebounceState {
+	current: GitChangeSnapshot;
+	pending: GitChangeSnapshot | null;
+	changedAt: number;
+}
+
+interface MonitorDebounceUpdate extends MonitorDebounceState {
+	detected: boolean;
+	settled: GitChangeSnapshot | null;
 }
 
 interface MonitorCycleResult {
@@ -84,6 +95,50 @@ export const shouldMonitorRepair = (input: {
 	input.inPlace &&
 	input.findings > 0 &&
 	(input.score === null || input.score < input.targetScore);
+
+export const updateMonitorDebounceState = (input: {
+	current: GitChangeSnapshot;
+	pending: GitChangeSnapshot | null;
+	changedAt: number;
+	next: GitChangeSnapshot;
+	now: number;
+	debounce: number;
+}): MonitorDebounceUpdate => {
+	if (input.next.signature === input.current.signature) {
+		return {
+			current: input.current,
+			pending: null,
+			changedAt: 0,
+			detected: false,
+			settled: null,
+		};
+	}
+	if (input.pending?.signature !== input.next.signature) {
+		return {
+			current: input.current,
+			pending: input.next,
+			changedAt: input.now,
+			detected: true,
+			settled: null,
+		};
+	}
+	if (input.now - input.changedAt >= input.debounce) {
+		return {
+			current: input.pending,
+			pending: null,
+			changedAt: 0,
+			detected: false,
+			settled: input.pending,
+		};
+	}
+	return {
+		current: input.current,
+		pending: input.pending,
+		changedAt: input.changedAt,
+		detected: false,
+		settled: null,
+	};
+};
 
 const changedFilesText = (files: string[]): string => {
 	if (files.length === 0) return "no git changes";
@@ -287,17 +342,24 @@ const monitorLoop = async (input: {
 	let changedAt = 0;
 	for (;;) {
 		const next = await readGitChangeSnapshot(input.root);
-		if (next.signature !== current.signature) {
-			pending = next;
-			changedAt = Date.now();
+		const update = updateMonitorDebounceState({
+			current,
+			pending,
+			changedAt,
+			next,
+			now: Date.now(),
+			debounce: input.options.debounce,
+		});
+		current = update.current;
+		pending = update.pending;
+		changedAt = update.changedAt;
+		if (update.detected) {
 			log.info(`Change detected: ${changedFilesText(next.files)}`);
 		}
-		if (pending && Date.now() - changedAt >= input.options.debounce) {
-			current = pending;
-			pending = null;
+		if (update.settled) {
 			await runMonitorCycle({
 				...input,
-				snapshot: current,
+				snapshot: update.settled,
 				reason: "settled changes",
 			});
 		}
