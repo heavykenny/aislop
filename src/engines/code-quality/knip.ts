@@ -1,5 +1,5 @@
-import { spawnSync } from "node:child_process";
 import fs from "node:fs";
+import { createRequire } from "node:module";
 import path from "node:path";
 import { runSubprocess } from "../../utils/subprocess.js";
 import type { Diagnostic } from "../types.js";
@@ -138,7 +138,7 @@ const isSubpath = (parent: string, child: string): boolean => {
 	return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
 };
 
-const getRelativePathWithinRoot = (
+export const getRelativePathWithinRoot = (
 	rootDirectory: string,
 	baseDirectory: string,
 	reportedPath: string,
@@ -149,7 +149,7 @@ const getRelativePathWithinRoot = (
 	return path.relative(rootPath, absolutePath);
 };
 
-const getSafeUnusedFilePath = (rootDirectory: string, filePath: string): string | null => {
+export const getSafeUnusedFilePath = (rootDirectory: string, filePath: string): string | null => {
 	const rootPath = fs.realpathSync(rootDirectory);
 	const absolutePath = path.resolve(rootDirectory, filePath);
 
@@ -167,43 +167,71 @@ const getSafeUnusedFilePath = (rootDirectory: string, filePath: string): string 
 	return absolutePath;
 };
 
-const KNIP_RELATIVE_BIN = path.join("node_modules", "knip", "bin", "knip.js");
+const KNIP_BIN = path.join("bin", "knip.js");
+const requireFromAislop = createRequire(import.meta.url);
 
-const isTrackedByGit = (filePath: string, cwd: string): boolean => {
-	const relativePath = path.relative(cwd, filePath);
-	if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) return false;
-
-	const result = spawnSync("git", ["-C", cwd, "ls-files", "--error-unmatch", "--", relativePath], {
-		stdio: "ignore",
-	});
-	return result.status === 0;
+const findPackageRoot = (entryPath: string, packageName: string): string | null => {
+	let current = path.dirname(entryPath);
+	while (current !== path.dirname(current)) {
+		const pkgPath = path.join(current, "package.json");
+		if (fs.existsSync(pkgPath)) {
+			try {
+				const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
+				if (pkg.name === packageName) return current;
+			} catch {
+				return null;
+			}
+		}
+		current = path.dirname(current);
+	}
+	return null;
 };
 
-const trustedKnipRuntime = (
-	binPath: string,
-	cwd: string,
-): { binPath: string; cwd: string } | null => {
-	if (isTrackedByGit(binPath, cwd)) return null;
-	return { binPath, cwd };
+const findBundledKnipBin = (): string | null => {
+	try {
+		const knipEntry = requireFromAislop.resolve("knip");
+		const knipRoot = findPackageRoot(knipEntry, "knip");
+		if (!knipRoot) return null;
+
+		const binPath = path.join(knipRoot, KNIP_BIN);
+		return fs.existsSync(binPath) ? binPath : null;
+	} catch {
+		return null;
+	}
+};
+
+const packageDeclaresKnip = (directory: string): boolean => {
+	const pkgPath = path.join(directory, "package.json");
+	if (!fs.existsSync(pkgPath)) return false;
+
+	try {
+		const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
+		return Boolean(
+			pkg.dependencies?.knip ||
+				pkg.devDependencies?.knip ||
+				pkg.peerDependencies?.knip ||
+				pkg.optionalDependencies?.knip,
+		);
+	} catch {
+		return false;
+	}
 };
 
 export const findKnipRuntime = (
 	rootDirectory: string,
 	monorepoRoot: string | null,
 ): { binPath: string; cwd: string } | null => {
-	const localPath = path.join(rootDirectory, KNIP_RELATIVE_BIN);
-	if (fs.existsSync(localPath)) {
-		return trustedKnipRuntime(localPath, rootDirectory);
+	const monorepoDeclaresKnip = monorepoRoot ? packageDeclaresKnip(monorepoRoot) : false;
+	const packageDeclaresKnipDependency = packageDeclaresKnip(rootDirectory);
+	if (!monorepoDeclaresKnip && !packageDeclaresKnipDependency) {
+		return null;
 	}
 
-	if (monorepoRoot) {
-		const monorepoPath = path.join(monorepoRoot, KNIP_RELATIVE_BIN);
-		if (fs.existsSync(monorepoPath)) {
-			return trustedKnipRuntime(monorepoPath, monorepoRoot);
-		}
-	}
+	const binPath = findBundledKnipBin();
+	if (!binPath) return null;
 
-	return null;
+	const cwd = monorepoRoot && monorepoDeclaresKnip ? monorepoRoot : rootDirectory;
+	return { binPath, cwd };
 };
 
 export const runKnipDependencyCheck = async (rootDirectory: string): Promise<Diagnostic[]> => {

@@ -1,4 +1,3 @@
-import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -23,12 +22,20 @@ const writeProjectKnip = (body: string): string => {
 };
 
 describe("Knip runtime resolution", () => {
-	it("uses an untracked installed Knip binary from the scanned project", () => {
+	it("uses Aislop's bundled Knip binary when the scanned project declares Knip", () => {
 		const projectKnip = writeProjectKnip("console.log('{}');\n");
+		fs.writeFileSync(
+			path.join(tmpDir, "package.json"),
+			JSON.stringify({ devDependencies: { knip: "^5.85.0" } }),
+		);
 
 		const runtime = findKnipRuntime(tmpDir, null);
 
-		expect(runtime).toEqual({ binPath: projectKnip, cwd: tmpDir });
+		expect(runtime?.cwd).toBe(tmpDir);
+		expect(runtime?.binPath).not.toBe(projectKnip);
+		expect(runtime?.binPath.endsWith(path.join("node_modules", "knip", "bin", "knip.js"))).toBe(
+			true,
+		);
 	});
 
 	it("does not execute a committed project-local Knip binary during scans", async () => {
@@ -37,19 +44,13 @@ describe("Knip runtime resolution", () => {
 			`import fs from "node:fs";\nfs.writeFileSync(${JSON.stringify(proofPath)}, "executed");\nconsole.log('{"files":[],"issues":[]}');\n`,
 		);
 		fs.mkdirSync(path.join(tmpDir, "src"), { recursive: true });
-		fs.writeFileSync(path.join(tmpDir, "package.json"), '{"type":"module"}\n');
-		fs.writeFileSync(path.join(tmpDir, "src/index.js"), "export const value = 1;\n");
-		spawnSync("git", ["init"], { cwd: tmpDir, stdio: "ignore" });
-		spawnSync(
-			"git",
-			["add", "-f", "package.json", "src/index.js", "node_modules/knip/bin/knip.js"],
-			{
-				cwd: tmpDir,
-				stdio: "ignore",
-			},
+		fs.writeFileSync(
+			path.join(tmpDir, "package.json"),
+			JSON.stringify({ type: "module", devDependencies: { knip: "^5.85.0" } }),
 		);
+		fs.writeFileSync(path.join(tmpDir, "src/index.js"), "export const value = 1;\n");
 
-		expect(findKnipRuntime(tmpDir, null)).toBeNull();
+		expect(findKnipRuntime(tmpDir, null)?.binPath).not.toBe(projectKnip);
 
 		await runKnip(tmpDir);
 
