@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { PipelineDeps } from "../src/commands/fix-pipeline.js";
-import { runAiSlopSteps } from "../src/commands/fix-pipeline.js";
+import { runAiSlopSteps, runFormattingStep } from "../src/commands/fix-pipeline.js";
 import type { FixStepResult } from "../src/commands/fix-steps.js";
 import type { AislopConfig } from "../src/config/index.js";
 
-const recordingDeps = (safe: boolean): { deps: PipelineDeps; steps: string[] } => {
+const recordingDeps = (
+	safe: boolean,
+	overrides: Partial<PipelineDeps> = {},
+): { deps: PipelineDeps; steps: string[] } => {
 	const steps: string[] = [];
 	const runStep: PipelineDeps["runStep"] = async (name) => {
 		steps.push(name);
@@ -31,10 +34,11 @@ const recordingDeps = (safe: boolean): { deps: PipelineDeps; steps: string[] } =
 		},
 		config: { engines: { "ai-slop": true } } as unknown as AislopConfig,
 		resolvedDir: "/tmp/none",
-		projectInfo: { languages: ["typescript"] } as PipelineDeps["projectInfo"],
+		projectInfo: { languages: ["typescript"], installedTools: {} } as PipelineDeps["projectInfo"],
 		force: false,
 		safe,
 		runStep,
+		...overrides,
 	} as PipelineDeps;
 	return { deps, steps };
 };
@@ -52,5 +56,35 @@ describe("runAiSlopSteps safe mode", () => {
 		await runAiSlopSteps(deps);
 		expect(steps).toEqual(["Unused imports", "Duplicate imports", "Dead code & comments"]);
 		expect(steps).not.toContain("Narrative comments");
+	});
+});
+
+describe("runFormattingStep safe mode", () => {
+	it("skips Ruby and PHP formatters in safe mode", async () => {
+		const { deps, steps } = recordingDeps(true, {
+			config: { engines: { format: true } } as unknown as AislopConfig,
+			projectInfo: {
+				languages: ["ruby", "php"],
+				installedTools: { rubocop: true, "php-cs-fixer": true },
+			} as PipelineDeps["projectInfo"],
+		});
+
+		await runFormattingStep(deps);
+
+		expect(steps).toEqual([]);
+	});
+
+	it("keeps Ruby and PHP formatters enabled outside safe mode", async () => {
+		const { deps, steps } = recordingDeps(false, {
+			config: { engines: { format: true } } as unknown as AislopConfig,
+			projectInfo: {
+				languages: ["ruby", "php"],
+				installedTools: { rubocop: true, "php-cs-fixer": true },
+			} as PipelineDeps["projectInfo"],
+		});
+
+		await runFormattingStep(deps);
+
+		expect(steps).toEqual(["Formatting (ruby)", "Formatting (php)"]);
 	});
 });

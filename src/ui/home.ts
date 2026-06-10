@@ -1,8 +1,12 @@
 import { APP_VERSION } from "../version.js";
+import { highlightAislop } from "./brand.js";
 import { renderHeader } from "./header.js";
+import { terminalLink } from "./link.js";
 import { renderHintLine } from "./logger.js";
 import { style, theme } from "./theme.js";
 import { padEnd } from "./width.js";
+
+export { renderCommandReference } from "./command-reference.js";
 
 interface HomeCommand {
 	command: string;
@@ -12,7 +16,16 @@ interface HomeCommand {
 
 const HOME_COMMANDS: HomeCommand[] = [
 	{ command: "aislop scan", summary: "Score this project and show findings", group: "Run" },
-	{ command: "aislop fix", summary: "Auto-fix safe issues or hand off to an agent", group: "Run" },
+	{
+		command: "aislop agent",
+		summary: "Repair slop with your coding agent in an isolated worktree",
+		group: "Run",
+	},
+	{
+		command: "aislop fix",
+		summary: "Auto-fix the mechanical issues deterministically",
+		group: "Run",
+	},
 	{ command: "aislop ci", summary: "Run the quality gate for CI", group: "Run" },
 	{ command: "aislop doctor", summary: "Check which engines can run here", group: "Run" },
 	{ command: "aislop init", summary: "Create config and optional CI workflow", group: "Setup" },
@@ -34,184 +47,7 @@ const HOME_COMMANDS: HomeCommand[] = [
 ];
 
 const GROUPS: HomeCommand["group"][] = ["Run", "Setup", "Learn", "Utility"];
-
-interface CommandReference {
-	command: string;
-	summary: string;
-	flags?: string[];
-}
-
-const COMMAND_REFERENCE: CommandReference[] = [
-	{
-		command: "aislop",
-		summary: "Open the interactive menu, or scan the current directory in non-TTY shells",
-	},
-	{
-		command: "aislop scan [directory]",
-		summary: "Score code quality and show findings",
-		flags: [
-			"--changes",
-			"--staged",
-			"-d, --verbose",
-			"--json",
-			"--sarif",
-			"--format <format>",
-			"--include <patterns>",
-			"--exclude <patterns>",
-		],
-	},
-	{
-		command: "aislop fix [directory]",
-		summary: "Apply safe auto-fixes or hand remaining findings to an agent",
-		flags: [
-			"-d, --verbose",
-			"-f, --force",
-			"--safe",
-			"-p, --prompt",
-			"--claude",
-			"--codex",
-			"--cursor",
-			"--windsurf",
-			"--vscode",
-			"--amp",
-			"--antigravity",
-			"--deep-agents",
-			"--gemini",
-			"--kimi",
-			"--opencode",
-			"--warp",
-			"--aider",
-			"--goose",
-			"--pi",
-			"--crush",
-		],
-	},
-	{
-		command: "aislop ci [directory]",
-		summary: "Run the CI quality gate with thresholded exit codes",
-		flags: ["--human", "--sarif", "--format <format>"],
-	},
-	{
-		command: "aislop init [directory]",
-		summary: "Create .aislop/config.yml, .aislop/rules.yml, and optional GitHub Actions workflow",
-		flags: ["--strict"],
-	},
-	{ command: "aislop doctor [directory]", summary: "Check installed engines and project coverage" },
-	{
-		command: "aislop rules [directory]",
-		summary: "Explain rule IDs, severity, fixability, and meaning",
-		flags: ["--search"],
-	},
-	{
-		command: "aislop hook install [agents...]",
-		summary: "Install coding-agent hooks",
-		flags: [
-			"--agent <names>",
-			"-g, --global",
-			"--project",
-			"--dry-run",
-			"--yes",
-			"--quality-gate",
-			"--claude",
-			"--cursor",
-			"--gemini",
-			"--pi",
-			"--codex",
-			"--windsurf",
-			"--cline",
-			"--kilocode",
-			"--antigravity",
-			"--copilot",
-		],
-	},
-	{
-		command: "aislop hook uninstall [agents...]",
-		summary: "Remove installed coding-agent hooks",
-		flags: [
-			"--agent <names>",
-			"-g, --global",
-			"--project",
-			"--dry-run",
-			"--claude",
-			"--cursor",
-			"--gemini",
-			"--pi",
-			"--codex",
-			"--windsurf",
-			"--cline",
-			"--kilocode",
-			"--antigravity",
-			"--copilot",
-		],
-	},
-	{ command: "aislop hooks", summary: "Alias for hook" },
-	{ command: "aislop hook status", summary: "Show installed hook status" },
-	{ command: "aislop hook baseline", summary: "Capture the current score as the hook baseline" },
-	{
-		command: "aislop install [agents...]",
-		summary: "Alias for hook install",
-		flags: [
-			"--agent <names>",
-			"-g, --global",
-			"--project",
-			"--dry-run",
-			"--yes",
-			"--quality-gate",
-			"--claude",
-			"--cursor",
-			"--gemini",
-			"--pi",
-			"--codex",
-			"--windsurf",
-			"--cline",
-			"--kilocode",
-			"--antigravity",
-			"--copilot",
-		],
-	},
-	{
-		command: "aislop install hooks [agents...]",
-		summary: "Natural alias for install; same flags",
-	},
-	{
-		command: "aislop uninstall [agents...]",
-		summary: "Alias for hook uninstall",
-		flags: [
-			"--agent <names>",
-			"-g, --global",
-			"--project",
-			"--dry-run",
-			"--claude",
-			"--cursor",
-			"--gemini",
-			"--pi",
-			"--codex",
-			"--windsurf",
-			"--cline",
-			"--kilocode",
-			"--antigravity",
-			"--copilot",
-		],
-	},
-	{
-		command: "aislop uninstall hooks [agents...]",
-		summary: "Natural alias for uninstall; same flags",
-	},
-	{
-		command: "aislop badge [directory]",
-		summary: "Print score badge URL and README markdown",
-		flags: ["--owner <owner>", "--repo <repo>", "--json"],
-	},
-	{
-		command: "aislop trend [directory]",
-		summary: "Show recent local scores from .aislop/history.jsonl",
-		flags: ["--limit <n>"],
-	},
-	{ command: "aislop update", summary: "Show current and latest npm versions" },
-	{ command: "aislop upgrade", summary: "Alias for update" },
-	{ command: "aislop version", summary: "Print the installed version" },
-	{ command: "aislop commands", summary: "Show this command reference" },
-];
+const COMMAND_PROMPT = ">";
 
 interface HomeRenderInput {
 	version?: string;
@@ -225,7 +61,7 @@ const renderCommandGroups = (): string => {
 		lines.push(` ${style(theme, "dim", group)}`);
 		for (const item of HOME_COMMANDS.filter((c) => c.group === group)) {
 			lines.push(
-				`   ${style(theme, "muted", "$")} ${style(theme, "fg", padEnd(item.command, commandWidth))}  ${style(theme, "muted", item.summary)}`,
+				`   ${style(theme, "muted", COMMAND_PROMPT)} ${highlightAislop(padEnd(item.command, commandWidth), theme)}  ${highlightAislop(item.summary, theme, "muted")}`,
 			);
 		}
 		lines.push("");
@@ -238,6 +74,7 @@ const renderHelpDetails = (): string =>
 		` ${style(theme, "dim", "Usage")}`,
 		"   aislop                         Open interactive menu",
 		"   aislop scan [options] [directory]",
+		"   aislop agent [options] [directory]",
 		"   aislop fix [options] [directory]",
 		"   aislop ci [options] [directory]",
 		"   aislop init [options] [directory]",
@@ -245,14 +82,25 @@ const renderHelpDetails = (): string =>
 		"   aislop rules [directory]",
 		"   aislop badge [options] [directory]",
 		"   aislop trend [options] [directory]",
+		"   aislop trends [options] [directory]",
+		"   aislop hook [command]",
 		"   aislop hook install [agents...]",
 		"   aislop install hooks [agents...]",
 		"   aislop update",
 		"   aislop version",
 		"",
+		` ${style(theme, "dim", "Interactive")}`,
+		"   > aislop                       open the menu",
+		"   Scan                           Score this project and show findings",
+		"   Agent                          Run a coding agent to repair slop",
+		"   Fix                            Auto-fix the mechanical issues",
+		"   Doctor                         Check installed engines and tools",
+		"   Install hooks                  Run aislop after agent edits",
+		"",
 		` ${style(theme, "dim", "Scan flags")}`,
 		"   --changes        scan changed files from HEAD",
 		"   --staged         scan staged files",
+		"   --base           diff base for --changes",
 		"   --json           emit machine-readable JSON",
 		"   --sarif          emit SARIF 2.1.0",
 		"   --format         choose json or sarif",
@@ -265,6 +113,40 @@ const renderHelpDetails = (): string =>
 		"   --prompt         print an agent handoff prompt",
 		"   --codex          open Codex to fix remaining findings",
 		"   --claude         open Claude Code to fix remaining findings",
+		"",
+		` ${style(theme, "dim", "Agent flags")}`,
+		"   --provider       choose auto, codex, claude, or opencode",
+		"   --target-score   score to converge toward",
+		"   --in-place       edit the current worktree",
+		"   --apply          apply the accepted diff back",
+		"   --background     start locally and return immediately",
+		"   --commit         commit the verified diff",
+		"   --pr             push and open a draft pull request",
+		"",
+		` ${style(theme, "dim", "Agent commands")}`,
+		"   aislop agent plan             preview provider, worktree, findings, and publish actions",
+		"   aislop agent providers        show local provider status",
+		"   aislop agent connect          connect Codex, Claude Code, or OpenCode locally",
+		"   aislop agent use              set the repo-local default provider",
+		"   aislop agent switch           alias for agent use",
+		"   aislop agent monitor          watch git changes and stream scan cycles",
+		"   aislop agent monitor list     list background monitors",
+		"   aislop agent monitor show     show a background monitor",
+		"   aislop agent monitor stop     stop a background monitor",
+		"   aislop agent sessions         list local session transcripts",
+		"   aislop agent show             show a session timeline and summary",
+		"   aislop agent apply            apply a reviewed worktree session",
+		"   aislop agent watch            stream session transcript updates",
+		"   aislop agent stop             stop a background session",
+		"",
+		` ${style(theme, "dim", "Hook commands")}`,
+		"   aislop hook                   manage coding-agent hooks",
+		"   aislop hook install           install coding-agent hooks",
+		"   aislop hook uninstall         remove coding-agent hooks",
+		"   aislop hook status            show installed hooks",
+		"   aislop hook baseline          capture the current score baseline",
+		"   aislop install hooks          natural alias for hook install",
+		"   aislop uninstall hooks        natural alias for hook uninstall",
 		"",
 		` ${style(theme, "dim", "Ignore and scope")}`,
 		"   .aislopignore    skip generated, vendored, or noisy paths",
@@ -284,16 +166,33 @@ const renderHelpDetails = (): string =>
 		` ${style(theme, "dim", "Examples")}`,
 		"   aislop scan --changes",
 		"   aislop fix --codex",
+		"   aislop agent plan",
+		"   aislop agent connect codex",
+		"   aislop agent use codex",
+		"   aislop agent monitor --once",
+		"   aislop agent monitor --background",
+		"   aislop agent monitor list",
+		"   aislop agent --provider codex",
+		"   aislop agent sessions",
+		"   aislop agent show",
+		"   aislop agent apply",
+		"   aislop agent watch",
+		"   aislop agent stop",
+		"   aislop agent --provider claude --pr",
 		"   aislop hook install --claude",
 		"   aislop install hooks",
 		"   aislop rules --search",
+		"   aislop trends --limit 10",
 		"",
-	].join("\n");
+	]
+		.map((line) => highlightAislop(line, theme))
+		.join("\n");
 
 export const renderHome = (input: HomeRenderInput = {}): string => {
 	const version = input.version ?? APP_VERSION;
 	let out = renderHeader({ version, command: "--bare", context: [] });
 	out += `${renderCommandGroups().trimEnd()}\n`;
+	out += `\n ${style(theme, "dim", "Team platform")}\n   ${style(theme, "muted", "Gate every PR and share one standard across your team")}  ${style(theme, "accent", terminalLink("https://scanaislop.com"))}\n`;
 	if (input.includeHelpDetails) {
 		out += `\n${renderHelpDetails().trimEnd()}\n`;
 		out += renderHintLine("Run aislop scan to scan your project");
@@ -303,31 +202,3 @@ export const renderHome = (input: HomeRenderInput = {}): string => {
 
 export const renderRootHelp = (input: { version?: string } = {}): string =>
 	`${renderHome({ version: input.version, includeHelpDetails: true })}\n`;
-
-export const renderCommandReference = (input: { version?: string } = {}): string => {
-	const version = input.version ?? APP_VERSION;
-	const commandWidth = Math.max(...COMMAND_REFERENCE.map((c) => c.command.length));
-	const lines = [
-		renderHeader({ version, command: "Commands", context: ["full list"] }).trimEnd(),
-		"",
-	];
-
-	for (const item of COMMAND_REFERENCE) {
-		lines.push(
-			` ${style(theme, "fg", padEnd(item.command, commandWidth))}  ${style(theme, "muted", item.summary)}`,
-		);
-		if (item.flags?.length) lines.push(`   ${style(theme, "dim", item.flags.join("  "))}`);
-	}
-
-	lines.push(
-		"",
-		` ${style(theme, "dim", "Scope files")}`,
-		" .aislopignore  Skip generated, vendored, or noisy paths",
-		" .gitignore     Respected for untracked files",
-	);
-	lines.push(
-		"",
-		renderHintLine("Run aislop <command> --help for complete command-specific options").trimEnd(),
-	);
-	return `${lines.join("\n")}\n`;
-};

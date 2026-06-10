@@ -14,6 +14,7 @@ import {
 import { loadConfig } from "../config/index.js";
 import { type AgentName, detectInstalledAgents } from "../hooks/install/registry.js";
 import { withCommandLifecycle } from "../telemetry/index.js";
+import { log } from "../ui/logger.js";
 
 type AgentFlagOpts = Partial<
 	Record<
@@ -53,16 +54,16 @@ const resolveScope = (flags: { global?: boolean; project?: boolean }): "global" 
 const promptForUninstall = async (): Promise<AgentName[] | null> => {
 	const installed = detectInstalledAgents({ home: os.homedir(), cwd: process.cwd() });
 	if (installed.length === 0) {
-		process.stdout.write("No aislop hooks installed. Nothing to uninstall.\n");
+		log.warn("No aislop hooks installed. Nothing to uninstall.");
 		return [];
 	}
 	const picked = await promptAgentSelection("uninstall", { installed });
 	if (picked === null) {
-		process.stdout.write("Cancelled.\n");
+		log.warn("Cancelled.");
 		return null;
 	}
 	if (picked.length === 0) {
-		process.stdout.write("No agents selected. Nothing to uninstall.\n");
+		log.warn("No agents selected. Nothing to uninstall.");
 		return [];
 	}
 	return picked;
@@ -71,11 +72,11 @@ const promptForUninstall = async (): Promise<AgentName[] | null> => {
 const promptForInstall = async (): Promise<AgentName[] | null> => {
 	const picked = await promptAgentSelection("install");
 	if (picked === null) {
-		process.stdout.write("Cancelled.\n");
+		log.warn("Cancelled.");
 		return null;
 	}
 	if (picked.length === 0) {
-		process.stdout.write("No agents selected. Nothing to install.\n");
+		log.warn("No agents selected. Nothing to install.");
 		return [];
 	}
 	return picked;
