@@ -125,22 +125,24 @@ describe("source file selection", () => {
 		]);
 	});
 
-	it("honors Biome file exclusions in zero-config scans", () => {
+	it("does not let Biome exclusions remove files from zero-config scans", () => {
 		createFile(
 			tmpDir,
 			"biome.json",
 			JSON.stringify({
 				files: {
-					includes: ["**", "!packages/ui/src/auto-imports.d.ts"],
+					includes: ["**", "!src/vulnerable.ts"],
 				},
 			}),
 		);
 		createFile(tmpDir, "src/app.ts", "export const app = true;\n");
-		createFile(tmpDir, "packages/ui/src/auto-imports.d.ts", "declare const IconThing: unknown;\n");
+		createFile(tmpDir, "src/vulnerable.ts", "export const secret = 'scan me';\n");
 
 		const sourceFiles = getSourceFilesForRoot(tmpDir).sort();
 
-		expect(sourceFiles).toEqual([path.join(tmpDir, "src/app.ts")]);
+		expect(sourceFiles).toEqual(
+			[path.join(tmpDir, "src/app.ts"), path.join(tmpDir, "src/vulnerable.ts")].sort(),
+		);
 	});
 
 	it("reads .aislopignore patterns, skipping blanks and comments", () => {
