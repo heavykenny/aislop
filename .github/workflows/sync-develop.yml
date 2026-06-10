@@ -57,11 +57,17 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.SYNC_BOT_PAT }}
         run: |
-          existing=$(gh pr list --base develop --head bot/sync-from-main --state open --json number --jq '.[0].number // empty')
+          existing=$(gh pr list \
+            --base develop \
+            --head bot/sync-from-main \
+            --state open \
+            --json number,headRefName,headRepository \
+            --jq '.[] | select(.headRefName == "bot/sync-from-main" and .headRepository.nameWithOwner == env.GITHUB_REPOSITORY) | .number' \
+            | head -n 1)
           if [ -z "$existing" ]; then
             num=$(gh pr create \
               --base develop \
-              --head bot/sync-from-main \
+              --head "$GITHUB_REPOSITORY_OWNER:bot/sync-from-main" \
               --title "chore: sync main → develop" \
               --body "Auto-opened by \`.github/workflows/sync-develop.yml\`. Brings develop up to main. Auto-merge enabled (squash) — merges itself once CI passes." \
               | grep -oE '[0-9]+$')
