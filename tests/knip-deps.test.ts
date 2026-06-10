@@ -29,23 +29,16 @@ describe("fixUnusedDependencies", () => {
 		await fixUnusedDependencies(tmpDir);
 	});
 
-	it("does nothing when there are no unused deps", async () => {
+	it("does nothing when package.json has no dependency sections", async () => {
 		const pkgPath = path.join(tmpDir, "package.json");
-		const original = {
-			name: "test-pkg",
-			dependencies: { express: "^4.18.0" },
-			devDependencies: { vitest: "^1.0.0" },
-		};
+		const original = { name: "test-pkg", version: "1.0.0" };
 		fs.writeFileSync(pkgPath, JSON.stringify(original, null, "\t"));
 
 		const fixUnusedDependencies = await loadFix();
-		// runKnipDependencyCheck will return [] since knip binary won't find
-		// anything in a bare temp dir
 		await fixUnusedDependencies(tmpDir);
 
 		const result = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
-		expect(result.dependencies).toEqual(original.dependencies);
-		expect(result.devDependencies).toEqual(original.devDependencies);
+		expect(result).toEqual(original);
 	});
 });
 
@@ -67,6 +60,32 @@ describe("knip dependency diagnostic shape", () => {
 		const mod = (await import("../src/engines/code-quality/knip.js")) as Record<string, unknown>;
 		expect(mod.runKnipUnusedExports).toBeUndefined();
 		expect(mod.fixKnipUnusedExports).toBeUndefined();
+	});
+});
+
+describe("runKnip", () => {
+	it("does not execute a project-local knip binary", async () => {
+		const proofPath = path.join(tmpDir, "knip-rce-proof.txt");
+		const fakeBin = path.join(tmpDir, "node_modules", "knip", "bin", "knip.js");
+		fs.mkdirSync(path.dirname(fakeBin), { recursive: true });
+		fs.writeFileSync(
+			fakeBin,
+			`import fs from "node:fs";\nfs.writeFileSync(${JSON.stringify(proofPath)}, "executed");\nconsole.log('{"files":[],"issues":[]}');\n`,
+		);
+		fs.writeFileSync(
+			path.join(tmpDir, "package.json"),
+			JSON.stringify({
+				name: "untrusted-project",
+				version: "1.0.0",
+				type: "module",
+				devDependencies: { knip: "^5.85.0" },
+			}),
+		);
+
+		const mod = await import("../src/engines/code-quality/knip.js");
+		await mod.runKnip(tmpDir);
+
+		expect(fs.existsSync(proofPath)).toBe(false);
 	});
 });
 
