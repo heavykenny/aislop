@@ -1,5 +1,8 @@
 import { execSync } from "node:child_process";
 import path from "node:path";
+import { renderDisplayRows, renderDisplaySection } from "../ui/display.js";
+import { renderHeader } from "../ui/header.js";
+import { APP_VERSION } from "../version.js";
 
 const GITHUB_REMOTE_RE =
 	/^(?:git@github\.com:|https:\/\/(?:[^@]+@)?github\.com\/)([^/]+)\/([^/.\s]+?)(?:\.git)?\s*$/;
@@ -30,16 +33,30 @@ export const renderBadgeOutput = ({ owner, repo, svgUrl, pageUrl }: BadgeRenderI
 	const slug = `${owner}/${repo}`;
 	const markdown = `[![aislop](${svgUrl})](${pageUrl})`;
 	return [
-		``,
-		`  Repository:  ${slug}`,
-		`  Badge URL:   ${svgUrl}`,
-		``,
-		`  Markdown:`,
-		``,
-		`    ${markdown}`,
-		``,
-		`  Drop the line above into your README. The badge auto-updates after every public scan.`,
-		``,
+		renderHeader({ version: APP_VERSION, command: "Badge", context: [slug] }).trimEnd(),
+		"",
+		renderDisplaySection("Badge"),
+		...renderDisplayRows([
+			{ label: "Repository", value: slug },
+			{ label: "Badge URL", value: svgUrl },
+			{ label: "Page", value: pageUrl },
+		]),
+		"",
+		renderDisplaySection("Markdown"),
+		...renderDisplayRows([{ label: "README", value: markdown }]),
+		"",
+		renderDisplaySection("Next"),
+		...renderDisplayRows([
+			{
+				label: "Add",
+				value: "put the README markdown near your project title",
+			},
+			{
+				label: "Refresh",
+				value: "run a public scan to update the score behind the badge",
+			},
+		]),
+		"",
 	].join("\n");
 };
 

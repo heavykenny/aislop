@@ -53,13 +53,23 @@ export interface PipelineDeps {
 	resolvedDir: string;
 	projectInfo: ProjectInfo;
 	force: boolean;
-	// Restrict to reversible fixes only (imports, comment removal, formatting).
+	// Restrict to reversible fixes only (imports, comment removal, safe formatter runs).
 	safe: boolean;
 	runStep: RunStepFn;
 }
 
 const hasJsOrTs = (projectInfo: ProjectInfo): boolean =>
 	projectInfo.languages.includes("typescript") || projectInfo.languages.includes("javascript");
+
+const skipUnsafeSafeFormatter = (deps: PipelineDeps, language: "ruby" | "php"): boolean => {
+	if (!deps.safe) return false;
+	const tool = language === "ruby" ? "rubocop" : "php-cs-fixer";
+	const label = language === "ruby" ? "Ruby" : "PHP";
+	log.warn(
+		`Safe mode skips ${label} formatting because ${tool} can execute project-controlled configuration. Run \`aislop fix\` without --safe if you trust this repository.`,
+	);
+	return true;
+};
 
 export const runAiSlopSteps = async (deps: PipelineDeps): Promise<void> => {
 	if (!deps.config.engines["ai-slop"]) return;
@@ -205,11 +215,13 @@ export const runFormattingStep = async (deps: PipelineDeps): Promise<void> => {
 	}
 
 	if (deps.projectInfo.languages.includes("ruby") && deps.projectInfo.installedTools.rubocop) {
-		await deps.runStep(
-			"Formatting (ruby)",
-			() => runGenericFormatter(deps.context, "ruby"),
-			() => fixGenericFormatter(deps.resolvedDir, "ruby"),
-		);
+		if (!skipUnsafeSafeFormatter(deps, "ruby")) {
+			await deps.runStep(
+				"Formatting (ruby)",
+				() => runGenericFormatter(deps.context, "ruby"),
+				() => fixGenericFormatter(deps.resolvedDir, "ruby"),
+			);
+		}
 	} else if (deps.projectInfo.languages.includes("ruby")) {
 		log.warn("Ruby detected but rubocop is not installed; skipping Ruby formatting fixes.");
 	}
@@ -218,11 +230,13 @@ export const runFormattingStep = async (deps: PipelineDeps): Promise<void> => {
 		deps.projectInfo.languages.includes("php") &&
 		deps.projectInfo.installedTools["php-cs-fixer"]
 	) {
-		await deps.runStep(
-			"Formatting (php)",
-			() => runGenericFormatter(deps.context, "php"),
-			() => fixGenericFormatter(deps.resolvedDir, "php"),
-		);
+		if (!skipUnsafeSafeFormatter(deps, "php")) {
+			await deps.runStep(
+				"Formatting (php)",
+				() => runGenericFormatter(deps.context, "php"),
+				() => fixGenericFormatter(deps.resolvedDir, "php"),
+			);
+		}
 	} else if (deps.projectInfo.languages.includes("php")) {
 		log.warn("PHP detected but php-cs-fixer is not installed; skipping PHP formatting fixes.");
 	}
@@ -249,7 +263,7 @@ export const runForceSteps = async (deps: PipelineDeps): Promise<void> => {
 		);
 	}
 
-	if (deps.projectInfo.frameworks.includes("expo")) {
+	if (deps.projectInfo.frameworks.includes("expo") && deps.config.lint.expoDoctor) {
 		await deps.runStep(
 			"Expo dependency alignment",
 			() => runExpoDoctor(deps.context),

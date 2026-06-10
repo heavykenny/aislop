@@ -52,6 +52,22 @@ describe("fixUnusedImports — Python comma imports", () => {
 		expect(fs.readFileSync(file, "utf-8")).toBe("import os, sys\n\nprint(os.getcwd(), sys.path)\n");
 	});
 
+	it("does not rewrite symlink targets outside the project", async () => {
+		const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), "aislop-unused-py-outside-"));
+		const outsideFile = path.join(outsideDir, "target.py");
+		const outsideContent = "import os\nprint('outside target preserved')\n";
+		fs.writeFileSync(outsideFile, outsideContent, "utf-8");
+
+		const linkPath = path.join(tmpDir, "escape.py");
+		fs.symlinkSync(outsideFile, linkPath);
+
+		await fixUnusedImports(makeContext([linkPath]));
+
+		expect(fs.readFileSync(outsideFile, "utf-8")).toBe(outsideContent);
+
+		fs.rmSync(outsideDir, { recursive: true, force: true });
+	});
+
 	it("respects an alias as the bound name", async () => {
 		const file = write("m.py", "import os, numpy as np\n\nprint(np.array([1]))\n");
 		await fixUnusedImports(makeContext([file]));
