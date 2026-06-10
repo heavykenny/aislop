@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { runSubprocess } from "../../utils/subprocess.js";
@@ -134,19 +135,37 @@ const findMonorepoRoot = (directory: string): string | null => {
 
 const KNIP_RELATIVE_BIN = path.join("node_modules", "knip", "bin", "knip.js");
 
-const findKnipBin = (
+const isTrackedByGit = (filePath: string, cwd: string): boolean => {
+	const relativePath = path.relative(cwd, filePath);
+	if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) return false;
+
+	const result = spawnSync("git", ["-C", cwd, "ls-files", "--error-unmatch", "--", relativePath], {
+		stdio: "ignore",
+	});
+	return result.status === 0;
+};
+
+const trustedKnipRuntime = (
+	binPath: string,
+	cwd: string,
+): { binPath: string; cwd: string } | null => {
+	if (isTrackedByGit(binPath, cwd)) return null;
+	return { binPath, cwd };
+};
+
+export const findKnipRuntime = (
 	rootDirectory: string,
 	monorepoRoot: string | null,
 ): { binPath: string; cwd: string } | null => {
 	const localPath = path.join(rootDirectory, KNIP_RELATIVE_BIN);
 	if (fs.existsSync(localPath)) {
-		return { binPath: localPath, cwd: rootDirectory };
+		return trustedKnipRuntime(localPath, rootDirectory);
 	}
 
 	if (monorepoRoot) {
 		const monorepoPath = path.join(monorepoRoot, KNIP_RELATIVE_BIN);
 		if (fs.existsSync(monorepoPath)) {
-			return { binPath: monorepoPath, cwd: monorepoRoot };
+			return trustedKnipRuntime(monorepoPath, monorepoRoot);
 		}
 	}
 
@@ -219,7 +238,7 @@ export const fixUnusedFiles = async (rootDirectory: string): Promise<void> => {
 
 export const runKnip = async (rootDirectory: string): Promise<Diagnostic[]> => {
 	const monorepoRoot = findMonorepoRoot(rootDirectory);
-	const knipRuntime = findKnipBin(rootDirectory, monorepoRoot);
+	const knipRuntime = findKnipRuntime(rootDirectory, monorepoRoot);
 	if (!knipRuntime) return [];
 
 	try {
