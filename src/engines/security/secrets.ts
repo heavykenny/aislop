@@ -78,6 +78,7 @@ const isInsideStringLiteral = (content: string, matchIndex: number): boolean => 
 };
 
 const PLACEHOLDER_EXACT = new Set(["changeme", "password", "secret", "xxx", "todo", "replace_me"]);
+const ENV_PLACEHOLDER_RE = /^\$\{[A-Za-z_][A-Za-z0-9_]*\}$/;
 const PLACEHOLDER_URL_PARTS = new Set([
 	"example",
 	"host",
@@ -111,8 +112,10 @@ const isPlaceholderCredentialUrl = (matchedText: string): boolean => {
 };
 
 const isPlaceholderValue = (matchedText: string): boolean => {
-	if (isPlaceholderCredentialUrl(matchedText)) return true;
-	if (PLACEHOLDER_EXACT.has(matchedText.toLowerCase())) return true;
+	const value = matchedText.trim();
+	if (isPlaceholderCredentialUrl(value)) return true;
+	if (ENV_PLACEHOLDER_RE.test(value)) return true;
+	if (PLACEHOLDER_EXACT.has(value.toLowerCase())) return true;
 	return false;
 };
 
