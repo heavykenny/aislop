@@ -71,11 +71,12 @@ export const captureBaseline = async (
 			quality: config.quality,
 			security: { audit: false, auditTimeout: 0 },
 			lint: { typecheck: false, expoDoctor: false },
+			allowProjectLocalTools: false,
 		},
 	};
 	const enabled: Record<EngineName, boolean> = {
-		format: config.engines.format,
-		lint: config.engines.lint,
+		format: false,
+		lint: false,
 		"code-quality": config.engines["code-quality"],
 		"ai-slop": config.engines["ai-slop"],
 		architecture: config.engines.architecture,

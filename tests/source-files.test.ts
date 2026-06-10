@@ -32,14 +32,15 @@ describe("source file selection", () => {
 		fs.rmSync(tmpDir, { recursive: true, force: true });
 	});
 
-	it("ignores test files and gitignored paths, even when they are tracked", async () => {
-		createFile(tmpDir, ".gitignore", "ignored.ts\nignored-dir/\n");
+	it("includes tracked source files even when gitignore matches them", async () => {
+		createFile(tmpDir, ".gitignore", "ignored.ts\nignored-dir/\nignored-untracked.ts\n");
 		createFile(tmpDir, "src/app.ts", "export const app = true;\n");
 		createFile(tmpDir, "src/worker.ts", "export const worker = true;\n");
 		createFile(tmpDir, "src/app.test.ts", "export const testFile = true;\n");
 		createFile(tmpDir, "tests/helper.ts", "export const helper = true;\n");
 		createFile(tmpDir, "ignored.ts", "export const ignored = true;\n");
 		createFile(tmpDir, "ignored-dir/task.ts", "export const ignoredTask = true;\n");
+		createFile(tmpDir, "ignored-untracked.ts", "export const untracked = true;\n");
 
 		git(tmpDir, [
 			"add",
@@ -56,7 +57,12 @@ describe("source file selection", () => {
 		const sourceFiles = getSourceFilesForRoot(tmpDir).sort();
 
 		expect(sourceFiles).toEqual(
-			[path.join(tmpDir, "src/app.ts"), path.join(tmpDir, "src/worker.ts")].sort(),
+			[
+				path.join(tmpDir, "ignored-dir/task.ts"),
+				path.join(tmpDir, "ignored.ts"),
+				path.join(tmpDir, "src/app.ts"),
+				path.join(tmpDir, "src/worker.ts"),
+			].sort(),
 		);
 
 		const filteredFiles = filterProjectFiles(tmpDir, [
@@ -64,12 +70,40 @@ describe("source file selection", () => {
 			path.join(tmpDir, "src/app.test.ts"),
 			path.join(tmpDir, "tests/helper.ts"),
 			path.join(tmpDir, "ignored.ts"),
+			path.join(tmpDir, "ignored-untracked.ts"),
 		]);
 
-		expect(filteredFiles).toEqual([path.join(tmpDir, "src/app.ts")]);
+		expect(filteredFiles).toEqual([
+			path.join(tmpDir, "src/app.ts"),
+			path.join(tmpDir, "ignored.ts"),
+		]);
 
 		const project = await discoverProject(tmpDir);
-		expect(project.sourceFileCount).toBe(2);
+		expect(project.sourceFileCount).toBe(4);
+	});
+
+	it("skips symlinked source files even when they look in-scope", () => {
+		const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), "aislop-source-outside-"));
+		const outsideFile = path.join(outsideDir, "target.py");
+		fs.writeFileSync(outsideFile, "import os\nprint('outside')\n", "utf-8");
+
+		createFile(tmpDir, "src/app.py", "print('app')\n");
+		fs.mkdirSync(path.join(tmpDir, "src"), { recursive: true });
+		fs.symlinkSync(outsideFile, path.join(tmpDir, "src/escape.py"));
+
+		git(tmpDir, ["add", "src/app.py", "src/escape.py"]);
+
+		const sourceFiles = getSourceFilesForRoot(tmpDir).sort();
+		const explicitFiles = filterProjectFiles(tmpDir, [
+			path.join(tmpDir, "src/app.py"),
+			path.join(tmpDir, "src/escape.py"),
+		]);
+
+		expect(sourceFiles).toEqual([path.join(tmpDir, "src/app.py")]);
+		expect(explicitFiles).toEqual([path.join(tmpDir, "src/app.py")]);
+		expect(fs.readFileSync(outsideFile, "utf-8")).toBe("import os\nprint('outside')\n");
+
+		fs.rmSync(outsideDir, { recursive: true, force: true });
 	});
 
 	it("filters out files that no longer exist on disk", () => {
@@ -92,6 +126,17 @@ describe("source file selection", () => {
 		const sourceFiles = getSourceFilesForRoot(tmpDir).sort();
 
 		expect(sourceFiles).toEqual([path.join(tmpDir, "src/app.py")]);
+	});
+
+	it("keeps public assets in zero-config scans so security checks cover shipped code", () => {
+		createFile(tmpDir, "src/app.js", "export const app = true;\n");
+		createFile(tmpDir, "public/vuln.js", "eval(userInput);\n");
+
+		const sourceFiles = getSourceFilesForRoot(tmpDir).sort();
+
+		expect(sourceFiles).toEqual(
+			[path.join(tmpDir, "public/vuln.js"), path.join(tmpDir, "src/app.js")].sort(),
+		);
 	});
 
 	it("skips checked-in package manager and generated dependency artifacts", () => {
@@ -132,11 +177,11 @@ describe("source file selection", () => {
 		expect(sourceFiles).toEqual([path.join(tmpDir, "src/app.ts")]);
 	});
 
-	it("excludes Vite config-bundle timestamp cache files even when tracked", () => {
+	it("keeps timestamp-named JavaScript files in shared scan coverage", () => {
 		createFile(tmpDir, "src/app.ts", "export const app = true;\n");
 		createFile(
 			tmpDir,
-			"apps/storybook/vite.config.ts.timestamp-1735325995918-46a167c39672.mjs",
+			"apps/admin/vite.config.ts.timestamp-1735325995918-46a167c39672.mjs",
 			"// vite cache\n",
 		);
 		createFile(
@@ -150,7 +195,7 @@ describe("source file selection", () => {
 			"add",
 			"-f",
 			"src/app.ts",
-			"apps/storybook/vite.config.ts.timestamp-1735325995918-46a167c39672.mjs",
+			"apps/admin/vite.config.ts.timestamp-1735325995918-46a167c39672.mjs",
 			"apps/web/vite.config.ts.timestamp-1700000000000-abc123def456.cjs",
 			"src/normal.timestamp-1.mjs",
 		]);
@@ -158,10 +203,14 @@ describe("source file selection", () => {
 
 		const sourceFiles = getSourceFilesForRoot(tmpDir).sort();
 
-		expect(sourceFiles).toEqual([
-			path.join(tmpDir, "src/app.ts"),
-			path.join(tmpDir, "src/normal.timestamp-1.mjs"),
-		]);
+		expect(sourceFiles).toEqual(
+			[
+				path.join(tmpDir, "apps/admin/vite.config.ts.timestamp-1735325995918-46a167c39672.mjs"),
+				path.join(tmpDir, "apps/web/vite.config.ts.timestamp-1700000000000-abc123def456.cjs"),
+				path.join(tmpDir, "src/app.ts"),
+				path.join(tmpDir, "src/normal.timestamp-1.mjs"),
+			].sort(),
+		);
 	});
 
 	it("honors Biome file exclusions in zero-config scans", () => {

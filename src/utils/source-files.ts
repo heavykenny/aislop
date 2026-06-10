@@ -76,7 +76,6 @@ const EXCLUDED_DIRS = [
 	".nuxt",
 	"coverage",
 	".turbo",
-	"public",
 ];
 
 const FIND_PRUNE_DIRS = [
@@ -127,18 +126,16 @@ const FIND_PRUNE_DIRS = [
 	".nuxt",
 	"coverage",
 	".turbo",
-	"public",
 ];
 
-const BUILD_CACHE_FILE_PATTERNS = [
-	/\.timestamp-\d+-[a-z0-9]+\.[mc]?js$/i,
+const GENERATED_ARTIFACT_FILE_PATTERNS = [
 	/\.min\.(?:js|css|mjs|cjs)$/i,
 	/\.bundle\.(?:js|css|mjs|cjs)$/i,
 	/(?:^|\/)\.pnp(?:\.loader)?\.[mc]?js$/i,
 ];
 
-const isBuildCacheFile = (filePath: string): boolean =>
-	BUILD_CACHE_FILE_PATTERNS.some((pattern) => pattern.test(filePath));
+const isGeneratedArtifactFile = (filePath: string): boolean =>
+	GENERATED_ARTIFACT_FILE_PATTERNS.some((pattern) => pattern.test(filePath));
 
 const TEST_FILE_PATTERNS = [
 	/(?:^|\/).*\.test\.[^/]+$/i,
@@ -165,6 +162,20 @@ const toProjectPath = (rootDirectory: string, filePath: string): string => {
 const isWithinProject = (relativePath: string): boolean =>
 	relativePath.length > 0 && !relativePath.startsWith("..");
 
+const isSafeRegularProjectFile = (rootDirectory: string, absolutePath: string): boolean => {
+	try {
+		const stat = fs.lstatSync(absolutePath);
+		if (!stat.isFile()) return false;
+
+		const realRoot = fs.realpathSync(rootDirectory);
+		const realFile = fs.realpathSync(absolutePath);
+		const relativePath = path.relative(realRoot, realFile);
+		return isWithinProject(relativePath) && !path.isAbsolute(relativePath);
+	} catch {
+		return false;
+	}
+};
+
 const hasAllowedExtension = (filePath: string, extraExtensions: Set<string>): boolean => {
 	const extension = path.extname(filePath);
 	return SOURCE_EXTENSIONS.has(extension) || extraExtensions.has(extension);
@@ -179,7 +190,7 @@ const isExcludedPath = (filePath: string): boolean => {
 };
 
 export const isExcludedFromScan = (relativePath: string): boolean =>
-	isExcludedPath(relativePath) || isBuildCacheFile(relativePath);
+	isExcludedPath(relativePath) || isGeneratedArtifactFile(relativePath);
 
 const isTestFile = (filePath: string): boolean =>
 	TEST_FILE_PATTERNS.some((pattern) => pattern.test(filePath));
@@ -207,7 +218,7 @@ const readBiomeExcludePatterns = (rootDirectory: string): string[] => {
 const getIgnoredPaths = (rootDirectory: string, files: string[]): Set<string> => {
 	if (files.length === 0) return new Set<string>();
 
-	const result = spawnSync("git", ["check-ignore", "--no-index", "--stdin"], {
+	const result = spawnSync("git", ["check-ignore", "--stdin"], {
 		cwd: rootDirectory,
 		encoding: "utf-8",
 		input: files.join("\n"),
@@ -337,11 +348,11 @@ export const filterProjectFiles = (
 	return normalizedFiles
 		.filter(({ absolutePath, relativePath }) => {
 			if (
-				!fs.existsSync(absolutePath) ||
+				!isSafeRegularProjectFile(rootDirectory, absolutePath) ||
 				!isWithinProject(relativePath) ||
 				isExcludedPath(relativePath) ||
 				isTestFile(relativePath) ||
-				isBuildCacheFile(relativePath) ||
+				isGeneratedArtifactFile(relativePath) ||
 				ignoredPaths.has(relativePath)
 			) {
 				return false;
@@ -372,8 +383,10 @@ const filterExplicitFiles = (
 			return { absolutePath, relativePath };
 		})
 		.filter(
-			({ relativePath }) =>
-				isWithinProject(relativePath) && hasAllowedExtension(relativePath, extraSet),
+			({ absolutePath, relativePath }) =>
+				isWithinProject(relativePath) &&
+				isSafeRegularProjectFile(rootDirectory, absolutePath) &&
+				hasAllowedExtension(relativePath, extraSet),
 		)
 		.map(({ absolutePath }) => absolutePath);
 };
