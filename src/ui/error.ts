@@ -1,3 +1,4 @@
+import { highlightAislop } from "./brand.js";
 import { symbols as defaultSymbols, type Symbols } from "./symbols.js";
 import { theme as defaultTheme, style, type Theme } from "./theme.js";
 
@@ -25,7 +26,7 @@ export const renderError = (input: ErrorInput, deps: ErrorDeps = {}): string => 
 		lines.push("");
 	}
 	for (const hint of input.hints ?? []) {
-		lines.push(` ${style(t, "accent", s.hint)} ${hint}`);
+		lines.push(` ${style(t, "accent", s.hint)} ${highlightAislop(hint, t)}`);
 	}
 	if (input.docsUrl) {
 		lines.push(` ${style(t, "accent", s.hint)} Docs: ${input.docsUrl}`);

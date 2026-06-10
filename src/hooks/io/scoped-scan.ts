@@ -52,7 +52,7 @@ export const runScopedScan = async (
 			// path hook-safe: no network audits, no typecheck subprocesses, and no
 			// execution-capable project-local tools.
 			security: { audit: false, auditTimeout: 0 },
-			lint: { typecheck: false },
+			lint: { typecheck: false, expoDoctor: false },
 			hookSafe: true,
 			architectureRulesPath: config.engines.architecture ? rulesPath : undefined,
 		},

@@ -83,6 +83,7 @@ describe("source file selection", () => {
 
 	it("skips common docs, tutorial, and sample code paths in zero-config scans", () => {
 		createFile(tmpDir, "src/app.py", "print('app')\n");
+		createFile(tmpDir, "app/bundles/ApiBundle/Tests/Functional/ControllerTest.php", "<?php\n");
 		createFile(tmpDir, "tutorials/lesson.py", "print('tutorial')\n");
 		createFile(tmpDir, "code_samples/demo.py", "print('sample')\n");
 		createFile(tmpDir, ".agents/skills/example.py", "print('skill')\n");
@@ -91,6 +92,44 @@ describe("source file selection", () => {
 		const sourceFiles = getSourceFilesForRoot(tmpDir).sort();
 
 		expect(sourceFiles).toEqual([path.join(tmpDir, "src/app.py")]);
+	});
+
+	it("skips checked-in package manager and generated dependency artifacts", () => {
+		createFile(tmpDir, "src/app.ts", "export const app = true;\n");
+		createFile(tmpDir, "src/components/Button.stories.tsx", "export const Story = {};\n");
+		createFile(tmpDir, "src/components/__stories__/Button.tsx", "export const Story = {};\n");
+		createFile(tmpDir, "packages/sdk/src/metadata/generated/schema.ts", "export const generated = true;\n");
+		createFile(tmpDir, "backend/app/DomainObjects/Generated/Model.php", "<?php\n");
+		createFile(tmpDir, "src/parser/testdata/case.go", "package testdata\n");
+		createFile(tmpDir, "e2e/fixtures.ts", "export const fixture = true;\n");
+		createFile(tmpDir, "library/js/vendors/validate/plugin.js", "validate.extend({});\n");
+		createFile(tmpDir, "third_party/legacy/widget.js", "window.widget = true;\n");
+		createFile(tmpDir, ".yarn/releases/yarn-4.13.0.cjs", "// yarn release bundle\n");
+		createFile(
+			tmpDir,
+			"packages/app/constants/yarn-engine/.yarn/releases/yarn-4.9.2.cjs",
+			"// embedded yarn release bundle\n",
+		);
+		createFile(tmpDir, ".pnp.cjs", "// yarn pnp loader\n");
+		createFile(tmpDir, ".pnp.loader.mjs", "// yarn pnp esm loader\n");
+		createFile(
+			tmpDir,
+			"Documentation/EHI_Export/schemaspy/layout/schemaSpy.js",
+			"$(function () {});\n",
+		);
+		createFile(
+			tmpDir,
+			"Documentation/EHI_Export/schemaspy/layout/bower/jquery/jquery.js",
+			"window.jQuery = window.jQuery || {};\n",
+		);
+		createFile(tmpDir, "assets/bower_components/legacy/plugin.js", "define(function () {});\n");
+		createFile(tmpDir, "assets/jspm_packages/npm/pkg/index.js", "System.register([]);\n");
+
+		git(tmpDir, ["add", "-f", "."]);
+
+		const sourceFiles = getSourceFilesForRoot(tmpDir).sort();
+
+		expect(sourceFiles).toEqual([path.join(tmpDir, "src/app.ts")]);
 	});
 
 	it("excludes Vite config-bundle timestamp cache files even when tracked", () => {

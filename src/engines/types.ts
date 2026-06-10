@@ -54,6 +54,7 @@ export interface EngineConfig {
 	};
 	lint: {
 		typecheck: boolean;
+		expoDoctor: boolean;
 	};
 	/** True for automatically-invoked agent hooks; engines must avoid project-code execution. */
 	hookSafe?: boolean;
