@@ -56,6 +56,7 @@ export interface EngineConfig {
 		typecheck: boolean;
 		expoDoctor: boolean;
 	};
+	allowProjectLocalTools?: boolean;
 	architectureRulesPath?: string;
 }
 

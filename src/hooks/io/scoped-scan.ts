@@ -52,6 +52,7 @@ export const runScopedScan = async (
 			security: { audit: false, auditTimeout: 0 },
 			// tsc is too slow for per-edit hooks; opt back in via the full scan if needed.
 			lint: { typecheck: false, expoDoctor: false },
+			allowProjectLocalTools: false,
 			architectureRulesPath: config.engines.architecture ? rulesPath : undefined,
 		},
 	};
