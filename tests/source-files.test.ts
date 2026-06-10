@@ -94,6 +94,17 @@ describe("source file selection", () => {
 		expect(sourceFiles).toEqual([path.join(tmpDir, "src/app.py")]);
 	});
 
+	it("keeps public assets in zero-config scans so security checks cover shipped code", () => {
+		createFile(tmpDir, "src/app.js", "export const app = true;\n");
+		createFile(tmpDir, "public/vuln.js", "eval(userInput);\n");
+
+		const sourceFiles = getSourceFilesForRoot(tmpDir).sort();
+
+		expect(sourceFiles).toEqual(
+			[path.join(tmpDir, "public/vuln.js"), path.join(tmpDir, "src/app.js")].sort(),
+		);
+	});
+
 	it("skips checked-in package manager and generated dependency artifacts", () => {
 		createFile(tmpDir, "src/app.ts", "export const app = true;\n");
 		createFile(tmpDir, "src/components/Button.stories.tsx", "export const Story = {};\n");
@@ -132,11 +143,11 @@ describe("source file selection", () => {
 		expect(sourceFiles).toEqual([path.join(tmpDir, "src/app.ts")]);
 	});
 
-	it("excludes Vite config-bundle timestamp cache files even when tracked", () => {
+	it("keeps timestamp-named JavaScript files in shared scan coverage", () => {
 		createFile(tmpDir, "src/app.ts", "export const app = true;\n");
 		createFile(
 			tmpDir,
-			"apps/storybook/vite.config.ts.timestamp-1735325995918-46a167c39672.mjs",
+			"apps/admin/vite.config.ts.timestamp-1735325995918-46a167c39672.mjs",
 			"// vite cache\n",
 		);
 		createFile(
@@ -150,7 +161,7 @@ describe("source file selection", () => {
 			"add",
 			"-f",
 			"src/app.ts",
-			"apps/storybook/vite.config.ts.timestamp-1735325995918-46a167c39672.mjs",
+			"apps/admin/vite.config.ts.timestamp-1735325995918-46a167c39672.mjs",
 			"apps/web/vite.config.ts.timestamp-1700000000000-abc123def456.cjs",
 			"src/normal.timestamp-1.mjs",
 		]);
@@ -158,10 +169,14 @@ describe("source file selection", () => {
 
 		const sourceFiles = getSourceFilesForRoot(tmpDir).sort();
 
-		expect(sourceFiles).toEqual([
-			path.join(tmpDir, "src/app.ts"),
-			path.join(tmpDir, "src/normal.timestamp-1.mjs"),
-		]);
+		expect(sourceFiles).toEqual(
+			[
+				path.join(tmpDir, "apps/admin/vite.config.ts.timestamp-1735325995918-46a167c39672.mjs"),
+				path.join(tmpDir, "apps/web/vite.config.ts.timestamp-1700000000000-abc123def456.cjs"),
+				path.join(tmpDir, "src/app.ts"),
+				path.join(tmpDir, "src/normal.timestamp-1.mjs"),
+			].sort(),
+		);
 	});
 
 	it("honors Biome file exclusions in zero-config scans", () => {
