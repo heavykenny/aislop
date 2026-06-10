@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -270,5 +271,29 @@ describe("loadConfig", () => {
 		const result = loadConfig(tmpDir);
 		expect(result.ci.format).toBe("json");
 		expect(result.ci.failBelow).toBe(70);
+	});
+
+	it("allows nested package config to extend a shared config above the package root", () => {
+		execFileSync("git", ["init"], { cwd: tmpDir, stdio: "ignore" });
+		const sharedAislopDir = path.join(tmpDir, "packages", CONFIG_DIR);
+		const packageAislopDir = path.join(tmpDir, "packages", "payments", CONFIG_DIR);
+		fs.mkdirSync(sharedAislopDir, { recursive: true });
+		fs.mkdirSync(packageAislopDir, { recursive: true });
+		fs.writeFileSync(
+			path.join(sharedAislopDir, "base.yml"),
+			"ci:\n  failBelow: 80\nquality:\n  maxFunctionLoc: 45\n",
+			"utf-8",
+		);
+		fs.writeFileSync(
+			path.join(packageAislopDir, CONFIG_FILE),
+			"extends: ../../.aislop/base.yml\nci:\n  format: json\n",
+			"utf-8",
+		);
+
+		const result = loadConfig(path.join(tmpDir, "packages", "payments"));
+
+		expect(result.ci.failBelow).toBe(80);
+		expect(result.ci.format).toBe("json");
+		expect(result.quality.maxFunctionLoc).toBe(45);
 	});
 });

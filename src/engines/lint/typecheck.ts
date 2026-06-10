@@ -1,13 +1,12 @@
-import { createRequire } from "node:module";
 import fs from "node:fs";
+import { createRequire } from "node:module";
 import path from "node:path";
 import { runSubprocess } from "../../utils/subprocess.js";
 import type { Diagnostic, EngineContext } from "../types.js";
 
 const MAX_DEPTH = 3;
 const TSC_TIMEOUT_MS = 120_000;
-const requireFromAislop = createRequire(import.meta.url);
-const TRUSTED_TSC_PATH = requireFromAislop.resolve("typescript/lib/tsc.js");
+const esmRequire = createRequire(import.meta.url);
 // tsc non-pretty output: `path/to/file.ts(line,col): error TSnnnn: message`
 const TSC_LINE_RE = /^(.+?)\((\d+),(\d+)\):\s+(error|warning)\s+TS(\d+):\s+(.+)$/;
 
@@ -30,6 +29,14 @@ const findTsconfigs = (root: string): string[] => {
 	};
 	walk(root, 0);
 	return results;
+};
+
+export const resolveTrustedTscPath = (): string | null => {
+	try {
+		return esmRequire.resolve("typescript/lib/tsc.js");
+	} catch {
+		return null;
+	}
 };
 
 // Reference-only configs (only `references`, no `files`/`include`/`extends`) should be skipped;
@@ -57,6 +64,9 @@ export const runTypecheck = async (context: EngineContext): Promise<Diagnostic[]
 	const diagnostics: Diagnostic[] = [];
 	const seen = new Set<string>();
 
+	const tscCli = resolveTrustedTscPath();
+	if (!tscCli) return [];
+
 	for (const tsconfig of tsconfigs) {
 		const projectDir = path.dirname(tsconfig);
 
@@ -64,7 +74,7 @@ export const runTypecheck = async (context: EngineContext): Promise<Diagnostic[]
 		try {
 			const result = await runSubprocess(
 				process.execPath,
-				[TRUSTED_TSC_PATH, "--noEmit", "--pretty", "false", "-p", tsconfig],
+				[tscCli, "--noEmit", "--pretty", "false", "-p", tsconfig],
 				{ cwd: projectDir, timeout: TSC_TIMEOUT_MS },
 			);
 			output = `${result.stdout ?? ""}\n${result.stderr ?? ""}`;

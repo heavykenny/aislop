@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { type AislopConfig, CONFIG_DIR, loadConfig, RULES_FILE } from "../config/index.js";
 import { loadArchitectureRules } from "../engines/architecture/rule-loader.js";
+import { resolveTrustedTscPath } from "../engines/lint/typecheck.js";
 import type { EngineName } from "../engines/types.js";
 import { getEngineLabel } from "../output/engine-info.js";
 import {
@@ -211,7 +212,15 @@ const planFormat = (ctx: PlanContext): ToolDecision => {
 
 const withTypecheckSuffix = (baseTool: string, ctx: PlanContext): ToolDecision => {
 	if (!ctx.config.lint?.typecheck) return { tool: baseTool, status: "ok" };
-	return { tool: `${baseTool} + TypeScript (bundled)`, status: "ok" };
+	if (resolveTrustedTscPath()) {
+		return { tool: `${baseTool} + bundled tsc`, status: "ok" };
+	}
+	return {
+		tool: `${baseTool} + bundled tsc not found`,
+		status: "missing",
+		remediation:
+			"Reinstall aislop so its TypeScript dependency is available, or set lint.typecheck: false in .aislop/config.yml.",
+	};
 };
 
 const planLint = (ctx: PlanContext): ToolDecision => {
