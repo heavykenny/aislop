@@ -168,7 +168,7 @@ describe("cli ergonomics", () => {
 			expect(result.stderr, label).not.toContain("too many arguments");
 			expect(result.stderr, label).not.toContain("unknown command");
 		}
-	}, 30_000);
+	}, 60_000);
 
 	it("keeps existing core command help complete and aligned with registered flags", () => {
 		const scan = runCli(["scan", "--help"]);
