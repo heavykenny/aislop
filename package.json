@@ -15,6 +15,26 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./adapters/astro": {
+      "types": "./dist/adapters/astro.d.ts",
+      "default": "./dist/adapters/astro.js"
+    },
+    "./adapters/expo": {
+      "types": "./dist/adapters/expo.d.ts",
+      "default": "./dist/adapters/expo.js"
+    },
+    "./adapters/nuxt": {
+      "types": "./dist/adapters/nuxt.d.ts",
+      "default": "./dist/adapters/nuxt.js"
+    },
+    "./adapters/sveltekit": {
+      "types": "./dist/adapters/sveltekit.d.ts",
+      "default": "./dist/adapters/sveltekit.js"
+    },
+    "./adapters/vite": {
+      "types": "./dist/adapters/vite.d.ts",
+      "default": "./dist/adapters/vite.js"
     }
   },
   "scripts": {
