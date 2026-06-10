@@ -17,6 +17,7 @@ export type Token =
 	| "danger"
 	| "warn"
 	| "info"
+	| "section"
 	| "success"
 	| "bold"
 	| "dim";
@@ -34,6 +35,7 @@ const TRUECOLOR: Record<Token, (s: string) => string> = {
 	danger: (s) => `\x1B[38;2;239;68;68m${s}\x1B[39m`,
 	warn: (s) => `\x1B[38;2;234;179;8m${s}\x1B[39m`,
 	info: (s) => `\x1B[38;2;56;189;248m${s}\x1B[39m`,
+	section: (s) => `\x1B[1;34m${s}\x1B[0m`,
 	success: (s) => `\x1B[38;2;34;197;94m${s}\x1B[39m`,
 	bold: pc.bold,
 	dim: pc.dim,
@@ -47,6 +49,7 @@ const C256: Record<Token, (s: string) => string> = {
 	danger: (s) => `\x1B[38;5;9m${s}\x1B[39m`,
 	warn: (s) => `\x1B[38;5;11m${s}\x1B[39m`,
 	info: (s) => `\x1B[38;5;14m${s}\x1B[39m`,
+	section: (s) => `\x1B[1;34m${s}\x1B[0m`,
 	success: (s) => `\x1B[38;5;10m${s}\x1B[39m`,
 	bold: pc.bold,
 	dim: pc.dim,
@@ -61,6 +64,7 @@ const NONE: Record<Token, (s: string) => string> = {
 	danger: identity,
 	warn: identity,
 	info: identity,
+	section: identity,
 	success: identity,
 	bold: identity,
 	dim: identity,

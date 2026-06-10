@@ -63,7 +63,7 @@ export const buildFixStepNames = (
 		if (config.engines.security) {
 			stepNames.push("Dependency audit fixes");
 		}
-		if (projectInfo.frameworks.includes("expo")) {
+		if (projectInfo.frameworks.includes("expo") && config.lint.expoDoctor) {
 			stepNames.push("Expo dependency alignment");
 		}
 	}

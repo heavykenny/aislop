@@ -30,7 +30,7 @@ scoring:
     format: 0.3
     lint: 0.6
     code-quality: 0.8
-    ai-slop: 2.5
+    ai-slop: 1.0
     architecture: 1.0
     security: 1.5
   thresholds:
@@ -82,7 +82,7 @@ scoring:
     format: 0.3       # formatting issues have lighter impact
     lint: 0.6
     code-quality: 0.8
-    ai-slop: 2.5      # AI-slop signals carry stronger weight
+    ai-slop: 1.0      # AI-slop signals stay visible without dominating warnings
     architecture: 1.0
     security: 1.5
   smoothing: 20        # increase to reduce penalty spikes on larger repos
