@@ -204,7 +204,7 @@ const readBiomeExcludePatterns = (rootDirectory: string): string[] => {
 const getIgnoredPaths = (rootDirectory: string, files: string[]): Set<string> => {
 	if (files.length === 0) return new Set<string>();
 
-	const result = spawnSync("git", ["check-ignore", "--no-index", "--stdin"], {
+	const result = spawnSync("git", ["check-ignore", "--stdin"], {
 		cwd: rootDirectory,
 		encoding: "utf-8",
 		input: files.join("\n"),
