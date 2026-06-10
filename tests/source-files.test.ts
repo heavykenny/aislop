@@ -82,6 +82,30 @@ describe("source file selection", () => {
 		expect(project.sourceFileCount).toBe(4);
 	});
 
+	it("skips symlinked source files even when they look in-scope", () => {
+		const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), "aislop-source-outside-"));
+		const outsideFile = path.join(outsideDir, "target.py");
+		fs.writeFileSync(outsideFile, "import os\nprint('outside')\n", "utf-8");
+
+		createFile(tmpDir, "src/app.py", "print('app')\n");
+		fs.mkdirSync(path.join(tmpDir, "src"), { recursive: true });
+		fs.symlinkSync(outsideFile, path.join(tmpDir, "src/escape.py"));
+
+		git(tmpDir, ["add", "src/app.py", "src/escape.py"]);
+
+		const sourceFiles = getSourceFilesForRoot(tmpDir).sort();
+		const explicitFiles = filterProjectFiles(tmpDir, [
+			path.join(tmpDir, "src/app.py"),
+			path.join(tmpDir, "src/escape.py"),
+		]);
+
+		expect(sourceFiles).toEqual([path.join(tmpDir, "src/app.py")]);
+		expect(explicitFiles).toEqual([path.join(tmpDir, "src/app.py")]);
+		expect(fs.readFileSync(outsideFile, "utf-8")).toBe("import os\nprint('outside')\n");
+
+		fs.rmSync(outsideDir, { recursive: true, force: true });
+	});
+
 	it("filters out files that no longer exist on disk", () => {
 		createFile(tmpDir, "src/a.ts", "export const a = 1;\n");
 		const result = filterProjectFiles(tmpDir, [

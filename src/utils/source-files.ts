@@ -162,6 +162,20 @@ const toProjectPath = (rootDirectory: string, filePath: string): string => {
 const isWithinProject = (relativePath: string): boolean =>
 	relativePath.length > 0 && !relativePath.startsWith("..");
 
+const isSafeRegularProjectFile = (rootDirectory: string, absolutePath: string): boolean => {
+	try {
+		const stat = fs.lstatSync(absolutePath);
+		if (!stat.isFile()) return false;
+
+		const realRoot = fs.realpathSync(rootDirectory);
+		const realFile = fs.realpathSync(absolutePath);
+		const relativePath = path.relative(realRoot, realFile);
+		return isWithinProject(relativePath) && !path.isAbsolute(relativePath);
+	} catch {
+		return false;
+	}
+};
+
 const hasAllowedExtension = (filePath: string, extraExtensions: Set<string>): boolean => {
 	const extension = path.extname(filePath);
 	return SOURCE_EXTENSIONS.has(extension) || extraExtensions.has(extension);
@@ -334,7 +348,7 @@ export const filterProjectFiles = (
 	return normalizedFiles
 		.filter(({ absolutePath, relativePath }) => {
 			if (
-				!fs.existsSync(absolutePath) ||
+				!isSafeRegularProjectFile(rootDirectory, absolutePath) ||
 				!isWithinProject(relativePath) ||
 				isExcludedPath(relativePath) ||
 				isTestFile(relativePath) ||
@@ -369,8 +383,10 @@ const filterExplicitFiles = (
 			return { absolutePath, relativePath };
 		})
 		.filter(
-			({ relativePath }) =>
-				isWithinProject(relativePath) && hasAllowedExtension(relativePath, extraSet),
+			({ absolutePath, relativePath }) =>
+				isWithinProject(relativePath) &&
+				isSafeRegularProjectFile(rootDirectory, absolutePath) &&
+				hasAllowedExtension(relativePath, extraSet),
 		)
 		.map(({ absolutePath }) => absolutePath);
 };

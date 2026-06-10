@@ -60,14 +60,17 @@ describe("codeQualityEngine project-local tools", () => {
 		expect(fs.existsSync(markerPath)).toBe(false);
 	});
 
-	it("preserves normal scan behavior by allowing project-local Knip by default", async () => {
-		fs.writeFileSync(path.join(tmpDir, "package.json"), JSON.stringify({ name: "trusted" }));
+	it("uses the trusted Knip runtime when project-local tools are allowed by default", async () => {
+		fs.writeFileSync(
+			path.join(tmpDir, "package.json"),
+			JSON.stringify({ name: "trusted", devDependencies: { knip: "^5.85.0" } }),
+		);
 		const file = writeFile("src/app.js", "export const ok = true;\n");
 		const markerPath = path.join(tmpDir, "knip-executed");
 		writeFakeKnip(markerPath);
 
 		await codeQualityEngine.run(makeContext(file));
 
-		expect(fs.readFileSync(markerPath, "utf-8")).toBe("executed");
+		expect(fs.existsSync(markerPath)).toBe(false);
 	});
 });
