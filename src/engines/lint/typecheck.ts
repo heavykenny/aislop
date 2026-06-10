@@ -33,7 +33,7 @@ const findTsconfigs = (root: string): string[] => {
 
 export const resolveTrustedTscPath = (): string | null => {
 	try {
-		return esmRequire.resolve("typescript/bin/tsc");
+		return esmRequire.resolve("typescript/lib/tsc.js");
 	} catch {
 		return null;
 	}
@@ -61,11 +61,11 @@ export const runTypecheck = async (context: EngineContext): Promise<Diagnostic[]
 	const tsconfigs = findTsconfigs(context.rootDirectory).filter((p) => !isReferenceOnlyConfig(p));
 	if (tsconfigs.length === 0) return [];
 
-	const tscPath = resolveTrustedTscPath();
-	if (!tscPath) return [];
-
 	const diagnostics: Diagnostic[] = [];
 	const seen = new Set<string>();
+
+	const tscCli = resolveTrustedTscPath();
+	if (!tscCli) return [];
 
 	for (const tsconfig of tsconfigs) {
 		const projectDir = path.dirname(tsconfig);
@@ -74,7 +74,7 @@ export const runTypecheck = async (context: EngineContext): Promise<Diagnostic[]
 		try {
 			const result = await runSubprocess(
 				process.execPath,
-				[tscPath, "--noEmit", "--pretty", "false", "-p", tsconfig],
+				[tscCli, "--noEmit", "--pretty", "false", "-p", tsconfig],
 				{ cwd: projectDir, timeout: TSC_TIMEOUT_MS },
 			);
 			output = `${result.stdout ?? ""}\n${result.stderr ?? ""}`;

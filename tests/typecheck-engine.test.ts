@@ -28,7 +28,7 @@ const buildContext = (): EngineContext => ({
 	config: {
 		quality: { maxFunctionLoc: 80, maxFileLoc: 400, maxNesting: 5, maxParams: 6 },
 		security: { audit: false, auditTimeout: 0 },
-		lint: { typecheck: true },
+		lint: { typecheck: true, expoDoctor: false },
 	},
 });
 
@@ -107,7 +107,7 @@ describe("runTypecheck", () => {
 		writeFile("src/index.ts", "export const safe: number = 1;\n");
 		writeFile(
 			path.join("node_modules", ".bin", "tsc"),
-			`#!/bin/sh\necho executed > ${JSON.stringify(markerPath)}\n`,
+			`#!/usr/bin/env node\nimport fs from "node:fs";\nfs.writeFileSync(${JSON.stringify(markerPath)}, "executed");\n`,
 		);
 		fs.chmodSync(path.join(tmpDir, "node_modules", ".bin", "tsc"), 0o755);
 
