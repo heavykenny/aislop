@@ -12,7 +12,10 @@ export const codeQualityEngine: Engine = {
 
 		const promises: Promise<Diagnostic[]>[] = [];
 
-		if (context.languages.includes("typescript") || context.languages.includes("javascript")) {
+		if (
+			!context.config.hookSafe &&
+			(context.languages.includes("typescript") || context.languages.includes("javascript"))
+		) {
 			promises.push(runKnip(context.rootDirectory));
 		}
 

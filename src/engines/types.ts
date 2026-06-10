@@ -55,6 +55,8 @@ export interface EngineConfig {
 	lint: {
 		typecheck: boolean;
 	};
+	/** True for automatically-invoked agent hooks; engines must avoid project-code execution. */
+	hookSafe?: boolean;
 	architectureRulesPath?: string;
 }
 
