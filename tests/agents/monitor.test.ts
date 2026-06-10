@@ -93,6 +93,24 @@ describe("agent monitor", () => {
 		expect(settled.settled).toBe(changed);
 	});
 
+	it("settles the first changed snapshot immediately when debounce is zero", () => {
+		const current: GitChangeSnapshot = { signature: "", files: [] };
+		const changed: GitChangeSnapshot = { signature: " M src/a.ts\n", files: ["src/a.ts"] };
+		const settled = updateMonitorDebounceState({
+			current,
+			pending: null,
+			changedAt: 0,
+			next: changed,
+			now: 100,
+			debounce: 0,
+		});
+		expect(settled.current).toBe(changed);
+		expect(settled.pending).toBeNull();
+		expect(settled.changedAt).toBe(0);
+		expect(settled.detected).toBe(true);
+		expect(settled.settled).toBe(changed);
+	});
+
 	it("clears pending debounce when changes return to the current snapshot", () => {
 		const current: GitChangeSnapshot = { signature: "", files: [] };
 		const changed: GitChangeSnapshot = { signature: " M src/a.ts\n", files: ["src/a.ts"] };

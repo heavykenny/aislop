@@ -33,7 +33,7 @@ Local agent repair sessions get a full terminal-native workflow, CLI output is t
 
 ### Tests
 
-Full suite at 1275 passing, plus self-scan at 100 with zero diagnostics. New coverage locks the agent TUI, session state/activity, provider flows, background monitor lifecycle, scoped agent directories, rule impact metadata, command suggestions, source filtering, and calibration regressions.
+Full suite at 1276 passing, plus self-scan at 100 with zero diagnostics. New coverage locks the agent TUI, session state/activity, provider flows, background monitor lifecycle, scoped agent directories, rule impact metadata, command suggestions, source filtering, and calibration regressions.
 
 ## 0.11.0 (2026-06-06)
 

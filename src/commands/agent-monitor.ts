@@ -114,6 +114,15 @@ export const updateMonitorDebounceState = (input: {
 		};
 	}
 	if (input.pending?.signature !== input.next.signature) {
+		if (input.debounce <= 0) {
+			return {
+				current: input.next,
+				pending: null,
+				changedAt: 0,
+				detected: true,
+				settled: input.next,
+			};
+		}
 		return {
 			current: input.current,
 			pending: input.next,
