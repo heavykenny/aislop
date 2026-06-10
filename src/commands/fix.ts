@@ -3,7 +3,7 @@ import path from "node:path";
 import { performance } from "node:perf_hooks";
 import { type AislopConfig, findConfigDir, RULES_FILE } from "../config/index.js";
 import { runEngines } from "../engines/orchestrator.js";
-import type { Diagnostic, EngineConfig, EngineContext } from "../engines/types.js";
+import type { Diagnostic, EngineConfig, EngineContext, EngineResult } from "../engines/types.js";
 import { calculateScore } from "../scoring/index.js";
 import { withCommandLifecycle } from "../telemetry/index.js";
 import { renderHeader } from "../ui/header.js";
@@ -62,6 +62,27 @@ export const buildPostFixVerificationEngines = (
 	// and expo-doctor, which may execute repository-controlled code/config.
 	lint: false,
 });
+
+const collectPostFixLintDiagnostics = (steps: FixStepResult[]): Diagnostic[] =>
+	steps
+		.filter((step) => step.name.startsWith("Lint fixes"))
+		.flatMap((step) => step.afterDiagnostics ?? []);
+
+const appendPostFixLintResult = (
+	results: EngineResult[],
+	lintDiagnostics: Diagnostic[],
+): EngineResult[] => {
+	if (lintDiagnostics.length === 0) return results;
+	return [
+		...results,
+		{
+			engine: "lint",
+			diagnostics: lintDiagnostics,
+			elapsed: 0,
+			skipped: false,
+		},
+	];
+};
 
 export const fixCommand = async (
 	directory: string,
@@ -164,7 +185,7 @@ const runFixBody = async (
 	};
 
 	rail.start("Verifying results");
-	const scanResults = await runEngines(
+	const verificationResults = await runEngines(
 		{
 			rootDirectory: resolvedDir,
 			languages: projectInfo.languages,
@@ -177,6 +198,10 @@ const runFixBody = async (
 		() => {},
 	);
 	rail.complete({ status: "done", label: "Verification complete" });
+	const scanResults = appendPostFixLintResult(
+		verificationResults,
+		collectPostFixLintDiagnostics(steps),
+	);
 
 	const allDiagnostics = scanResults.flatMap((r) => r.diagnostics);
 	const scoreResult = calculateScore(
