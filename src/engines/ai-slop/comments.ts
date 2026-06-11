@@ -8,7 +8,7 @@ import {
 	PHP_DECL_START,
 	RUBY_DECL_START,
 } from "./narrative-comments-patterns.js";
-import { isNonProductionPath } from "./non-production-paths.js";
+import { isNonProductionPath, isToolingConfigFile } from "./non-production-paths.js";
 
 const TRIVIAL_VERB_STEMS =
 	"Import|Defin|Initializ|Setting|Set\\s+up|Setup|Return|Check|Loop|Iterat|Creat|Updat|Delet|Remov|Handl|Get|Fetch|Increment|Decrement|Writ|Runn|Run|Pars|Execut|Extract|Sav|Load|Build|Start|Stopp|Stop|Clean(?:up|\\s+up)?|Configur|Validat|Process|Queue|Fire|Emit|Dispatch|Log|Print|Render";
@@ -122,6 +122,37 @@ const isDocCommentForDeclaration = (lines: string[], lineIdx: number, ext: strin
 	return false;
 };
 
+/**
+ * Heuristic: many real (non-slop) short comments in bundler/build configs are just
+ * section labels right above rule objects (e.g. "// Vue SFC" above `test: /\.vue$/`).
+ * These were responsible for very high trivial-comment volume in OSS benchmarks.
+ * We still allow other ai-slop rules on these files.
+ */
+const isLikelyConfigSectionLabel = (trimmed: string, nextLine: string | undefined): boolean => {
+	if (!nextLine) return false;
+	const body = getCommentBody(trimmed).toLowerCase().trim();
+	const next = nextLine.trim();
+
+	// Common config rule keys in bundlers (webpack, vite, rollup, next, etc.)
+	const configRuleRe = /^(test|use|loader|rules|plugins|resolve|module|build|server|optimizeDeps|defineConfig|config):\s*[\[\{]/;
+	if (configRuleRe.test(next)) return true;
+
+	// Property assignment like test: /... or use: ['...']
+	if (/\b(test|use|loader)\s*:\s*['"/\[]/.test(next)) return true;
+
+	// Generic short label before object key in config (e.g. // Build styles \n css: {...} or rules: )
+	if (/^[a-zA-Z0-9_$-]+\s*:\s*[\[\{]/.test(next) && body.length < 30) {
+		return true;
+	}
+
+	// Very short imperative labels at top level of config objects
+	if (/^\/\/\s*(Vue|React|Build|Styles|Scripts|Assets|Images|Fonts|Icons)/i.test(trimmed) && /:\s*\{/.test(next)) {
+		return true;
+	}
+
+	return false;
+};
+
 const scanFileForTrivialComments = (
 	content: string,
 	relativePath: string,
@@ -135,6 +166,14 @@ const scanFileForTrivialComments = (
 		if (!isTrivialComment(trimmed, nextLine)) continue;
 		if (isInMultiLineCommentRun(lines, i)) continue;
 		if (isDocCommentForDeclaration(lines, i, ext)) continue;
+
+		// Contextual skip for common non-slop label comments in build/tooling configs.
+		// This targets the high-volume FP cases from benchmarks (e.g. "// Vue SFC" above test: rules)
+		// while still allowing detection of real trivial comments inside actual JS logic in the same file.
+		if (isToolingConfigFile(relativePath) && isLikelyConfigSectionLabel(trimmed, nextLine)) {
+			continue;
+		}
+
 		diagnostics.push({
 			filePath: relativePath,
 			engine: "ai-slop",
