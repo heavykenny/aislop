@@ -11,7 +11,24 @@ const withFixHint = (rest: string): string => {
 	return `Run \`${invocation} fix -f\` to apply this fix${suffix}`;
 };
 
+const AUDIT_INPUT_FILE_RE =
+	/(?:^|\/)(?:package\.json|package-lock\.json|pnpm-lock\.yaml|yarn\.lock|bun\.lockb?|requirements(?:\.[\w-]+)?\.txt|pyproject\.toml|Pipfile|Pipfile\.lock|poetry\.lock|go\.mod|go\.sum|Cargo\.toml|Cargo\.lock)$/i;
+
+const toRelativePath = (rootDirectory: string, filePath: string): string => {
+	const absolute = path.isAbsolute(filePath) ? filePath : path.resolve(rootDirectory, filePath);
+	return path.relative(rootDirectory, absolute).split(path.sep).join("/");
+};
+
+export const shouldRunDependencyAudit = (context: EngineContext): boolean => {
+	if (!context.files) return true;
+	return context.files.some((file) =>
+		AUDIT_INPUT_FILE_RE.test(toRelativePath(context.rootDirectory, file)),
+	);
+};
+
 export const runDependencyAudit = async (context: EngineContext): Promise<Diagnostic[]> => {
+	if (!shouldRunDependencyAudit(context)) return [];
+
 	const diagnostics: Diagnostic[] = [];
 	const timeout = context.config.security.auditTimeout;
 

@@ -90,6 +90,17 @@ const PLACEHOLDER_URL_PARTS = new Set([
 	"username",
 ]);
 
+const NON_PRODUCTION_SECRET_PATH_RE =
+	/(?:^|\/)(?:__fixtures__|__mocks__|cypress|demo|demos|e2e-tests?|examples?|fixtures?|playwright|samples?|seeders?|seeds?|storetest|testdata|tests?|tools\/sharedchannel-test)(?:\/|$)|(?:^|\/)db\/seeds\.[^/]+$/i;
+const SYMBOLIC_VALUE_RE = /^[A-Za-z_][A-Za-z0-9_.-]*$/;
+const HEADER_CONSTANT_RE = /\bHeader[A-Za-z0-9_]*\s*=/;
+const GENERATED_SECRET_RE =
+	/\b(?:SecureRandom|crypto\.random|randomBytes|randomUUID|random_bytes|secrets\.token|uuid)\b/i;
+const FIXTURE_LINE_RE = /\b(?:fixture|mock|sample|seed|test)\b|(?:^|[^A-Za-z])B?Test[A-Z_]/i;
+const FIXTURE_VALUE_RE =
+	/^(?:password1!?\.?|passwd\+us3r\d+|sys@dmin-sample\d+|usr@mmtest\d+|test(?:ing)?[-_ ]?(?:password|secret)?\d*)$/i;
+const MASKED_SECRET_RE = /^[*xX]{6,}$/;
+
 const isPlaceholderCredentialUrl = (matchedText: string): boolean => {
 	const credentialMatch = matchedText.match(/^[a-z]+:\/\/([^:@/\s]+):([^@/\s]+)@/i);
 	if (credentialMatch) {
@@ -111,11 +122,64 @@ const isPlaceholderCredentialUrl = (matchedText: string): boolean => {
 	}
 };
 
+const lineForMatch = (content: string, matchIndex: number): string => {
+	const lineStart = content.lastIndexOf("\n", matchIndex - 1) + 1;
+	const lineEnd = content.indexOf("\n", matchIndex);
+	return content.slice(lineStart, lineEnd === -1 ? content.length : lineEnd);
+};
+
 const isPlaceholderValue = (matchedText: string): boolean => {
 	const value = matchedText.trim();
 	if (isPlaceholderCredentialUrl(value)) return true;
 	if (ENV_PLACEHOLDER_RE.test(value)) return true;
 	if (PLACEHOLDER_EXACT.has(value.toLowerCase())) return true;
+	return false;
+};
+
+const isSymbolicConstantValue = (matchedText: string): boolean => {
+	if (/^process\.env\./i.test(matchedText)) return false;
+	if (!SYMBOLIC_VALUE_RE.test(matchedText)) return false;
+	if (/\d/.test(matchedText)) return false;
+	return /[_.]/.test(matchedText) || /[a-z][A-Z]/.test(matchedText);
+};
+
+const isHeaderNameConstant = (lineText: string, matchedText: string): boolean => {
+	if (!HEADER_CONSTANT_RE.test(lineText)) return false;
+	return (
+		matchedText.toLowerCase() === "token" ||
+		matchedText.toLowerCase() === "bearer" ||
+		matchedText === "Authorization" ||
+		matchedText.startsWith("X-")
+	);
+};
+
+const isFixtureSecret = (relativePath: string, lineText: string, matchedText: string): boolean => {
+	if (MASKED_SECRET_RE.test(matchedText)) return true;
+	if (/(?:mmtest|sample|testing)/i.test(matchedText)) return true;
+	if (/updated .*(?:client)?secret/i.test(matchedText)) return true;
+	if (!NON_PRODUCTION_SECRET_PATH_RE.test(relativePath) && !FIXTURE_LINE_RE.test(lineText)) {
+		return false;
+	}
+	if (FIXTURE_VALUE_RE.test(matchedText)) return true;
+	if (isPlaceholderCredentialUrl(matchedText)) return true;
+	return /(?:localhost|mattermost_test|_test|sample|test)/i.test(matchedText);
+};
+
+const shouldSkipSecretFinding = (
+	relativePath: string,
+	name: string,
+	lineText: string,
+	matchedText: string,
+): boolean => {
+	if (GENERATED_SECRET_RE.test(lineText) || GENERATED_SECRET_RE.test(matchedText)) return true;
+	if (isHeaderNameConstant(lineText, matchedText)) return true;
+	if (isFixtureSecret(relativePath, lineText, matchedText)) return true;
+	if (
+		(name === "Hardcoded password/secret" || name === "Authentication token") &&
+		isSymbolicConstantValue(matchedText)
+	) {
+		return true;
+	}
 	return false;
 };
 
@@ -141,7 +205,9 @@ export const scanSecrets = async (context: EngineContext): Promise<Diagnostic[]>
 
 			for (const match of content.matchAll(regex)) {
 				const matchedText = match[1] ?? match[0];
+				const lineText = lineForMatch(content, match.index);
 				if (isPlaceholderValue(matchedText)) continue;
+				if (shouldSkipSecretFinding(relativePath, name, lineText, matchedText)) continue;
 				if (keywordPrefixed && isInsideStringLiteral(content, match.index)) continue;
 
 				const line = content.slice(0, match.index).split("\n").length;
