@@ -378,6 +378,65 @@ import { Page } from "@/pages/Home";
 		expect(diags).toEqual([]);
 	});
 
+	it("reads local aliases from Vite shared alias objects", async () => {
+		writePkgJson({ vue: "^3.0.0" });
+		writeFile(
+			"vite.shared.ts",
+			[
+				`import path from "node:path";`,
+				`export const aliases = {`,
+				`  vue: "vue/dist/vue.esm-bundler.js",`,
+				`  dashboard: path.resolve("./app/javascript/dashboard"),`,
+				`  shared: path.resolve("./app/javascript/shared"),`,
+				`  next: path.resolve("./app/javascript/dashboard/components-next"),`,
+				`};`,
+				``,
+			].join("\n"),
+		);
+		writeFile(
+			"app/javascript/dashboard/components-next/filter/provider.js",
+			[
+				`import filterHelpers from "dashboard/helper/filterHelpers";`,
+				`import sharedHelpers from "shared/helpers/filterHelpers";`,
+				`import Provider from "next/filter/Provider";`,
+				``,
+			].join("\n"),
+		);
+
+		const diags = await detectHallucinatedImports(buildContext());
+
+		expect(diags).toEqual([]);
+	});
+
+	it("reads local aliases from Vite resolve.alias arrays", async () => {
+		writePkgJson({});
+		writeFile(
+			"vite.config.ts",
+			[
+				`import path from "node:path";`,
+				`export default {`,
+				`  resolve: {`,
+				`    alias: [`,
+				`      { find: "@", replacement: path.resolve(__dirname, "src") },`,
+				`      { find: "models", replacement: path.resolve(__dirname, "src/models") },`,
+				`    ],`,
+				`  },`,
+				`};`,
+				``,
+			].join("\n"),
+		);
+		writeFile(
+			"src/app.ts",
+			[`import { Button } from "@/components/Button";`, `import { User } from "models/User";`, ``].join(
+				"\n",
+			),
+		);
+
+		const diags = await detectHallucinatedImports(buildContext());
+
+		expect(diags).toEqual([]);
+	});
+
 	it("resolves bare imports through tsconfig baseUrl directories", async () => {
 		writePkgJson({});
 		writeFile("pnpm-workspace.yaml", `packages:\n  - "apps/*"\n`);

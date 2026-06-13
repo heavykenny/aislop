@@ -430,6 +430,42 @@ describe("detectSwallowedExceptions", () => {
 		expect(diagnostics.length).toBeGreaterThanOrEqual(1);
 	});
 
+	it("detects Python except blocks that only print the error", async () => {
+		const filePath = writeFile(
+			"print_only.py",
+			[
+				"try:",
+				"    do_thing()",
+				"except Exception as e:",
+				"    print(",
+				"        f'failed: {e}'",
+				"    )",
+			].join("\n"),
+		);
+		const diagnostics = await detectSwallowedExceptions(makeContext([filePath]));
+		expect(diagnostics.length).toBeGreaterThanOrEqual(1);
+		expect(diagnostics[0].message).toContain("only prints");
+	});
+
+	it("does not flag Python except blocks that print and exit non-zero", async () => {
+		const filePath = writeFile(
+			"print_and_exit.py",
+			[
+				"import sys",
+				"",
+				"try:",
+				"    fetch_url(url)",
+				"except Exception as e:",
+				"    print(",
+				"        f'ERROR: Could not fetch resource. Reason: {e}'",
+				"    )",
+				"    sys.exit(1)",
+			].join("\n"),
+		);
+		const diagnostics = await detectSwallowedExceptions(makeContext([filePath]));
+		expect(diagnostics).toHaveLength(0);
+	});
+
 	it("does not flag .go files for JS/TS patterns", async () => {
 		const filePath = writeFile(
 			"main.go",

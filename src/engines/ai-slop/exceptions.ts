@@ -27,12 +27,6 @@ const SWALLOWED_EXCEPTION_PATTERNS: Array<{
 		languages: [".py"],
 		message: "Bare except with pass swallows errors silently",
 	},
-	// Python: except Exception as e with just print
-	{
-		pattern: /except\s+\w+(?:\s+as\s+\w+)?:\s*\n\s*print\(/,
-		languages: [".py"],
-		message: "Catch block only prints error without proper handling",
-	},
 	// Go: ignoring error return
 	{
 		pattern: /\w+,\s*_\s*:?=\s*\w+\(/,
@@ -69,12 +63,88 @@ const INTENTIONAL_IGNORE_NAMES = new Set([
 
 const CATCH_PARAM_RE = /catch\s*\(\s*(?:\w+\s+)?([\w$]+)/;
 const RESCUE_PARAM_RE = /rescue(?:\s+[\w:]+)?\s*=>\s*([\w$]+)/;
+const PYTHON_EXCEPT_RE = /^([ \t]*)except\b[^:\n]*:\s*(?:#.*)?$/;
 
 const isIntentionalIgnore = (matchText: string, ext: string): boolean => {
 	const re = ext === ".rb" ? RESCUE_PARAM_RE : CATCH_PARAM_RE;
 	const m = re.exec(matchText);
 	if (!m) return false;
 	return INTENTIONAL_IGNORE_NAMES.has(m[1].toLowerCase());
+};
+
+const indentWidth = (line: string): number => line.match(/^[ \t]*/)?.[0].length ?? 0;
+
+const extractIndentedBlock = (
+	lines: string[],
+	startLine: number,
+	parentIndent: number,
+): string[] => {
+	const body: string[] = [];
+	for (let i = startLine + 1; i < lines.length; i++) {
+		const line = lines[i];
+		const trimmed = line.trim();
+		if (trimmed.length === 0) {
+			body.push(line);
+			continue;
+		}
+		if (indentWidth(line) <= parentIndent) break;
+		body.push(line);
+	}
+	return body;
+};
+
+const parenDelta = (line: string): number =>
+	(line.match(/\(/g) ?? []).length - (line.match(/\)/g) ?? []).length;
+
+const isPythonPrintOnlyBody = (body: string[]): boolean => {
+	let sawPrint = false;
+	let inPrintCall = false;
+	let printDepth = 0;
+
+	for (const line of body) {
+		const trimmed = line.trim();
+		if (trimmed.length === 0 || trimmed.startsWith("#")) continue;
+		if (inPrintCall) {
+			printDepth += parenDelta(trimmed);
+			if (printDepth <= 0) inPrintCall = false;
+			continue;
+		}
+		if (/^print\s*\(/.test(trimmed)) {
+			sawPrint = true;
+			printDepth = parenDelta(trimmed);
+			inPrintCall = printDepth > 0;
+			continue;
+		}
+		if (trimmed === "pass") continue;
+		return false;
+	}
+
+	return sawPrint;
+};
+
+const detectPythonPrintOnlyExceptions = (content: string, relativePath: string): Diagnostic[] => {
+	const diagnostics: Diagnostic[] = [];
+	const lines = content.split("\n");
+	for (let i = 0; i < lines.length; i++) {
+		const line = lines[i];
+		const match = PYTHON_EXCEPT_RE.exec(line);
+		if (!match) continue;
+		const body = extractIndentedBlock(lines, i, match[1].length);
+		if (!isPythonPrintOnlyBody(body)) continue;
+		diagnostics.push({
+			filePath: relativePath,
+			engine: "ai-slop",
+			rule: "ai-slop/swallowed-exception",
+			severity: "error",
+			message: "Catch block only prints error without proper handling",
+			help: "Handle errors explicitly: log with context, rethrow, or return an error value",
+			line: i + 1,
+			column: 0,
+			category: "AI Slop",
+			fixable: false,
+		});
+	}
+	return diagnostics;
 };
 
 export const detectSwallowedExceptions = async (context: EngineContext): Promise<Diagnostic[]> => {
@@ -92,6 +162,9 @@ export const detectSwallowedExceptions = async (context: EngineContext): Promise
 
 		const ext = path.extname(filePath);
 		const relativePath = path.relative(context.rootDirectory, filePath);
+		if (ext === ".py") {
+			diagnostics.push(...detectPythonPrintOnlyExceptions(content, relativePath));
+		}
 
 		for (const { pattern, languages, message } of SWALLOWED_EXCEPTION_PATTERNS) {
 			if (!languages.includes(ext)) continue;

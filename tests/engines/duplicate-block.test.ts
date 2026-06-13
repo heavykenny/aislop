@@ -180,4 +180,35 @@ export const three = () => {
 		const diags = await detectDuplicateBlocks(ctx(tmpDir));
 		expect(diags).toHaveLength(0);
 	});
+
+	it("does not flag TypeScript declaration overloads as duplicate implementation blocks", async () => {
+		write(
+			"index.d.ts",
+			`export declare function createSelector<S, R1, T>(
+	selector1: Selector<S, R1>,
+	combiner: (res1: R1) => T,
+): OutputSelector<S, T>;
+export declare function createSelector<S, R1, R2, T>(
+	selector1: Selector<S, R1>,
+	selector2: Selector<S, R2>,
+	combiner: (res1: R1, res2: R2) => T,
+): OutputSelector<S, T>;
+export declare function createSelector<S, R1, R2, R3, T>(
+	selector1: Selector<S, R1>,
+	selector2: Selector<S, R2>,
+	selector3: Selector<S, R3>,
+	combiner: (res1: R1, res2: R2, res3: R3) => T,
+): OutputSelector<S, T>;
+export declare function createSelector<S, R1, R2, R3, R4, T>(
+	selector1: Selector<S, R1>,
+	selector2: Selector<S, R2>,
+	selector3: Selector<S, R3>,
+	selector4: Selector<S, R4>,
+	combiner: (res1: R1, res2: R2, res3: R3, res4: R4) => T,
+): OutputSelector<S, T>;
+`,
+		);
+		const diags = await detectDuplicateBlocks(ctx(tmpDir));
+		expect(diags).toHaveLength(0);
+	});
 });
