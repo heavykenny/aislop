@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## Unreleased
 
+## 0.12.1 (2026-06-20)
+
+### Fixed
+
+- **Cross-platform build script.** `pnpm build` now works on Windows. Dropped the `rm -rf dist` and `NODE_ENV=` prefix (cmd.exe could not parse them, and a failed run wiped `dist` without rebuilding); tsdown cleans its output directory on its own and nothing reads `NODE_ENV`. Thanks @mtschoen. (#231)
+- **Dependency security advisories.** Bumped `vite` (>=7.3.5), `hono` (>=4.12.25), `esbuild` (>=0.28.1), and `tar` (>=7.5.16) to clear the high- and moderate-severity advisories the security engine flags on the project itself. (#232)
+
 ## 0.12.0 (2026-06-10)
 
 Local agent repair sessions get a full terminal-native workflow, CLI output is tighter across the command surface, and scoring now separates cosmetic cleanup from higher-impact findings.
