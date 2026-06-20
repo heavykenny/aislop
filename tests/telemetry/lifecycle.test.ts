@@ -129,6 +129,29 @@ describe("withCommandLifecycle", () => {
 		}
 	});
 
+	it("captures error_name and error_code on throw, never the message", async () => {
+		const cap = captureStderr();
+		try {
+			await expect(
+				withCommandLifecycle({ command: "scan" }, async () => {
+					const error = new Error("ENOENT: missing /Users/me/secret.ts") as NodeJS.ErrnoException;
+					error.code = "ENOENT";
+					throw error;
+				}),
+			).rejects.toThrow();
+			const completed = cap.lines
+				.map((l) => l.match(/^\[telemetry\] (\{.*\})\n?$/))
+				.filter((m): m is RegExpMatchArray => !!m)
+				.map((m) => JSON.parse(m[1]))
+				.find((e) => e.event === "cli_command_completed");
+			expect(completed?.properties.error_name).toBe("Error");
+			expect(completed?.properties.error_code).toBe("ENOENT");
+			expect(JSON.stringify(completed?.properties)).not.toContain("/Users/me");
+		} finally {
+			cap.restore();
+		}
+	});
+
 	it("skips telemetry entirely when disabled", async () => {
 		process.env.AISLOP_NO_TELEMETRY = "1";
 		const cap = captureStderr();

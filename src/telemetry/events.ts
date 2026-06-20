@@ -95,6 +95,8 @@ interface CommandCompletedInput {
 	fixSteps?: number;
 	fixResolved?: number;
 	fixScoreDelta?: number;
+	errorName?: string;
+	errorCode?: string;
 	properties?: Record<string, unknown>;
 }
 
@@ -122,6 +124,8 @@ export const buildCommandCompletedProps = (
 	if (typeof input.fixSteps === "number") props.fix_steps = input.fixSteps;
 	if (typeof input.fixResolved === "number") props.fix_resolved = input.fixResolved;
 	if (typeof input.fixScoreDelta === "number") props.fix_score_delta = input.fixScoreDelta;
+	if (input.errorName) props.error_name = input.errorName;
+	if (input.errorCode) props.error_code = input.errorCode;
 	return props;
 };
 
@@ -172,4 +176,48 @@ export const errorKindFromException = (error: unknown): ErrorKind => {
 		return "config_invalid";
 	if (message.includes("engine") && message.includes("crash")) return "engine_crash";
 	return "unknown";
+};
+
+// Reject message-shaped codes so a thrown value's free text can't reach telemetry.
+const SAFE_ERROR_CODE = /^[A-Za-z][A-Za-z0-9_]{0,39}$/;
+
+interface ErrorIdentity {
+	error_name: string;
+	error_code?: string;
+}
+
+// PII-free: error class name + short machine code only, never the message, stack, or paths.
+export const errorIdentity = (error: unknown): ErrorIdentity => {
+	let name: string;
+	if (error instanceof Error && typeof error.name === "string" && error.name.length > 0) {
+		name = error.name;
+	} else if (error === null) {
+		name = "null";
+	} else if (typeof error === "object") {
+		name = "object";
+	} else {
+		name = typeof error;
+	}
+	const identity: ErrorIdentity = { error_name: name.slice(0, 40) };
+	const code = (error as { code?: unknown } | null | undefined)?.code;
+	if (typeof code === "string" && SAFE_ERROR_CODE.test(code)) identity.error_code = code;
+	else if (typeof code === "number" && Number.isFinite(code)) identity.error_code = String(code);
+	return identity;
+};
+
+export type FailedStage = "uncaught_exception" | "unhandled_rejection" | "main";
+
+interface CommandFailedInput {
+	error: unknown;
+	stage: FailedStage;
+	command?: CommandName;
+}
+
+export const buildCommandFailedProps = (input: CommandFailedInput): Record<string, unknown> => {
+	const props: Record<string, unknown> = {
+		failed_stage: input.stage,
+		...errorIdentity(input.error),
+	};
+	if (input.command) props.command = input.command;
+	return props;
 };

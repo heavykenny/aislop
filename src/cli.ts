@@ -17,6 +17,7 @@ import {
 	ensureInstallId,
 	flushTelemetry,
 	isTelemetryDisabled,
+	reportFatalError,
 	resolveInstallIdPath,
 	track,
 	withCommandLifecycle,
@@ -29,6 +30,27 @@ import { APP_VERSION } from "./version.js";
 
 process.on("SIGINT", () => process.exit(0));
 process.on("SIGTERM", () => process.exit(0));
+
+// Resolve the telemetry opt-out for the crash path without ever throwing from it.
+const safeTelemetryConfig = () => {
+	try {
+		return loadConfig(process.cwd()).telemetry;
+	} catch {
+		return undefined;
+	}
+};
+
+// Crash telemetry for failures that escape the command lifecycle; exits 1 after a bounded flush.
+process.on("uncaughtException", (error) => {
+	void reportFatalError(error, "uncaught_exception", safeTelemetryConfig()).finally(() =>
+		process.exit(1),
+	);
+});
+process.on("unhandledRejection", (reason) => {
+	void reportFatalError(reason, "unhandled_rejection", safeTelemetryConfig()).finally(() =>
+		process.exit(1),
+	);
+});
 
 const fireInstalledOnce = (): void => {
 	if (isTelemetryDisabled(loadConfig(process.cwd()).telemetry)) return;
@@ -408,4 +430,6 @@ const main = async () => {
 	await maybeNotifyUpdate();
 };
 
-main();
+main().catch((error) => {
+	void reportFatalError(error, "main", safeTelemetryConfig()).finally(() => process.exit(1));
+});

@@ -14,6 +14,7 @@ type EventName =
 	| "cli_installed"
 	| "cli_command_started"
 	| "cli_command_completed"
+	| "cli_command_failed"
 	| "mcp_server_started"
 	| "mcp_tool_called"
 	| "hook_scan_completed";

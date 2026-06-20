@@ -6,5 +6,6 @@ export {
 	type EngineCounts,
 	errorKindFromException,
 } from "./events.js";
+export { reportFatalError } from "./fatal.js";
 export { ensureInstallId, resolveInstallIdPath } from "./identity.js";
 export { withCommandLifecycle } from "./lifecycle.js";

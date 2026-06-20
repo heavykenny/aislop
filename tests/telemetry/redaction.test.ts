@@ -78,4 +78,22 @@ describe("redactProperties", () => {
 		});
 		expect(dropped).toEqual(["session_path"]);
 	});
+
+	it("keeps failure-telemetry fields while still dropping messages and stacks", () => {
+		const { clean, dropped } = redactProperties({
+			error_name: "TypeError",
+			error_code: "ENOENT",
+			failed_stage: "uncaught_exception",
+			engines_skipped: ["ai-slop", "security"],
+			error_message: "ENOENT: /Users/me/.env",
+			stack: "at readConfig (/Users/me/app.ts:1)",
+		});
+		expect(clean).toEqual({
+			error_name: "TypeError",
+			error_code: "ENOENT",
+			failed_stage: "uncaught_exception",
+			engines_skipped: ["ai-slop", "security"],
+		});
+		expect(dropped.sort()).toEqual(["error_message", "stack"]);
+	});
 });
