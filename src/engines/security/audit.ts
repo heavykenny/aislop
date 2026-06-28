@@ -34,10 +34,12 @@ export const runDependencyAudit = async (context: EngineContext): Promise<Diagno
 
 	const promises: Promise<Diagnostic[]>[] = [];
 
-	// npm/pnpm audit
+	// npm/pnpm/bun audit
 	if (context.languages.includes("typescript") || context.languages.includes("javascript")) {
 		if (fs.existsSync(path.join(context.rootDirectory, "pnpm-lock.yaml"))) {
 			promises.push(runPnpmAuditWithFallback(context.rootDirectory, timeout));
+		} else if (hasBunLockfile(context.rootDirectory)) {
+			promises.push(runBunAudit(context.rootDirectory, timeout));
 		} else if (
 			fs.existsSync(path.join(context.rootDirectory, "package-lock.json")) ||
 			fs.existsSync(path.join(context.rootDirectory, "package.json"))
@@ -71,7 +73,10 @@ export const runDependencyAudit = async (context: EngineContext): Promise<Diagno
 	return diagnostics;
 };
 
-type JsAuditSource = "npm audit" | "pnpm audit";
+type JsAuditSource = "npm audit" | "pnpm audit" | "bun audit";
+
+const hasBunLockfile = (rootDir: string): boolean =>
+	fs.existsSync(path.join(rootDir, "bun.lock")) || fs.existsSync(path.join(rootDir, "bun.lockb"));
 
 const errorMessageOf = (error: unknown): string =>
 	error instanceof Error ? error.message : String(error);
@@ -99,6 +104,26 @@ const runNpmAudit = async (rootDir: string, timeout: number): Promise<Diagnostic
 	} catch (error) {
 		return [
 			auditSkippedDiagnostic("npm audit", `Failed to run npm audit: ${errorMessageOf(error)}`),
+		];
+	}
+};
+
+const runBunAudit = async (rootDir: string, timeout: number): Promise<Diagnostic[]> => {
+	try {
+		const result = await runSubprocess("bun", ["audit", "--json"], {
+			cwd: rootDir,
+			timeout,
+		});
+		if (result.stdout) {
+			return parseBunAudit(result.stdout);
+		}
+		if (result.exitCode === 0) return [];
+		return [
+			auditSkippedDiagnostic("bun audit", `Failed to run bun audit: ${result.stderr || "unknown error"}`),
+		];
+	} catch (error) {
+		return [
+			auditSkippedDiagnostic("bun audit", `Failed to run bun audit: ${errorMessageOf(error)}`),
 		];
 	}
 };
@@ -211,8 +236,35 @@ const aggregateToDiagnostic = (agg: VulnAggregate, source: JsAuditSource): Diagn
 		column: 0,
 		category: "Security",
 		fixable: false,
-		detail: source === "npm audit" ? "npm" : "pnpm",
+		detail: source === "npm audit" ? "npm" : source === "pnpm audit" ? "pnpm" : "bun",
 	};
+};
+
+export const parseBunAudit = (output: string): Diagnostic[] => {
+	if (!output.trim()) return [];
+	try {
+		const parsed = JSON.parse(output) as Record<string, unknown>;
+		const bucket = new Map<string, VulnAggregate>();
+
+		for (const [packageName, advisories] of Object.entries(parsed)) {
+			if (!Array.isArray(advisories) || advisories.length === 0) continue;
+			for (const advisory of advisories) {
+				if (!advisory || typeof advisory !== "object") continue;
+				const record = advisory as Record<string, unknown>;
+				const severity = ((record.severity as string) ?? "moderate").toLowerCase();
+				const recommendation =
+					(record.title as string) ??
+					(record.vulnerable_versions as string) ??
+					(record.url as string) ??
+					"";
+				upsertVuln(bucket, packageName, severity, recommendation);
+			}
+		}
+
+		return [...bucket.values()].map((agg) => aggregateToDiagnostic(agg, "bun audit"));
+	} catch {
+		return [];
+	}
 };
 
 const parseLegacyAdvisories = (

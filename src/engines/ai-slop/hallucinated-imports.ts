@@ -268,11 +268,19 @@ const checkJsImport = (
 
 const normalizePyName = (name: string): string => name.toLowerCase().replace(/_/g, "-");
 
+const pyDepSatisfiesImportRoot = (root: string, pyDeps: Set<string>): boolean => {
+	const normalized = normalizePyName(root);
+	for (const dep of pyDeps) {
+		if (dep === normalized || dep.startsWith(`${normalized}-`)) return true;
+	}
+	return false;
+};
+
 const checkPyImport = (spec: string, pyDeps: Set<string>): string | null => {
 	const root = spec.split(".")[0];
 	if (PYTHON_STDLIB.has(root)) return null;
+	if (pyDepSatisfiesImportRoot(root, pyDeps)) return null;
 	const normalized = normalizePyName(root);
-	if (pyDeps.has(normalized)) return null;
 	const distributions = PYTHON_IMPORT_TO_PIP[root] ?? PYTHON_IMPORT_TO_PIP[normalized];
 	if (distributions?.some((dist) => pyDeps.has(normalizePyName(dist)))) return null;
 	return root;

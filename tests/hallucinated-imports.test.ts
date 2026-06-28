@@ -554,6 +554,42 @@ from psycopg2 import extras
 		expect(diagnostics).toEqual([]);
 	});
 
+	it("resolves azure namespace imports from azure-* distributions (#235)", async () => {
+		writeFile(
+			"pyproject.toml",
+			`[project]
+name = "repro"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+  "azure-core>=1.41.0",
+  "azure-identity>=1.25.3",
+  "azure-mgmt-containerservice>=40.2.0",
+]
+`,
+		);
+		writeFile(
+			"app.py",
+			`from azure.core.exceptions import AzureError
+from azure.identity import DefaultAzureCredential
+`,
+		);
+
+		const diagnostics = await detectHallucinatedImports(buildContext());
+
+		expect(diagnostics).toEqual([]);
+	});
+
+	it("still flags azure imports when no azure-* distribution is declared", async () => {
+		writeFile("pyproject.toml", `[project]\ndependencies = ["requests>=2.31"]\n`);
+		writeFile("app.py", `from azure.core.exceptions import AzureError\n`);
+
+		const diagnostics = await detectHallucinatedImports(buildContext());
+
+		expect(diagnostics).toHaveLength(1);
+		expect(diagnostics[0].message).toContain("azure");
+	});
+
 	it("does not flag import-shaped text inside docstrings (flask example)", async () => {
 		writeFile("pyproject.toml", `[project]\ndependencies = ["click"]\n`);
 		writeFile(
