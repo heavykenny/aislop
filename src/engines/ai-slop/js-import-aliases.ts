@@ -162,9 +162,63 @@ const collectViteAliasesFromConfig = (configPath: string, matchers: AliasMatcher
 	}
 };
 
+const PACKAGE_ROOT_SKIP_DIRS = new Set([
+	"node_modules",
+	".git",
+	"dist",
+	"build",
+	"out",
+	"target",
+	"coverage",
+]);
+
+const collectNestedPackageRootDirs = (rootDir: string): string[] => {
+	const roots = new Set<string>();
+	const walk = (dir: string, depth: number): void => {
+		if (depth > 4) return;
+		let entries: fs.Dirent[];
+		try {
+			entries = fs.readdirSync(dir, { withFileTypes: true });
+		} catch {
+			return;
+		}
+		for (const entry of entries) {
+			if (entry.name.startsWith(".") && entry.name !== ".github") continue;
+			if (PACKAGE_ROOT_SKIP_DIRS.has(entry.name)) continue;
+			const full = path.join(dir, entry.name);
+			if (entry.isDirectory()) {
+				walk(full, depth + 1);
+			} else if (entry.name === "package.json" && depth > 0) {
+				roots.add(dir);
+			}
+		}
+	};
+	walk(rootDir, 0);
+	return [...roots];
+};
+
+const collectPackageRootDirs = (rootDir: string, workspaceDirs: string[]): string[] => {
+	const roots = new Set<string>([
+		rootDir,
+		...workspaceDirs,
+		...collectNestedPackageRootDirs(rootDir),
+	]);
+	return [...roots];
+};
+
+const collectPackageJsonImportMatchers = (pkgPath: string, matchers: AliasMatcher[]): void => {
+	const pkg = readJsoncFile(pkgPath) as Record<string, unknown> | null;
+	if (!pkg || typeof pkg !== "object") return;
+	const imports = pkg.imports;
+	if (!imports || typeof imports !== "object") return;
+	for (const key of Object.keys(imports as Record<string, unknown>)) {
+		matchers.push(buildAliasMatcher(key));
+	}
+};
+
 export const collectTsPathAliases = (rootDir: string, workspaceDirs: string[]): AliasMatcher[] => {
 	const matchers: AliasMatcher[] = [];
-	const dirs = [rootDir, ...workspaceDirs];
+	const dirs = collectPackageRootDirs(rootDir, workspaceDirs);
 	for (const dir of dirs) {
 		for (const fname of TS_CONFIG_FILES) {
 			collectAliasMatchersFromConfig(path.join(dir, fname), matchers);
@@ -172,6 +226,7 @@ export const collectTsPathAliases = (rootDir: string, workspaceDirs: string[]): 
 		for (const fname of VITE_ALIAS_FILES) {
 			collectViteAliasesFromConfig(path.join(dir, fname), matchers);
 		}
+		collectPackageJsonImportMatchers(path.join(dir, "package.json"), matchers);
 	}
 	return matchers;
 };

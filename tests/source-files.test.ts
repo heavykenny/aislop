@@ -139,6 +139,24 @@ describe("source file selection", () => {
 		);
 	});
 
+	it("skips generated framework output and bundled artifact directories", () => {
+		createFile(tmpDir, "src/app.ts", "export const app = true;\n");
+		createFile(
+			tmpDir,
+			"waspc/e2e-tests/test-outputs/snapshots/kitchen-sink-golden/wasp-app/.wasp/out/sdk/wasp/api/index.ts",
+			"export const generated = true;\n",
+		);
+		createFile(
+			tmpDir,
+			"packages/opencode/src/skill/compose/.bundle/brainstorm/scripts/server.cjs",
+			"module.exports = {};\n",
+		);
+
+		const sourceFiles = getSourceFilesForRoot(tmpDir).sort();
+
+		expect(sourceFiles).toEqual([path.join(tmpDir, "src/app.ts")]);
+	});
+
 	it("skips checked-in package manager and generated dependency artifacts", () => {
 		createFile(tmpDir, "src/app.ts", "export const app = true;\n");
 		createFile(tmpDir, "src/components/Button.stories.tsx", "export const Story = {};\n");

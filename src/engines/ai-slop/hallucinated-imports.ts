@@ -12,8 +12,15 @@ import { collectPythonDeps, type PythonDependencyScope } from "./python-manifest
 const JS_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"]);
 const PY_EXTENSIONS = new Set([".py"]);
 
+interface JsDependencyScope {
+	directory: string;
+	jsDeps: Set<string>;
+	packageName?: string;
+}
+
 interface PackageManifest {
 	jsDeps: Set<string>;
+	jsScopes: JsDependencyScope[];
 	pyDeps: Set<string>;
 	hasJsManifest: boolean;
 	hasPyManifest: boolean;
@@ -48,11 +55,28 @@ const addDepsFromPkg = (pkg: Record<string, unknown>, jsDeps: Set<string>): void
 };
 
 const SKIP_DIRS = new Set(["node_modules", ".git", "dist", "build", "out", "target", "coverage"]);
-const NESTED_PKG_JSON_DEPTH = 4;
 
-const collectNestedManifests = (rootDir: string, jsDeps: Set<string>): void => {
-	const walk = (dir: string, depth: number): void => {
-		if (depth > NESTED_PKG_JSON_DEPTH) return;
+const mergeDeps = (target: Set<string>, source: Set<string>): void => {
+	for (const dep of source) target.add(dep);
+};
+
+const collectJsScope = (directory: string): JsDependencyScope | null => {
+	const pkgPath = path.join(directory, "package.json");
+	if (!fs.existsSync(pkgPath)) return null;
+	const pkg = readJson(pkgPath) as Record<string, unknown> | null;
+	if (!pkg || typeof pkg !== "object") return null;
+	const jsDeps = new Set<string>();
+	addDepsFromPkg(pkg, jsDeps);
+	const packageName = typeof pkg.name === "string" ? pkg.name : undefined;
+	if (packageName) jsDeps.add(packageName);
+	return { directory, jsDeps, packageName };
+};
+
+const collectJsScopes = (rootDir: string): JsDependencyScope[] => {
+	const scopes: JsDependencyScope[] = [];
+	const walk = (dir: string): void => {
+		const scope = collectJsScope(dir);
+		if (scope) scopes.push(scope);
 		let entries: import("node:fs").Dirent[];
 		try {
 			entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -60,29 +84,29 @@ const collectNestedManifests = (rootDir: string, jsDeps: Set<string>): void => {
 			return;
 		}
 		for (const entry of entries) {
+			if (!entry.isDirectory()) continue;
 			if (entry.name.startsWith(".") && entry.name !== ".github") continue;
 			if (SKIP_DIRS.has(entry.name)) continue;
-			const full = path.join(dir, entry.name);
-			if (entry.isDirectory()) {
-				walk(full, depth + 1);
-			} else if (entry.name === "package.json" && depth > 0) {
-				const wsPkg = readJson(full) as Record<string, unknown> | null;
-				if (!wsPkg) continue;
-				if (typeof wsPkg.name === "string") jsDeps.add(wsPkg.name);
-				addDepsFromPkg(wsPkg, jsDeps);
-			}
+			walk(path.join(dir, entry.name));
 		}
 	};
-	walk(rootDir, 0);
+	walk(rootDir);
+	return scopes;
 };
 
-const collectJsDeps = (rootDir: string, jsDeps: Set<string>): boolean => {
+const collectJsDeps = (
+	rootDir: string,
+	jsDeps: Set<string>,
+	jsScopes: JsDependencyScope[],
+): boolean => {
 	const pkgPath = path.join(rootDir, "package.json");
-	if (!fs.existsSync(pkgPath)) return false;
+	if (!fs.existsSync(pkgPath)) return jsScopes.length > 0;
 	const pkg = readJson(pkgPath) as Record<string, unknown> | null;
-	if (!pkg || typeof pkg !== "object") return false;
-	addDepsFromPkg(pkg, jsDeps);
-	if (typeof pkg.name === "string") jsDeps.add(pkg.name);
+	if (!pkg || typeof pkg !== "object") return jsScopes.length > 0;
+
+	for (const scope of jsScopes) {
+		mergeDeps(jsDeps, scope.jsDeps);
+	}
 
 	const workspaceDirs = collectWorkspaceDirs(rootDir, pkg);
 	for (const wsDir of workspaceDirs) {
@@ -91,15 +115,23 @@ const collectJsDeps = (rootDir: string, jsDeps: Set<string>): boolean => {
 		if (typeof wsPkg.name === "string") jsDeps.add(wsPkg.name);
 		addDepsFromPkg(wsPkg, jsDeps);
 	}
-	collectNestedManifests(rootDir, jsDeps);
 	return true;
 };
 
 const loadManifest = (rootDir: string): PackageManifest => {
+	const jsScopes = collectJsScopes(rootDir);
 	const jsDeps = new Set<string>();
-	const hasJsManifest = collectJsDeps(rootDir, jsDeps);
+	const hasJsManifest = collectJsDeps(rootDir, jsDeps, jsScopes);
 	const { pyDeps, hasPyManifest, rootHasPyManifest, scopes } = collectPythonDeps(rootDir);
-	return { jsDeps, pyDeps, hasJsManifest, hasPyManifest, rootHasPyManifest, pyScopes: scopes };
+	return {
+		jsDeps,
+		jsScopes,
+		pyDeps,
+		hasJsManifest,
+		hasPyManifest,
+		rootHasPyManifest,
+		pyScopes: scopes,
+	};
 };
 
 const isJsRelativeOrAbsolute = (spec: string): boolean =>
@@ -122,11 +154,69 @@ const VIRTUAL_MODULE_PREFIXES = [
 	"jsr:",
 	"npm:",
 ];
-const isJsVirtualModule = (spec: string, manifest: PackageManifest): boolean => {
+const DOCUSAURUS_VIRTUAL_PREFIXES = ["@docusaurus/", "@theme/", "@theme-original/", "@site"];
+
+const hasDocusaurusDependency = (jsDeps: Set<string>): boolean => {
+	for (const dep of jsDeps) {
+		if (dep.startsWith("@docusaurus/")) return true;
+	}
+	return false;
+};
+
+const isDocusaurusVirtualImport = (spec: string, jsDeps: Set<string>): boolean => {
+	if (!hasDocusaurusDependency(jsDeps)) return false;
+	return DOCUSAURUS_VIRTUAL_PREFIXES.some((prefix) => spec === prefix || spec.startsWith(prefix));
+};
+
+const readWorkspaceGlobs = (pkg: Record<string, unknown>): string[] => {
+	const globs: string[] = [];
+	const ws = pkg.workspaces;
+	if (Array.isArray(ws)) {
+		for (const g of ws) if (typeof g === "string") globs.push(g);
+	} else if (ws && typeof ws === "object") {
+		const pkgs = (ws as Record<string, unknown>).packages;
+		if (Array.isArray(pkgs)) {
+			for (const g of pkgs) if (typeof g === "string") globs.push(g);
+		}
+	}
+	return globs;
+};
+
+const isWaspProjectDirectory = (directory: string): boolean => {
+	try {
+		if (fs.existsSync(path.join(directory, "main.wasp"))) return true;
+		const pkg = readJson(path.join(directory, "package.json")) as Record<string, unknown> | null;
+		if (!pkg) return false;
+		return readWorkspaceGlobs(pkg).some((glob) => glob.includes("wasp") || glob.includes(".wasp"));
+	} catch {
+		return false;
+	}
+};
+
+const isWaspSdkImport = (spec: string, filePath: string, rootDirectory: string): boolean => {
+	if (spec !== "wasp" && !spec.startsWith("wasp/")) return false;
+	let dir = path.dirname(filePath);
+	const root = path.resolve(rootDirectory);
+	while (dir.startsWith(root)) {
+		if (isWaspProjectDirectory(dir)) return true;
+		if (dir === root) break;
+		dir = path.dirname(dir);
+	}
+	return false;
+};
+
+const isJsVirtualModule = (
+	spec: string,
+	jsDeps: Set<string>,
+	filePath: string,
+	rootDirectory: string,
+): boolean => {
 	if (VIRTUAL_MODULE_PREFIXES.some((p) => spec.startsWith(p))) return true;
 	if (spec === "bun") return true;
-	if (spec === "unfonts.css" && manifest.jsDeps.has("unplugin-fonts")) return true;
-	if (spec.startsWith("~icons/") && manifest.jsDeps.has("unplugin-icons")) return true;
+	if (spec === "unfonts.css" && jsDeps.has("unplugin-fonts")) return true;
+	if (spec.startsWith("~icons/") && jsDeps.has("unplugin-icons")) return true;
+	if (isDocusaurusVirtualImport(spec, jsDeps)) return true;
+	if (isWaspSdkImport(spec, filePath, rootDirectory)) return true;
 	return false;
 };
 
@@ -170,8 +260,18 @@ const DYNAMIC_IMPORT_RE = /(?:import|require)\s*\(\s*["']([^"']+)["']/g;
 const extractJsImports = (content: string): { spec: string; line: number }[] => {
 	const lines = content.split("\n");
 	const results: { spec: string; line: number }[] = [];
+	let inTemplateLiteral = false;
+
 	for (let i = 0; i < lines.length; i++) {
 		const line = lines[i];
+
+		for (let j = 0; j < line.length; j++) {
+			if (line[j] === "`" && (j === 0 || line[j - 1] !== "\\")) {
+				inTemplateLiteral = !inTemplateLiteral;
+			}
+		}
+		if (inTemplateLiteral) continue;
+
 		const trimmed = line.trim();
 		if (trimmed.startsWith("//") || trimmed.startsWith("*")) continue;
 
@@ -243,26 +343,54 @@ const extractPyImports = (content: string): { spec: string; line: number }[] => 
 	return results;
 };
 
+// Common transitive imports pulled in by unified/remark/docusaurus plugin stacks.
+const JS_IMPORT_TO_DECLARATION: Record<string, string[]> = {
+	"unist-util-visit": ["unified", "remark-cli", "@mdx-js/react", "@docusaurus/core"],
+};
+
+const isTransitiveJsImport = (pkg: string, jsDeps: Set<string>): boolean => {
+	const declarations = JS_IMPORT_TO_DECLARATION[pkg];
+	return declarations?.some((dep) => jsDeps.has(dep)) ?? false;
+};
+
+const isScopedFamilyImport = (spec: string, jsDeps: Set<string>): boolean => {
+	if (!spec.startsWith("@")) return false;
+	const slash = spec.indexOf("/");
+	if (slash === -1) return false;
+	const scope = spec.slice(0, slash);
+	if (scope === "@types") return false;
+	const prefix = `${scope}/`;
+	for (const dep of jsDeps) {
+		if (dep.startsWith(prefix)) return true;
+	}
+	return false;
+};
+
 const checkJsImport = (
 	rawSpec: string,
-	manifest: PackageManifest,
+	jsDeps: Set<string>,
 	tsAliasMatchers: AliasMatcher[],
+	filePath: string,
+	rootDirectory: string,
 ): string | null => {
 	const spec = stripImportQuery(rawSpec);
 	if (spec.length === 0) return null;
 	if (isJsRelativeOrAbsolute(spec)) return null;
 	if (isJsBuiltin(spec)) return null;
-	if (isJsVirtualModule(spec, manifest)) return null;
+	if (isJsVirtualModule(spec, jsDeps, filePath, rootDirectory)) return null;
 	if (tsAliasMatchers.some((m) => m(spec))) return null;
 	const pkg = packageNameFromImport(spec);
-	if (manifest.jsDeps.has(pkg)) return null;
+	if (pkg === "@prisma/client" && jsDeps.has("prisma")) return null;
+	if (jsDeps.has(pkg)) return null;
+	if (isTransitiveJsImport(pkg, jsDeps)) return null;
+	if (isScopedFamilyImport(spec, jsDeps)) return null;
 	// Allow @types/X if X itself is in deps (the runtime impl) — common pattern.
 	if (pkg.startsWith("@types/")) {
 		const realPkg = pkg.slice("@types/".length);
-		if (manifest.jsDeps.has(realPkg)) return null;
+		if (jsDeps.has(realPkg)) return null;
 	}
 	// Type-only imports backed by a declared @types/* package are not hallucinated.
-	if (manifest.jsDeps.has(typesPackageName(pkg))) return null;
+	if (jsDeps.has(typesPackageName(pkg))) return null;
 	return pkg;
 };
 
@@ -293,8 +421,31 @@ const isWithinDirectory = (filePath: string, directory: string): boolean => {
 	);
 };
 
-const mergeDeps = (target: Set<string>, source: Set<string>): void => {
-	for (const dep of source) target.add(dep);
+const jsDepsForFile = (
+	manifest: PackageManifest,
+	filePath: string,
+	rootDirectory: string,
+): Set<string> => {
+	const deps = new Set<string>();
+	for (const scope of manifest.jsScopes) {
+		if (scope.packageName) deps.add(scope.packageName);
+	}
+
+	const nearestScope = manifest.jsScopes
+		.filter(
+			(scope) => scope.directory !== rootDirectory && isWithinDirectory(filePath, scope.directory),
+		)
+		.sort((a, b) => b.directory.length - a.directory.length)[0];
+
+	if (nearestScope) {
+		mergeDeps(deps, nearestScope.jsDeps);
+		return deps;
+	}
+
+	const rootScope = manifest.jsScopes.find((scope) => scope.directory === rootDirectory);
+	if (rootScope) mergeDeps(deps, rootScope.jsDeps);
+	else mergeDeps(deps, manifest.jsDeps);
+	return deps;
 };
 
 const pythonDepsForFile = (
@@ -353,10 +504,17 @@ export const detectHallucinatedImports = async (context: EngineContext): Promise
 		const relPath = path.relative(context.rootDirectory, filePath);
 		if (isNonProductionPath(relPath)) continue;
 
+		const jsDeps = isJs ? jsDepsForFile(manifest, filePath, context.rootDirectory) : null;
 		const imports = isJs ? extractJsImports(content) : extractPyImports(content);
 		for (const { spec, line } of imports) {
 			const hallucinated = isJs
-				? checkJsImport(spec, manifest, tsAliasMatchers)
+				? checkJsImport(
+						spec,
+						jsDeps ?? manifest.jsDeps,
+						tsAliasMatchers,
+						filePath,
+						context.rootDirectory,
+					)
 				: checkPyImport(spec, pyDeps ?? manifest.pyDeps);
 			if (!hallucinated) continue;
 			const manifestLabel = isJs ? "package.json" : "requirements.txt / pyproject.toml / Pipfile";

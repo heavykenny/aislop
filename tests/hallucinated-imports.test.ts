@@ -158,6 +158,24 @@ export type Node = ReactNode
 		expect(diagnostics).toEqual([]);
 	});
 
+	it("does not false-positive on import lines inside multi-line template literals (docs code samples)", async () => {
+		writePkgJson({ react: "^19.0.0" });
+		writeFile(
+			"web/src/Hero.jsx",
+			[
+				`import { useState } from "react";`,
+				`const snippet = {`,
+				`  source: \`import { getTasks } from "wasp/client/operations";`,
+				`import { HttpError } from "wasp/server";`,
+				`export const x = 1;\``,
+				`};`,
+				``,
+			].join("\n"),
+		);
+		const diagnostics = await detectHallucinatedImports(buildContext());
+		expect(diagnostics).toEqual([]);
+	});
+
 	it("does not false-positive on import-shaped substrings inside template literals or error messages", async () => {
 		writePkgJson({ lodash: "^4.0.0" });
 		writeFile(
@@ -341,6 +359,106 @@ import { Page } from "@/pages/Home";
 			}),
 		);
 		writeFile("src/index.ts", `import { x } from "#shared";\n`);
+		const diags = await detectHallucinatedImports(buildContext());
+		expect(diags).toEqual([]);
+	});
+
+	it("does not flag Node package.json imports field subpath patterns (#*.js)", async () => {
+		writeFile(
+			"package.json",
+			JSON.stringify({
+				name: "eve-like",
+				imports: {
+					"#*.js": "./src/*.ts",
+					"#compiled/*": "./dist/compiled/*",
+				},
+			}),
+		);
+		writeFile(
+			"src/app.ts",
+			`import { x } from "#runtime/input/types.js";
+import { y } from "#shared/json.js";
+import { z } from "#compiled/manifest.js";
+`,
+		);
+		const diags = await detectHallucinatedImports(buildContext());
+		expect(diags).toEqual([]);
+	});
+
+	it("uses the nearest nested package.json for files under that package", async () => {
+		writeFile("package.json", JSON.stringify({ name: "root", dependencies: {} }));
+		writeFile(
+			"web/package.json",
+			JSON.stringify({
+				name: "web",
+				dependencies: { "@docusaurus/core": "~3.10.1", react: "^19.0.0" },
+			}),
+		);
+		writeFile("web/src/Page.tsx", `import React from "react";\n`);
+		const diags = await detectHallucinatedImports(buildContext());
+		expect(diags).toEqual([]);
+	});
+
+	it("does not flag Docusaurus virtual imports when @docusaurus/* is installed", async () => {
+		writeFile(
+			"web/package.json",
+			JSON.stringify({
+				name: "web",
+				dependencies: { "@docusaurus/core": "~3.10.1" },
+			}),
+		);
+		writeFile(
+			"web/src/Link.tsx",
+			`import Link from "@docusaurus/Link";
+import Head from "@docusaurus/Head";
+import Tabs from "@theme/Tabs";
+import Logo from "@site/src/components/Logo";
+`,
+		);
+		const diags = await detectHallucinatedImports(buildContext());
+		expect(diags).toEqual([]);
+	});
+
+	it("does not flag wasp SDK imports in apps with main.wasp", async () => {
+		writeFile("mage/package.json", JSON.stringify({ name: "mage", dependencies: { react: "^19.0.0" } }));
+		writeFile("mage/main.wasp", "app MageApp {}\n");
+		writeFile(
+			"mage/src/App.tsx",
+			`import { useAuth } from "wasp/client/auth";
+import { Link } from "wasp/client/router";
+`,
+		);
+		const diags = await detectHallucinatedImports(buildContext());
+		expect(diags).toEqual([]);
+	});
+
+	it("does not flag deep nested workspace package names (e.g. @wasp.sh/lib-auth)", async () => {
+		writeFile("package.json", JSON.stringify({ name: "root", dependencies: {} }));
+		writeFile(
+			"waspc/data/Generator/libs/auth/package.json",
+			JSON.stringify({ name: "@wasp.sh/lib-auth", dependencies: { lucia: "^3.0.0" } }),
+		);
+		writeFile(
+			"waspc/data/Generator/libs/auth/src/index.ts",
+			`import { Lucia } from "lucia";
+import { helper } from "@wasp.sh/lib-auth/internal";
+`,
+		);
+		const diags = await detectHallucinatedImports(buildContext());
+		expect(diags).toEqual([]);
+	});
+
+	it("does not flag package.json imports when the manifest contains https repository URLs", async () => {
+		writeFile(
+			"package.json",
+			JSON.stringify({
+				name: "pkg-with-urls",
+				homepage: "https://example.com/docs",
+				repository: { url: "git+https://github.com/org/repo.git" },
+				imports: { "#*.js": "./src/*.ts" },
+			}),
+		);
+		writeFile("src/main.ts", `import { helper } from "#internal/helper.js";\n`);
 		const diags = await detectHallucinatedImports(buildContext());
 		expect(diags).toEqual([]);
 	});

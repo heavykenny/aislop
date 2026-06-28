@@ -366,6 +366,37 @@ export const getFoo = () => 'bar';`
 		const diagnostics = await detectTrivialComments(makeContext([rbPath, phpPath]));
 		expect(diagnostics.length).toBeGreaterThanOrEqual(2);
 	});
+
+	it("does NOT flag Go `// summary` lines immediately above a func/type declaration", async () => {
+		const goPath = writeFile(
+			"plugins/cpu/cpu.go",
+			"package cpu\n\n// Returns the current CPU usage.\nfunc CurrentUsage() float64 {\n\treturn 0\n}\n",
+		);
+		const diagnostics = await detectTrivialComments(makeContext([goPath]));
+		expect(diagnostics).toHaveLength(0);
+	});
+
+	it("does NOT flag Rust `// summary` lines immediately above a fn declaration", async () => {
+		const rsPath = writeFile(
+			"src/engine/mod.rs",
+			"// Returns the parsed value.\npub fn parse_value(input: &str) -> i32 {\n\t0\n}\n",
+		);
+		const diagnostics = await detectTrivialComments(makeContext([rsPath]));
+		expect(diagnostics).toHaveLength(0);
+	});
+
+	it("still flags inline trivial comments inside Go and Rust function bodies", async () => {
+		const goPath = writeFile(
+			"plugins/cpu/cpu.go",
+			"package cpu\n\nfunc process(items []int) {\n\t// Loop through items\n\tfor _, item := range items {\n\t\t_ = item\n\t}\n}\n",
+		);
+		const rsPath = writeFile(
+			"src/engine/mod.rs",
+			"pub fn process(items: &[i32]) {\n\t// Initialize the counter\n\tlet mut count = 0;\n\tcount += 1;\n}\n",
+		);
+		const diagnostics = await detectTrivialComments(makeContext([goPath, rsPath]));
+		expect(diagnostics.length).toBeGreaterThanOrEqual(2);
+	});
 });
 
 // ─── detectSwallowedExceptions ────────────────────────────────────────────────

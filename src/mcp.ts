@@ -46,6 +46,7 @@ const instrument = async <T>(tool: ToolName, fn: () => Promise<T> | T) => {
 				ok: true,
 			}),
 		});
+		await flushTelemetry();
 		return ok(value);
 	} catch (e) {
 		track({
@@ -57,6 +58,7 @@ const instrument = async <T>(tool: ToolName, fn: () => Promise<T> | T) => {
 				errorKind: errorKindFromException(e),
 			}),
 		});
+		await flushTelemetry();
 		const msg = e instanceof Error ? e.message : String(e);
 		return err(msg);
 	}

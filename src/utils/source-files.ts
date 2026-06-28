@@ -74,8 +74,11 @@ const EXCLUDED_DIRS = [
 	"test_data",
 	".next",
 	".nuxt",
+	".wasp",
 	"coverage",
 	".turbo",
+	"test-outputs",
+	".bundle",
 ];
 
 const FIND_PRUNE_DIRS = [
@@ -124,8 +127,11 @@ const FIND_PRUNE_DIRS = [
 	"e2e",
 	".next",
 	".nuxt",
+	".wasp",
 	"coverage",
 	".turbo",
+	"test-outputs",
+	".bundle",
 ];
 
 const GENERATED_ARTIFACT_FILE_PATTERNS = [
