@@ -592,4 +592,14 @@ describe("analyzeFunctions — brace masking regressions", () => {
 		expect(fn).toBeDefined();
 		expect(fn?.lineCount).toBeLessThanOrEqual(25);
 	});
+
+	it("does not inflate collectClassDefinitions when comments mention braces", () => {
+		const content = fs.readFileSync(
+			path.join(import.meta.dirname, "../src/engines/ai-slop/unused-css.ts"),
+			"utf-8",
+		);
+		const fn = analyzeFunctions(content, ".ts").find((f) => f.name === "collectClassDefinitions");
+		expect(fn).toBeDefined();
+		expect(fn?.lineCount).toBeLessThanOrEqual(30);
+	});
 });

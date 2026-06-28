@@ -104,7 +104,7 @@ const collectClassDefinitions = (content: string): ClassDefinition[] => {
 	for (let i = 0; i < lines.length; i++) {
 		const line = lines[i];
 		// Only treat text on a line that opens or continues a selector block as a
-		// selector. A line containing `{` very likely holds the selector; lines that
+		// selector. A line containing an open brace very likely holds the selector; lines that
 		// are pure declarations (`color: red;`) contain no `.class` tokens anyway,
 		// but `.foo` inside a value (rare) is filtered by requiring it isn't a number.
 		SELECTOR_CLASS_RE.lastIndex = 0;
