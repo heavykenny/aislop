@@ -29,7 +29,7 @@ Telemetry now reports how users install aislop (npm, Homebrew, pip, pipx, and mo
 
 ### Tests
 
-Full suite at 1357 passing. New coverage locks install-channel detection, telemetry flush paths, hidden-fallback cases, and framework adapter wiring.
+Full suite at 1356 passing. New coverage locks install-channel detection, telemetry flush paths, hidden-fallback cases, and framework adapter wiring.
 
 ## 0.12.1 (2026-06-20)
 
