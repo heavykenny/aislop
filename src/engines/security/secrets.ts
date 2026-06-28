@@ -53,7 +53,7 @@ const SECRET_PATTERNS: SecretPattern[] = [
 	{ pattern: /xox[baprs]-[A-Za-z0-9-]+/g, name: "Slack token" },
 	// Database URLs
 	{
-		pattern: /(?:mongodb|postgres|mysql|redis):\/\/[^"'\s]+:[^"'\s]+@/gi,
+		pattern: /(?:mongodb(?:\+srv)?|postgres|mysql|redis):\/\/[^:@/"'`\s]+:[^@"'`\s]+@[^"'`\s]+/gi,
 		name: "Database connection string with credentials",
 	},
 ];
@@ -89,6 +89,11 @@ const PLACEHOLDER_URL_PARTS = new Set([
 	"user",
 	"username",
 ]);
+const PUBLIC_POSTHOG_PROJECT_TOKEN_RE = /^phc_[A-Za-z0-9_-]{20,}$/;
+const LOCAL_DB_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
+const NON_PRODUCTION_CREDENTIAL_EXACT = new Set(["pass", "password", "pw", "mostest"]);
+const NON_PRODUCTION_CREDENTIAL_RE =
+	/^(?:demo|dummy|fake|local|sample|test|testing)(?:[_.-]?[A-Za-z0-9]+)*$/i;
 
 const NON_PRODUCTION_SECRET_PATH_RE =
 	/(?:^|\/)(?:__fixtures__|__mocks__|cypress|demo|demos|e2e-tests?|examples?|fixtures?|playwright|samples?|seeders?|seeds?|storetest|testdata|tests?|tools\/sharedchannel-test)(?:\/|$)|(?:^|\/)db\/seeds\.[^/]+$/i;
@@ -102,7 +107,7 @@ const FIXTURE_VALUE_RE =
 const MASKED_SECRET_RE = /^[*xX]{6,}$/;
 
 const isPlaceholderCredentialUrl = (matchedText: string): boolean => {
-	const credentialMatch = matchedText.match(/^[a-z]+:\/\/([^:@/\s]+):([^@/\s]+)@/i);
+	const credentialMatch = matchedText.match(/^[a-z][a-z+.-]*:\/\/([^:@/\s]+):([^@/\s]+)@/i);
 	if (credentialMatch) {
 		return (
 			PLACEHOLDER_URL_PARTS.has(credentialMatch[1].toLowerCase()) &&
@@ -116,6 +121,22 @@ const isPlaceholderCredentialUrl = (matchedText: string): boolean => {
 			PLACEHOLDER_URL_PARTS.has(parsed.username.toLowerCase()) &&
 			PLACEHOLDER_URL_PARTS.has(parsed.password.toLowerCase()) &&
 			PLACEHOLDER_URL_PARTS.has(parsed.hostname.toLowerCase())
+		);
+	} catch {
+		return false;
+	}
+};
+
+const isLocalhostExampleDatabaseUrl = (matchedText: string): boolean => {
+	try {
+		const parsed = new URL(matchedText);
+		if (!LOCAL_DB_HOSTS.has(parsed.hostname.toLowerCase())) return false;
+		const password = decodeURIComponent(parsed.password);
+		const database = decodeURIComponent(parsed.pathname.replace(/^\//, ""));
+		return (
+			NON_PRODUCTION_CREDENTIAL_EXACT.has(password.toLowerCase()) ||
+			NON_PRODUCTION_CREDENTIAL_RE.test(password) ||
+			/(?:^|[_-])test(?:$|[_-])|sample|fixture/i.test(database)
 		);
 	} catch {
 		return false;
@@ -171,6 +192,13 @@ const shouldSkipSecretFinding = (
 	lineText: string,
 	matchedText: string,
 ): boolean => {
+	if (name === "API key" && PUBLIC_POSTHOG_PROJECT_TOKEN_RE.test(matchedText)) return true;
+	if (
+		name === "Database connection string with credentials" &&
+		isLocalhostExampleDatabaseUrl(matchedText)
+	) {
+		return true;
+	}
 	if (GENERATED_SECRET_RE.test(lineText) || GENERATED_SECRET_RE.test(matchedText)) return true;
 	if (isHeaderNameConstant(lineText, matchedText)) return true;
 	if (isFixtureSecret(relativePath, lineText, matchedText)) return true;

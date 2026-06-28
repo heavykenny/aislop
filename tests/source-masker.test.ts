@@ -31,6 +31,22 @@ describe("maskComments", () => {
 		expect(out).not.toContain("secret here");
 	});
 
+	it("masks Go line and block comments while preserving strings", () => {
+		const src = [
+			`package main`,
+			`const raw = \`a \${notInterpolation} raw string\``,
+			`// postgres://raw:userpass@host/db`,
+			`const dsn = "postgres://user:pass@localhost/db" // postgres://user:pass@host/db`,
+			`/* secret = "inside comment" */`,
+			``,
+		].join("\n");
+		const out = maskComments(src, ".go");
+		expect(out).toContain("postgres://user:pass@localhost/db");
+		expect(out).not.toContain("inside comment");
+		expect(out).not.toContain("postgres://user:pass@host/db");
+		expect(out).not.toContain("postgres://raw:userpass@host/db");
+	});
+
 	it("returns content unchanged for unknown extensions", () => {
 		const src = "anything // not a comment here\n";
 		expect(maskComments(src, ".txt")).toBe(src);

@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { readJsoncFile } from "../../utils/read-jsonc.js";
 
 export type AliasMatcher = (spec: string) => boolean;
 
@@ -29,14 +30,6 @@ const JS_RESOLUTION_EXTENSIONS = [
 	"/index.jsx",
 ];
 
-const readJson = (filePath: string): unknown => {
-	try {
-		return JSON.parse(fs.readFileSync(filePath, "utf-8"));
-	} catch {
-		return null;
-	}
-};
-
 const buildAliasMatcher = (key: string): AliasMatcher => {
 	const starIdx = key.indexOf("*");
 	if (starIdx === -1) {
@@ -55,7 +48,7 @@ const buildViteAliasMatcher = (key: string): AliasMatcher => {
 };
 
 const collectAliasMatchersFromConfig = (configPath: string, matchers: AliasMatcher[]): void => {
-	const config = readJson(configPath) as Record<string, unknown> | null;
+	const config = readJsoncFile(configPath) as Record<string, unknown> | null;
 	const opts = config?.compilerOptions;
 	if (!opts || typeof opts !== "object") return;
 	const configDir = path.dirname(configPath);

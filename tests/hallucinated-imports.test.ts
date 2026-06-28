@@ -455,9 +455,28 @@ import { Page } from "@/pages/Home";
 		expect(diags).toEqual([]);
 	});
 
+	it("reads path aliases from tsconfig.json with block comments (JSONC)", async () => {
+		writePkgJson({ react: "^19.0.0" });
+		writeFile(
+			"tsconfig.json",
+			`{
+  "compilerOptions": {
+    /* Bundler mode */
+    "moduleResolution": "Bundler",
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  }
+}`,
+		);
+		writeFile("src/app.ts", `import { api } from "@/lib/api";\n`);
+		const diags = await detectHallucinatedImports(buildContext());
+		expect(diags).toEqual([]);
+	});
+
 	it("falls back gracefully when tsconfig.json is malformed (no crash, no alias support)", async () => {
 		writePkgJson({});
-		// Trailing comma — invalid strict JSON. readJson returns null; we proceed without aliases.
+		// Trailing comma — invalid even after comment strip. We proceed without aliases.
 		writeFile("tsconfig.json", `{ "compilerOptions": { "paths": { "@/*": ["./src/*"], }, }, }`);
 		writeFile("src/index.ts", `import { x } from "@/lib/x";\n`);
 		const diags = await detectHallucinatedImports(buildContext());

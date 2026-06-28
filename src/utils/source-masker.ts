@@ -1,15 +1,17 @@
-type LangFamily = "js" | "py" | "rb" | "php" | "none";
+type LangFamily = "js" | "py" | "rb" | "php" | "cstyle" | "none";
 
 const JS_EXTS = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"]);
 const PY_EXTS = new Set([".py"]);
 const RB_EXTS = new Set([".rb"]);
 const PHP_EXTS = new Set([".php"]);
+const C_STYLE_COMMENT_EXTS = new Set([".go"]);
 
 const familyForExt = (ext: string): LangFamily => {
 	if (JS_EXTS.has(ext)) return "js";
 	if (PY_EXTS.has(ext)) return "py";
 	if (RB_EXTS.has(ext)) return "rb";
 	if (PHP_EXTS.has(ext)) return "php";
+	if (C_STYLE_COMMENT_EXTS.has(ext)) return "cstyle";
 	return "none";
 };
 
@@ -17,6 +19,7 @@ export const maskStringsAndComments = (content: string, ext: string): string => 
 	const family = familyForExt(ext);
 	if (family === "none") return content;
 	if (family === "js") return maskJs(content, true);
+	if (family === "cstyle") return maskCStyle(content, true);
 	return maskSimple(content, family, true);
 };
 
@@ -25,6 +28,7 @@ export const maskComments = (content: string, ext: string): string => {
 	const family = familyForExt(ext);
 	if (family === "none") return content;
 	if (family === "js") return maskJs(content, false);
+	if (family === "cstyle") return maskCStyle(content, false);
 	return maskSimple(content, family, false);
 };
 
@@ -113,6 +117,58 @@ const maskJs = (content: string, maskStrings: boolean): string => {
 		const handled = handleQuotesAndComments(content, i, tplStack, mask, maskStrings);
 		if (handled.handled) {
 			i = handled.nextI;
+			continue;
+		}
+
+		i++;
+	}
+
+	return out.join("");
+};
+
+const maskCStyle = (content: string, maskStrings: boolean): string => {
+	const out = content.split("");
+	const len = content.length;
+	let i = 0;
+
+	const mask = (start: number, end: number) => {
+		for (let k = start; k < end; k++) {
+			if (out[k] !== "\n") out[k] = " ";
+		}
+	};
+
+	while (i < len) {
+		const c = content[i];
+		const next = content[i + 1];
+
+		if (c === '"' || c === "'") {
+			const strStart = i;
+			i = consumeQuotedString(content, i, c);
+			if (maskStrings) mask(strStart + 1, i - 1);
+			continue;
+		}
+
+		if (c === "`") {
+			const strStart = i;
+			const end = content.indexOf("`", i + 1);
+			i = end === -1 ? len : end + 1;
+			if (maskStrings) mask(strStart + 1, i - 1);
+			continue;
+		}
+
+		if (c === "/" && next === "/") {
+			const start = i;
+			while (i < len && content[i] !== "\n") i++;
+			mask(start, i);
+			continue;
+		}
+
+		if (c === "/" && next === "*") {
+			const start = i;
+			i += 2;
+			while (i < len - 1 && !(content[i] === "*" && content[i + 1] === "/")) i++;
+			if (i < len - 1) i += 2;
+			mask(start, i);
 			continue;
 		}
 

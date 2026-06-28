@@ -44,6 +44,23 @@ describe("scanSecrets", () => {
 		expect(diagnostics[0].severity).toBe("error");
 	});
 
+	it("does not flag public PostHog project tokens but still flags personal API keys", async () => {
+		writeFile(
+			"internal/telemetry/telemetry.go",
+			[
+				`package telemetry`,
+				`const postHogAPIKey = "phc_FAKEPUBLICTOKEN01234567890123456"`,
+				`const postHogPersonalAPIKey = "phx_FAKEPERSONALKEY0123456789012345"`,
+				``,
+			].join("\n"),
+		);
+
+		const diagnostics = await scanSecrets(buildContext());
+
+		expect(diagnostics).toHaveLength(1);
+		expect(diagnostics[0].message).toContain("API key");
+	});
+
 	it("does not flag passwords generated from secure randomness", async () => {
 		writeFile(
 			"app/builders/agent_builder.rb",
@@ -97,6 +114,41 @@ describe("scanSecrets", () => {
 		const diagnostics = await scanSecrets(buildContext());
 
 		expect(diagnostics).toEqual([]);
+	});
+
+	it("does not flag localhost sample database URLs in Go command examples or defaults", async () => {
+		writeFile(
+			"server/cmd/mmctl/commands/config.go",
+			[
+				`package commands`,
+				`var configCmd = Command{`,
+				`\tExample: \`config migrate path/to/config.json "postgres://mmuser:mostest@localhost:5432/mattermost_test?sslmode=disable&connect_timeout=10"\`,`,
+				`}`,
+				``,
+			].join("\n"),
+		);
+		writeFile(
+			"server/public/model/config.go",
+			[
+				`package model`,
+				`const SqlSettingsDefaultDataSource = "postgres://mmuser:mostest@localhost/mattermost_test?sslmode=disable&connect_timeout=10"`,
+				`// "postgres://user:pass@host:5432/db" -> "postgres://****:****@host:5432/db"`,
+				``,
+			].join("\n"),
+		);
+
+		const diagnostics = await scanSecrets(buildContext());
+
+		expect(diagnostics).toEqual([]);
+	});
+
+	it("still flags production database URLs with credentials", async () => {
+		writeFile("src/config.ts", `export const dsn = "postgres://app:supersecret123@db.internal/app"\n`);
+
+		const diagnostics = await scanSecrets(buildContext());
+
+		expect(diagnostics).toHaveLength(1);
+		expect(diagnostics[0].message).toContain("Database connection string");
 	});
 
 	it("does not flag symbolic permission and audit-event constants as secrets", async () => {

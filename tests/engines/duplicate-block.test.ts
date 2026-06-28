@@ -132,6 +132,41 @@ export const IconB = () => (
 		expect(diags).toHaveLength(0);
 	});
 
+	it("does not flag static SVG component files as duplicate logic", async () => {
+		write(
+			"components/common/company_svg.tsx",
+			`export const CompanySvg = () => {
+	const attrs = {
+		fill: "currentColor",
+		stroke: "none",
+		viewBox: "0 0 10 10",
+		role: "img",
+		focusable: "false",
+		width: 10,
+		height: 10,
+	};
+	return <svg {...attrs}><path d="M0 0h10v10H0z" /></svg>;
+};
+
+export const TeamSvg = () => {
+	const attrs = {
+		fill: "currentColor",
+		stroke: "none",
+		viewBox: "0 0 10 10",
+		role: "img",
+		focusable: "false",
+		width: 10,
+		height: 10,
+	};
+	return <svg {...attrs}><path d="M1 1h8v8H1z" /></svg>;
+};
+`,
+		);
+
+		const diags = await detectDuplicateBlocks(ctx(tmpDir));
+		expect(diags).toHaveLength(0);
+	});
+
 	it("does not flag repeated data literal records as duplicate logic", async () => {
 		write(
 			"data.ts",
