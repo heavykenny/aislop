@@ -258,6 +258,7 @@ interface AuditSpec {
 
 const AUDIT_SPECS: AuditSpec[] = [
 	{ files: ["pnpm-lock.yaml"], bundled: "pnpm audit" },
+	{ files: ["bun.lock", "bun.lockb"], bundled: "bun audit" },
 	{ files: ["package-lock.json"], bundled: "npm audit" },
 	{
 		files: ["requirements.txt", "poetry.lock", "Pipfile.lock"],

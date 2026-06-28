@@ -20,7 +20,7 @@ Each event carries:
 - `aislop_version`, `node_version`, `os`, `arch`
 - `schema_version` (currently `"v2"`)
 - `anonymous_install_id` — random UUID stored in `~/.aislop/install_id` (re-rolls if you delete the file)
-- `package_manager` — `npm` / `pnpm` / `yarn` / `bun` / `npx` / `unknown`
+- `package_manager` — install channel: `npm` / `pnpm` / `yarn` / `bun` / `npx` / `homebrew` / `pip` / `pipx` / `direct` / `unknown` (Python and other shims may set `AISLOP_INSTALL_CHANNEL` before invoking the Node CLI)
 - `is_ci` — true only if `CI=true` AND you've explicitly opted in via config
 
 Command events additionally carry: `command`, `language_summary`, per-language flags (`lang_typescript`, `lang_javascript`, `lang_python`, `lang_java`), `file_count_bucket` (`0-10` / `10-50` / `50-100` / `100-500` / `500-1000` / `1000+`), `score_bucket`, score, finding counts, and per-engine timings.

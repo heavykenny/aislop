@@ -109,6 +109,19 @@ describe("calculateScore", () => {
 		expect(largeCodebase.score).toBeGreaterThan(smallCodebase.score);
 	});
 
+	it("marks omitted sourceFileCount as an explicit diagnostic-file estimate", () => {
+		const result = calculateScore([makeDiagnostic()], defaultWeights, defaultThresholds);
+
+		expect(result.effectiveSourceFileCount).toBe(1);
+		expect(result.sourceFileCountMode).toBe("estimated-from-diagnostics");
+	});
+
+	it("throws when diagnostics cannot be tied to a file or sourceFileCount", () => {
+		expect(() =>
+			calculateScore([makeDiagnostic({ filePath: "" })], defaultWeights, defaultThresholds),
+		).toThrow("Cannot score diagnostics without sourceFileCount or diagnostic file paths");
+	});
+
 	it("unknown engine falls back to weight 1.0", () => {
 		// "custom-engine" not in weights → default 1.0
 		const result = calculateScore(

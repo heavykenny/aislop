@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { detectDefensivePatterns } from "../src/engines/ai-slop/defensive-patterns.js";
+import { detectHiddenFallbacks } from "../src/engines/ai-slop/hidden-fallback.js";
 import type { EngineContext } from "../src/engines/types.js";
 
 let tmpDir: string;
@@ -113,6 +114,148 @@ describe("redundant try/catch", () => {
 
 		const diagnostics = await detectDefensivePatterns(makeContext([filePath]));
 		expect(diagnostics.filter((d) => d.rule === "ai-slop/redundant-try-catch")).toEqual([]);
+	});
+});
+
+describe("hidden fallback logic", () => {
+	it("detects the reported Math.max fallback snippet", async () => {
+		const filePath = writeFile(
+			"score.ts",
+			[
+				"function effectiveFiles(diagnostics: Diagnostic[]) {",
+				"  // Fallback for direct API use when caller doesn't provide source file count.",
+				"  const filesWithDiagnostics = new Set(diagnostics.map((d) => d.filePath)).size;",
+				"  return Math.max(1, filesWithDiagnostics);",
+				"}",
+			].join("\n"),
+		);
+
+		const diagnostics = await detectHiddenFallbacks(makeContext([filePath]));
+		const matches = diagnostics.filter((d) => d.rule === "ai-slop/hidden-fallback");
+		expect(matches).toHaveLength(1);
+		expect(matches[0].line).toBe(4);
+	});
+
+	it("detects count fallbacks that hide failed counts", async () => {
+		const filePath = writeFile(
+			"count.ts",
+			[
+				"function reportCount(count: number | undefined) {",
+				"  // Fallback when the upstream count failed to load.",
+				"  return count || 1;",
+				"}",
+			].join("\n"),
+		);
+
+		const diagnostics = await detectHiddenFallbacks(makeContext([filePath]));
+		expect(diagnostics.filter((d) => d.rule === "ai-slop/hidden-fallback")).toHaveLength(1);
+	});
+
+	it("detects default values used for impossible missing diagnostics", async () => {
+		const filePath = writeFile(
+			"diagnostics.ts",
+			[
+				"function normalizeDiagnostics(value: Diagnostic[] | undefined, defaultValue: Diagnostic[]) {",
+				"  // Should never happen: diagnostics are missing after scan completion.",
+				"  return value ?? defaultValue;",
+				"}",
+			].join("\n"),
+		);
+
+		const diagnostics = await detectHiddenFallbacks(makeContext([filePath]));
+		expect(diagnostics.filter((d) => d.rule === "ai-slop/hidden-fallback")).toHaveLength(1);
+	});
+
+	it("detects catch blocks that return empty success-shaped fallbacks", async () => {
+		const filePath = writeFile(
+			"catch-fallback.ts",
+			[
+				"async function loadItems() {",
+				"  // Fallback when the fetch failed should not pretend success.",
+				"  try {",
+				"    return await fetchItems();",
+				"  } catch {",
+				"    return [];",
+				"  }",
+				"}",
+			].join("\n"),
+		);
+
+		const diagnostics = await detectHiddenFallbacks(makeContext([filePath]));
+		const matches = diagnostics.filter((d) => d.rule === "ai-slop/hidden-fallback");
+		expect(matches).toHaveLength(1);
+		expect(matches[0].line).toBe(6);
+	});
+
+	it("does not flag ordinary optional defaults without failure context", async () => {
+		const filePath = writeFile(
+			"ordinary-defaults.ts",
+			[
+				"function render(options: { page?: number; label?: string }) {",
+				"  const page = options.page ?? 1;",
+				"  const label = options.label ?? 'Untitled';",
+				"  return `${Math.max(1, page)}:${label}`;",
+				"}",
+			].join("\n"),
+		);
+
+		const diagnostics = await detectHiddenFallbacks(makeContext([filePath]));
+		expect(diagnostics.filter((d) => d.rule === "ai-slop/hidden-fallback")).toEqual([]);
+	});
+
+	it("does not flag catch fallbacks that log the caught error", async () => {
+		const filePath = writeFile(
+			"logged-catch.ts",
+			[
+				"async function loadItems() {",
+				"  try {",
+				"    return await fetchItems();",
+				"  } catch (error) {",
+				"    logger.warn('fetchItems failed; using empty cache result', { error });",
+				"    return [];",
+				"  }",
+				"}",
+			].join("\n"),
+		);
+
+		const diagnostics = await detectHiddenFallbacks(makeContext([filePath]));
+		expect(diagnostics.filter((d) => d.rule === "ai-slop/hidden-fallback")).toEqual([]);
+	});
+
+	it("does not flag bare empty catch fallbacks without extra hidden-failure signals", async () => {
+		const filePath = writeFile(
+			"bare-empty-catch.ts",
+			[
+				"async function loadOptionalCache() {",
+				"  try {",
+				"    return await readOptionalCache();",
+				"  } catch {",
+				"    return [];",
+				"  }",
+				"}",
+			].join("\n"),
+		);
+
+		const diagnostics = await detectHiddenFallbacks(makeContext([filePath]));
+		expect(diagnostics.filter((d) => d.rule === "ai-slop/hidden-fallback")).toEqual([]);
+	});
+
+	it("does not flag catch blocks that return typed error outcomes", async () => {
+		const filePath = writeFile(
+			"typed-outcome.ts",
+			[
+				"async function loadItems() {",
+				"  try {",
+				"    return { ok: true, value: await fetchItems() };",
+				"  } catch (error) {",
+				"    return { ok: false, error };",
+				"  }",
+				"}",
+			].join("\n"),
+		);
+
+		const diagnostics = await detectHiddenFallbacks(makeContext([filePath]));
+		expect(diagnostics.filter((d) => d.rule === "ai-slop/hidden-fallback")).toEqual([]);
 	});
 });
 

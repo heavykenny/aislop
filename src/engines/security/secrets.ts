@@ -53,7 +53,7 @@ const SECRET_PATTERNS: SecretPattern[] = [
 	{ pattern: /xox[baprs]-[A-Za-z0-9-]+/g, name: "Slack token" },
 	// Database URLs
 	{
-		pattern: /(?:mongodb|postgres|mysql|redis):\/\/[^"'\s]+:[^"'\s]+@/gi,
+		pattern: /(?:mongodb(?:\+srv)?|postgres|mysql|redis):\/\/[^:@/"'`\s]+:[^@"'`\s]+@[^"'`\s]+/gi,
 		name: "Database connection string with credentials",
 	},
 ];
@@ -89,9 +89,55 @@ const PLACEHOLDER_URL_PARTS = new Set([
 	"user",
 	"username",
 ]);
+const PUBLIC_POSTHOG_PROJECT_TOKEN_RE = /^phc_[A-Za-z0-9_-]{20,}$/;
+const LOCAL_DB_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
+const NON_PRODUCTION_CREDENTIAL_EXACT = new Set(["pass", "password", "pw", "mostest"]);
+const NON_PRODUCTION_CREDENTIAL_PREFIXES = [
+	"demo",
+	"dummy",
+	"fake",
+	"local",
+	"sample",
+	"test",
+	"testing",
+] as const;
+
+const isNonProductionCredentialValue = (value: string): boolean => {
+	const lower = value.toLowerCase();
+	const prefix = NON_PRODUCTION_CREDENTIAL_PREFIXES.find((candidate) =>
+		lower.startsWith(candidate),
+	);
+	if (!prefix) return false;
+
+	let rest = lower.slice(prefix.length);
+	if (rest.length === 0) return true;
+
+	while (rest.length > 0) {
+		if (rest[0] === "_" || rest[0] === "." || rest[0] === "-") {
+			rest = rest.slice(1);
+			if (rest.length === 0) return false;
+		}
+		const segment = rest.match(/^[a-z0-9]+/);
+		if (!segment) return false;
+		rest = rest.slice(segment[0].length);
+	}
+
+	return true;
+};
+
+const NON_PRODUCTION_SECRET_PATH_RE =
+	/(?:^|\/)(?:__fixtures__|__mocks__|cypress|demo|demos|e2e-tests?|examples?|fixtures?|playwright|samples?|seeders?|seeds?|storetest|testdata|tests?|tools\/sharedchannel-test)(?:\/|$)|(?:^|\/)db\/seeds\.[^/]+$/i;
+const SYMBOLIC_VALUE_RE = /^[A-Za-z_][A-Za-z0-9_.-]*$/;
+const HEADER_CONSTANT_RE = /\bHeader[A-Za-z0-9_]*\s*=/;
+const GENERATED_SECRET_RE =
+	/\b(?:SecureRandom|crypto\.random|randomBytes|randomUUID|random_bytes|secrets\.token|uuid)\b/i;
+const FIXTURE_LINE_RE = /\b(?:fixture|mock|sample|seed|test)\b|(?:^|[^A-Za-z])B?Test[A-Z_]/i;
+const FIXTURE_VALUE_RE =
+	/^(?:password1!?\.?|passwd\+us3r\d+|sys@dmin-sample\d+|usr@mmtest\d+|test(?:ing)?[-_ ]?(?:password|secret)?\d*)$/i;
+const MASKED_SECRET_RE = /^[*xX]{6,}$/;
 
 const isPlaceholderCredentialUrl = (matchedText: string): boolean => {
-	const credentialMatch = matchedText.match(/^[a-z]+:\/\/([^:@/\s]+):([^@/\s]+)@/i);
+	const credentialMatch = matchedText.match(/^[a-z][a-z+.-]*:\/\/([^:@/\s]+):([^@/\s]+)@/i);
 	if (credentialMatch) {
 		return (
 			PLACEHOLDER_URL_PARTS.has(credentialMatch[1].toLowerCase()) &&
@@ -111,11 +157,87 @@ const isPlaceholderCredentialUrl = (matchedText: string): boolean => {
 	}
 };
 
+const isLocalhostExampleDatabaseUrl = (matchedText: string): boolean => {
+	try {
+		const parsed = new URL(matchedText);
+		if (!LOCAL_DB_HOSTS.has(parsed.hostname.toLowerCase())) return false;
+		const password = decodeURIComponent(parsed.password);
+		const database = decodeURIComponent(parsed.pathname.replace(/^\//, ""));
+		return (
+			NON_PRODUCTION_CREDENTIAL_EXACT.has(password.toLowerCase()) ||
+			isNonProductionCredentialValue(password) ||
+			/(?:^|[_-])test(?:$|[_-])|sample|fixture/i.test(database)
+		);
+	} catch {
+		return false;
+	}
+};
+
+const lineForMatch = (content: string, matchIndex: number): string => {
+	const lineStart = content.lastIndexOf("\n", matchIndex - 1) + 1;
+	const lineEnd = content.indexOf("\n", matchIndex);
+	return content.slice(lineStart, lineEnd === -1 ? content.length : lineEnd);
+};
+
 const isPlaceholderValue = (matchedText: string): boolean => {
 	const value = matchedText.trim();
 	if (isPlaceholderCredentialUrl(value)) return true;
 	if (ENV_PLACEHOLDER_RE.test(value)) return true;
 	if (PLACEHOLDER_EXACT.has(value.toLowerCase())) return true;
+	return false;
+};
+
+const isSymbolicConstantValue = (matchedText: string): boolean => {
+	if (/^process\.env\./i.test(matchedText)) return false;
+	if (!SYMBOLIC_VALUE_RE.test(matchedText)) return false;
+	if (/\d/.test(matchedText)) return false;
+	return /[_.]/.test(matchedText) || /[a-z][A-Z]/.test(matchedText);
+};
+
+const isHeaderNameConstant = (lineText: string, matchedText: string): boolean => {
+	if (!HEADER_CONSTANT_RE.test(lineText)) return false;
+	return (
+		matchedText.toLowerCase() === "token" ||
+		matchedText.toLowerCase() === "bearer" ||
+		matchedText === "Authorization" ||
+		matchedText.startsWith("X-")
+	);
+};
+
+const isFixtureSecret = (relativePath: string, lineText: string, matchedText: string): boolean => {
+	if (MASKED_SECRET_RE.test(matchedText)) return true;
+	if (/(?:mmtest|sample|testing)/i.test(matchedText)) return true;
+	if (/updated .*(?:client)?secret/i.test(matchedText)) return true;
+	if (!NON_PRODUCTION_SECRET_PATH_RE.test(relativePath) && !FIXTURE_LINE_RE.test(lineText)) {
+		return false;
+	}
+	if (FIXTURE_VALUE_RE.test(matchedText)) return true;
+	if (isPlaceholderCredentialUrl(matchedText)) return true;
+	return /(?:localhost|mattermost_test|_test|sample|test)/i.test(matchedText);
+};
+
+const shouldSkipSecretFinding = (
+	relativePath: string,
+	name: string,
+	lineText: string,
+	matchedText: string,
+): boolean => {
+	if (name === "API key" && PUBLIC_POSTHOG_PROJECT_TOKEN_RE.test(matchedText)) return true;
+	if (
+		name === "Database connection string with credentials" &&
+		isLocalhostExampleDatabaseUrl(matchedText)
+	) {
+		return true;
+	}
+	if (GENERATED_SECRET_RE.test(lineText) || GENERATED_SECRET_RE.test(matchedText)) return true;
+	if (isHeaderNameConstant(lineText, matchedText)) return true;
+	if (isFixtureSecret(relativePath, lineText, matchedText)) return true;
+	if (
+		(name === "Hardcoded password/secret" || name === "Authentication token") &&
+		isSymbolicConstantValue(matchedText)
+	) {
+		return true;
+	}
 	return false;
 };
 
@@ -141,7 +263,9 @@ export const scanSecrets = async (context: EngineContext): Promise<Diagnostic[]>
 
 			for (const match of content.matchAll(regex)) {
 				const matchedText = match[1] ?? match[0];
+				const lineText = lineForMatch(content, match.index);
 				if (isPlaceholderValue(matchedText)) continue;
+				if (shouldSkipSecretFinding(relativePath, name, lineText, matchedText)) continue;
 				if (keywordPrefixed && isInsideStringLiteral(content, match.index)) continue;
 
 				const line = content.slice(0, match.index).split("\n").length;

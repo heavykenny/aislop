@@ -581,3 +581,25 @@ describe("checkComplexity — general", () => {
 		expect(fnDiags[0].detail).toContain("processData");
 	});
 });
+
+describe("analyzeFunctions — brace masking regressions", () => {
+	it("does not inflate readPnpmStoreVersion when a regex replace precedes string concat", () => {
+		const content = fs.readFileSync(
+			path.join(import.meta.dirname, "../src/commands/fix-force.ts"),
+			"utf-8",
+		);
+		const fn = analyzeFunctions(content, ".ts").find((f) => f.name === "readPnpmStoreVersion");
+		expect(fn).toBeDefined();
+		expect(fn?.lineCount).toBeLessThanOrEqual(25);
+	});
+
+	it("does not inflate collectClassDefinitions when comments mention braces", () => {
+		const content = fs.readFileSync(
+			path.join(import.meta.dirname, "../src/engines/ai-slop/unused-css.ts"),
+			"utf-8",
+		);
+		const fn = analyzeFunctions(content, ".ts").find((f) => f.name === "collectClassDefinitions");
+		expect(fn).toBeDefined();
+		expect(fn?.lineCount).toBeLessThanOrEqual(30);
+	});
+});

@@ -6,6 +6,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## Unreleased
 
+## 0.13.0 (2026-06-28)
+
+Telemetry now reports how users install aislop (npm, Homebrew, pip, pipx, and more), MCP and lifecycle events flush reliably, and new quality rules catch hidden fallbacks while framework-specific scans ship as optional adapter entrypoints.
+
+### Added
+
+- **Install channel telemetry.** The `package_manager` property now distinguishes `homebrew`, `pip`, `pipx`, and `direct` global installs in addition to `npm` / `pnpm` / `yarn` / `bun` / `npx`. Python and other shims can set `AISLOP_INSTALL_CHANNEL` before invoking the Node CLI. See `docs/telemetry.md`.
+- **`ai-slop/hidden-fallback` rule.** Flags JS/TS fallback logic that turns missing counts, failed diagnostics, or impossible states into safe-looking values without surfacing the failure ([#226](https://github.com/scanaislop/aislop/pull/226)).
+- **Framework adapter entrypoints.** Optional `@aislop/adapters/*` exports for Astro, Expo, Nuxt, SvelteKit, and Vite so monorepos can scope scans to framework-owned trees without hand-maintaining exclude lists ([#224](https://github.com/scanaislop/aislop/pull/224)).
+
+### Fixed
+
+- **Telemetry delivery.** `mcp_tool_called` and `cli_command_started` now flush before the process exits, so short-lived MCP and hook invocations reach PostHog instead of being dropped on the floor.
+- **npx install detection.** Telemetry recognizes `_npx` cache paths and `npm_command=npx`, not only classic `npx-cli.js` exec paths.
+- **Scanner calibration.** Fewer false positives on hallucinated imports, secret detection, unused CSS, Azure namespace imports, and Bun audit flows ([#227](https://github.com/scanaislop/aislop/pull/227), [#236](https://github.com/scanaislop/aislop/pull/236)).
+- **Source and config resolution.** JSONC reads, Python target discovery, and non-production path heuristics handle more real-world repo layouts without widening scan scope.
+
+### Changed
+
+- **Python launcher telemetry.** The PyPI package sets `AISLOP_INSTALL_CHANNEL` (`pip` or `pipx`) before delegating to the npm CLI, so Python installs are counted separately from raw `npx` traffic.
+
+### Tests
+
+Full suite at 1357 passing. New coverage locks install-channel detection, telemetry flush paths, hidden-fallback cases, and framework adapter wiring.
+
 ## 0.12.1 (2026-06-20)
 
 ### Fixed

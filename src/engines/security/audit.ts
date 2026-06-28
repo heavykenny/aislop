@@ -1,26 +1,39 @@
 // aislop-ignore-file duplicate-block
 import fs from "node:fs";
 import path from "node:path";
-import { detectInvocation } from "../../ui/invocation.js";
 import { runSubprocess } from "../../utils/subprocess.js";
 import type { Diagnostic, EngineContext } from "../types.js";
+import { runCargoAudit, runGovulncheck, runPipAudit } from "./audit-ecosystem.js";
 
-const withFixHint = (rest: string): string => {
-	const invocation = detectInvocation();
-	const suffix = rest ? ` — ${rest}` : "";
-	return `Run \`${invocation} fix -f\` to apply this fix${suffix}`;
+const AUDIT_INPUT_FILE_RE =
+	/(?:^|\/)(?:package\.json|package-lock\.json|pnpm-lock\.yaml|yarn\.lock|bun\.lockb?|requirements(?:\.[\w-]+)?\.txt|pyproject\.toml|Pipfile|Pipfile\.lock|poetry\.lock|go\.mod|go\.sum|Cargo\.toml|Cargo\.lock)$/i;
+
+const toRelativePath = (rootDirectory: string, filePath: string): string => {
+	const absolute = path.isAbsolute(filePath) ? filePath : path.resolve(rootDirectory, filePath);
+	return path.relative(rootDirectory, absolute).split(path.sep).join("/");
+};
+
+export const shouldRunDependencyAudit = (context: EngineContext): boolean => {
+	if (!context.files) return true;
+	return context.files.some((file) =>
+		AUDIT_INPUT_FILE_RE.test(toRelativePath(context.rootDirectory, file)),
+	);
 };
 
 export const runDependencyAudit = async (context: EngineContext): Promise<Diagnostic[]> => {
+	if (!shouldRunDependencyAudit(context)) return [];
+
 	const diagnostics: Diagnostic[] = [];
 	const timeout = context.config.security.auditTimeout;
 
 	const promises: Promise<Diagnostic[]>[] = [];
 
-	// npm/pnpm audit
+	// npm/pnpm/bun audit
 	if (context.languages.includes("typescript") || context.languages.includes("javascript")) {
 		if (fs.existsSync(path.join(context.rootDirectory, "pnpm-lock.yaml"))) {
 			promises.push(runPnpmAuditWithFallback(context.rootDirectory, timeout));
+		} else if (hasBunLockfile(context.rootDirectory)) {
+			promises.push(runBunAudit(context.rootDirectory, timeout));
 		} else if (
 			fs.existsSync(path.join(context.rootDirectory, "package-lock.json")) ||
 			fs.existsSync(path.join(context.rootDirectory, "package.json"))
@@ -54,6 +67,27 @@ export const runDependencyAudit = async (context: EngineContext): Promise<Diagno
 	return diagnostics;
 };
 
+type JsAuditSource = "npm audit" | "pnpm audit" | "bun audit";
+
+const hasBunLockfile = (rootDir: string): boolean =>
+	fs.existsSync(path.join(rootDir, "bun.lock")) || fs.existsSync(path.join(rootDir, "bun.lockb"));
+
+const errorMessageOf = (error: unknown): string =>
+	error instanceof Error ? error.message : String(error);
+
+const auditSkippedDiagnostic = (source: JsAuditSource, help: string): Diagnostic => ({
+	filePath: "package.json",
+	engine: "security",
+	rule: "security/dependency-audit-skipped",
+	severity: "info",
+	message: `Dependency audit did not complete (${source})`,
+	help,
+	line: 0,
+	column: 0,
+	category: "Security",
+	fixable: false,
+});
+
 const runNpmAudit = async (rootDir: string, timeout: number): Promise<Diagnostic[]> => {
 	try {
 		const result = await runSubprocess("npm", ["audit", "--json"], {
@@ -61,8 +95,33 @@ const runNpmAudit = async (rootDir: string, timeout: number): Promise<Diagnostic
 			timeout,
 		});
 		return parseJsAudit(result.stdout, "npm audit");
-	} catch {
-		return [];
+	} catch (error) {
+		return [
+			auditSkippedDiagnostic("npm audit", `Failed to run npm audit: ${errorMessageOf(error)}`),
+		];
+	}
+};
+
+const runBunAudit = async (rootDir: string, timeout: number): Promise<Diagnostic[]> => {
+	try {
+		const result = await runSubprocess("bun", ["audit", "--json"], {
+			cwd: rootDir,
+			timeout,
+		});
+		if (result.stdout) {
+			return parseBunAudit(result.stdout);
+		}
+		if (result.exitCode === 0) return [];
+		return [
+			auditSkippedDiagnostic(
+				"bun audit",
+				`Failed to run bun audit: ${result.stderr || "unknown error"}`,
+			),
+		];
+	} catch (error) {
+		return [
+			auditSkippedDiagnostic("bun audit", `Failed to run bun audit: ${errorMessageOf(error)}`),
+		];
 	}
 };
 
@@ -83,19 +142,18 @@ const runPnpmAuditWithFallback = async (
 			if (canFallbackToNpm) {
 				return runNpmAudit(rootDir, timeout);
 			}
-			// pnpm audit failed due to an infrastructure/tooling issue, not a project problem — suppress.
-			return [];
+			return diagnostics;
 		}
 		return diagnostics;
-	} catch {
+	} catch (error) {
 		if (canFallbackToNpm) {
 			return runNpmAudit(rootDir, timeout);
 		}
-		return [];
+		return [
+			auditSkippedDiagnostic("pnpm audit", `Failed to run pnpm audit: ${errorMessageOf(error)}`),
+		];
 	}
 };
-
-type JsAuditSource = "npm audit" | "pnpm audit";
 
 const SEVERITY_RANK: Record<string, number> = {
 	critical: 4,
@@ -175,8 +233,35 @@ const aggregateToDiagnostic = (agg: VulnAggregate, source: JsAuditSource): Diagn
 		column: 0,
 		category: "Security",
 		fixable: false,
-		detail: source === "npm audit" ? "npm" : "pnpm",
+		detail: source === "npm audit" ? "npm" : source === "pnpm audit" ? "pnpm" : "bun",
 	};
+};
+
+export const parseBunAudit = (output: string): Diagnostic[] => {
+	if (!output.trim()) return [];
+	try {
+		const parsed = JSON.parse(output) as Record<string, unknown>;
+		const bucket = new Map<string, VulnAggregate>();
+
+		for (const [packageName, advisories] of Object.entries(parsed)) {
+			if (!Array.isArray(advisories) || advisories.length === 0) continue;
+			for (const advisory of advisories) {
+				if (!advisory || typeof advisory !== "object") continue;
+				const record = advisory as Record<string, unknown>;
+				const severity = ((record.severity as string) ?? "moderate").toLowerCase();
+				const recommendation =
+					(record.title as string) ??
+					(record.vulnerable_versions as string) ??
+					(record.url as string) ??
+					"";
+				upsertVuln(bucket, packageName, severity, recommendation);
+			}
+		}
+
+		return [...bucket.values()].map((agg) => aggregateToDiagnostic(agg, "bun audit"));
+	} catch {
+		return [];
+	}
 };
 
 const parseLegacyAdvisories = (
@@ -302,117 +387,6 @@ export const parseJsAudit = (output: string, source: JsAuditSource): Diagnostic[
 		}
 
 		return [];
-	} catch {
-		return [];
-	}
-};
-
-const runPipAudit = async (rootDir: string, timeout: number): Promise<Diagnostic[]> => {
-	try {
-		const result = await runSubprocess("pip-audit", ["--format=json"], {
-			cwd: rootDir,
-			timeout,
-		});
-		if (!result.stdout) return [];
-		const parsed = JSON.parse(result.stdout);
-		return (parsed.dependencies ?? [])
-			.filter(
-				(d: Record<string, unknown>) => Array.isArray(d.vulns) && (d.vulns as unknown[]).length > 0,
-			)
-			.map((d: Record<string, unknown>) => ({
-				filePath: "requirements.txt",
-				engine: "security" as const,
-				rule: "security/vulnerable-dependency",
-				severity: "error" as const,
-				message: `Vulnerable Python dependency: ${d.name}`,
-				help: withFixHint(`Upgrade ${d.name} to fix known vulnerabilities`),
-				line: 0,
-				column: 0,
-				category: "Security",
-				fixable: false,
-			}));
-	} catch {
-		return [];
-	}
-};
-
-const runGovulncheck = async (rootDir: string, timeout: number): Promise<Diagnostic[]> => {
-	try {
-		const result = await runSubprocess("govulncheck", ["-json", "./..."], {
-			cwd: rootDir,
-			timeout,
-		});
-		if (!result.stdout) return [];
-		return parseGovulncheckOutput(result.stdout);
-	} catch {
-		return [];
-	}
-};
-
-interface GovulncheckEntry {
-	vulnerability?: {
-		id?: string;
-		details?: string;
-	};
-}
-
-const toGovulnDiagnostic = (entry: GovulncheckEntry): Diagnostic | null => {
-	if (!entry.vulnerability) return null;
-	return {
-		filePath: "go.mod",
-		engine: "security",
-		rule: "security/vulnerable-dependency",
-		severity: "error",
-		message: `Go vulnerability: ${entry.vulnerability.id ?? "unknown"}`,
-		help: withFixHint(entry.vulnerability.details ?? ""),
-		line: 0,
-		column: 0,
-		category: "Security",
-		fixable: false,
-	};
-};
-
-const parseGovulncheckOutput = (output: string): Diagnostic[] => {
-	const diagnostics: Diagnostic[] = [];
-	for (const line of output.split("\n")) {
-		if (!line.startsWith("{")) continue;
-
-		let parsed: GovulncheckEntry | null = null;
-		try {
-			parsed = JSON.parse(line) as GovulncheckEntry;
-		} catch {
-			parsed = null;
-		}
-		if (!parsed) continue;
-
-		const diagnostic = toGovulnDiagnostic(parsed);
-		if (diagnostic) diagnostics.push(diagnostic);
-	}
-	return diagnostics;
-};
-
-const runCargoAudit = async (rootDir: string, timeout: number): Promise<Diagnostic[]> => {
-	try {
-		const result = await runSubprocess("cargo", ["audit", "--json"], {
-			cwd: rootDir,
-			timeout,
-		});
-		if (!result.stdout) return [];
-		const parsed = JSON.parse(result.stdout);
-		return (parsed.vulnerabilities?.list ?? []).map((v: Record<string, unknown>) => ({
-			filePath: "Cargo.toml",
-			engine: "security" as const,
-			rule: "security/vulnerable-dependency",
-			severity: "error" as const,
-			message: `Rust vulnerability: ${(v.advisory as Record<string, unknown>)?.id ?? "unknown"}`,
-			help: withFixHint(
-				((v.advisory as Record<string, unknown>)?.title as string | undefined) ?? "",
-			),
-			line: 0,
-			column: 0,
-			category: "Security",
-			fixable: false,
-		}));
 	} catch {
 		return [];
 	}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseJsAudit } from "../src/engines/security/audit.js";
+import { parseBunAudit, parseJsAudit } from "../src/engines/security/audit.js";
 
 describe("parseJsAudit — modern vulnerabilities", () => {
 	it("collapses a transitive chain to the package that carries the advisory", () => {
@@ -92,5 +92,39 @@ describe("parseJsAudit — modern vulnerabilities", () => {
 		expect(diagnostics).toHaveLength(2);
 		expect(diagnostics.map((d) => d.message).join(" ")).toContain("uuid");
 		expect(diagnostics.map((d) => d.message).join(" ")).toContain("lodash");
+	});
+});
+
+describe("parseBunAudit", () => {
+	it("returns no diagnostics for an empty audit result", () => {
+		expect(parseBunAudit("{}")).toEqual([]);
+	});
+
+	it("maps package advisories to vulnerable-dependency diagnostics", () => {
+		const audit = JSON.stringify({
+			lodash: [
+				{
+					id: 1106913,
+					title: "Command Injection in lodash",
+					severity: "high",
+					vulnerable_versions: "<4.17.21",
+				},
+				{
+					id: 1108258,
+					title: "Regular Expression Denial of Service (ReDoS) in lodash",
+					severity: "moderate",
+					vulnerable_versions: ">=4.0.0 <4.17.21",
+				},
+			],
+		});
+
+		const diagnostics = parseBunAudit(audit);
+
+		expect(diagnostics).toHaveLength(1);
+		expect(diagnostics[0].rule).toBe("security/vulnerable-dependency");
+		expect(diagnostics[0].severity).toBe("error");
+		expect(diagnostics[0].message).toContain("lodash");
+		expect(diagnostics[0].message).toContain("high");
+		expect(diagnostics[0].detail).toBe("bun");
 	});
 });

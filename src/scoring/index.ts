@@ -4,18 +4,36 @@ import { scoreImpactForRule } from "./rule-impact.js";
 export interface ScoreResult {
 	score: number;
 	label: string;
+	effectiveSourceFileCount?: number;
+	sourceFileCountMode?: "provided" | "estimated-from-diagnostics" | "not-needed";
 }
 
 const PERFECT_SCORE = 100;
+type ResolvedFileCount = {
+	effectiveSourceFileCount: number;
+	sourceFileCountMode: "provided" | "estimated-from-diagnostics";
+};
 
-const getEffectiveFileCount = (diagnostics: Diagnostic[], sourceFileCount?: number): number => {
+const resolveEffectiveFileCount = (
+	diagnostics: Diagnostic[],
+	sourceFileCount?: number,
+): ResolvedFileCount => {
 	if (typeof sourceFileCount === "number" && sourceFileCount > 0) {
-		return sourceFileCount;
+		return { effectiveSourceFileCount: sourceFileCount, sourceFileCountMode: "provided" };
+	}
+	if (typeof sourceFileCount === "number") {
+		throw new Error("sourceFileCount must be greater than 0 when diagnostics are present.");
 	}
 
-	// Fallback for direct API use when caller doesn't provide source file count.
-	const filesWithDiagnostics = new Set(diagnostics.map((d) => d.filePath)).size;
-	return Math.max(1, filesWithDiagnostics);
+	const observedDiagnosticFiles = new Set(diagnostics.map((d) => d.filePath).filter(Boolean)).size;
+	if (observedDiagnosticFiles === 0) {
+		throw new Error("Cannot score diagnostics without sourceFileCount or diagnostic file paths.");
+	}
+
+	return {
+		effectiveSourceFileCount: observedDiagnosticFiles,
+		sourceFileCountMode: "estimated-from-diagnostics",
+	};
 };
 
 export const calculateScore = (
@@ -27,7 +45,7 @@ export const calculateScore = (
 	maxPerRule?: number,
 ): ScoreResult => {
 	if (diagnostics.length === 0) {
-		return { score: PERFECT_SCORE, label: "Healthy" };
+		return { score: PERFECT_SCORE, label: "Healthy", sourceFileCountMode: "not-needed" };
 	}
 
 	const deductionsByRule = new Map<string, number>();
@@ -56,9 +74,12 @@ export const calculateScore = (
 		return total + (cap ? Math.min(value, cap) : value);
 	}, 0);
 
-	const effectiveFileCount = getEffectiveFileCount(diagnostics, sourceFileCount);
+	const fileCount = resolveEffectiveFileCount(diagnostics, sourceFileCount);
 	const smoothingConstant = typeof smoothing === "number" ? smoothing : 10;
-	const issueDensity = Math.min(1, diagnostics.length / (effectiveFileCount + smoothingConstant));
+	const issueDensity = Math.min(
+		1,
+		diagnostics.length / (fileCount.effectiveSourceFileCount + smoothingConstant),
+	);
 	const scaledDeductions = deductions * Math.sqrt(issueDensity);
 
 	// Logarithmic scaling: first issues matter most, score can't go below 0
@@ -74,7 +95,7 @@ export const calculateScore = (
 	const label =
 		score >= thresholds.good ? "Healthy" : score >= thresholds.ok ? "Needs Work" : "Critical";
 
-	return { score, label };
+	return { score, label, ...fileCount };
 };
 
 export const getScoreColor = (

@@ -3,6 +3,9 @@ import { getSourceFiles } from "../utils/source-files.js";
 import type { EngineContext } from "./types.js";
 
 const PYTHON_EXTENSIONS = new Set([".py", ".pyi"]);
+const ANSI_RE = /\u001B\[[0-9;]*m/g;
+
+const stripAnsi = (value: string): string => value.replace(ANSI_RE, "");
 
 const normalizeProjectPath = (filePath: string): string => filePath.split(path.sep).join("/");
 
@@ -22,7 +25,7 @@ export const getPythonTargets = (context: EngineContext): string[] => {
 };
 
 export const getRuffDiagnosticPath = (rootDirectory: string, filePath: string): string => {
-	const normalizedPath = filePath.replace(/^a\//, "");
+	const normalizedPath = stripAnsi(filePath).replace(/^a\//, "");
 	const relativePath = path.isAbsolute(normalizedPath)
 		? path.relative(rootDirectory, normalizedPath)
 		: normalizedPath;

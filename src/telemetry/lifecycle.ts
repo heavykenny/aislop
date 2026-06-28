@@ -1,5 +1,7 @@
 import { performance } from "node:perf_hooks";
 import { flushTelemetry, type TelemetryConfig, track } from "./client.js";
+
+const STARTED_FLUSH_TIMEOUT_MS = 100;
 import {
 	buildCommandCompletedProps,
 	buildCommandStartedProps,
@@ -48,6 +50,7 @@ export const withCommandLifecycle = async <T extends CommandCompletionInfo>(
 		properties: startProps,
 		config: start.config,
 	});
+	await flushTelemetry(STARTED_FLUSH_TIMEOUT_MS);
 
 	const startedAt = performance.now();
 

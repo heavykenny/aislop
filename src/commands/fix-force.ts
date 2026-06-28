@@ -318,7 +318,7 @@ const readPnpmStoreVersion = (rootDir: string, name: string): string | null => {
 	} catch {
 		return null;
 	}
-	const prefix = `${name.replace(/\//g, "+")}@`;
+	const prefix = name.replace(/\//g, "+") + "@";
 	let best: string | null = null;
 	for (const entry of entries) {
 		if (!entry.startsWith(prefix)) continue;

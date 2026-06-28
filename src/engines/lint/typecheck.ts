@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
+import { parseJsonc } from "../../utils/read-jsonc.js";
 import { runSubprocess } from "../../utils/subprocess.js";
 import type { Diagnostic, EngineContext } from "../types.js";
 
@@ -44,13 +45,13 @@ export const resolveTrustedTscPath = (): string | null => {
 const isReferenceOnlyConfig = (tsconfigPath: string): boolean => {
 	try {
 		const raw = fs.readFileSync(tsconfigPath, "utf-8");
-		const stripped = raw.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
-		const parsed = JSON.parse(stripped) as {
+		const parsed = parseJsonc(raw) as {
 			references?: unknown;
 			files?: unknown;
 			include?: unknown;
 			extends?: unknown;
-		};
+		} | null;
+		if (!parsed) return false;
 		return Array.isArray(parsed.references) && !parsed.files && !parsed.include && !parsed.extends;
 	} catch {
 		return false;

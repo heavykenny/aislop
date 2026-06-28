@@ -1,35 +1,80 @@
 import { describe, expect, it } from "vitest";
 import {
-	detectPackageManager,
+	detectInstallChannel,
 	fileCountBucket,
 	isCiEnv,
 	scoreBucket,
 } from "../../src/telemetry/env.js";
 
-describe("detectPackageManager", () => {
+describe("detectInstallChannel", () => {
 	it("detects npx from npm_execpath", () => {
-		expect(detectPackageManager({ npm_execpath: "/usr/local/lib/npx/npx-cli.js" })).toBe("npx");
+		expect(detectInstallChannel({ npm_execpath: "/usr/local/lib/npx/npx-cli.js" })).toBe("npx");
+	});
+
+	it("detects npx from npm _npx cache paths", () => {
+		expect(
+			detectInstallChannel({
+				npm_execpath: "/Users/me/.npm/_npx/abc123/node_modules/.bin/aislop-mcp",
+			}),
+		).toBe("npx");
+	});
+
+	it("detects npx from npm_command", () => {
+		expect(detectInstallChannel({ npm_command: "npx" })).toBe("npx");
 	});
 
 	it("detects pnpm from user-agent", () => {
-		expect(detectPackageManager({ npm_config_user_agent: "pnpm/8.0.0 npm/?" })).toBe("pnpm");
+		expect(detectInstallChannel({ npm_config_user_agent: "pnpm/8.0.0 npm/?" })).toBe("pnpm");
 	});
 
 	it("detects yarn from user-agent", () => {
-		expect(detectPackageManager({ npm_config_user_agent: "yarn/1.22.0" })).toBe("yarn");
+		expect(detectInstallChannel({ npm_config_user_agent: "yarn/1.22.0" })).toBe("yarn");
 	});
 
 	it("detects bun from user-agent", () => {
-		expect(detectPackageManager({ npm_config_user_agent: "bun/1.0.0" })).toBe("bun");
+		expect(detectInstallChannel({ npm_config_user_agent: "bun/1.0.0" })).toBe("bun");
 	});
 
 	it("detects npm from user-agent", () => {
-		expect(detectPackageManager({ npm_config_user_agent: "npm/10.0.0" })).toBe("npm");
+		expect(detectInstallChannel({ npm_config_user_agent: "npm/10.0.0" })).toBe("npm");
 	});
 
-	it("returns unknown when env is empty", () => {
-		expect(detectPackageManager({})).toBe("unknown");
+	it("honors AISLOP_INSTALL_CHANNEL override", () => {
+		expect(detectInstallChannel({ AISLOP_INSTALL_CHANNEL: "pip" })).toBe("pip");
+		expect(detectInstallChannel({ AISLOP_INSTALL_CHANNEL: "homebrew" })).toBe("homebrew");
 	});
+
+	it("detects homebrew from Cellar paths before npm signals", () => {
+		expect(
+			detectInstallChannel(
+				{ npm_config_user_agent: "npm/10.0.0" },
+				["node", "/opt/homebrew/Cellar/aislop/0.13.0/libexec/node_modules/aislop/dist/cli.js", "scan"],
+			),
+		).toBe("homebrew");
+	});
+
+	it("detects pipx from script path", () => {
+		expect(
+			detectInstallChannel(
+				{},
+				["node", "/Users/me/.local/pipx/venvs/aislop/bin/aislop", "scan"],
+			),
+		).toBe("pipx");
+	});
+
+	it("detects direct global installs without npm wrapper signals", () => {
+		expect(
+			detectInstallChannel(
+				{},
+				["node", "/usr/local/lib/node_modules/aislop/dist/cli.js", "scan"],
+			),
+		).toBe("direct");
+	});
+
+	it("returns unknown when env and argv carry no install signals", () => {
+		expect(detectInstallChannel({}, ["node"])).toBe("unknown");
+	});
+
 });
 
 describe("isCiEnv", () => {

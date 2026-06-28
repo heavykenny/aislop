@@ -23,6 +23,11 @@ export default defineConfig([
 	{
 		entry: {
 			index: "./src/index.ts",
+			"adapters/astro": "./src/framework-adapters/astro.ts",
+			"adapters/expo": "./src/framework-adapters/expo.ts",
+			"adapters/nuxt": "./src/framework-adapters/nuxt.ts",
+			"adapters/sveltekit": "./src/framework-adapters/sveltekit.ts",
+			"adapters/vite": "./src/framework-adapters/vite.ts",
 		},
 		external: ["oxlint", "knip", "knip/session", "@biomejs/biome", "typescript"],
 		dts: true,

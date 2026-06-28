@@ -158,6 +158,24 @@ export type Node = ReactNode
 		expect(diagnostics).toEqual([]);
 	});
 
+	it("does not false-positive on import lines inside multi-line template literals (docs code samples)", async () => {
+		writePkgJson({ react: "^19.0.0" });
+		writeFile(
+			"web/src/Hero.jsx",
+			[
+				`import { useState } from "react";`,
+				`const snippet = {`,
+				`  source: \`import { getTasks } from "wasp/client/operations";`,
+				`import { HttpError } from "wasp/server";`,
+				`export const x = 1;\``,
+				`};`,
+				``,
+			].join("\n"),
+		);
+		const diagnostics = await detectHallucinatedImports(buildContext());
+		expect(diagnostics).toEqual([]);
+	});
+
 	it("does not false-positive on import-shaped substrings inside template literals or error messages", async () => {
 		writePkgJson({ lodash: "^4.0.0" });
 		writeFile(
@@ -345,6 +363,106 @@ import { Page } from "@/pages/Home";
 		expect(diags).toEqual([]);
 	});
 
+	it("does not flag Node package.json imports field subpath patterns (#*.js)", async () => {
+		writeFile(
+			"package.json",
+			JSON.stringify({
+				name: "eve-like",
+				imports: {
+					"#*.js": "./src/*.ts",
+					"#compiled/*": "./dist/compiled/*",
+				},
+			}),
+		);
+		writeFile(
+			"src/app.ts",
+			`import { x } from "#runtime/input/types.js";
+import { y } from "#shared/json.js";
+import { z } from "#compiled/manifest.js";
+`,
+		);
+		const diags = await detectHallucinatedImports(buildContext());
+		expect(diags).toEqual([]);
+	});
+
+	it("uses the nearest nested package.json for files under that package", async () => {
+		writeFile("package.json", JSON.stringify({ name: "root", dependencies: {} }));
+		writeFile(
+			"web/package.json",
+			JSON.stringify({
+				name: "web",
+				dependencies: { "@docusaurus/core": "~3.10.1", react: "^19.0.0" },
+			}),
+		);
+		writeFile("web/src/Page.tsx", `import React from "react";\n`);
+		const diags = await detectHallucinatedImports(buildContext());
+		expect(diags).toEqual([]);
+	});
+
+	it("does not flag Docusaurus virtual imports when @docusaurus/* is installed", async () => {
+		writeFile(
+			"web/package.json",
+			JSON.stringify({
+				name: "web",
+				dependencies: { "@docusaurus/core": "~3.10.1" },
+			}),
+		);
+		writeFile(
+			"web/src/Link.tsx",
+			`import Link from "@docusaurus/Link";
+import Head from "@docusaurus/Head";
+import Tabs from "@theme/Tabs";
+import Logo from "@site/src/components/Logo";
+`,
+		);
+		const diags = await detectHallucinatedImports(buildContext());
+		expect(diags).toEqual([]);
+	});
+
+	it("does not flag wasp SDK imports in apps with main.wasp", async () => {
+		writeFile("mage/package.json", JSON.stringify({ name: "mage", dependencies: { react: "^19.0.0" } }));
+		writeFile("mage/main.wasp", "app MageApp {}\n");
+		writeFile(
+			"mage/src/App.tsx",
+			`import { useAuth } from "wasp/client/auth";
+import { Link } from "wasp/client/router";
+`,
+		);
+		const diags = await detectHallucinatedImports(buildContext());
+		expect(diags).toEqual([]);
+	});
+
+	it("does not flag deep nested workspace package names (e.g. @wasp.sh/lib-auth)", async () => {
+		writeFile("package.json", JSON.stringify({ name: "root", dependencies: {} }));
+		writeFile(
+			"waspc/data/Generator/libs/auth/package.json",
+			JSON.stringify({ name: "@wasp.sh/lib-auth", dependencies: { lucia: "^3.0.0" } }),
+		);
+		writeFile(
+			"waspc/data/Generator/libs/auth/src/index.ts",
+			`import { Lucia } from "lucia";
+import { helper } from "@wasp.sh/lib-auth/internal";
+`,
+		);
+		const diags = await detectHallucinatedImports(buildContext());
+		expect(diags).toEqual([]);
+	});
+
+	it("does not flag package.json imports when the manifest contains https repository URLs", async () => {
+		writeFile(
+			"package.json",
+			JSON.stringify({
+				name: "pkg-with-urls",
+				homepage: "https://example.com/docs",
+				repository: { url: "git+https://github.com/org/repo.git" },
+				imports: { "#*.js": "./src/*.ts" },
+			}),
+		);
+		writeFile("src/main.ts", `import { helper } from "#internal/helper.js";\n`);
+		const diags = await detectHallucinatedImports(buildContext());
+		expect(diags).toEqual([]);
+	});
+
 	it("reads tsconfig path aliases from each workspace package", async () => {
 		writeFile(
 			"package.json",
@@ -378,6 +496,65 @@ import { Page } from "@/pages/Home";
 		expect(diags).toEqual([]);
 	});
 
+	it("reads local aliases from Vite shared alias objects", async () => {
+		writePkgJson({ vue: "^3.0.0" });
+		writeFile(
+			"vite.shared.ts",
+			[
+				`import path from "node:path";`,
+				`export const aliases = {`,
+				`  vue: "vue/dist/vue.esm-bundler.js",`,
+				`  dashboard: path.resolve("./app/javascript/dashboard"),`,
+				`  shared: path.resolve("./app/javascript/shared"),`,
+				`  next: path.resolve("./app/javascript/dashboard/components-next"),`,
+				`};`,
+				``,
+			].join("\n"),
+		);
+		writeFile(
+			"app/javascript/dashboard/components-next/filter/provider.js",
+			[
+				`import filterHelpers from "dashboard/helper/filterHelpers";`,
+				`import sharedHelpers from "shared/helpers/filterHelpers";`,
+				`import Provider from "next/filter/Provider";`,
+				``,
+			].join("\n"),
+		);
+
+		const diags = await detectHallucinatedImports(buildContext());
+
+		expect(diags).toEqual([]);
+	});
+
+	it("reads local aliases from Vite resolve.alias arrays", async () => {
+		writePkgJson({});
+		writeFile(
+			"vite.config.ts",
+			[
+				`import path from "node:path";`,
+				`export default {`,
+				`  resolve: {`,
+				`    alias: [`,
+				`      { find: "@", replacement: path.resolve(__dirname, "src") },`,
+				`      { find: "models", replacement: path.resolve(__dirname, "src/models") },`,
+				`    ],`,
+				`  },`,
+				`};`,
+				``,
+			].join("\n"),
+		);
+		writeFile(
+			"src/app.ts",
+			[`import { Button } from "@/components/Button";`, `import { User } from "models/User";`, ``].join(
+				"\n",
+			),
+		);
+
+		const diags = await detectHallucinatedImports(buildContext());
+
+		expect(diags).toEqual([]);
+	});
+
 	it("resolves bare imports through tsconfig baseUrl directories", async () => {
 		writePkgJson({});
 		writeFile("pnpm-workspace.yaml", `packages:\n  - "apps/*"\n`);
@@ -396,9 +573,28 @@ import { Page } from "@/pages/Home";
 		expect(diags).toEqual([]);
 	});
 
+	it("reads path aliases from tsconfig.json with block comments (JSONC)", async () => {
+		writePkgJson({ react: "^19.0.0" });
+		writeFile(
+			"tsconfig.json",
+			`{
+  "compilerOptions": {
+    /* Bundler mode */
+    "moduleResolution": "Bundler",
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  }
+}`,
+		);
+		writeFile("src/app.ts", `import { api } from "@/lib/api";\n`);
+		const diags = await detectHallucinatedImports(buildContext());
+		expect(diags).toEqual([]);
+	});
+
 	it("falls back gracefully when tsconfig.json is malformed (no crash, no alias support)", async () => {
 		writePkgJson({});
-		// Trailing comma — invalid strict JSON. readJson returns null; we proceed without aliases.
+		// Trailing comma — invalid even after comment strip. We proceed without aliases.
 		writeFile("tsconfig.json", `{ "compilerOptions": { "paths": { "@/*": ["./src/*"], }, }, }`);
 		writeFile("src/index.ts", `import { x } from "@/lib/x";\n`);
 		const diags = await detectHallucinatedImports(buildContext());
@@ -474,6 +670,42 @@ from psycopg2 import extras
 		const diagnostics = await detectHallucinatedImports(buildContext());
 
 		expect(diagnostics).toEqual([]);
+	});
+
+	it("resolves azure namespace imports from azure-* distributions (#235)", async () => {
+		writeFile(
+			"pyproject.toml",
+			`[project]
+name = "repro"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+  "azure-core>=1.41.0",
+  "azure-identity>=1.25.3",
+  "azure-mgmt-containerservice>=40.2.0",
+]
+`,
+		);
+		writeFile(
+			"app.py",
+			`from azure.core.exceptions import AzureError
+from azure.identity import DefaultAzureCredential
+`,
+		);
+
+		const diagnostics = await detectHallucinatedImports(buildContext());
+
+		expect(diagnostics).toEqual([]);
+	});
+
+	it("still flags azure imports when no azure-* distribution is declared", async () => {
+		writeFile("pyproject.toml", `[project]\ndependencies = ["requests>=2.31"]\n`);
+		writeFile("app.py", `from azure.core.exceptions import AzureError\n`);
+
+		const diagnostics = await detectHallucinatedImports(buildContext());
+
+		expect(diagnostics).toHaveLength(1);
+		expect(diagnostics[0].message).toContain("azure");
 	});
 
 	it("does not flag import-shaped text inside docstrings (flask example)", async () => {

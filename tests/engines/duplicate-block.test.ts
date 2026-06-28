@@ -132,6 +132,41 @@ export const IconB = () => (
 		expect(diags).toHaveLength(0);
 	});
 
+	it("does not flag static SVG component files as duplicate logic", async () => {
+		write(
+			"components/common/company_svg.tsx",
+			`export const CompanySvg = () => {
+	const attrs = {
+		fill: "currentColor",
+		stroke: "none",
+		viewBox: "0 0 10 10",
+		role: "img",
+		focusable: "false",
+		width: 10,
+		height: 10,
+	};
+	return <svg {...attrs}><path d="M0 0h10v10H0z" /></svg>;
+};
+
+export const TeamSvg = () => {
+	const attrs = {
+		fill: "currentColor",
+		stroke: "none",
+		viewBox: "0 0 10 10",
+		role: "img",
+		focusable: "false",
+		width: 10,
+		height: 10,
+	};
+	return <svg {...attrs}><path d="M1 1h8v8H1z" /></svg>;
+};
+`,
+		);
+
+		const diags = await detectDuplicateBlocks(ctx(tmpDir));
+		expect(diags).toHaveLength(0);
+	});
+
 	it("does not flag repeated data literal records as duplicate logic", async () => {
 		write(
 			"data.ts",
@@ -175,6 +210,37 @@ export const two = () => {
 
 export const three = () => {
 };
+`,
+		);
+		const diags = await detectDuplicateBlocks(ctx(tmpDir));
+		expect(diags).toHaveLength(0);
+	});
+
+	it("does not flag TypeScript declaration overloads as duplicate implementation blocks", async () => {
+		write(
+			"index.d.ts",
+			`export declare function createSelector<S, R1, T>(
+	selector1: Selector<S, R1>,
+	combiner: (res1: R1) => T,
+): OutputSelector<S, T>;
+export declare function createSelector<S, R1, R2, T>(
+	selector1: Selector<S, R1>,
+	selector2: Selector<S, R2>,
+	combiner: (res1: R1, res2: R2) => T,
+): OutputSelector<S, T>;
+export declare function createSelector<S, R1, R2, R3, T>(
+	selector1: Selector<S, R1>,
+	selector2: Selector<S, R2>,
+	selector3: Selector<S, R3>,
+	combiner: (res1: R1, res2: R2, res3: R3) => T,
+): OutputSelector<S, T>;
+export declare function createSelector<S, R1, R2, R3, R4, T>(
+	selector1: Selector<S, R1>,
+	selector2: Selector<S, R2>,
+	selector3: Selector<S, R3>,
+	selector4: Selector<S, R4>,
+	combiner: (res1: R1, res2: R2, res3: R3, res4: R4) => T,
+): OutputSelector<S, T>;
 `,
 		);
 		const diags = await detectDuplicateBlocks(ctx(tmpDir));

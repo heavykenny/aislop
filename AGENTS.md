@@ -90,10 +90,17 @@ This applies to regex patterns, string literals, and diagnostic messages in all 
 
 ## Workflow
 
-- **Branch model**: `develop` branch -> PR to `main` -> squash merge
-- **Releases**: automated via `.github/workflows/release.yml` on `v*` tags
-- **CI**: Node 20 + 22 matrix, typecheck + build + test + self-scan
-- All changes should pass: `pnpm typecheck && pnpm test && pnpm scan`
+- **Branch model**: branch from current `origin/develop`; open PRs to `develop` unless the task explicitly says otherwise.
+- **Main promotion**: `develop` -> `main` is a maintainer decision. Do not merge it just because checks are green.
+- **Releases**: automated via `.github/workflows/release.yml` on `v*` tags.
+- **CI**: Node 22 + 24 matrix, typecheck + build + test + self-scan.
+- All changes should pass: `pnpm typecheck && pnpm test && pnpm scan`.
+
+## Agent operation guardrails
+
+- Default to draft PRs unless the task explicitly asks for a ready PR.
+- Do not merge PRs, publish releases, or promote branches unless explicitly asked in the current task.
+- Verify package installs in a clean temp environment before reporting a published package as working.
 
 ## Adding new AI slop rules
 
