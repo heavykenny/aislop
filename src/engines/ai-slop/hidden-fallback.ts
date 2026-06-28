@@ -16,6 +16,8 @@ const DEFAULT_VALUE_NAME_RE =
 	/^(?:default(?:value|result|count)?|fallback(?:value|result|count)?|empty(?:result|response|list|array)?|success(?:result|response)?|ok(?:result|response)?)$/i;
 const LOG_OR_THROW_RE =
 	/\b(?:throw|console\.(?:debug|info|warn|warning|error|log)|(?:logger|log)\.(?:debug|info|warn|warning|error|exception|log))\b/;
+const STATUS_TOKEN_RE =
+	/^(?:ok|okay|success|succeeded|passed?|valid|healthy|done|ready|active|enabled|true|yes|good|online|live)$/i;
 
 const scriptKindFor = (ext: string): ts.ScriptKind => {
 	switch (ext) {
@@ -74,9 +76,11 @@ const isSuccessLikeObject = (expression: ts.ObjectLiteralExpression): boolean =>
 	});
 
 const isSafeLookingDefault = (expression: ts.Expression): boolean => {
+	if (ts.isStringLiteral(expression)) {
+		return STATUS_TOKEN_RE.test(expression.text);
+	}
 	if (
 		ts.isNumericLiteral(expression) ||
-		ts.isStringLiteral(expression) ||
 		expression.kind === ts.SyntaxKind.TrueKeyword ||
 		expression.kind === ts.SyntaxKind.FalseKeyword ||
 		expression.kind === ts.SyntaxKind.NullKeyword
@@ -127,6 +131,19 @@ const isMathMinMaxFallback = (
 	return hasNumericDefault && hasFailureStateArgument;
 };
 
+const isEnvAccess = (expression: ts.Expression): boolean => {
+	if (!ts.isPropertyAccessExpression(expression) && !ts.isElementAccessExpression(expression)) {
+		return false;
+	}
+	const target = expression.expression;
+	return (
+		ts.isPropertyAccessExpression(target) &&
+		ts.isIdentifier(target.expression) &&
+		target.expression.text === "process" &&
+		target.name.text === "env"
+	);
+};
+
 const isHiddenFallbackExpression = (
 	sourceFile: ts.SourceFile,
 	expression: ts.Expression,
@@ -136,6 +153,7 @@ const isHiddenFallbackExpression = (
 			expression.operatorToken.kind === ts.SyntaxKind.BarBarToken ||
 			expression.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken;
 		if (!isFallbackOperator || !isSafeLookingDefault(expression.right)) return false;
+		if (isEnvAccess(expression.left)) return false;
 		return (
 			defaultLooksLikeFallback(expression.right) ||
 			expressionNamesFailureState(sourceFile, expression.left) ||
