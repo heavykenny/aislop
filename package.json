@@ -95,7 +95,7 @@
     "expo-doctor": "^1.18.10",
     "ink": "^6.8.0",
     "ink-select-input": "^6.2.0",
-    "knip": "^5.85.0",
+    "knip": "^6.23.0",
     "micromatch": "^4.0.8",
     "oxlint": "^1.51.0",
     "picocolors": "^1.1.1",
