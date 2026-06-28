@@ -1,6 +1,6 @@
 import os from "node:os";
 import { APP_VERSION } from "../version.js";
-import { detectPackageManager, isCiEnv } from "./env.js";
+import { detectInstallChannel, isCiEnv } from "./env.js";
 import { ensureInstallId, resolveInstallIdPath } from "./identity.js";
 import { redactProperties } from "./redaction.js";
 
@@ -44,7 +44,7 @@ const baseProperties = (installId: string): Record<string, unknown> => ({
 	arch: os.arch(),
 	schema_version: SCHEMA_VERSION,
 	anonymous_install_id: installId,
-	package_manager: detectPackageManager(),
+	package_manager: detectInstallChannel(),
 	is_ci: isCiEnv(),
 });
 

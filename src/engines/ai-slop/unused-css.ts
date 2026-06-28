@@ -28,7 +28,7 @@ const REFERENCE_EXTENSIONS = new Set([
 ]);
 
 // Extra extensions the file walker must surface (beyond its built-in source set).
-export const UNUSED_CSS_EXTRA_EXTENSIONS = [
+const UNUSED_CSS_EXTRA_EXTENSIONS = [
 	".css",
 	".scss",
 	".astro",

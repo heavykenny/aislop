@@ -149,12 +149,12 @@ const collectViteAliasesFromConfig = (configPath: string, matchers: AliasMatcher
 		return;
 	}
 
-	const aliasStartRe = /\b(?:alias|aliases)\s*[:=]\s*[{[]/g;
+	const aliasStartRe = /\b(?:alias|aliases)\s*[:=]\s*(?:\x7b|\[)/g;
 	for (const match of content.matchAll(aliasStartRe)) {
 		const openIndex = match.index + match[0].length - 1;
 		const block = findBalancedBlock(content, openIndex);
 		if (!block) continue;
-		if (block.startsWith("{")) {
+		if (block.charCodeAt(0) === 123) {
 			collectViteObjectAliases(block, matchers);
 		} else {
 			collectViteArrayAliases(block, matchers);

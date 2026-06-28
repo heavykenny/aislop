@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
 	detectInstallChannel,
-	detectPackageManager,
 	fileCountBucket,
 	isCiEnv,
 	scoreBucket,
@@ -76,9 +75,6 @@ describe("detectInstallChannel", () => {
 		expect(detectInstallChannel({}, ["node"])).toBe("unknown");
 	});
 
-	it("exposes detectPackageManager as an alias", () => {
-		expect(detectPackageManager({ npm_command: "npx" })).toBe("npx");
-	});
 });
 
 describe("isCiEnv", () => {

@@ -147,7 +147,7 @@ const isLikelyConfigSectionLabel = (trimmed: string, nextLine: string | undefine
 	if (configRuleRe.test(next)) return true;
 
 	// Property assignment like test: /... or use: ['...']
-	if (/\b(test|use|loader)\s*:\s*['"/\[]/.test(next)) return true;
+	if (/\b(test|use|loader)\s*:\s*["'/\[]/.test(next)) return true;
 
 	// Generic short label before object key in config (e.g. // Build styles \n css: {...} or rules: )
 	if (/^[a-zA-Z0-9_$-]+\s*:\s*[\[\{]/.test(next) && body.length < 30) {

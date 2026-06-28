@@ -1,4 +1,4 @@
-export type InstallChannel =
+type InstallChannel =
 	| "npm"
 	| "pnpm"
 	| "yarn"
@@ -9,9 +9,6 @@ export type InstallChannel =
 	| "pipx"
 	| "direct"
 	| "unknown";
-
-/** @deprecated Use InstallChannel */
-export type PackageManager = InstallChannel;
 
 const ALLOWED_OVERRIDE = new Set<InstallChannel>([
 	"npm",
@@ -125,9 +122,6 @@ export const detectInstallChannel = (
 
 	return "unknown";
 };
-
-/** Kept for callers and the `package_manager` telemetry property. */
-export const detectPackageManager = detectInstallChannel;
 
 const CI_ENV_KEYS = [
 	"CI",

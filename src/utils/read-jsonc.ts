@@ -1,7 +1,7 @@
 import fs from "node:fs";
 
 /** Strip block and line comments outside JSON strings (preserves `@/*` paths and `https://` URLs). */
-export const stripJsonComments = (raw: string): string => {
+const stripJsonComments = (raw: string): string => {
 	let result = "";
 	let i = 0;
 	let inString: '"' | "'" | null = null;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseJsonc, stripJsonComments } from "../src/utils/read-jsonc.js";
+import { parseJsonc } from "../src/utils/read-jsonc.js";
 
 describe("read-jsonc", () => {
 	it("strips block comments before parsing", () => {

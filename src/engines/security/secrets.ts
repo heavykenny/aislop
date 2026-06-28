@@ -92,8 +92,38 @@ const PLACEHOLDER_URL_PARTS = new Set([
 const PUBLIC_POSTHOG_PROJECT_TOKEN_RE = /^phc_[A-Za-z0-9_-]{20,}$/;
 const LOCAL_DB_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
 const NON_PRODUCTION_CREDENTIAL_EXACT = new Set(["pass", "password", "pw", "mostest"]);
-const NON_PRODUCTION_CREDENTIAL_RE =
-	/^(?:demo|dummy|fake|local|sample|test|testing)(?:[_.-]?[A-Za-z0-9]+)*$/i;
+const NON_PRODUCTION_CREDENTIAL_PREFIXES = [
+	"demo",
+	"dummy",
+	"fake",
+	"local",
+	"sample",
+	"test",
+	"testing",
+] as const;
+
+const isNonProductionCredentialValue = (value: string): boolean => {
+	const lower = value.toLowerCase();
+	const prefix = NON_PRODUCTION_CREDENTIAL_PREFIXES.find((candidate) =>
+		lower.startsWith(candidate),
+	);
+	if (!prefix) return false;
+
+	let rest = lower.slice(prefix.length);
+	if (rest.length === 0) return true;
+
+	while (rest.length > 0) {
+		if (rest[0] === "_" || rest[0] === "." || rest[0] === "-") {
+			rest = rest.slice(1);
+			if (rest.length === 0) return false;
+		}
+		const segment = rest.match(/^[a-z0-9]+/);
+		if (!segment) return false;
+		rest = rest.slice(segment[0].length);
+	}
+
+	return true;
+};
 
 const NON_PRODUCTION_SECRET_PATH_RE =
 	/(?:^|\/)(?:__fixtures__|__mocks__|cypress|demo|demos|e2e-tests?|examples?|fixtures?|playwright|samples?|seeders?|seeds?|storetest|testdata|tests?|tools\/sharedchannel-test)(?:\/|$)|(?:^|\/)db\/seeds\.[^/]+$/i;
@@ -135,7 +165,7 @@ const isLocalhostExampleDatabaseUrl = (matchedText: string): boolean => {
 		const database = decodeURIComponent(parsed.pathname.replace(/^\//, ""));
 		return (
 			NON_PRODUCTION_CREDENTIAL_EXACT.has(password.toLowerCase()) ||
-			NON_PRODUCTION_CREDENTIAL_RE.test(password) ||
+			isNonProductionCredentialValue(password) ||
 			/(?:^|[_-])test(?:$|[_-])|sample|fixture/i.test(database)
 		);
 	} catch {
