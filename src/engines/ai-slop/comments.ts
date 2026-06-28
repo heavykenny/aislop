@@ -143,21 +143,21 @@ const isLikelyConfigSectionLabel = (trimmed: string, nextLine: string | undefine
 
 	// Common config rule keys in bundlers (webpack, vite, rollup, next, etc.)
 	const configRuleRe =
-		/^(test|use|loader|rules|plugins|resolve|module|build|server|optimizeDeps|defineConfig|config):\s*[\[\{]/;
+		/^(test|use|loader|rules|plugins|resolve|module|build|server|optimizeDeps|defineConfig|config):\s*[[\x7b]/;
 	if (configRuleRe.test(next)) return true;
 
 	// Property assignment like test: /... or use: ['...']
-	if (/\b(test|use|loader)\s*:\s*["'/\[]/.test(next)) return true;
+	if (/\b(test|use|loader)\s*:\s*["'/\x5b]/.test(next)) return true;
 
 	// Generic short label before object key in config (e.g. // Build styles \n css: {...} or rules: )
-	if (/^[a-zA-Z0-9_$-]+\s*:\s*[\[\{]/.test(next) && body.length < 30) {
+	if (/^[a-zA-Z0-9_$-]+\s*:\s*[[\x7b]/.test(next) && body.length < 30) {
 		return true;
 	}
 
 	// Very short imperative labels at top level of config objects
 	if (
 		/^\/\/\s*(Vue|React|Build|Styles|Scripts|Assets|Images|Fonts|Icons)/i.test(trimmed) &&
-		/:\s*\{/.test(next)
+		/:\s*\x7b/.test(next)
 	) {
 		return true;
 	}
