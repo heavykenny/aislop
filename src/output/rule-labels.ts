@@ -27,6 +27,7 @@ const RULE_LABELS: Record<string, string> = {
 	"ai-slop/thin-wrapper": "Thin function wrapper",
 	"ai-slop/generic-naming": "Generic/vague identifier name",
 	"ai-slop/unused-import": "Unused import",
+	"ai-slop/unused-css": "Unused CSS class",
 	"ai-slop/console-leftover": "console.log left in code",
 	"ai-slop/todo-stub": "Unresolved TODO/FIXME",
 	"ai-slop/unreachable-code": "Unreachable code",
@@ -110,6 +111,8 @@ const RULE_DESCRIPTIONS: Record<string, string> = {
 	"ai-slop/thin-wrapper": "Wrapper function adds no behavior or clearer contract.",
 	"ai-slop/generic-naming": "Name is too vague to explain its role.",
 	"ai-slop/unused-import": "Imported symbol is never used.",
+	"ai-slop/unused-css":
+		"Custom CSS class is defined but never referenced anywhere in the codebase.",
 	"ai-slop/console-leftover": "console/debug output was left in application code.",
 	"ai-slop/todo-stub": "TODO/FIXME/stub marks unfinished behavior.",
 	"ai-slop/unreachable-code": "Code path cannot execute.",

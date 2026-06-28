@@ -240,6 +240,7 @@ const BUILTIN_RULES: { engine: string; rules: string[] }[] = [
 			"ai-slop/thin-wrapper",
 			"ai-slop/generic-naming",
 			"ai-slop/unused-import",
+			"ai-slop/unused-css",
 			"ai-slop/console-leftover",
 			"ai-slop/todo-stub",
 			"ai-slop/unreachable-code",

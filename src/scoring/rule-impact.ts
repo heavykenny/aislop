@@ -126,6 +126,9 @@ export const RULE_SCORE_IMPACTS: Record<string, RuleScoreImpact> = {
 	),
 	"ai-slop/generic-naming": advisory("Vague names are weak signals and often subjective."),
 	"ai-slop/unused-import": mechanical("Unused imports are mechanical cleanup."),
+	"ai-slop/unused-css": style(
+		"Dead CSS classes are cleanup, not correctness bugs, and dynamic usage can make detection lower-confidence.",
+	),
 	"ai-slop/console-leftover": style(
 		"Leftover debug output is visible cleanup unless it leaks sensitive data.",
 	),

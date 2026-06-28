@@ -68,6 +68,7 @@ The rules that make aislop unique. These catch the patterns AI assistants leave 
 | `ai-slop/thin-wrapper` | warning | Functions that only forward their own parameters unchanged to another function (a call that transforms its arguments is not flagged) |
 | `ai-slop/generic-naming` | info | AI-generated names: `helper_1`, `data2`, `temp1` |
 | `ai-slop/unused-import` | warning | Unused imports (JS/TS and Python) |
+| `ai-slop/unused-css` | warning | Custom CSS/SCSS classes defined in stylesheets but referenced nowhere in the project (className/`cn`/`clsx`/template literals/`data-*`/HTML/JSX). Tailwind/utility-looking classes are skipped, and any class whose name appears as a substring in any source string (e.g. an interpolation prefix like `ui-`) is spared. Project-wide pass; conservative by design. |
 | `ai-slop/console-leftover` | warning | `console.log`/`debug`/`info` left in production code |
 | `ai-slop/todo-stub` | info | Unresolved, untracked TODO/FIXME/HACK comments (a TODO that links a tracking issue is spared) |
 | `ai-slop/unreachable-code` | warning | Code after `return`/`throw` statements |
