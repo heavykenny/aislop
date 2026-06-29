@@ -18,7 +18,7 @@ Patch release: calibrates the new `ai-slop/hidden-fallback` rule so it stops fla
 ### Changed
 
 - **Dependabot targets `develop`.** Dependency PRs now open against the `develop` integration branch instead of `main` ([#252](https://github.com/scanaislop/aislop/pull/252)).
-- **Dependency & CI-action bumps.** `knip` 5.85 → 6.23, `oxlint` 1.51 → 1.71, `@biomejs/biome` 2.4.5 → 2.5.1, `expo-doctor` 1.18.10 → 1.19.10, `tar` 7.5.16 → 7.5.19, and the `actions/checkout`, `actions/setup-node`, and `pnpm/action-setup` GitHub Actions — the last clears the Node 20 deprecation warning in the publish workflow ([#243](https://github.com/scanaislop/aislop/pull/243)–[#250](https://github.com/scanaislop/aislop/pull/250)).
+- **Dependency & CI-action bumps.** `oxlint` 1.51 → 1.71, `@biomejs/biome` 2.4.5 → 2.5.1, `expo-doctor` 1.18.10 → 1.19.10, `tar` 7.5.16 → 7.5.19, and the `actions/checkout`, `actions/setup-node`, and `pnpm/action-setup` GitHub Actions — the last clears the Node 20 deprecation warning in the publish workflow ([#243](https://github.com/scanaislop/aislop/pull/243)–[#249](https://github.com/scanaislop/aislop/pull/249)). The `knip` 5 → 6 bump was reverted: v6 moves unused files to `issues[].files`, which the scanner's parser does not yet read, so it is deferred to a dedicated migration.
 
 ### Tests
 
