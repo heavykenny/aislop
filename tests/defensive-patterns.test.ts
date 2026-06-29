@@ -187,6 +187,25 @@ describe("hidden fallback logic", () => {
 		expect(matches[0].line).toBe(6);
 	});
 
+	it("detects catch blocks that return a bare empty-string fallback", async () => {
+		const filePath = writeFile(
+			"catch-empty-string.ts",
+			[
+				"async function loadName() {",
+				"  // Fallback when the fetch failed should not pretend success.",
+				"  try {",
+				"    return await fetchName();",
+				"  } catch {",
+				"    return '';",
+				"  }",
+				"}",
+			].join("\n"),
+		);
+
+		const diagnostics = await detectHiddenFallbacks(makeContext([filePath]));
+		expect(diagnostics.filter((d) => d.rule === "ai-slop/hidden-fallback")).toHaveLength(1);
+	});
+
 	it("does not flag ordinary optional defaults without failure context", async () => {
 		const filePath = writeFile(
 			"ordinary-defaults.ts",

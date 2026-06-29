@@ -76,11 +76,9 @@ const isSuccessLikeObject = (expression: ts.ObjectLiteralExpression): boolean =>
 	});
 
 const isSafeLookingDefault = (expression: ts.Expression): boolean => {
-	if (ts.isStringLiteral(expression)) {
-		return STATUS_TOKEN_RE.test(expression.text);
-	}
 	if (
 		ts.isNumericLiteral(expression) ||
+		ts.isStringLiteral(expression) ||
 		expression.kind === ts.SyntaxKind.TrueKeyword ||
 		expression.kind === ts.SyntaxKind.FalseKeyword ||
 		expression.kind === ts.SyntaxKind.NullKeyword
@@ -154,6 +152,9 @@ const isHiddenFallbackExpression = (
 			expression.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken;
 		if (!isFallbackOperator || !isSafeLookingDefault(expression.right)) return false;
 		if (isEnvAccess(expression.left)) return false;
+		if (ts.isStringLiteral(expression.right) && !STATUS_TOKEN_RE.test(expression.right.text)) {
+			return false;
+		}
 		return (
 			defaultLooksLikeFallback(expression.right) ||
 			expressionNamesFailureState(sourceFile, expression.left) ||
