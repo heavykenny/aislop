@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## Unreleased
 
+## 0.13.1 (2026-06-29)
+
+Patch release: calibrates the new `ai-slop/hidden-fallback` rule so it stops flagging error-message defaults, points Dependabot at the `develop` branch, and pulls in routine dependency and CI-action updates.
+
+### Fixed
+
+- **`ai-slop/hidden-fallback` false positives.** The rule no longer flags error-message string defaults (`err?.message || "Failed to load"`), empty-string normalizers (`?? ""`), or optional env-var defaults (`process.env.X ?? fallback`). A string fallback counts as a masked value only when it is a status/success token (`"ok"`, `"success"`, …); bare string returns from a catch are still flagged ([#251](https://github.com/scanaislop/aislop/pull/251)).
+
+### Changed
+
+- **Dependabot targets `develop`.** Dependency PRs now open against the `develop` integration branch instead of `main` ([#252](https://github.com/scanaislop/aislop/pull/252)).
+- **Dependency & CI-action bumps.** `knip` 5.85 → 6.23, `oxlint` 1.51 → 1.71, `@biomejs/biome` 2.4.5 → 2.5.1, `expo-doctor` 1.18.10 → 1.19.10, `tar` 7.5.16 → 7.5.19, and the `actions/checkout`, `actions/setup-node`, and `pnpm/action-setup` GitHub Actions — the last clears the Node 20 deprecation warning in the publish workflow ([#243](https://github.com/scanaislop/aislop/pull/243)–[#250](https://github.com/scanaislop/aislop/pull/250)).
+
+### Tests
+
+Full suite green; new coverage for the hidden-fallback message-default and env-default cases, plus the preserved bare-empty-string catch detection.
+
 ## 0.13.0 (2026-06-28)
 
 Telemetry now reports how users install aislop (npm, Homebrew, pip, pipx, and more), MCP and lifecycle events flush reliably, and new quality rules catch hidden fallbacks while framework-specific scans ship as optional adapter entrypoints.
