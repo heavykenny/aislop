@@ -77,6 +77,67 @@ const handleQuotesAndComments = (
 	return { handled: false, nextI: i };
 };
 
+const REGEX_PRECEDING_KEYWORDS = new Set([
+	"return",
+	"typeof",
+	"instanceof",
+	"in",
+	"of",
+	"new",
+	"delete",
+	"void",
+	"do",
+	"else",
+	"yield",
+	"await",
+	"case",
+	"throw",
+]);
+
+const regexAllowedAt = (content: string, slashIndex: number): boolean => {
+	let p = slashIndex - 1;
+	while (
+		p >= 0 &&
+		(content[p] === " " || content[p] === "\t" || content[p] === "\n" || content[p] === "\r")
+	) {
+		p--;
+	}
+	if (p < 0) return true;
+	const ch = content[p];
+	if (ch === ")" || ch === "]" || ch === "}" || ch === '"' || ch === "'" || ch === "`") {
+		return false;
+	}
+	if (/[A-Za-z0-9_$]/.test(ch)) {
+		let w = p;
+		while (w >= 0 && /[A-Za-z0-9_$]/.test(content[w])) w--;
+		return REGEX_PRECEDING_KEYWORDS.has(content.slice(w + 1, p + 1));
+	}
+	return true;
+};
+
+const consumeRegex = (content: string, start: number): number => {
+	const len = content.length;
+	let i = start + 1;
+	let inClass = false;
+	while (i < len) {
+		const c = content[i];
+		if (c === "\\") {
+			i += 2;
+			continue;
+		}
+		if (c === "\n") return -1;
+		if (c === "[") inClass = true;
+		else if (c === "]") inClass = false;
+		else if (c === "/" && !inClass) {
+			i++;
+			while (i < len && /[a-z]/i.test(content[i])) i++;
+			return i;
+		}
+		i++;
+	}
+	return -1;
+};
+
 const maskJs = (content: string, maskStrings: boolean): string => {
 	const out = content.split("");
 	const len = content.length;
@@ -110,6 +171,19 @@ const maskJs = (content: string, maskStrings: boolean): string => {
 				}
 				tplStack[tplStack.length - 1]--;
 				i++;
+				continue;
+			}
+		}
+
+		if (
+			c === "/" &&
+			content[i + 1] !== "/" &&
+			content[i + 1] !== "*" &&
+			regexAllowedAt(content, i)
+		) {
+			const regexEnd = consumeRegex(content, i);
+			if (regexEnd !== -1) {
+				i = regexEnd;
 				continue;
 			}
 		}
