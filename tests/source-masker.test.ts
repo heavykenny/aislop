@@ -51,6 +51,26 @@ describe("maskComments", () => {
 		const src = "anything // not a comment here\n";
 		expect(maskComments(src, ".txt")).toBe(src);
 	});
+
+	it("does not treat /* inside a regex character class as a block comment", () => {
+		const src = [
+			"function f() {",
+			"  const re = /[/*]/;",
+			"  return re.test('x');",
+			"}",
+			"const after = 1;",
+			"",
+		].join("\n");
+		const out = maskComments(src, ".ts");
+		expect(out).toContain("const after = 1;");
+		expect(out).toContain("re.test");
+	});
+
+	it("still masks a line comment that follows a division", () => {
+		const out = maskComments("const r = a / b // secret\n", ".ts");
+		expect(out).toContain("a / b");
+		expect(out).not.toContain("secret");
+	});
 });
 
 describe("maskStringsAndComments still masks string bodies", () => {

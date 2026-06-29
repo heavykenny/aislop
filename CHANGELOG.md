@@ -13,6 +13,7 @@ Patch release: calibrates the new `ai-slop/hidden-fallback` rule so it stops fla
 ### Fixed
 
 - **`ai-slop/hidden-fallback` false positives.** The rule no longer flags error-message string defaults (`err?.message || "Failed to load"`), empty-string normalizers (`?? ""`), or optional env-var defaults (`process.env.X ?? fallback`). A string fallback counts as a masked value only when it is a status/success token (`"ok"`, `"success"`, …); bare string returns from a catch are still flagged ([#251](https://github.com/scanaislop/aislop/pull/251)).
+- **Comment masker no longer mis-reads regex literals.** A regex literal containing `/*` inside a character class (e.g. `/[/*]/`) was treated as a block comment that masked through end-of-file, producing false complexity / function-too-long diagnostics on regex-heavy code. The JS/TS masker now consumes regex literals before comment detection.
 
 ### Changed
 
