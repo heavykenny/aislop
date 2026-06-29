@@ -195,8 +195,12 @@ const findPythonFunctionEnd = (
 	return { endLine, maxNesting };
 };
 
+// `lines` is the raw source (Python end-detection is indentation-based and needs
+// real comment/string text); `codeLines` has string and comment bodies blanked so
+// the brace matcher never counts a `{`/`}` that lives inside a literal or comment.
 export const findFunctionEnd = (
 	lines: string[],
+	codeLines: string[],
 	startIndex: number,
 	isPython: boolean,
 ): { endLine: number; maxNesting: number } => {
@@ -204,7 +208,7 @@ export const findFunctionEnd = (
 		const { sigEndIndex } = extractPythonSignature(lines, startIndex);
 		return findPythonFunctionEnd(lines, startIndex, sigEndIndex);
 	}
-	return findBraceFunctionEnd(lines, startIndex);
+	return findBraceFunctionEnd(codeLines, startIndex);
 };
 
 export const isBlockArrow = (lines: string[], startIndex: number): boolean => {
