@@ -69,6 +69,15 @@ const extractTomlArrayBody = (section: string, key: string): string | null => {
 			continue;
 		}
 
+		// A `#` outside a string begins a comment to end-of-line. Skipping it keeps
+		// quote/bracket tracking correct when a comment holds an apostrophe or a
+		// bracket (e.g. `"pr-crew",  # the dashboard's (lazy) use`).
+		if (char === "#") {
+			const newline = section.indexOf("\n", i);
+			if (newline === -1) return null;
+			i = newline;
+			continue;
+		}
 		if (char === '"' || char === "'") {
 			quote = char;
 			continue;
@@ -90,8 +99,16 @@ const extractTomlStrings = (source: string): string[] => {
 	let escaped = false;
 	let current = "";
 
-	for (const char of source) {
+	for (let i = 0; i < source.length; i += 1) {
+		const char = source[i];
 		if (!quote) {
+			// Skip `#` comments so quoted prose inside them isn't read as a value.
+			if (char === "#") {
+				const newline = source.indexOf("\n", i);
+				if (newline === -1) break;
+				i = newline;
+				continue;
+			}
 			if (char === '"' || char === "'") {
 				quote = char;
 				current = "";
@@ -276,6 +293,84 @@ const collectNestedScopes = (rootDir: string): PythonDependencyScope[] => {
 	return scopes;
 };
 
+// [tool.uv.workspace].members entries: literal paths (packages/web_common) or a
+// single trailing-`*` glob (packages/*). Mirrors js-workspaces expansion.
+const expandWorkspaceMemberDirs = (rootDir: string, patterns: string[]): string[] => {
+	const dirs: string[] = [];
+	for (const pattern of patterns) {
+		if (pattern.endsWith("/*")) {
+			const parent = path.join(rootDir, pattern.slice(0, -2));
+			let entries: import("node:fs").Dirent[];
+			try {
+				entries = fs.readdirSync(parent, { withFileTypes: true });
+			} catch {
+				continue;
+			}
+			for (const entry of entries) {
+				if (entry.isDirectory()) dirs.push(path.join(parent, entry.name));
+			}
+		} else if (!pattern.includes("*")) {
+			dirs.push(path.join(rootDir, pattern));
+		}
+	}
+	return dirs;
+};
+
+const readUvWorkspaceMembers = (pyprojPath: string): string[] | null => {
+	let content: string;
+	try {
+		content = fs.readFileSync(pyprojPath, "utf-8");
+	} catch {
+		return null;
+	}
+	const wsSection = readTomlSection(content, "tool.uv.workspace");
+	if (!wsSection.trim()) return null;
+	const body = extractTomlArrayBody(wsSection, "members");
+	return body ? extractTomlStrings(body) : [];
+};
+
+interface UvWorkspaceInfo {
+	rootDir: string;
+	// A uv workspace resolves to ONE lockfile and ONE .venv, so every member's
+	// dependencies are installed together and any file in the tree may import
+	// them (or a sibling member package) without it being a hallucination. This
+	// set unions the root [project] deps/extras/groups with each member's full
+	// dependency + package-name set, shared across the whole workspace.
+	sharedDeps: Set<string>;
+}
+
+const MAX_WORKSPACE_WALKUP = 32;
+
+// Walk up from startDir to the nearest pyproject declaring [tool.uv.workspace].
+// The scan root is usually the workspace root (found immediately); walking up
+// also covers scanning a single member directory in isolation.
+const findUvWorkspace = (startDir: string): UvWorkspaceInfo | null => {
+	let dir = path.resolve(startDir);
+	for (let i = 0; i < MAX_WORKSPACE_WALKUP; i += 1) {
+		const pyprojPath = path.join(dir, "pyproject.toml");
+		if (fs.existsSync(pyprojPath)) {
+			const members = readUvWorkspaceMembers(pyprojPath);
+			if (members) {
+				const sharedDeps = new Set<string>();
+				// Root [project] deps/extras/groups + root name + root-level packages.
+				collectFromPyproject(dir, sharedDeps);
+				collectLocalPythonPackages(dir, sharedDeps);
+				// Each member's full scope: its declared deps AND its package name /
+				// src-layout module names (the shared .venv installs all of them).
+				for (const memberDir of expandWorkspaceMemberDirs(dir, members)) {
+					const memberScope = collectScope(memberDir);
+					for (const dep of memberScope.pyDeps) sharedDeps.add(dep);
+				}
+				return { rootDir: dir, sharedDeps };
+			}
+		}
+		const parent = path.dirname(dir);
+		if (parent === dir) break;
+		dir = parent;
+	}
+	return null;
+};
+
 export const collectPythonDeps = (
 	rootDir: string,
 ): {
@@ -283,6 +378,7 @@ export const collectPythonDeps = (
 	hasPyManifest: boolean;
 	rootHasPyManifest: boolean;
 	scopes: PythonDependencyScope[];
+	workspaceDeps: Set<string> | null;
 } => {
 	const rootScope = collectScope(rootDir);
 	const nestedScopes = collectNestedScopes(rootDir);
@@ -291,10 +387,12 @@ export const collectPythonDeps = (
 	for (const scope of scopes) {
 		for (const dep of scope.pyDeps) pyDeps.add(dep);
 	}
+	const workspace = findUvWorkspace(rootDir);
 	return {
 		pyDeps,
 		hasPyManifest: scopes.some((scope) => scope.hasPyManifest),
 		rootHasPyManifest: rootScope.hasPyManifest,
 		scopes,
+		workspaceDeps: workspace?.sharedDeps ?? null,
 	};
 };

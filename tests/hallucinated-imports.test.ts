@@ -972,6 +972,36 @@ import ag_ui
 		expect(diagnostics).toEqual([]);
 	});
 
+	it("parses a dependency array whose trailing comments contain apostrophes or brackets", async () => {
+		// Regression: an un-terminated quote from a comment apostrophe (e.g.
+		// `# the dashboard's use`) or a bracket in a comment (`# see [tool.x]`)
+		// used to corrupt the array scanner and silently drop every dependency.
+		writeFile(
+			"pyproject.toml",
+			`[project]
+name = "demo"
+requires-python = ">=3.12"        # pr-crew's floor wins
+dependencies = [
+    "typer>=0.12",                # higher of projdash 0.9 / pr-crew 0.12
+    "rich>=13.0",
+    "uvicorn[standard]>=0.34",
+    "web-common",     # workspace member; the dashboard's (lazy) use, see [tool.uv.sources]
+]
+`,
+		);
+		writeFile(
+			"src/app.py",
+			`import typer
+import rich
+import uvicorn
+`,
+		);
+
+		const diagnostics = await detectHallucinatedImports(buildContext());
+
+		expect(diagnostics).toEqual([]);
+	});
+
 	it("resolves deps declared only in [project.optional-dependencies] extras", async () => {
 		writeFile(
 			"pyproject.toml",
@@ -996,6 +1026,167 @@ import cv2
 		const diagnostics = await detectHallucinatedImports(buildContext());
 
 		expect(diagnostics).toEqual([]);
+	});
+});
+
+describe("detectHallucinatedImports — uv workspace", () => {
+	// A uv workspace: one root pyproject.toml with [tool.uv.workspace] and no
+	// [project] section of its own, plus per-package pyproject.toml files under
+	// packages/<name>/. Members share one lockfile/.venv, so a member may import
+	// a root-declared dep OR a sibling member package. Mirrors ~/schoen-lab.
+	const writeUvWorkspace = (): void => {
+		writeFile(
+			"pyproject.toml",
+			`[tool.uv.workspace]
+members = [
+    "packages/process_safe",
+    "packages/web_common",
+    "packages/inference_manager",
+]
+
+[dependency-groups]
+dev = ["pytest>=7.0"]
+`,
+		);
+		writeFile(
+			"packages/process_safe/pyproject.toml",
+			`[project]
+name = "process-safe"
+dependencies = []
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/process_safe"]
+`,
+		);
+		writeFile("packages/process_safe/src/process_safe/__init__.py", "");
+		writeFile(
+			"packages/web_common/pyproject.toml",
+			`[project]
+name = "web-common"
+dependencies = ["fastapi>=0.115", "jinja2>=3.1"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/web_common"]
+`,
+		);
+		writeFile("packages/web_common/src/web_common/__init__.py", "");
+		writeFile(
+			"packages/inference_manager/pyproject.toml",
+			`[project]
+name = "inference-manager"
+dependencies = ["uvicorn>=0.30"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/inference_manager"]
+`,
+		);
+		writeFile("packages/inference_manager/src/inference_manager/__init__.py", "");
+	};
+
+	it("does not flag a sibling workspace-member import from another member", async () => {
+		writeUvWorkspace();
+		writeFile(
+			"packages/inference_manager/src/inference_manager/app.py",
+			`import uvicorn
+from web_common import Elm
+from process_safe import run_captured
+from inference_manager.util import helper
+`,
+		);
+
+		const diagnostics = await detectHallucinatedImports(buildContext());
+
+		expect(diagnostics).toEqual([]);
+	});
+
+	it("does not flag a member importing a third-party dep declared only by a sibling member", async () => {
+		// One shared lockfile/.venv installs every member's deps, so process_safe
+		// (which declares nothing) may still import `fastapi` — declared only by
+		// the web_common sibling — at runtime.
+		writeUvWorkspace();
+		writeFile(
+			"packages/process_safe/src/process_safe/net.py",
+			`from fastapi import FastAPI\nimport uvicorn\n`,
+		);
+
+		const diagnostics = await detectHallucinatedImports(buildContext());
+
+		expect(diagnostics).toEqual([]);
+	});
+
+	it("does not flag a repo-root script importing a dep declared by a workspace member", async () => {
+		// tools/ scripts live outside packages/ but still run against the shared
+		// workspace .venv, so importing a member-declared dep is not hallucinated.
+		writeUvWorkspace();
+		writeFile("tools/report.py", `import uvicorn\nfrom fastapi import FastAPI\n`);
+
+		const diagnostics = await detectHallucinatedImports(buildContext());
+
+		expect(diagnostics).toEqual([]);
+	});
+
+	it("does not flag a member importing a dep declared only under the workspace root", async () => {
+		// Root declares the dep in a [project.optional-dependencies] extra; the
+		// member has no manifest of its own beyond its name.
+		writeFile(
+			"pyproject.toml",
+			`[project]
+name = "workspace-root"
+dependencies = ["rich>=13.0"]
+
+[tool.uv.workspace]
+members = ["packages/tool"]
+`,
+		);
+		writeFile(
+			"packages/tool/pyproject.toml",
+			`[project]
+name = "tool"
+dependencies = []
+`,
+		);
+		writeFile("packages/tool/src/tool/__init__.py", "");
+		writeFile("packages/tool/src/tool/cli.py", `import rich\nfrom tool import version\n`);
+
+		const diagnostics = await detectHallucinatedImports(buildContext());
+
+		expect(diagnostics).toEqual([]);
+	});
+
+	it("still flags a truly hallucinated import inside a uv workspace member", async () => {
+		writeUvWorkspace();
+		writeFile(
+			"packages/web_common/src/web_common/render.py",
+			`from fastapi import FastAPI
+import totally_made_up_workspace_pkg
+`,
+		);
+
+		const diagnostics = await detectHallucinatedImports(buildContext());
+
+		expect(diagnostics).toHaveLength(1);
+		expect(diagnostics[0].message).toContain("totally_made_up_workspace_pkg");
+	});
+
+	it("leaves non-workspace nested-manifest isolation unchanged (no [tool.uv.workspace])", async () => {
+		// Same layout minus the workspace table: a plain repo with a nested
+		// package. Cross-package imports must STILL be flagged (regression guard).
+		writeFile("pyproject.toml", `[project]\nname = "root-demo"\ndependencies = ["requests"]\n`);
+		writeFile(
+			"packages/worker/pyproject.toml",
+			`[project]\nname = "worker"\ndependencies = ["pydantic>=2.0"]\n`,
+		);
+		writeFile("packages/worker/src/worker/__init__.py", "");
+		writeFile("packages/other/pyproject.toml", `[project]\nname = "other"\ndependencies = []\n`);
+		writeFile("packages/other/src/other/__init__.py", "");
+		// `other` is not a declared dep of `worker`, and there is no workspace to
+		// share names — so importing it from worker is (correctly) flagged.
+		writeFile("packages/worker/src/worker/job.py", `import pydantic\nimport other\n`);
+
+		const diagnostics = await detectHallucinatedImports(buildContext());
+
+		expect(diagnostics).toHaveLength(1);
+		expect(diagnostics[0].message).toContain("other");
 	});
 });
 

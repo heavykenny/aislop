@@ -17,6 +17,7 @@ export interface PackageManifest {
 	hasPyManifest: boolean;
 	rootHasPyManifest: boolean;
 	pyScopes: PythonDependencyScope[];
+	workspaceDeps: Set<string> | null;
 }
 
 export const readJson = (filePath: string): unknown => {
@@ -113,7 +114,8 @@ export const loadManifest = (rootDir: string): PackageManifest => {
 	const jsScopes = collectJsScopes(rootDir);
 	const jsDeps = new Set<string>();
 	const hasJsManifest = collectJsDeps(rootDir, jsDeps, jsScopes);
-	const { pyDeps, hasPyManifest, rootHasPyManifest, scopes } = collectPythonDeps(rootDir);
+	const { pyDeps, hasPyManifest, rootHasPyManifest, scopes, workspaceDeps } =
+		collectPythonDeps(rootDir);
 	return {
 		jsDeps,
 		jsScopes,
@@ -122,6 +124,7 @@ export const loadManifest = (rootDir: string): PackageManifest => {
 		hasPyManifest,
 		rootHasPyManifest,
 		pyScopes: scopes,
+		workspaceDeps,
 	};
 };
 
@@ -178,7 +181,11 @@ export const pythonDepsForFile = (
 		.sort((a, b) => b.directory.length - a.directory.length)[0];
 	if (nestedScope) mergeDeps(deps, nestedScope.pyDeps);
 
-	if (!manifest.rootHasPyManifest && !nestedScope) return null;
+	// uv workspace: a single lockfile/.venv is shared across members, so every
+	// file may import the root-declared deps and any sibling member package.
+	if (manifest.workspaceDeps) mergeDeps(deps, manifest.workspaceDeps);
+
+	if (!manifest.rootHasPyManifest && !nestedScope && !manifest.workspaceDeps) return null;
 	if (deps.size === 0 && manifest.pyDeps.size > 0) return manifest.pyDeps;
 	return deps;
 };
