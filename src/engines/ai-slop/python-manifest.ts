@@ -316,7 +316,12 @@ const expandWorkspaceMemberDirs = (rootDir: string, patterns: string[]): string[
 	return dirs;
 };
 
-const readUvWorkspaceMembers = (pyprojPath: string): string[] | null => {
+interface UvWorkspaceTable {
+	members: string[];
+	exclude: string[];
+}
+
+const readUvWorkspaceTable = (pyprojPath: string): UvWorkspaceTable | null => {
 	let content: string;
 	try {
 		content = fs.readFileSync(pyprojPath, "utf-8");
@@ -325,8 +330,12 @@ const readUvWorkspaceMembers = (pyprojPath: string): string[] | null => {
 	}
 	const wsSection = readTomlSection(content, "tool.uv.workspace");
 	if (!wsSection.trim()) return null;
-	const body = extractTomlArrayBody(wsSection, "members");
-	return body ? extractTomlStrings(body) : [];
+	const membersBody = extractTomlArrayBody(wsSection, "members");
+	const excludeBody = extractTomlArrayBody(wsSection, "exclude");
+	return {
+		members: membersBody ? extractTomlStrings(membersBody) : [],
+		exclude: excludeBody ? extractTomlStrings(excludeBody) : [],
+	};
 };
 
 interface UvWorkspaceInfo {
@@ -349,15 +358,20 @@ const findUvWorkspace = (startDir: string): UvWorkspaceInfo | null => {
 	for (let i = 0; i < MAX_WORKSPACE_WALKUP; i += 1) {
 		const pyprojPath = path.join(dir, "pyproject.toml");
 		if (fs.existsSync(pyprojPath)) {
-			const members = readUvWorkspaceMembers(pyprojPath);
-			if (members) {
+			const workspace = readUvWorkspaceTable(pyprojPath);
+			if (workspace) {
 				const sharedDeps = new Set<string>();
 				// Root [project] deps/extras/groups + root name + root-level packages.
 				collectFromPyproject(dir, sharedDeps);
 				collectLocalPythonPackages(dir, sharedDeps);
+				// `exclude` globs remove directories the `members` globs matched —
+				// an excluded project is NOT installed into the shared .venv, so its
+				// deps must not suppress findings elsewhere in the workspace.
+				const excluded = new Set(expandWorkspaceMemberDirs(dir, workspace.exclude));
 				// Each member's full scope: its declared deps AND its package name /
 				// src-layout module names (the shared .venv installs all of them).
-				for (const memberDir of expandWorkspaceMemberDirs(dir, members)) {
+				for (const memberDir of expandWorkspaceMemberDirs(dir, workspace.members)) {
+					if (excluded.has(memberDir)) continue;
 					const memberScope = collectScope(memberDir);
 					for (const dep of memberScope.pyDeps) sharedDeps.add(dep);
 				}

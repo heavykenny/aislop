@@ -1168,6 +1168,43 @@ import totally_made_up_workspace_pkg
 		expect(diagnostics[0].message).toContain("totally_made_up_workspace_pkg");
 	});
 
+	it("honors [tool.uv.workspace].exclude — an excluded project's deps do not suppress findings", async () => {
+		// `exclude` globs remove directories that `members` globs matched; uv does
+		// not install an excluded project into the shared .venv, so its deps must
+		// not vouch for imports elsewhere in the workspace.
+		writeFile(
+			"pyproject.toml",
+			`[tool.uv.workspace]
+members = ["packages/*"]
+exclude = ["packages/seeds"]
+`,
+		);
+		writeFile(
+			"packages/app/pyproject.toml",
+			`[project]
+name = "app"
+dependencies = ["requests>=2.0"]
+`,
+		);
+		writeFile("packages/app/src/app/__init__.py", "");
+		writeFile(
+			"packages/seeds/pyproject.toml",
+			`[project]
+name = "seeds"
+dependencies = ["sqlalchemy>=2.0"]
+`,
+		);
+		writeFile("packages/seeds/src/seeds/__init__.py", "");
+		// sqlalchemy is declared ONLY by the excluded project; importing it from a
+		// real member is exactly what uv would fail to resolve.
+		writeFile("packages/app/src/app/db.py", `import requests\nimport sqlalchemy\n`);
+
+		const diagnostics = await detectHallucinatedImports(buildContext());
+
+		expect(diagnostics).toHaveLength(1);
+		expect(diagnostics[0].message).toContain("sqlalchemy");
+	});
+
 	it("leaves non-workspace nested-manifest isolation unchanged (no [tool.uv.workspace])", async () => {
 		// Same layout minus the workspace table: a plain repo with a nested
 		// package. Cross-package imports must STILL be flagged (regression guard).
