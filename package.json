@@ -97,7 +97,7 @@
     "ink-select-input": "^6.2.0",
     "knip": "^5.85.0",
     "micromatch": "^4.0.8",
-    "oxlint": "^1.71.0",
+    "oxlint": "^1.72.0",
     "picocolors": "^1.1.1",
     "react": "^19.2.7",
     "tar": "^7.5.19",
