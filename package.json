@@ -90,7 +90,7 @@
     "@biomejs/biome": "^2.5.2",
     "@clack/prompts": "^1.2.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "adm-zip": "^0.5.16",
+    "adm-zip": "^0.5.18",
     "commander": "^14.0.3",
     "expo-doctor": "^1.19.10",
     "ink": "^6.8.0",
