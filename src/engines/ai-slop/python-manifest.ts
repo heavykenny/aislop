@@ -346,6 +346,10 @@ interface UvWorkspaceInfo {
 	// set unions the root [project] deps/extras/groups with each member's full
 	// dependency + package-name set, shared across the whole workspace.
 	sharedDeps: Set<string>;
+	// Absolute paths of directories removed by [tool.uv.workspace].exclude.
+	// Files under these directories are NOT part of the shared .venv, so the
+	// shared dependency set must not apply to them.
+	excludedDirs: string[];
 }
 
 const MAX_WORKSPACE_WALKUP = 32;
@@ -367,7 +371,8 @@ const findUvWorkspace = (startDir: string): UvWorkspaceInfo | null => {
 				// `exclude` globs remove directories the `members` globs matched —
 				// an excluded project is NOT installed into the shared .venv, so its
 				// deps must not suppress findings elsewhere in the workspace.
-				const excluded = new Set(expandWorkspaceMemberDirs(dir, workspace.exclude));
+				const excludedDirs = expandWorkspaceMemberDirs(dir, workspace.exclude);
+				const excluded = new Set(excludedDirs);
 				// Each member's full scope: its declared deps AND its package name /
 				// src-layout module names (the shared .venv installs all of them).
 				for (const memberDir of expandWorkspaceMemberDirs(dir, workspace.members)) {
@@ -375,7 +380,7 @@ const findUvWorkspace = (startDir: string): UvWorkspaceInfo | null => {
 					const memberScope = collectScope(memberDir);
 					for (const dep of memberScope.pyDeps) sharedDeps.add(dep);
 				}
-				return { rootDir: dir, sharedDeps };
+				return { rootDir: dir, sharedDeps, excludedDirs };
 			}
 		}
 		const parent = path.dirname(dir);
@@ -393,6 +398,7 @@ export const collectPythonDeps = (
 	rootHasPyManifest: boolean;
 	scopes: PythonDependencyScope[];
 	workspaceDeps: Set<string> | null;
+	workspaceExcludedDirs: string[];
 } => {
 	const rootScope = collectScope(rootDir);
 	const nestedScopes = collectNestedScopes(rootDir);
@@ -404,9 +410,14 @@ export const collectPythonDeps = (
 	const workspace = findUvWorkspace(rootDir);
 	return {
 		pyDeps,
-		hasPyManifest: scopes.some((scope) => scope.hasPyManifest),
+		// An ancestor uv workspace counts as a manifest: scanning a member
+		// subdirectory (e.g. `aislop scan packages/api/src`) finds no
+		// pyproject/requirements under the scan root, but the workspace's shared
+		// dependency set still applies to every file in it.
+		hasPyManifest: scopes.some((scope) => scope.hasPyManifest) || workspace !== null,
 		rootHasPyManifest: rootScope.hasPyManifest,
 		scopes,
 		workspaceDeps: workspace?.sharedDeps ?? null,
+		workspaceExcludedDirs: workspace?.excludedDirs ?? [],
 	};
 };

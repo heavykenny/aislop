@@ -18,6 +18,7 @@ export interface PackageManifest {
 	rootHasPyManifest: boolean;
 	pyScopes: PythonDependencyScope[];
 	workspaceDeps: Set<string> | null;
+	workspaceExcludedDirs: string[];
 }
 
 export const readJson = (filePath: string): unknown => {
@@ -114,7 +115,7 @@ export const loadManifest = (rootDir: string): PackageManifest => {
 	const jsScopes = collectJsScopes(rootDir);
 	const jsDeps = new Set<string>();
 	const hasJsManifest = collectJsDeps(rootDir, jsDeps, jsScopes);
-	const { pyDeps, hasPyManifest, rootHasPyManifest, scopes, workspaceDeps } =
+	const { pyDeps, hasPyManifest, rootHasPyManifest, scopes, workspaceDeps, workspaceExcludedDirs } =
 		collectPythonDeps(rootDir);
 	return {
 		jsDeps,
@@ -125,6 +126,7 @@ export const loadManifest = (rootDir: string): PackageManifest => {
 		rootHasPyManifest,
 		pyScopes: scopes,
 		workspaceDeps,
+		workspaceExcludedDirs,
 	};
 };
 
@@ -183,9 +185,17 @@ export const pythonDepsForFile = (
 
 	// uv workspace: a single lockfile/.venv is shared across members, so every
 	// file may import the root-declared deps and any sibling member package.
-	if (manifest.workspaceDeps) mergeDeps(deps, manifest.workspaceDeps);
+	// Files under a [tool.uv.workspace].exclude directory are NOT installed
+	// into that .venv - the shared set must not vouch for their imports; they
+	// are checked against their own manifest scope only.
+	const workspaceDeps =
+		manifest.workspaceDeps &&
+		!manifest.workspaceExcludedDirs.some((dir) => isWithinDirectory(filePath, dir))
+			? manifest.workspaceDeps
+			: null;
+	if (workspaceDeps) mergeDeps(deps, workspaceDeps);
 
-	if (!manifest.rootHasPyManifest && !nestedScope && !manifest.workspaceDeps) return null;
+	if (!manifest.rootHasPyManifest && !nestedScope && !workspaceDeps) return null;
 	if (deps.size === 0 && manifest.pyDeps.size > 0) return manifest.pyDeps;
 	return deps;
 };
