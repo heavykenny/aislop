@@ -368,7 +368,7 @@ const findUvWorkspace = (startDir: string): UvWorkspaceInfo | null => {
 				// Root [project] deps/extras/groups + root name + root-level packages.
 				collectFromPyproject(dir, sharedDeps);
 				collectLocalPythonPackages(dir, sharedDeps);
-				// `exclude` globs remove directories the `members` globs matched —
+				// `exclude` globs remove directories the `members` globs matched -
 				// an excluded project is NOT installed into the shared .venv, so its
 				// deps must not suppress findings elsewhere in the workspace.
 				const excludedDirs = expandWorkspaceMemberDirs(dir, workspace.exclude);
