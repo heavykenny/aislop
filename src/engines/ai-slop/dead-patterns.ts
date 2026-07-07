@@ -108,20 +108,35 @@ const isBlockCloserAfterReturn = (line: string): boolean =>
 	line.startsWith("],") ||
 	line.startsWith("]);");
 
+// A bare `else` or `do` (no opening brace) is always the start of an
+// unbraced single-statement body. When one of these directly precedes an
+// exit statement, that statement is conditional regardless of what its
+// paired `if`/`while` looked like, so there's no need to walk further back
+// to find it. This is the brace-less style LLVM/Google C++ mandates:
+//   if (cond)
+//     doWork();
+//   else
+//     return false;   <- conditional, guarded by the `else` above
+//   next();           <- reachable via the `if` branch, not dead code
+const BARE_ELSE_PATTERN = /^else\s*$/;
+const BARE_DO_PATTERN = /^do\s*$/;
 const isGuardedSingleLineExit = (lines: string[], lineIndex: number): boolean => {
 	const contextLines: string[] = [];
 	for (let i = lineIndex - 1; i >= 0 && contextLines.length < 16; i--) {
 		const trimmed = lines[i].trim();
 		if (!trimmed || trimmed.startsWith("//")) continue;
+		if (BARE_ELSE_PATTERN.test(trimmed) || BARE_DO_PATTERN.test(trimmed)) return true;
 		contextLines.unshift(trimmed);
-		if (/^(?:if|else\s+if|for|while)\b/.test(trimmed) || /^}\s*else\s+if\b/.test(trimmed)) {
+		if (/^(?:if|else\s+if|for|while|foreach)\b/.test(trimmed) || /^}\s*else\s+if\b/.test(trimmed)) {
 			break;
 		}
 		if (/;\s*$/.test(trimmed)) break;
 	}
 
 	const control = contextLines.join(" ");
-	return /(?:^|[}\s])(?:if|else\s+if|for|while)\s*\(/.test(control) && !/{\s*$/.test(control);
+	return (
+		/(?:^|[}\s])(?:if|else\s+if|for|while|foreach)\s*\(/.test(control) && !/{\s*$/.test(control)
+	);
 };
 
 const isPropertyNoopAssignment = (trimmed: string): boolean =>
