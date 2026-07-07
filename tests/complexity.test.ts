@@ -252,6 +252,32 @@ describe("analyzeFunctions — braces inside strings/comments don't skew length"
 	});
 });
 
+describe("analyzeFunctions — Python end-detection uses masked lines", () => {
+	it("does not truncate a Python function at a comment dedented to column 0", () => {
+		const content = [
+			"def f():",
+			"    x = 1",
+			"# dedented comment",
+			"    y = 2",
+			"    return x + y",
+		].join("\n");
+		const fn = analyzeFunctions(content, ".py").find((f) => f.name === "f");
+		expect(fn?.lineCount).toBe(5);
+	});
+
+	it("does not truncate a Python function at a triple-quoted string line dedented to column 0", () => {
+		const content = [
+			"def g():",
+			'    text = """',
+			"some content at column 0",
+			'    """',
+			"    return text",
+		].join("\n");
+		const fn = analyzeFunctions(content, ".py").find((f) => f.name === "g");
+		expect(fn?.lineCount).toBe(5);
+	});
+});
+
 describe("checkComplexity — too many parameters", () => {
 	it("returns no too-many-params diagnostic for acceptable parameter count", async () => {
 		const content = "function fn(a: string, b: number) { return a; }";

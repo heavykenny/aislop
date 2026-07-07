@@ -114,7 +114,7 @@ export const analyzeFunctions = (content: string, ext: string): FunctionInfo[] =
 			continue;
 		}
 
-		const { endLine, maxNesting } = findFunctionEnd(lines, maskedLines, i, isPython);
+		const { endLine, maxNesting } = findFunctionEnd(maskedLines, i, isPython);
 		let templateLines: number;
 		let paramCount: number;
 		if (isPython) {
