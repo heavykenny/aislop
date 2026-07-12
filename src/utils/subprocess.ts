@@ -90,10 +90,26 @@ export const runSubprocess = (
 
 		if (options.timeout && options.timeout > 0) {
 			timer = setTimeout(() => {
-				killProcessTree(child);
-				finalize(() =>
-					reject(new Error(`Command timed out after ${options.timeout}ms: ${command}`)),
-				);
+				// Under a starved event loop an expired timer can fire on the
+				// same wake-up that carries the child's own exit/close events,
+				// and the timers phase runs first. Deferring one phase via
+				// setImmediate lets a completion that already happened win
+				// instead of being misreported as a timeout; a still-running
+				// child just gets killed one phase later.
+				setImmediate(() => {
+					if (settled) return;
+					// The child may have exited during the same starved stretch
+					// that delayed this timer, with its 'close' event still one
+					// poll iteration away (the pipe EOF takes an extra read
+					// round-trip). If the OS-level exit has been observed, let
+					// that completion resolve normally instead of misreporting
+					// a finished command as a timeout.
+					if (child.exitCode !== null || child.signalCode !== null) return;
+					killProcessTree(child);
+					finalize(() =>
+						reject(new Error(`Command timed out after ${options.timeout}ms: ${command}`)),
+					);
+				});
 			}, options.timeout);
 			timer.unref();
 		}
