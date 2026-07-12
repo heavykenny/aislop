@@ -1,10 +1,54 @@
-import { spawn } from "node:child_process";
+import { type ChildProcess, spawn } from "node:child_process";
 
 interface SubprocessResult {
 	stdout: string;
 	stderr: string;
 	exitCode: number | null;
 }
+
+// A timed-out tool (e.g. cppcheck -j) can have spawned worker processes of its
+// own; killing only the direct child leaves those workers running as orphans.
+// This kills the whole tree instead. Windows has no process groups, so it
+// shells out to taskkill's /T (tree) flag; POSIX relies on the child having
+// been spawned detached (see below) so its pid doubles as a process-group id.
+const killProcessTree = (child: ChildProcess): void => {
+	if (process.platform === "win32") {
+		if (child.pid === undefined) {
+			child.kill("SIGTERM");
+			return;
+		}
+		// taskkill walks the tree by parent pid, so the parent must still be
+		// alive when it runs - calling child.kill() first would sever the
+		// walk and orphan the very workers this is meant to reap.
+		const taskkill = spawn("taskkill", ["/pid", String(child.pid), "/T", "/F"], {
+			stdio: "ignore",
+			windowsHide: true,
+		});
+		// A missing taskkill binary must not crash the process; the timeout
+		// rejection still fires regardless of whether this succeeds.
+		taskkill.once("error", () => {});
+		return;
+	}
+
+	if (child.pid === undefined) {
+		child.kill("SIGTERM");
+		setTimeout(() => child.kill("SIGKILL"), 1000).unref();
+		return;
+	}
+	const pid = child.pid;
+	try {
+		process.kill(-pid, "SIGTERM");
+	} catch {
+		child.kill("SIGTERM");
+	}
+	setTimeout(() => {
+		try {
+			process.kill(-pid, "SIGKILL");
+		} catch {
+			child.kill("SIGKILL");
+		}
+	}, 1000).unref();
+};
 
 export const runSubprocess = (
 	command: string,
@@ -21,6 +65,11 @@ export const runSubprocess = (
 			env: { ...process.env, ...options.env },
 			stdio: ["ignore", "pipe", "pipe"],
 			windowsHide: true,
+			// Makes the child a process-group leader on POSIX so a timeout can
+			// signal the whole group via a negative pid, not just this process.
+			// win32 ignores `detached` for grouping purposes; taskkill handles
+			// the tree there instead (see killProcessTree).
+			detached: process.platform !== "win32",
 		});
 
 		const stdoutBuffers: Buffer[] = [];
@@ -41,8 +90,7 @@ export const runSubprocess = (
 
 		if (options.timeout && options.timeout > 0) {
 			timer = setTimeout(() => {
-				child.kill("SIGTERM");
-				setTimeout(() => child.kill("SIGKILL"), 1000).unref();
+				killProcessTree(child);
 				finalize(() =>
 					reject(new Error(`Command timed out after ${options.timeout}ms: ${command}`)),
 				);
