@@ -1035,7 +1035,7 @@ import cv2
 	});
 });
 
-describe("detectHallucinatedImports — uv workspace", () => {
+describe("detectHallucinatedImports: uv workspace", () => {
 	// A uv workspace: one root pyproject.toml with [tool.uv.workspace] and no
 	// [project] section of its own, plus per-package pyproject.toml files under
 	// packages/<name>/. Members share one lockfile/.venv, so a member may import
@@ -1058,6 +1058,7 @@ dev = ["pytest>=7.0"]
 			"packages/process_safe/pyproject.toml",
 			`[project]
 name = "process-safe"
+version = "0.1.0"
 dependencies = []
 
 [tool.hatch.build.targets.wheel]
@@ -1069,6 +1070,7 @@ packages = ["src/process_safe"]
 			"packages/web_common/pyproject.toml",
 			`[project]
 name = "web-common"
+version = "0.1.0"
 dependencies = ["fastapi>=0.115", "jinja2>=3.1"]
 
 [tool.hatch.build.targets.wheel]
@@ -1080,6 +1082,7 @@ packages = ["src/web_common"]
 			"packages/inference_manager/pyproject.toml",
 			`[project]
 name = "inference-manager"
+version = "0.1.0"
 dependencies = ["uvicorn>=0.30"]
 
 [tool.hatch.build.targets.wheel]
@@ -1107,8 +1110,8 @@ from inference_manager.util import helper
 
 	it("does not flag a member importing a third-party dep declared only by a sibling member", async () => {
 		// One shared lockfile/.venv installs every member's deps, so process_safe
-		// (which declares nothing) may still import `fastapi` — declared only by
-		// the web_common sibling — at runtime.
+		// (which declares nothing) may still import `fastapi`, declared only by
+		// the web_common sibling, at runtime.
 		writeUvWorkspace();
 		writeFile(
 			"packages/process_safe/src/process_safe/net.py",
@@ -1138,6 +1141,7 @@ from inference_manager.util import helper
 			"pyproject.toml",
 			`[project]
 name = "workspace-root"
+version = "0.1.0"
 dependencies = ["rich>=13.0"]
 
 [tool.uv.workspace]
@@ -1148,6 +1152,7 @@ members = ["packages/tool"]
 			"packages/tool/pyproject.toml",
 			`[project]
 name = "tool"
+version = "0.1.0"
 dependencies = []
 `,
 		);
@@ -1174,7 +1179,7 @@ import totally_made_up_workspace_pkg
 		expect(diagnostics[0].message).toContain("totally_made_up_workspace_pkg");
 	});
 
-	it("honors [tool.uv.workspace].exclude — an excluded project's deps do not suppress findings", async () => {
+	it("honors [tool.uv.workspace].exclude: an excluded project's deps do not suppress findings", async () => {
 		// `exclude` globs remove directories that `members` globs matched; uv does
 		// not install an excluded project into the shared .venv, so its deps must
 		// not vouch for imports elsewhere in the workspace.
@@ -1189,6 +1194,7 @@ exclude = ["packages/seeds"]
 			"packages/app/pyproject.toml",
 			`[project]
 name = "app"
+version = "0.1.0"
 dependencies = ["requests>=2.0"]
 `,
 		);
@@ -1197,6 +1203,7 @@ dependencies = ["requests>=2.0"]
 			"packages/seeds/pyproject.toml",
 			`[project]
 name = "seeds"
+version = "0.1.0"
 dependencies = ["sqlalchemy>=2.0"]
 `,
 		);
@@ -1211,13 +1218,377 @@ dependencies = ["sqlalchemy>=2.0"]
 		expect(diagnostics[0].message).toContain("sqlalchemy");
 	});
 
+	it("supports nested member and exclude globs", async () => {
+		writeFile(
+			"pyproject.toml",
+			`[tool.uv.workspace]
+members = ["workspaces/*/packages/*"]
+exclude = ["workspaces/*/packages/seed-*"]
+`,
+		);
+		writeFile(
+			"workspaces/team/packages/app/pyproject.toml",
+			`[project]
+name = "app"
+version = "0.1.0"
+dependencies = []
+`,
+		);
+		writeFile("workspaces/team/packages/app/src/app/__init__.py", "");
+		writeFile(
+			"workspaces/team/packages/shared/pyproject.toml",
+			`[project]
+name = "shared"
+version = "0.1.0"
+dependencies = ["sqlalchemy>=2.0"]
+`,
+		);
+		writeFile("workspaces/team/packages/shared/src/shared/__init__.py", "");
+		writeFile(
+			"workspaces/team/packages/seed-data/pyproject.toml",
+			`[project]
+name = "seed-data"
+version = "0.1.0"
+dependencies = ["boto3>=1.0"]
+`,
+		);
+		writeFile("workspaces/team/packages/seed-data/src/seed_data/__init__.py", "");
+		writeFile("workspaces/team/packages/app/src/app/db.py", `import sqlalchemy\nimport boto3\n`);
+
+		const diagnostics = await detectHallucinatedImports(buildContext());
+
+		expect(diagnostics).toHaveLength(1);
+		expect(diagnostics[0].message).toContain("boto3");
+	});
+
+	it("does not let a member star span path separators", async () => {
+		writeFile("pyproject.toml", `[tool.uv.workspace]\nmembers = ["packages/*"]\n`);
+		writeFile(
+			"packages/team/pyproject.toml",
+			`[project]\nname = "team"\nversion = "0.1.0"\ndependencies = []\n`,
+		);
+		writeFile("packages/team/src/team/__init__.py", "");
+		writeFile(
+			"packages/team/service/pyproject.toml",
+			`[project]\nname = "service"\nversion = "0.1.0"\ndependencies = ["deep-only"]\n`,
+		);
+		writeFile("packages/team/service/src/service/__init__.py", "");
+		writeFile("tools/report.py", "import deep_only\n");
+
+		const diagnostics = await detectHallucinatedImports(buildContext());
+
+		expect(diagnostics).toHaveLength(1);
+		expect(diagnostics[0].message).toContain("deep_only");
+	});
+
+	it("normalizes internal relative components in member globs", async () => {
+		writeFile("pyproject.toml", `[tool.uv.workspace]\nmembers = ["packages/../libs/*"]\n`);
+		writeFile(
+			"libs/shared/pyproject.toml",
+			`[project]\nname = "shared"\nversion = "0.1.0"\ndependencies = ["sqlalchemy"]\n`,
+		);
+		writeFile("libs/shared/src/shared/__init__.py", "");
+		writeFile("tools/report.py", "import sqlalchemy\n");
+
+		const diagnostics = await detectHallucinatedImports(buildContext());
+
+		expect(diagnostics).toEqual([]);
+	});
+
+	it("does not read literal workspace members outside the workspace root", async () => {
+		const externalDir = fs.mkdtempSync(path.join(os.tmpdir(), "aislop-external-workspace-"));
+		try {
+			fs.writeFileSync(
+				path.join(externalDir, "pyproject.toml"),
+				`[project]\nname = "external"\nversion = "0.1.0"\ndependencies = ["outside-only"]\n`,
+			);
+			const externalMember = path.relative(tmpDir, externalDir).split(path.sep).join("/");
+			writeFile(
+				"packages/shared/pyproject.toml",
+				`[project]\nname = "shared"\nversion = "0.1.0"\ndependencies = ["sqlalchemy"]\n`,
+			);
+			writeFile("packages/shared/src/shared/__init__.py", "");
+			writeFile(
+				"pyproject.toml",
+				`[tool.uv.workspace]\nmembers = ["packages/*", "${externalMember}"]\n`,
+			);
+			writeFile("src/main.py", "import outside_only\n");
+
+			const diagnostics = await detectHallucinatedImports(buildContext());
+
+			expect(diagnostics).toHaveLength(1);
+			expect(diagnostics[0].message).toContain("outside_only");
+		} finally {
+			fs.rmSync(externalDir, { recursive: true, force: true });
+		}
+	});
+
+	it("does not read a workspace pyproject symlink outside the project", async () => {
+		const externalDir = fs.mkdtempSync(path.join(os.tmpdir(), "aislop-external-pyproject-"));
+		try {
+			const externalManifest = path.join(externalDir, "pyproject.toml");
+			fs.writeFileSync(
+				externalManifest,
+				`[project]\nname = "external"\nversion = "0.1.0"\ndependencies = ["outside-only"]\n`,
+			);
+			writeFile("pyproject.toml", `[tool.uv.workspace]\nmembers = ["packages/*"]\n`);
+			writeFile(
+				"packages/app/pyproject.toml",
+				`[project]\nname = "app"\nversion = "0.1.0"\ndependencies = ["fastapi"]\n`,
+			);
+			writeFile("packages/app/src/app/__init__.py", "");
+			fs.mkdirSync(path.join(tmpDir, "packages", "shared"), { recursive: true });
+			fs.symlinkSync(externalManifest, path.join(tmpDir, "packages", "shared", "pyproject.toml"));
+			writeFile("packages/shared/src/shared/app.py", "import fastapi\nimport outside_only\n");
+
+			const diagnostics = await detectHallucinatedImports(buildContext());
+
+			expect(diagnostics).toHaveLength(2);
+			expect(diagnostics.some((diagnostic) => diagnostic.message.includes("fastapi"))).toBe(true);
+			expect(diagnostics.some((diagnostic) => diagnostic.message.includes("outside_only"))).toBe(
+				true,
+			);
+		} finally {
+			fs.rmSync(externalDir, { recursive: true, force: true });
+		}
+	});
+
+	it("matches uv excludes when a star spans path separators", async () => {
+		writeFile(
+			"pyproject.toml",
+			`[tool.uv.workspace]
+members = ["packages/team/app"]
+exclude = ["packages/*"]
+`,
+		);
+		writeFile(
+			"packages/team/app/pyproject.toml",
+			`[project]
+name = "app"
+version = "0.1.0"
+dependencies = ["sqlalchemy>=2.0"]
+`,
+		);
+		writeFile("packages/team/app/src/app/__init__.py", "");
+		writeFile("packages/team/app/src/app/db.py", "import sqlalchemy\n");
+		writeFile("tools/report.py", "import sqlalchemy\n");
+
+		const diagnostics = await detectHallucinatedImports(buildContext());
+
+		expect(diagnostics).toHaveLength(1);
+		expect(diagnostics[0].filePath).toBe(path.join("tools", "report.py"));
+		expect(diagnostics[0].message).toContain("sqlalchemy");
+	});
+
+	it("keeps a deeply nested excluded member's own dependency scope", async () => {
+		writeFile(
+			"pyproject.toml",
+			`[tool.uv.workspace]
+members = ["workspaces/company/team/packages/*"]
+exclude = ["workspaces/company/team/packages/seeds"]
+`,
+		);
+		writeFile(
+			"workspaces/company/team/packages/app/pyproject.toml",
+			`[project]
+name = "app"
+version = "0.1.0"
+dependencies = ["fastapi>=0.115"]
+`,
+		);
+		writeFile("workspaces/company/team/packages/app/src/app/__init__.py", "");
+		writeFile(
+			"workspaces/company/team/packages/seeds/pyproject.toml",
+			`[project]
+name = "seeds"
+version = "0.1.0"
+dependencies = ["sqlalchemy>=2.0"]
+`,
+		);
+		writeFile("workspaces/company/team/packages/seeds/src/seeds/__init__.py", "");
+		writeFile(
+			"workspaces/company/team/packages/seeds/src/seeds/load.py",
+			"import sqlalchemy\nimport fastapi\n",
+		);
+
+		const diagnostics = await detectHallucinatedImports(buildContext());
+
+		expect(diagnostics).toHaveLength(1);
+		expect(diagnostics[0].message).toContain("fastapi");
+	});
+
+	it("does not share workspace dependencies with an independent nested project", async () => {
+		writeFile(
+			"pyproject.toml",
+			`[project]
+name = "workspace-root"
+version = "0.1.0"
+dependencies = ["rich>=13.0"]
+
+[tool.uv.workspace]
+members = ["packages/*"]
+`,
+		);
+		writeFile(
+			"packages/api/pyproject.toml",
+			`[project]
+name = "api"
+version = "0.1.0"
+dependencies = ["fastapi>=0.115"]
+`,
+		);
+		writeFile("packages/api/src/api/__init__.py", "");
+		writeFile(
+			"standalone/service/pyproject.toml",
+			`[project]
+name = "demo"
+version = "0.1.0"
+dependencies = ["pydantic>=2.0"]
+`,
+		);
+		writeFile("standalone/service/src/standalone_service/__init__.py", "");
+		writeFile(
+			"standalone/service/src/standalone_service/app.py",
+			"import pydantic\nimport fastapi\nimport rich\n",
+		);
+
+		const diagnostics = await detectHallucinatedImports(buildContext());
+
+		expect(diagnostics).toHaveLength(2);
+		expect(diagnostics.some((diagnostic) => diagnostic.message.includes("fastapi"))).toBe(true);
+		expect(diagnostics.some((diagnostic) => diagnostic.message.includes("rich"))).toBe(true);
+
+		const subtreeDiagnostics = await detectHallucinatedImports({
+			...buildContext(),
+			rootDirectory: path.join(tmpDir, "standalone", "service", "src"),
+		});
+		expect(subtreeDiagnostics).toHaveLength(2);
+		expect(subtreeDiagnostics.some((diagnostic) => diagnostic.message.includes("fastapi"))).toBe(
+			true,
+		);
+		expect(subtreeDiagnostics.some((diagnostic) => diagnostic.message.includes("rich"))).toBe(true);
+	});
+
+	it.each([
+		["requirements.txt", "pydantic>=2.0\n"],
+		["Pipfile", `[packages]\npydantic = "*"\n`],
+	])("isolates an independent nested project declared by %s", async (manifestName, content) => {
+		writeFile("pyproject.toml", `[tool.uv.workspace]\nmembers = ["packages/*"]\n`);
+		writeFile(
+			"packages/api/pyproject.toml",
+			`[project]\nname = "api"\nversion = "0.1.0"\ndependencies = ["fastapi>=0.115"]\n`,
+		);
+		writeFile("packages/api/src/api/__init__.py", "");
+		writeFile(path.join("standalone", "service", manifestName), content);
+		writeFile("standalone/service/src/service/app.py", "import pydantic\nimport fastapi\n");
+
+		const diagnostics = await detectHallucinatedImports(buildContext());
+
+		expect(diagnostics).toHaveLength(1);
+		expect(diagnostics[0].message).toContain("fastapi");
+
+		const subtreeDiagnostics = await detectHallucinatedImports({
+			...buildContext(),
+			rootDirectory: path.join(tmpDir, "standalone", "service", "src"),
+		});
+		expect(subtreeDiagnostics).toHaveLength(1);
+		expect(subtreeDiagnostics[0].message).toContain("fastapi");
+	});
+
+	it("omits unmanaged projects from workspace dependency sharing", async () => {
+		writeFile(
+			"pyproject.toml",
+			`[project]
+name = "workspace-root"
+version = "0.1.0"
+dependencies = ["rich>=13.0"]
+
+[tool.uv.workspace]
+members = ["packages/*"]
+`,
+		);
+		writeFile(
+			"packages/app/pyproject.toml",
+			`[project]\nname = "app"\nversion = "0.1.0"\ndependencies = ["fastapi"]\n`,
+		);
+		writeFile("packages/app/src/app/__init__.py", "");
+		writeFile(
+			"packages/unmanaged/pyproject.toml",
+			`[project]
+name = "unmanaged"
+version = "0.1.0"
+dependencies = ["boto3"]
+
+[tool.uv]
+managed = false
+`,
+		);
+		writeFile("packages/unmanaged/src/unmanaged/__init__.py", "");
+		writeFile(
+			"packages/unmanaged/src/unmanaged/app.py",
+			"import boto3\nimport fastapi\nimport rich\n",
+		);
+		writeFile("src/main.py", "import fastapi\nimport boto3\n");
+
+		const diagnostics = await detectHallucinatedImports(buildContext());
+
+		expect(diagnostics).toHaveLength(3);
+		expect(
+			diagnostics.some(
+				(diagnostic) =>
+					diagnostic.filePath === path.join("src", "main.py") &&
+					diagnostic.message.includes("boto3"),
+			),
+		).toBe(true);
+		expect(
+			diagnostics.some(
+				(diagnostic) =>
+					diagnostic.filePath.includes("unmanaged") && diagnostic.message.includes("fastapi"),
+			),
+		).toBe(true);
+		expect(
+			diagnostics.some(
+				(diagnostic) =>
+					diagnostic.filePath.includes("unmanaged") && diagnostic.message.includes("rich"),
+			),
+		).toBe(true);
+	});
+
+	it("fails closed when workspace patterns exceed the expansion budget", async () => {
+		const members = [
+			"packages/shared",
+			...Array.from({ length: 128 }, (_, index) => `missing/package-${index}`),
+		];
+		writeFile("pyproject.toml", `[tool.uv.workspace]\nmembers = ${JSON.stringify(members)}\n`);
+		writeFile(
+			"packages/shared/pyproject.toml",
+			`[project]
+name = "shared"
+version = "0.1.0"
+dependencies = ["outside-only"]
+`,
+		);
+		writeFile("packages/shared/src/shared/__init__.py", "");
+		writeFile("tools/report.py", "import outside_only\n");
+
+		const diagnostics = await detectHallucinatedImports(buildContext());
+
+		expect(diagnostics).toHaveLength(1);
+		expect(diagnostics[0].message).toContain("outside_only");
+	});
+
 	it("does not apply workspace deps to files inside an excluded project", async () => {
 		// The flip side of `exclude`: a file under the excluded directory is not
 		// installed into the shared .venv either, so it may not lean on deps that
 		// only real members declare - it is checked against its own manifest.
 		writeFile(
 			"pyproject.toml",
-			`[tool.uv.workspace]
+			`[project]
+name = "workspace-root"
+version = "0.1.0"
+dependencies = ["rich>=13.0"]
+
+[tool.uv.workspace]
 members = ["packages/*"]
 exclude = ["packages/seeds"]
 `,
@@ -1226,6 +1597,7 @@ exclude = ["packages/seeds"]
 			"packages/app/pyproject.toml",
 			`[project]
 name = "app"
+version = "0.1.0"
 dependencies = ["fastapi>=0.115"]
 `,
 		);
@@ -1234,19 +1606,29 @@ dependencies = ["fastapi>=0.115"]
 			"packages/seeds/pyproject.toml",
 			`[project]
 name = "seeds"
+version = "0.1.0"
 dependencies = ["sqlalchemy>=2.0"]
 `,
 		);
 		writeFile("packages/seeds/src/seeds/__init__.py", "");
 		// fastapi is declared only by the included member; the excluded project
 		// does not share its .venv, so uv would not resolve this import.
-		writeFile("packages/seeds/src/seeds/load.py", `import sqlalchemy\nimport fastapi\n`);
+		writeFile(
+			"packages/seeds/src/seeds/load.py",
+			`import sqlalchemy\nimport fastapi\nimport rich\n`,
+		);
 
 		const diagnostics = await detectHallucinatedImports(buildContext());
 
-		expect(diagnostics).toHaveLength(1);
-		expect(diagnostics[0].message).toContain("fastapi");
-		expect(diagnostics[0].filePath).toBe(path.join("packages", "seeds", "src", "seeds", "load.py"));
+		expect(diagnostics).toHaveLength(2);
+		expect(diagnostics.some((diagnostic) => diagnostic.message.includes("fastapi"))).toBe(true);
+		expect(diagnostics.some((diagnostic) => diagnostic.message.includes("rich"))).toBe(true);
+		expect(
+			diagnostics.every(
+				(diagnostic) =>
+					diagnostic.filePath === path.join("packages", "seeds", "src", "seeds", "load.py"),
+			),
+		).toBe(true);
 	});
 
 	it("applies ancestor workspace deps when scanning a member subdirectory", async () => {
@@ -1275,16 +1657,22 @@ import totally_made_up_workspace_pkg
 	it("leaves non-workspace nested-manifest isolation unchanged (no [tool.uv.workspace])", async () => {
 		// Same layout minus the workspace table: a plain repo with a nested
 		// package. Cross-package imports must STILL be flagged (regression guard).
-		writeFile("pyproject.toml", `[project]\nname = "root-demo"\ndependencies = ["requests"]\n`);
+		writeFile(
+			"pyproject.toml",
+			`[project]\nname = "root-demo"\nversion = "0.1.0"\ndependencies = ["requests"]\n`,
+		);
 		writeFile(
 			"packages/worker/pyproject.toml",
-			`[project]\nname = "worker"\ndependencies = ["pydantic>=2.0"]\n`,
+			`[project]\nname = "worker"\nversion = "0.1.0"\ndependencies = ["pydantic>=2.0"]\n`,
 		);
 		writeFile("packages/worker/src/worker/__init__.py", "");
-		writeFile("packages/other/pyproject.toml", `[project]\nname = "other"\ndependencies = []\n`);
+		writeFile(
+			"packages/other/pyproject.toml",
+			`[project]\nname = "other"\nversion = "0.1.0"\ndependencies = []\n`,
+		);
 		writeFile("packages/other/src/other/__init__.py", "");
 		// `other` is not a declared dep of `worker`, and there is no workspace to
-		// share names — so importing it from worker is (correctly) flagged.
+		// share names, so importing it from worker is (correctly) flagged.
 		writeFile("packages/worker/src/worker/job.py", `import pydantic\nimport other\n`);
 
 		const diagnostics = await detectHallucinatedImports(buildContext());

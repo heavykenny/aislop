@@ -1,207 +1,14 @@
 import fs from "node:fs";
 import path from "node:path";
-
-const addPyDep = (pyDeps: Set<string>, name: string): void => {
-	const match = name.trim().match(/^([a-zA-Z0-9_.-]+)/);
-	if (!match) return;
-	const normalized = match[1].toLowerCase().replace(/_/g, "-");
-	pyDeps.add(normalized);
-};
-
-const collectFromRequirementsTxt = (rootDir: string, pyDeps: Set<string>): boolean => {
-	const reqPath = path.join(rootDir, "requirements.txt");
-	if (!fs.existsSync(reqPath)) return false;
-	try {
-		const content = fs.readFileSync(reqPath, "utf-8");
-		for (const line of content.split("\n")) {
-			const trimmed = line.trim();
-			if (!trimmed || trimmed.startsWith("#") || trimmed.startsWith("-")) continue;
-			const match = trimmed.match(/^([a-zA-Z0-9_\-.]+)/);
-			if (match) addPyDep(pyDeps, match[1]);
-		}
-		return true;
-	} catch {
-		return false;
-	}
-};
-
-const TOML_HEADER_RE = /^\s*\[([^\]]+)\]\s*$/;
-
-const readTomlSection = (content: string, sectionName: string): string => {
-	const lines = content.split(/\r?\n/);
-	const sectionLines: string[] = [];
-	let inSection = false;
-
-	for (const line of lines) {
-		const header = line.match(TOML_HEADER_RE);
-		if (header) {
-			if (inSection) break;
-			inSection = header[1] === sectionName;
-			continue;
-		}
-		if (inSection) sectionLines.push(line);
-	}
-
-	return sectionLines.join("\n");
-};
-
-const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
-const extractTomlArrayBody = (section: string, key: string): string | null => {
-	const match = new RegExp(`^\\s*${escapeRegExp(key)}\\s*=\\s*\\[`, "m").exec(section);
-	if (!match) return null;
-
-	const openingIndex = match.index + match[0].lastIndexOf("[");
-	const start = openingIndex + 1;
-	let depth = 1;
-	let quote: string | null = null;
-	let escaped = false;
-
-	for (let i = start; i < section.length; i += 1) {
-		const char = section[i];
-		if (quote) {
-			if (quote === '"' && !escaped && char === "\\") {
-				escaped = true;
-				continue;
-			}
-			if (!escaped && char === quote) quote = null;
-			escaped = false;
-			continue;
-		}
-
-		// A `#` outside a string begins a comment to end-of-line. Skipping it keeps
-		// quote/bracket tracking correct when a comment holds an apostrophe or a
-		// bracket (e.g. `"pr-crew",  # the dashboard's (lazy) use`).
-		if (char === "#") {
-			const newline = section.indexOf("\n", i);
-			if (newline === -1) return null;
-			i = newline;
-			continue;
-		}
-		if (char === '"' || char === "'") {
-			quote = char;
-			continue;
-		}
-		if (char === "[") {
-			depth += 1;
-		} else if (char === "]") {
-			depth -= 1;
-			if (depth === 0) return section.slice(start, i);
-		}
-	}
-
-	return null;
-};
-
-const extractTomlStrings = (source: string): string[] => {
-	const values: string[] = [];
-	let quote: string | null = null;
-	let escaped = false;
-	let current = "";
-
-	for (let i = 0; i < source.length; i += 1) {
-		const char = source[i];
-		if (!quote) {
-			// Skip `#` comments so quoted prose inside them isn't read as a value.
-			if (char === "#") {
-				const newline = source.indexOf("\n", i);
-				if (newline === -1) break;
-				i = newline;
-				continue;
-			}
-			if (char === '"' || char === "'") {
-				quote = char;
-				current = "";
-				escaped = false;
-			}
-			continue;
-		}
-
-		if (quote === '"' && !escaped && char === "\\") {
-			escaped = true;
-			continue;
-		}
-		if (!escaped && char === quote) {
-			values.push(current);
-			quote = null;
-			current = "";
-			continue;
-		}
-		current += char;
-		escaped = false;
-	}
-
-	return values;
-};
-
-const addTomlArrayDeps = (section: string, key: string, pyDeps: Set<string>): void => {
-	const body = extractTomlArrayBody(section, key);
-	if (!body) return;
-	for (const value of extractTomlStrings(body)) {
-		addPyDep(pyDeps, value);
-	}
-};
-
-const collectFromPyproject = (rootDir: string, pyDeps: Set<string>): boolean => {
-	const pyprojPath = path.join(rootDir, "pyproject.toml");
-	if (!fs.existsSync(pyprojPath)) return false;
-	try {
-		const content = fs.readFileSync(pyprojPath, "utf-8");
-		const projectSection = readTomlSection(content, "project");
-		const projectNameMatch = projectSection.match(/^\s*name\s*=\s*["']([^"']+)/m);
-		if (projectNameMatch) addPyDep(pyDeps, projectNameMatch[1]);
-
-		const poetrySection = readTomlSection(content, "tool.poetry");
-		const poetryNameMatch = poetrySection.match(/^\s*name\s*=\s*["']([^"']+)/m);
-		if (poetryNameMatch) addPyDep(pyDeps, poetryNameMatch[1]);
-
-		addTomlArrayDeps(projectSection, "dependencies", pyDeps);
-
-		// PEP 621 extras: [project.optional-dependencies] holds arrays of requirements.
-		const extras = readTomlSection(content, "project.optional-dependencies");
-		if (extras) {
-			for (const value of extractTomlStrings(extras)) addPyDep(pyDeps, value);
-		}
-		// PEP 735 dependency groups: [dependency-groups] holds named arrays of requirements.
-		const groups = readTomlSection(content, "dependency-groups");
-		if (groups) {
-			for (const value of extractTomlStrings(groups)) addPyDep(pyDeps, value);
-		}
-		const poetryRe =
-			/\[tool\.poetry(?:\.group\.[a-z0-9_-]+)?\.dependencies\]([\s\S]*?)(?=\n\[|$)/gi;
-		let match: RegExpExecArray | null = poetryRe.exec(content);
-		while (match !== null) {
-			for (const line of match[1].split("\n")) {
-				const m = line.trim().match(/^([a-zA-Z0-9_\-.]+)\s*=/);
-				if (m && m[1] !== "python") addPyDep(pyDeps, m[1]);
-			}
-			match = poetryRe.exec(content);
-		}
-		return true;
-	} catch {
-		return false;
-	}
-};
-
-const collectFromPipfile = (rootDir: string, pyDeps: Set<string>): boolean => {
-	const pipfilePath = path.join(rootDir, "Pipfile");
-	if (!fs.existsSync(pipfilePath)) return false;
-	try {
-		const content = fs.readFileSync(pipfilePath, "utf-8");
-		const sectionRe = /\[(packages|dev-packages)\]([\s\S]*?)(?=\n\[|$)/g;
-		let match: RegExpExecArray | null = sectionRe.exec(content);
-		while (match !== null) {
-			for (const line of match[2].split("\n")) {
-				const m = line.trim().match(/^([a-zA-Z0-9_\-.]+)\s*=/);
-				if (m) addPyDep(pyDeps, m[1]);
-			}
-			match = sectionRe.exec(content);
-		}
-		return true;
-	} catch {
-		return false;
-	}
-};
+import {
+	addPyDep,
+	collectFromPipfile,
+	collectFromPyproject,
+	collectFromRequirementsTxt,
+	PYTHON_MANIFEST_FILES,
+} from "./python-dependency-parser.js";
+import { expandWorkspaceMemberDirs, isWithinWorkspaceRoot } from "./uv-workspace-patterns.js";
+import { readUvWorkspaceDefinition } from "./uv-workspace-definition.js";
 
 export interface PythonDependencyScope {
 	directory: string;
@@ -272,10 +79,7 @@ const collectNestedScopes = (rootDir: string): PythonDependencyScope[] => {
 
 		const hasManifest = entries.some(
 			(entry) =>
-				entry.isFile() &&
-				(entry.name === "pyproject.toml" ||
-					entry.name === "requirements.txt" ||
-					entry.name === "Pipfile"),
+				entry.isFile() && PYTHON_MANIFEST_FILES.some((fileName) => fileName === entry.name),
 		);
 		if (dir !== rootDir && hasManifest) {
 			const scope = collectScope(dir);
@@ -293,66 +97,44 @@ const collectNestedScopes = (rootDir: string): PythonDependencyScope[] => {
 	return scopes;
 };
 
-// [tool.uv.workspace].members entries: literal paths (packages/web_common) or a
-// single trailing-`*` glob (packages/*). Mirrors js-workspaces expansion.
-const expandWorkspaceMemberDirs = (rootDir: string, patterns: string[]): string[] => {
-	const dirs: string[] = [];
-	for (const pattern of patterns) {
-		if (pattern.endsWith("/*")) {
-			const parent = path.join(rootDir, pattern.slice(0, -2));
-			let entries: import("node:fs").Dirent[];
-			try {
-				entries = fs.readdirSync(parent, { withFileTypes: true });
-			} catch {
-				continue;
-			}
-			for (const entry of entries) {
-				if (entry.isDirectory()) dirs.push(path.join(parent, entry.name));
-			}
-		} else if (!pattern.includes("*")) {
-			dirs.push(path.join(rootDir, pattern));
+const findNearestPythonManifestDirectory = (
+	startDir: string,
+	boundaryDir: string,
+): string | null => {
+	let directory = path.resolve(startDir);
+	const boundary = path.resolve(boundaryDir);
+	while (isWithinWorkspaceRoot(boundary, directory)) {
+		if (PYTHON_MANIFEST_FILES.some((fileName) => fs.existsSync(path.join(directory, fileName)))) {
+			return directory;
 		}
+		if (directory === boundary) break;
+		const parent = path.dirname(directory);
+		if (parent === directory) break;
+		directory = parent;
 	}
-	return dirs;
-};
-
-interface UvWorkspaceTable {
-	members: string[];
-	exclude: string[];
-}
-
-const readUvWorkspaceTable = (pyprojPath: string): UvWorkspaceTable | null => {
-	let content: string;
-	try {
-		content = fs.readFileSync(pyprojPath, "utf-8");
-	} catch {
-		return null;
-	}
-	const wsSection = readTomlSection(content, "tool.uv.workspace");
-	if (!wsSection.trim()) return null;
-	const membersBody = extractTomlArrayBody(wsSection, "members");
-	const excludeBody = extractTomlArrayBody(wsSection, "exclude");
-	return {
-		members: membersBody ? extractTomlStrings(membersBody) : [],
-		exclude: excludeBody ? extractTomlStrings(excludeBody) : [],
-	};
+	return null;
 };
 
 interface UvWorkspaceInfo {
 	rootDir: string;
-	// A uv workspace resolves to ONE lockfile and ONE .venv, so every member's
-	// dependencies are installed together and any file in the tree may import
-	// them (or a sibling member package) without it being a hallucination. This
-	// set unions the root [project] deps/extras/groups with each member's full
-	// dependency + package-name set, shared across the whole workspace.
+	appliesToStartDir: boolean;
 	sharedDeps: Set<string>;
-	// Absolute paths of directories removed by [tool.uv.workspace].exclude.
-	// Files under these directories are NOT part of the shared .venv, so the
-	// shared dependency set must not apply to them.
+	memberDirs: string[];
 	excludedDirs: string[];
 }
 
 const MAX_WORKSPACE_WALKUP = 32;
+
+const emptyUvWorkspace = (rootDir: string, startDir: string): UvWorkspaceInfo => {
+	const startProjectDir = findNearestPythonManifestDirectory(startDir, rootDir);
+	return {
+		rootDir,
+		appliesToStartDir: startProjectDir === rootDir,
+		sharedDeps: new Set(),
+		memberDirs: [],
+		excludedDirs: [],
+	};
+};
 
 // Walk up from startDir to the nearest pyproject declaring [tool.uv.workspace].
 // The scan root is usually the workspace root (found immediately); walking up
@@ -362,8 +144,11 @@ const findUvWorkspace = (startDir: string): UvWorkspaceInfo | null => {
 	for (let i = 0; i < MAX_WORKSPACE_WALKUP; i += 1) {
 		const pyprojPath = path.join(dir, "pyproject.toml");
 		if (fs.existsSync(pyprojPath)) {
-			const workspace = readUvWorkspaceTable(pyprojPath);
-			if (workspace) {
+			const workspace = readUvWorkspaceDefinition(dir);
+			if (workspace.kind === "invalid" || workspace.kind === "unmanaged") {
+				return emptyUvWorkspace(dir, startDir);
+			}
+			if (workspace.kind === "workspace") {
 				const sharedDeps = new Set<string>();
 				// Root [project] deps/extras/groups + root name + root-level packages.
 				collectFromPyproject(dir, sharedDeps);
@@ -371,16 +156,27 @@ const findUvWorkspace = (startDir: string): UvWorkspaceInfo | null => {
 				// `exclude` globs remove directories the `members` globs matched -
 				// an excluded project is NOT installed into the shared .venv, so its
 				// deps must not suppress findings elsewhere in the workspace.
-				const excludedDirs = expandWorkspaceMemberDirs(dir, workspace.exclude);
-				const excluded = new Set(excludedDirs);
+				const expansion = expandWorkspaceMemberDirs({
+					rootDir: dir,
+					memberPatterns: workspace.members,
+					excludePatterns: workspace.exclude,
+					rootProjectName: workspace.rootProjectName,
+				});
+				if (expansion === null) {
+					return emptyUvWorkspace(dir, startDir);
+				}
+				const { memberDirs, excludedDirs } = expansion;
+				const startProjectDir = findNearestPythonManifestDirectory(startDir, dir);
+				const appliesToStartDir =
+					startProjectDir === dir ||
+					(startProjectDir !== null && memberDirs.includes(startProjectDir));
 				// Each member's full scope: its declared deps AND its package name /
 				// src-layout module names (the shared .venv installs all of them).
-				for (const memberDir of expandWorkspaceMemberDirs(dir, workspace.members)) {
-					if (excluded.has(memberDir)) continue;
+				for (const memberDir of memberDirs) {
 					const memberScope = collectScope(memberDir);
 					for (const dep of memberScope.pyDeps) sharedDeps.add(dep);
 				}
-				return { rootDir: dir, sharedDeps, excludedDirs };
+				return { rootDir: dir, appliesToStartDir, sharedDeps, memberDirs, excludedDirs };
 			}
 		}
 		const parent = path.dirname(dir);
@@ -398,26 +194,41 @@ export const collectPythonDeps = (
 	rootHasPyManifest: boolean;
 	scopes: PythonDependencyScope[];
 	workspaceDeps: Set<string> | null;
-	workspaceExcludedDirs: string[];
+	workspaceRootDir: string | null;
+	workspaceMemberDirs: string[];
 } => {
 	const rootScope = collectScope(rootDir);
 	const nestedScopes = collectNestedScopes(rootDir);
 	const scopes = [rootScope, ...nestedScopes];
+	const workspace = findUvWorkspace(rootDir);
+	if (workspace) {
+		const ancestorProjectDir = findNearestPythonManifestDirectory(rootDir, workspace.rootDir);
+		if (ancestorProjectDir && !scopes.some((scope) => scope.directory === ancestorProjectDir)) {
+			const ancestorScope = collectScope(ancestorProjectDir);
+			if (ancestorScope.hasPyManifest) scopes.push(ancestorScope);
+		}
+	}
+	for (const excludedDir of workspace?.excludedDirs ?? []) {
+		if (scopes.some((scope) => scope.directory === excludedDir)) continue;
+		const excludedScope = collectScope(excludedDir);
+		if (excludedScope.hasPyManifest) scopes.push(excludedScope);
+	}
 	const pyDeps = new Set<string>();
 	for (const scope of scopes) {
 		for (const dep of scope.pyDeps) pyDeps.add(dep);
 	}
-	const workspace = findUvWorkspace(rootDir);
 	return {
 		pyDeps,
 		// An ancestor uv workspace counts as a manifest: scanning a member
 		// subdirectory (e.g. `aislop scan packages/api/src`) finds no
 		// pyproject/requirements under the scan root, but the workspace's shared
 		// dependency set still applies to every file in it.
-		hasPyManifest: scopes.some((scope) => scope.hasPyManifest) || workspace !== null,
+		hasPyManifest:
+			scopes.some((scope) => scope.hasPyManifest) || workspace?.appliesToStartDir === true,
 		rootHasPyManifest: rootScope.hasPyManifest,
 		scopes,
-		workspaceDeps: workspace?.sharedDeps ?? null,
-		workspaceExcludedDirs: workspace?.excludedDirs ?? [],
+		workspaceDeps: workspace?.appliesToStartDir ? workspace.sharedDeps : null,
+		workspaceRootDir: workspace?.appliesToStartDir ? workspace.rootDir : null,
+		workspaceMemberDirs: workspace?.appliesToStartDir ? workspace.memberDirs : [],
 	};
 };
