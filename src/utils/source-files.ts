@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import micromatch from "micromatch";
 import type { EngineContext } from "../engines/types.js";
+import { getIgnoredPaths } from "./git-ignore.js";
 
 const MAX_BUFFER = 50 * 1024 * 1024;
 
@@ -200,28 +201,6 @@ export const isExcludedFromScan = (relativePath: string): boolean =>
 
 const isTestFile = (filePath: string): boolean =>
 	TEST_FILE_PATTERNS.some((pattern) => pattern.test(filePath));
-
-const getIgnoredPaths = (rootDirectory: string, files: string[]): Set<string> => {
-	if (files.length === 0) return new Set<string>();
-
-	const result = spawnSync("git", ["check-ignore", "--stdin"], {
-		cwd: rootDirectory,
-		encoding: "utf-8",
-		input: files.join("\n"),
-		maxBuffer: MAX_BUFFER,
-	});
-
-	if (result.error || (result.status !== 0 && result.status !== 1)) {
-		return new Set<string>();
-	}
-
-	return new Set(
-		result.stdout
-			.split("\n")
-			.map((file) => file.trim())
-			.filter((file) => file.length > 0),
-	);
-};
 
 export const listProjectFiles = (rootDirectory: string): string[] => {
 	const result = spawnSync("git", ["ls-files", "--cached", "--others", "--exclude-standard"], {

@@ -1,8 +1,9 @@
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { runTypecheck } from "../src/engines/lint/typecheck.js";
+import { findTsconfigs, runTypecheck } from "../src/engines/lint/typecheck.js";
 import type { EngineContext } from "../src/engines/types.js";
 
 const PROJECT_ROOT = path.resolve(__dirname, "..");
@@ -131,4 +132,31 @@ describe("runTypecheck", () => {
 
 		expect(diagnostics).toEqual([]);
 	}, 30_000);
+});
+
+describe("tsconfig discovery honors .gitignore", () => {
+	beforeEach(() => {
+		execFileSync("git", ["init", "-q"], { cwd: tmpDir, stdio: "ignore" });
+		fs.writeFileSync(path.join(tmpDir, ".gitignore"), "ignored/\n");
+	});
+
+	it("skips a tsconfig.json under a gitignored directory", () => {
+		writeFile("tsconfig.json", JSON.stringify(baseTsconfig));
+		writeFile("ignored/tsconfig.json", JSON.stringify(baseTsconfig));
+
+		expect(findTsconfigs(tmpDir)).toEqual([path.join(tmpDir, "tsconfig.json")]);
+	});
+
+	it("keeps every tsconfig.json outside a git repo", () => {
+		fs.rmSync(path.join(tmpDir, ".git"), { recursive: true, force: true });
+		writeFile("tsconfig.json", JSON.stringify(baseTsconfig));
+		writeFile("packages/a/tsconfig.json", JSON.stringify(baseTsconfig));
+
+		expect(findTsconfigs(tmpDir).sort()).toEqual(
+			[
+				path.join(tmpDir, "tsconfig.json"),
+				path.join(tmpDir, "packages", "a", "tsconfig.json"),
+			].sort(),
+		);
+	});
 });
