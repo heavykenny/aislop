@@ -91,7 +91,7 @@
     "@clack/prompts": "^1.2.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "adm-zip": "^0.5.18",
-    "commander": "^14.0.3",
+    "commander": "^15.0.0",
     "expo-doctor": "^1.20.0",
     "ink": "^6.8.0",
     "ink-select-input": "^6.2.0",
