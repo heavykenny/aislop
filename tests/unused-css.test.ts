@@ -62,7 +62,7 @@ describe("ai-slop/unused-css", () => {
 		expect(d.severity).toBe("warning");
 		expect(d.message).toContain("table-row");
 		expect(d.line).toBe(2);
-		expect(d.filePath).toBe(path.join("src", "index.css"));
+		expect(d.filePath).toBe("src/index.css");
 	});
 
 	it("does NOT flag a class referenced only via a dynamic/interpolated prefix (false-positive guard)", async () => {

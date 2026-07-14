@@ -1,8 +1,9 @@
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { runTypecheck } from "../src/engines/lint/typecheck.js";
+import { findTsconfigs, runTypecheck } from "../src/engines/lint/typecheck.js";
 import type { EngineContext } from "../src/engines/types.js";
 
 const PROJECT_ROOT = path.resolve(__dirname, "..");
@@ -17,7 +18,7 @@ const writeFile = (relative: string, content: string): void => {
 };
 
 const linkNodeModules = (): void => {
-	fs.symlinkSync(NODE_MODULES, path.join(tmpDir, "node_modules"));
+	fs.symlinkSync(NODE_MODULES, path.join(tmpDir, "node_modules"), "junction");
 };
 
 const buildContext = (): EngineContext => ({
@@ -76,7 +77,8 @@ describe("runTypecheck", () => {
 		expect(diag.rule).toBe("typescript/TS2322");
 		expect(diag.severity).toBe("error");
 		expect(diag.fixable).toBe(false);
-		expect(diag.filePath).toBe(path.join("src", "bug.ts"));
+		// POSIX separators on every OS (relativePosix); guards the Windows backslash regression.
+		expect(diag.filePath).toBe("src/bug.ts");
 		expect(diag.line).toBe(1);
 		expect(diag.column).toBeGreaterThan(0);
 	}, 30_000);
@@ -131,4 +133,31 @@ describe("runTypecheck", () => {
 
 		expect(diagnostics).toEqual([]);
 	}, 30_000);
+});
+
+describe("tsconfig discovery honors .gitignore", () => {
+	beforeEach(() => {
+		execFileSync("git", ["init", "-q"], { cwd: tmpDir, stdio: "ignore" });
+		fs.writeFileSync(path.join(tmpDir, ".gitignore"), "ignored/\n");
+	});
+
+	it("skips a tsconfig.json under a gitignored directory", () => {
+		writeFile("tsconfig.json", JSON.stringify(baseTsconfig));
+		writeFile("ignored/tsconfig.json", JSON.stringify(baseTsconfig));
+
+		expect(findTsconfigs(tmpDir)).toEqual([path.join(tmpDir, "tsconfig.json")]);
+	});
+
+	it("keeps every tsconfig.json outside a git repo", () => {
+		fs.rmSync(path.join(tmpDir, ".git"), { recursive: true, force: true });
+		writeFile("tsconfig.json", JSON.stringify(baseTsconfig));
+		writeFile("packages/a/tsconfig.json", JSON.stringify(baseTsconfig));
+
+		expect(findTsconfigs(tmpDir).sort()).toEqual(
+			[
+				path.join(tmpDir, "tsconfig.json"),
+				path.join(tmpDir, "packages", "a", "tsconfig.json"),
+			].sort(),
+		);
+	});
 });

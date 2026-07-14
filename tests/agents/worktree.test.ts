@@ -42,6 +42,10 @@ const createRepo = (): string => {
 	git(root, ["init"]);
 	git(root, ["config", "user.email", "test@example.com"]);
 	git(root, ["config", "user.name", "Test User"]);
+	// Pin LF so a developer's global core.autocrlf=true (common on Windows) can't rewrite
+	// fixture line endings out from under byte-exact patch assertions.
+	git(root, ["config", "core.autocrlf", "false"]);
+	git(root, ["config", "core.eol", "lf"]);
 	writeFileSync(path.join(root, "index.ts"), "export const value = 1;\n", "utf-8");
 	git(root, ["add", "index.ts"]);
 	git(root, ["commit", "-m", "init"]);
@@ -79,7 +83,9 @@ describe("agent worktrees", () => {
 		const excludePath = path.join(root, ".git", "info", "exclude");
 		const before = existsSync(excludePath) ? readFileSync(excludePath, "utf-8") : "";
 
-		await expect(readAgentRoot(root)).resolves.toEqual({ root: realpathSync(root) });
+		// .native() to match readAgentRoot's canonicalization: it expands 8.3 short names, so a
+		// short-form TEMP (e.g. CI's C:\Users\RUNNER~1\...) resolves to the same long path.
+		await expect(readAgentRoot(root)).resolves.toEqual({ root: realpathSync.native(root) });
 
 		const after = existsSync(excludePath) ? readFileSync(excludePath, "utf-8") : "";
 		expect(after).toBe(before);
@@ -118,7 +124,7 @@ describe("agent worktrees", () => {
 		writeFileSync(path.join(root, "new.ts"), "export const added = true;\n", "utf-8");
 		const target = mkdtempSync(path.join(tmpdir(), "aislop-agent-worktree-target-"));
 		tempDirs.push(target);
-		git(root, ["clone", root, target]);
+		git(root, ["clone", "-c", "core.autocrlf=false", "-c", "core.eol=lf", root, target]);
 
 		const patch = await readBinaryDiff(root);
 		gitWithInput(target, ["apply"], patch);

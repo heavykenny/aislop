@@ -16,19 +16,20 @@ permissions:
   contents: read
 
 jobs:
-  check:
-    name: Build & test
-    runs-on: ubuntu-latest
+  test-matrix:
+    name: Build & test (${{ matrix.os }}, ${{ matrix.node-version }})
+    runs-on: ${{ matrix.os }}
 
     strategy:
       fail-fast: false
       matrix:
+        os: [ubuntu-latest, windows-latest]
         node-version: [22, 24]
 
     steps:
       - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v5
+      - uses: pnpm/action-setup@v6
 
       - uses: actions/setup-node@v6
         with:
@@ -47,6 +48,29 @@ jobs:
       - name: Test
         run: pnpm vitest run
 
+  # Stable required-check names. Branch protection matches status checks by exact string, so
+  # "Build & test (22)" and "Build & test (24)" must keep those names; we expose them as thin
+  # gates over the OS/node matrix above. Adding a platform thus never renames a required check
+  # (a renamed required check hangs as "Expected" and blocks every PR). The always() + explicit
+  # result check is deliberate: a gate that merely skips on matrix failure counts as *passing*
+  # in branch protection, which would let a red matrix merge.
+  check:
+    name: Build & test
+    needs: test-matrix
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [22, 24]
+    steps:
+      - name: Require the OS/node test matrix to pass
+        run: |
+          if [ "${{ needs.test-matrix.result }}" != "success" ]; then
+            echo "Build & test matrix did not pass: ${{ needs.test-matrix.result }}"
+            exit 1
+          fi
+          echo "All Build & test matrix legs passed."
+
   quality-gate:
     name: Quality gate
     needs: check
@@ -54,7 +78,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v5
+      - uses: pnpm/action-setup@v6
 
       - uses: actions/setup-node@v6
         with:

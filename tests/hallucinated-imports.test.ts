@@ -86,7 +86,7 @@ import { magic } from "totally-made-up-package"
 		expect(diag.rule).toBe("ai-slop/hallucinated-import");
 		expect(diag.severity).toBe("error");
 		expect(diag.fixable).toBe(false);
-		expect(diag.filePath).toBe(path.join("src", "index.ts"));
+		expect(diag.filePath).toBe("src/index.ts");
 		expect(diag.line).toBe(2);
 		expect(diag.message).toContain("totally-made-up-package");
 	});
@@ -420,7 +420,10 @@ import Logo from "@site/src/components/Logo";
 	});
 
 	it("does not flag wasp SDK imports in apps with main.wasp", async () => {
-		writeFile("mage/package.json", JSON.stringify({ name: "mage", dependencies: { react: "^19.0.0" } }));
+		writeFile(
+			"mage/package.json",
+			JSON.stringify({ name: "mage", dependencies: { react: "^19.0.0" } }),
+		);
 		writeFile("mage/main.wasp", "app MageApp {}\n");
 		writeFile(
 			"mage/src/App.tsx",
@@ -545,9 +548,11 @@ import { helper } from "@wasp.sh/lib-auth/internal";
 		);
 		writeFile(
 			"src/app.ts",
-			[`import { Button } from "@/components/Button";`, `import { User } from "models/User";`, ``].join(
-				"\n",
-			),
+			[
+				`import { Button } from "@/components/Button";`,
+				`import { User } from "models/User";`,
+				``,
+			].join("\n"),
 		);
 
 		const diags = await detectHallucinatedImports(buildContext());
@@ -929,7 +934,8 @@ dependencies = ["pydantic[email] >= 2.0.0"]
 		const diagnostics = await detectHallucinatedImports(buildContext());
 
 		expect(diagnostics).toHaveLength(1);
-		expect(diagnostics[0].filePath).toBe(path.join("src", "root.py"));
+		// Diagnostics report POSIX-relative paths on every OS (see utils/paths relativePosix).
+		expect(diagnostics[0].filePath).toBe("src/root.py");
 		expect(diagnostics[0].message).toContain("pydantic");
 	});
 
@@ -1073,7 +1079,7 @@ describe("detectHallucinatedImports — guards", () => {
 		const diagnostics = await detectHallucinatedImports(buildContext());
 
 		expect(diagnostics).toHaveLength(1);
-		expect(diagnostics[0].filePath).toBe(path.join("src", "index.ts"));
+		expect(diagnostics[0].filePath).toBe("src/index.ts");
 		expect(diagnostics[0].message).toContain("made-up-js");
 	});
 });

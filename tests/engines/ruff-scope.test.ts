@@ -54,7 +54,10 @@ const buildContext = (rootDirectory: string, files?: string[]): EngineContext =>
 	},
 });
 
-describe("ruff scope", () => {
+// The fake ruff is a POSIX shebang shim. Node refuses to spawn script shims (.cmd/.bat or
+// extension-less shebang files) without a shell on Windows (EINVAL), and runSubprocess spawns
+// shell-lessly by design. Ruff scoping logic is OS-independent and is covered on POSIX CI.
+describe.skipIf(process.platform === "win32")("ruff scope", () => {
 	let tmpDir: string;
 	let fakeRuffPath: string;
 
