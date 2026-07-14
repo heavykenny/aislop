@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -7,6 +8,12 @@ import { discoverProject } from "../src/utils/discover.js";
 // Helpers to create fake project directories
 const createFile = (dir: string, filename: string, content = "") => {
 	fs.writeFileSync(path.join(dir, filename), content, "utf-8");
+};
+
+// Source-file discovery walks the git index, so source-based language detection
+// only fires inside a git repo (which every real aislop target is).
+const gitInit = (dir: string) => {
+	execFileSync("git", ["init", "-q"], { cwd: dir });
 };
 
 describe("discoverProject", () => {
@@ -130,6 +137,57 @@ describe("discoverProject", () => {
 	});
 
 	it("returns empty languages array when no signals are found", async () => {
+		const info = await discoverProject(tmpDir);
+		expect(info.languages).toEqual([]);
+	});
+
+	// ─── Source-file-based language detection (no manifest present) ──────────────
+
+	it("detects python from a .py source file when no manifest is present", async () => {
+		gitInit(tmpDir);
+		createFile(tmpDir, "main.py", "import os\n");
+		const info = await discoverProject(tmpDir);
+		expect(info.languages).toContain("python");
+	});
+
+	it("detects go from a .go source file when no manifest is present", async () => {
+		gitInit(tmpDir);
+		createFile(tmpDir, "main.go", "package main\n");
+		const info = await discoverProject(tmpDir);
+		expect(info.languages).toContain("go");
+	});
+
+	it("detects rust from a .rs source file when no manifest is present", async () => {
+		gitInit(tmpDir);
+		createFile(tmpDir, "main.rs", "fn main() {}\n");
+		const info = await discoverProject(tmpDir);
+		expect(info.languages).toContain("rust");
+	});
+
+	it("detects ruby from a .rb source file when no manifest is present", async () => {
+		gitInit(tmpDir);
+		createFile(tmpDir, "app.rb", "puts 'hi'\n");
+		const info = await discoverProject(tmpDir);
+		expect(info.languages).toContain("ruby");
+	});
+
+	it("detects java from a .java source file when no manifest is present", async () => {
+		gitInit(tmpDir);
+		createFile(tmpDir, "Main.java", "class Main {}\n");
+		const info = await discoverProject(tmpDir);
+		expect(info.languages).toContain("java");
+	});
+
+	it("detects php from a .php source file when no manifest is present", async () => {
+		gitInit(tmpDir);
+		createFile(tmpDir, "index.php", "<?php\n");
+		const info = await discoverProject(tmpDir);
+		expect(info.languages).toContain("php");
+	});
+
+	it("still detects no languages for a git repo with only non-source files", async () => {
+		gitInit(tmpDir);
+		createFile(tmpDir, "README.md", "# hi\n");
 		const info = await discoverProject(tmpDir);
 		expect(info.languages).toEqual([]);
 	});
