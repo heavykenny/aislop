@@ -1,4 +1,5 @@
 import type { Language } from "../../utils/discover.js";
+import { projectRelativePosix } from "../../utils/paths.js";
 import { runSubprocess } from "../../utils/subprocess.js";
 import type { Diagnostic, EngineContext } from "../types.js";
 
@@ -6,14 +7,21 @@ export const runGenericLinter = async (
 	context: EngineContext,
 	language: Language,
 ): Promise<Diagnostic[]> => {
+	let diagnostics: Diagnostic[];
 	switch (language) {
 		case "rust":
-			return runClippy(context);
+			diagnostics = await runClippy(context);
+			break;
 		case "ruby":
-			return runRubocop(context);
+			diagnostics = await runRubocop(context);
+			break;
 		default:
 			return [];
 	}
+	return diagnostics.map((diagnostic) => ({
+		...diagnostic,
+		filePath: projectRelativePosix(context.rootDirectory, diagnostic.filePath),
+	}));
 };
 
 export const fixRubyLint = async (rootDirectory: string): Promise<void> => {

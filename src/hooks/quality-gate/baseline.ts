@@ -26,10 +26,26 @@ const fingerprintDiagnostic = (d: Diagnostic, rootDirectory: string): string => 
 	return `${rel}:${d.line}:${d.rule}`;
 };
 
-// Markerless baselines captured on Windows may contain native separators. Only migrate
-// them on Windows, where a backslash cannot be part of a filename. On POSIX systems it
-// can be a valid filename character, so normalizing a markerless baseline would be lossy.
+// Markerless baselines captured on Windows may contain native separators. On POSIX,
+// preserve a backslash only when the fingerprint resolves to an existing literal filename.
+// This lets copied Windows baselines migrate without corrupting real POSIX paths.
 const normalizeLegacyFingerprint = (fingerprint: string): string => fingerprint.replace(/\\/g, "/");
+
+const hasExistingLiteralBackslashPath = (cwd: string, fingerprint: string): boolean => {
+	if (process.platform === "win32") return false;
+	const match = fingerprint.match(/^(.*):\d+:[^:]+$/);
+	const fingerprintPath = match?.[1];
+	if (!fingerprintPath?.includes("\\")) return false;
+	const absolutePath = path.resolve(cwd, fingerprintPath);
+	const relativePath = path.relative(cwd, absolutePath);
+	if (relativePath === ".." || relativePath.startsWith(`..${path.sep}`)) return false;
+	return !path.isAbsolute(relativePath) && fs.existsSync(absolutePath);
+};
+
+const migrateMarkerlessFingerprint = (cwd: string, fingerprint: string): string =>
+	hasExistingLiteralBackslashPath(cwd, fingerprint)
+		? fingerprint
+		: normalizeLegacyFingerprint(fingerprint);
 
 const BASELINE_REL = path.join(".aislop", "baseline.json");
 
@@ -46,7 +62,7 @@ export const readBaseline = (cwd: string): Baseline | null => {
 			return null;
 		}
 		const findingFingerprints = parsed.findingFingerprints ?? [];
-		const needsWindowsMigration = parsed.pathFormat !== "posix" && process.platform === "win32";
+		const needsWindowsMigration = parsed.pathFormat !== "posix";
 		return {
 			schema: "aislop.baseline.v2",
 			pathFormat: "posix",
@@ -56,7 +72,7 @@ export const readBaseline = (cwd: string): Baseline | null => {
 			fileCount: parsed.fileCount ?? 0,
 			commit: parsed.commit,
 			findingFingerprints: needsWindowsMigration
-				? findingFingerprints.map(normalizeLegacyFingerprint)
+				? findingFingerprints.map((fingerprint) => migrateMarkerlessFingerprint(cwd, fingerprint))
 				: findingFingerprints,
 		};
 	} catch {

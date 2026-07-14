@@ -54,9 +54,27 @@ describe("baseline read/write", () => {
 				findingFingerprints: ["src\\utils\\x.ts:10:ai-slop/foo"],
 			}),
 		);
-		vi.spyOn(process, "platform", "get").mockReturnValue("win32");
+		vi.spyOn(process, "platform", "get").mockReturnValue("darwin");
 		const read = readBaseline(cwd);
 		expect(read?.findingFingerprints).toEqual(["src/utils/x.ts:10:ai-slop/foo"]);
+	});
+
+	it("preserves an existing literal backslash path in a markerless POSIX baseline", () => {
+		const literalPath = path.join(cwd, "src", "foo\\bar.ts");
+		fs.mkdirSync(path.dirname(literalPath), { recursive: true });
+		fs.writeFileSync(literalPath, "export const value = 1;\n");
+		fs.mkdirSync(path.join(cwd, ".aislop"));
+		fs.writeFileSync(
+			path.join(cwd, ".aislop", "baseline.json"),
+			JSON.stringify({
+				schema: "aislop.baseline.v2",
+				findingFingerprints: ["src/foo\\bar.ts:10:ai-slop/foo"],
+			}),
+		);
+		vi.spyOn(process, "platform", "get").mockReturnValue("darwin");
+
+		const read = readBaseline(cwd);
+		expect(read?.findingFingerprints).toEqual(["src/foo\\bar.ts:10:ai-slop/foo"]);
 	});
 
 	it("preserves a valid POSIX filename containing a backslash", () => {
