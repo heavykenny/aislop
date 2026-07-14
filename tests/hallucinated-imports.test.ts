@@ -1376,7 +1376,7 @@ dependencies = ["sqlalchemy>=2.0"]
 		const diagnostics = await detectHallucinatedImports(buildContext());
 
 		expect(diagnostics).toHaveLength(1);
-		expect(diagnostics[0].filePath).toBe(path.join("tools", "report.py"));
+		expect(diagnostics[0].filePath).toBe("tools/report.py");
 		expect(diagnostics[0].message).toContain("sqlalchemy");
 	});
 
@@ -1536,7 +1536,7 @@ managed = false
 		expect(
 			diagnostics.some(
 				(diagnostic) =>
-					diagnostic.filePath === path.join("src", "main.py") &&
+				diagnostic.filePath === "src/main.py" &&
 					diagnostic.message.includes("boto3"),
 			),
 		).toBe(true);
@@ -1626,7 +1626,7 @@ dependencies = ["sqlalchemy>=2.0"]
 		expect(
 			diagnostics.every(
 				(diagnostic) =>
-					diagnostic.filePath === path.join("packages", "seeds", "src", "seeds", "load.py"),
+				diagnostic.filePath === "packages/seeds/src/seeds/load.py",
 			),
 		).toBe(true);
 	});

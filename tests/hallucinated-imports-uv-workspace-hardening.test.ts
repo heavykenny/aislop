@@ -89,7 +89,7 @@ dependencies = ["boto3"]
 		expect(
 			diagnostics.some(
 				(diagnostic) =>
-					diagnostic.filePath === path.join("src", "main.py") &&
+				diagnostic.filePath === "src/main.py" &&
 					diagnostic.message.includes("boto3"),
 			),
 		).toBe(true);
