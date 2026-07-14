@@ -183,6 +183,9 @@ const maskJs = (content: string, maskStrings: boolean): string => {
 		) {
 			const regexEnd = consumeRegex(content, i);
 			if (regexEnd !== -1) {
+				// A regex body can contain braces and quotes; blank it like a string
+				// so structural passes over the masked text never see them.
+				if (maskStrings) mask(i + 1, regexEnd);
 				i = regexEnd;
 				continue;
 			}
