@@ -7,6 +7,7 @@ import { renderDisplayRows, renderDisplaySection } from "../ui/display.js";
 import { renderHeader } from "../ui/header.js";
 import { log } from "../ui/logger.js";
 import { confirm, isCancel } from "../ui/prompts.js";
+import { toPosix } from "../utils/paths.js";
 import { APP_VERSION } from "../version.js";
 import { applyDiff } from "./agent-local-cli.js";
 import { resolveAgentGitRoot } from "./agent-session-root.js";
@@ -42,7 +43,7 @@ const isInside = (base: string, target: string): boolean => {
 };
 
 const displayPath = (base: string, target: string): string =>
-	isInside(base, target) ? path.relative(base, target) || "." : target;
+	isInside(base, target) ? toPosix(path.relative(base, target)) || "." : target;
 
 const appendApplyEvent = (
 	sessionPath: string,

@@ -131,6 +131,27 @@ const PYTHON_SIGNALS = [
 
 const JAVA_SIGNALS = ["pom.xml", "build.gradle", "build.gradle.kts"];
 
+// Source-file extensions map directly to a language. This lets us recognize a
+// project from its actual source files even when no manifest/build file is
+// present (e.g. a bare directory of .py files with no pyproject.toml). Without
+// this, manifest-only languages (python, go, rust, ruby, java, php) stay
+// undetected and every engine gated on languages.includes(...) silently skips.
+const EXTENSION_LANGUAGES: Record<string, Language> = {
+	".ts": "typescript",
+	".tsx": "typescript",
+	".js": "javascript",
+	".jsx": "javascript",
+	".mjs": "javascript",
+	".cjs": "javascript",
+	".py": "python",
+	".pyi": "python",
+	".go": "go",
+	".rs": "rust",
+	".rb": "ruby",
+	".java": "java",
+	".php": "php",
+};
+
 const FRAMEWORK_PACKAGES: Record<string, Framework> = {
 	next: "nextjs",
 	react: "react",
@@ -174,11 +195,13 @@ const readPackageJson = (filePath: string): PackageJson | null => {
 	}
 };
 
-const countSourceFiles = (rootDirectory: string): number =>
-	getSourceFilesForRoot(rootDirectory).length;
-
-const detectLanguages = (directory: string): Language[] => {
+const detectLanguages = (directory: string, sourceFiles: string[]): Language[] => {
 	const languages = new Set<Language>();
+
+	for (const sourceFile of sourceFiles) {
+		const lang = EXTENSION_LANGUAGES[path.extname(sourceFile).toLowerCase()];
+		if (lang) languages.add(lang);
+	}
 
 	for (const [file, lang] of Object.entries(LANGUAGE_SIGNALS)) {
 		if (fs.existsSync(path.join(directory, file))) {
@@ -293,9 +316,10 @@ export const discoverProject = async (
 	excludePatterns: string[] = [],
 ): Promise<ProjectInfo> => {
 	const resolvedDir = path.resolve(directory);
-	const languages = detectLanguages(resolvedDir);
+	const sourceFiles = getSourceFilesForRoot(resolvedDir);
+	const languages = detectLanguages(resolvedDir, sourceFiles);
 	const frameworks = detectFrameworks(resolvedDir);
-	const sourceFileCount = countSourceFiles(resolvedDir);
+	const sourceFileCount = sourceFiles.length;
 	const coverage = analyzeCoverage(resolvedDir, excludePatterns);
 	const installedTools = await checkInstalledTools();
 
