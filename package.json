@@ -104,7 +104,7 @@
     "typescript": "^5.9.3",
     "wcwidth": "^1.0.1",
     "yaml": "^2.9.0",
-    "zod": "^4.3.6"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/micromatch": "^4.0.10",
