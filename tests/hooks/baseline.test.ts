@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	appendSessionFiles,
 	baselinePath,
@@ -18,6 +18,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+	vi.restoreAllMocks();
 	fs.rmSync(cwd, { recursive: true, force: true });
 });
 
@@ -53,8 +54,23 @@ describe("baseline read/write", () => {
 				findingFingerprints: ["src\\utils\\x.ts:10:ai-slop/foo"],
 			}),
 		);
+		vi.spyOn(process, "platform", "get").mockReturnValue("win32");
 		const read = readBaseline(cwd);
 		expect(read?.findingFingerprints).toEqual(["src/utils/x.ts:10:ai-slop/foo"]);
+	});
+
+	it("preserves a valid POSIX filename containing a backslash", () => {
+		writeBaseline(cwd, {
+			schema: "aislop.baseline.v2",
+			updatedAt: "2026-04-19T00:00:00Z",
+			score: 87,
+			byEngine: { lint: 95 },
+			fileCount: 1,
+			findingFingerprints: ["src/foo\\bar.ts:10:ai-slop/foo"],
+		});
+
+		const read = readBaseline(cwd);
+		expect(read?.findingFingerprints).toEqual(["src/foo\\bar.ts:10:ai-slop/foo"]);
 	});
 
 	it("reads a legacy v1 baseline and normalises to v2 with empty fingerprints", () => {

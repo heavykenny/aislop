@@ -10,6 +10,7 @@ import { atomicWrite, readIfExists } from "../io/atomic-write.js";
 
 interface Baseline {
 	schema: "aislop.baseline.v2";
+	pathFormat?: "posix";
 	updatedAt: string;
 	score: number;
 	byEngine: Record<string, number>;
@@ -25,10 +26,9 @@ const fingerprintDiagnostic = (d: Diagnostic, rootDirectory: string): string => 
 	return `${rel}:${d.line}:${d.rule}`;
 };
 
-// Baselines captured on Windows before fingerprints were POSIX-normalized stored
-// backslash paths. Convert them to forward slashes on read so they still match the
-// fingerprints we now produce, instead of every prior finding looking new after upgrade.
-// Rule ids and line numbers never contain a backslash, so this only touches the path.
+// Markerless baselines captured on Windows may contain native separators. Only migrate
+// them on Windows, where a backslash cannot be part of a filename. On POSIX systems it
+// can be a valid filename character, so normalizing a markerless baseline would be lossy.
 const normalizeLegacyFingerprint = (fingerprint: string): string => fingerprint.replace(/\\/g, "/");
 
 const BASELINE_REL = path.join(".aislop", "baseline.json");
@@ -45,14 +45,19 @@ export const readBaseline = (cwd: string): Baseline | null => {
 		if (parsed.schema !== "aislop.baseline.v2" && parsed.schema !== "aislop.baseline.v1") {
 			return null;
 		}
+		const findingFingerprints = parsed.findingFingerprints ?? [];
+		const needsWindowsMigration = parsed.pathFormat !== "posix" && process.platform === "win32";
 		return {
 			schema: "aislop.baseline.v2",
+			pathFormat: "posix",
 			updatedAt: parsed.updatedAt ?? "",
 			score: parsed.score ?? 0,
 			byEngine: parsed.byEngine ?? {},
 			fileCount: parsed.fileCount ?? 0,
 			commit: parsed.commit,
-			findingFingerprints: (parsed.findingFingerprints ?? []).map(normalizeLegacyFingerprint),
+			findingFingerprints: needsWindowsMigration
+				? findingFingerprints.map(normalizeLegacyFingerprint)
+				: findingFingerprints,
 		};
 	} catch {
 		return null;
@@ -61,7 +66,7 @@ export const readBaseline = (cwd: string): Baseline | null => {
 
 export const writeBaseline = (cwd: string, baseline: Baseline): string => {
 	const target = baselinePath(cwd);
-	atomicWrite(target, `${JSON.stringify(baseline, null, 2)}\n`);
+	atomicWrite(target, `${JSON.stringify({ ...baseline, pathFormat: "posix" }, null, 2)}\n`);
 	return target;
 };
 
@@ -119,6 +124,7 @@ export const captureBaseline = async (
 		.map((d) => fingerprintDiagnostic(d, project.rootDirectory));
 	const baseline: Baseline = {
 		schema: "aislop.baseline.v2",
+		pathFormat: "posix",
 		updatedAt: new Date().toISOString(),
 		score,
 		byEngine,
