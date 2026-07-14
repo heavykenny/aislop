@@ -117,7 +117,10 @@ export const agentUseCommand = async (
 					renderDisplaySection("Dry run"),
 					...renderDisplayRows([
 						{ label: "Provider", value: `${providerLabel(provider)} (${provider})` },
-						{ label: "Preference", value: displayAgentPath(root, agentProviderPreferencePath(root)) },
+						{
+							label: "Preference",
+							value: displayAgentPath(root, agentProviderPreferencePath(root)),
+						},
 					]),
 					"",
 				].join("\n")}`,

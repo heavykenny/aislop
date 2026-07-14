@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
+import { dropGitIgnoredPaths } from "../../utils/git-ignore.js";
 import { relativePosix } from "../../utils/paths.js";
 import { parseJsonc } from "../../utils/read-jsonc.js";
 import { runSubprocess } from "../../utils/subprocess.js";
@@ -12,7 +13,7 @@ const esmRequire = createRequire(import.meta.url);
 // tsc non-pretty output: `path/to/file.ts(line,col): error TSnnnn: message`
 const TSC_LINE_RE = /^(.+?)\((\d+),(\d+)\):\s+(error|warning)\s+TS(\d+):\s+(.+)$/;
 
-const findTsconfigs = (root: string): string[] => {
+export const findTsconfigs = (root: string): string[] => {
 	const results: string[] = [];
 	const walk = (dir: string, depth: number) => {
 		if (depth > MAX_DEPTH) return;
@@ -30,7 +31,10 @@ const findTsconfigs = (root: string): string[] => {
 		}
 	};
 	walk(root, 0);
-	return results;
+	// Honor .gitignore: the raw walk would otherwise run tsc on tsconfigs under ignored
+	// directories (spikes, scratch checkouts) that the git-aware source scan already skips,
+	// flooding the report with type errors from code that was never meant to ship.
+	return dropGitIgnoredPaths(root, results);
 };
 
 export const resolveTrustedTscPath = (): string | null => {
