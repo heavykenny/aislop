@@ -36,10 +36,21 @@ const hasExistingLiteralBackslashPath = (cwd: string, fingerprint: string): bool
 	const match = fingerprint.match(/^(.*):\d+:[^:]+$/);
 	const fingerprintPath = match?.[1];
 	if (!fingerprintPath?.includes("\\")) return false;
-	const absolutePath = path.resolve(cwd, fingerprintPath);
-	const relativePath = path.relative(cwd, absolutePath);
-	if (relativePath === ".." || relativePath.startsWith(`..${path.sep}`)) return false;
-	return !path.isAbsolute(relativePath) && fs.existsSync(absolutePath);
+	try {
+		const absolutePath = path.resolve(cwd, fingerprintPath);
+		const stats = fs.lstatSync(absolutePath);
+		if (!stats.isFile() || stats.isSymbolicLink()) return false;
+		const realRoot = fs.realpathSync(cwd);
+		const realPath = fs.realpathSync(absolutePath);
+		const relativePath = path.relative(realRoot, realPath);
+		return (
+			!path.isAbsolute(relativePath) &&
+			relativePath !== ".." &&
+			!relativePath.startsWith(`..${path.sep}`)
+		);
+	} catch {
+		return false;
+	}
 };
 
 const migrateMarkerlessFingerprint = (cwd: string, fingerprint: string): string =>

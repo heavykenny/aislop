@@ -1,5 +1,5 @@
 import path from "node:path";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { EngineContext } from "../src/engines/types.js";
 import type { Language } from "../src/utils/discover.js";
 
@@ -28,6 +28,10 @@ const context: EngineContext = {
 
 beforeEach(() => {
 	runSubprocess.mockReset();
+});
+
+afterEach(() => {
+	vi.restoreAllMocks();
 });
 
 describe("generic engine diagnostic paths", () => {
@@ -73,6 +77,21 @@ describe("generic engine diagnostic paths", () => {
 		});
 
 		const diagnostics = await runGenericLinter(context, "rust");
+		expect(diagnostics[0]?.filePath).toBe("src/lib.rs");
+	});
+
+	it("normalizes a namespaced absolute Windows rustfmt path", async () => {
+		vi.spyOn(process, "platform", "get").mockReturnValue("win32");
+		runSubprocess.mockResolvedValue({
+			stdout: "Diff in \\\\?\\C:\\repo\\src\\lib.rs at line 3:",
+			stderr: "",
+			exitCode: 1,
+		});
+
+		const diagnostics = await runGenericFormatter(
+			{ ...context, rootDirectory: "C:\\repo" },
+			"rust",
+		);
 		expect(diagnostics[0]?.filePath).toBe("src/lib.rs");
 	});
 

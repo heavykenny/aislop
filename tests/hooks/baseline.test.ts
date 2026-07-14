@@ -77,6 +77,32 @@ describe("baseline read/write", () => {
 		expect(read?.findingFingerprints).toEqual(["src/foo\\bar.ts:10:ai-slop/foo"]);
 	});
 
+	it.runIf(process.platform !== "win32")(
+		"does not trust a literal-backslash symlink that resolves outside the project",
+		() => {
+			const outsideFile = path.join(os.tmpdir(), `aislop-baseline-outside-${Date.now()}.ts`);
+			const symlinkPath = path.join(cwd, "src", "probe\\name.ts");
+			try {
+				fs.writeFileSync(outsideFile, "export const outside = true;\n");
+				fs.mkdirSync(path.dirname(symlinkPath), { recursive: true });
+				fs.symlinkSync(outsideFile, symlinkPath);
+				fs.mkdirSync(path.join(cwd, ".aislop"));
+				fs.writeFileSync(
+					path.join(cwd, ".aislop", "baseline.json"),
+					JSON.stringify({
+						schema: "aislop.baseline.v2",
+						findingFingerprints: ["src/probe\\name.ts:10:ai-slop/foo"],
+					}),
+				);
+
+				const read = readBaseline(cwd);
+				expect(read?.findingFingerprints).toEqual(["src/probe/name.ts:10:ai-slop/foo"]);
+			} finally {
+				fs.rmSync(outsideFile, { force: true });
+			}
+		},
+	);
+
 	it("preserves a valid POSIX filename containing a backslash", () => {
 		writeBaseline(cwd, {
 			schema: "aislop.baseline.v2",
