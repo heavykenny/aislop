@@ -3,13 +3,13 @@ import path from "node:path";
 import { collectWorkspaceDirs } from "./js-workspaces.js";
 import { collectPythonDeps, type PythonDependencyScope } from "./python-manifest.js";
 
-export interface JsDependencyScope {
+interface JsDependencyScope {
 	directory: string;
 	jsDeps: Set<string>;
 	packageName?: string;
 }
 
-export interface PackageManifest {
+interface PackageManifest {
 	jsDeps: Set<string>;
 	jsScopes: JsDependencyScope[];
 	pyDeps: Set<string>;
