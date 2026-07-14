@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
+import { projectRelativePosix } from "../../utils/paths.js";
 import { getSourceFiles } from "../../utils/source-files.js";
 import { runSubprocess } from "../../utils/subprocess.js";
 import type { Diagnostic, EngineContext } from "../types.js";
@@ -144,7 +145,7 @@ const parseBiomeJsonOutput = (output: string, rootDir: string): Diagnostic[] => 
 					? "File is not formatted correctly"
 					: rawMessage;
 			diagnostics.push({
-				filePath: path.isAbsolute(rawPath) ? path.relative(rootDir, rawPath) : rawPath,
+				filePath: projectRelativePosix(rootDir, rawPath),
 				engine: "format",
 				rule: "formatting",
 				severity,

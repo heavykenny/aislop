@@ -19,6 +19,7 @@ import {
 import { renderHeader } from "../ui/header.js";
 import { log } from "../ui/logger.js";
 import { APP_VERSION } from "../version.js";
+import { displayAgentPath } from "./agent-display-path.js";
 
 interface AgentUseOptions {
 	root: string;
@@ -49,7 +50,7 @@ const renderCurrentPreference = (root: string): string => {
 	}
 	const rows = [
 		{ label: "Provider", value: `${providerLabel(preference.provider)} (${preference.provider})` },
-		{ label: "Preference", value: agentProviderPreferencePath(root) },
+		{ label: "Preference", value: displayAgentPath(root, agentProviderPreferencePath(root)) },
 		...(preference.updatedAt ? [{ label: "Updated", value: preference.updatedAt }] : []),
 	];
 	return `${[renderDisplaySection("Default"), ...renderDisplayRows(rows), ""].join("\n")}`;
@@ -116,7 +117,10 @@ export const agentUseCommand = async (
 					renderDisplaySection("Dry run"),
 					...renderDisplayRows([
 						{ label: "Provider", value: `${providerLabel(provider)} (${provider})` },
-						{ label: "Preference", value: agentProviderPreferencePath(root) },
+						{
+							label: "Preference",
+							value: displayAgentPath(root, agentProviderPreferencePath(root)),
+						},
 					]),
 					"",
 				].join("\n")}`,
@@ -127,7 +131,7 @@ export const agentUseCommand = async (
 		log.success(`Default provider set to ${providerLabel(provider)} (${provider}).`);
 		process.stdout.write(
 			`${renderDisplayRows([
-				{ label: "Preference", value: agentProviderPreferencePath(root) },
+				{ label: "Preference", value: displayAgentPath(root, agentProviderPreferencePath(root)) },
 				...(preference.updatedAt ? [{ label: "Updated", value: preference.updatedAt }] : []),
 			]).join("\n")}\n`,
 		);

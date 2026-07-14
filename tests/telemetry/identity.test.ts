@@ -9,7 +9,7 @@ const makeTempHome = () => fs.mkdtempSync(path.join(os.tmpdir(), "aislop-telemet
 describe("resolveInstallIdPath", () => {
 	it("uses ~/.aislop/install_id by default", () => {
 		const p = resolveInstallIdPath("/tmp/fake-home", {});
-		expect(p).toBe("/tmp/fake-home/.aislop/install_id");
+		expect(p).toBe(path.join("/tmp/fake-home", ".aislop", "install_id"));
 	});
 
 	it("honors XDG_STATE_HOME on linux", () => {
@@ -46,11 +46,16 @@ describe("ensureInstallId", () => {
 		expect(second.installId).toBe(first.installId);
 	});
 
-	it("writes the file with 0600 permissions", () => {
+	it("writes the file with owner-only permissions where the OS enforces them", () => {
 		const idPath = path.join(tmpHome, "install_id");
 		ensureInstallId(idPath);
-		const mode = fs.statSync(idPath).mode & 0o777;
-		expect(mode).toBe(0o600);
+		if (process.platform === "win32") {
+			// Windows does not honor POSIX permission bits; assert the file exists instead.
+			expect(fs.existsSync(idPath)).toBe(true);
+		} else {
+			const mode = fs.statSync(idPath).mode & 0o777;
+			expect(mode).toBe(0o600);
+		}
 	});
 
 	it("creates the parent directory if missing", () => {

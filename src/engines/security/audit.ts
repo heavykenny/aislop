@@ -20,6 +20,24 @@ export const shouldRunDependencyAudit = (context: EngineContext): boolean => {
 	);
 };
 
+// Dependency metadata that makes pip-audit meaningful for this project (mirrors the
+// PYTHON_SIGNALS used for language detection). A bare `pip-audit` invocation audits the
+// ambient Python environment aislop runs under, not the repo, so when none of these is
+// present - e.g. a source-only tree now detected as Python, or an unscoped run with no
+// `context.files` - the dependency audit must stay off rather than report environment
+// vulnerabilities against a requirements.txt that does not exist.
+const PYTHON_DEPENDENCY_MANIFESTS = [
+	"requirements.txt",
+	"pyproject.toml",
+	"setup.py",
+	"setup.cfg",
+	"Pipfile",
+	"poetry.lock",
+];
+
+const hasPythonDependencyManifest = (rootDir: string): boolean =>
+	PYTHON_DEPENDENCY_MANIFESTS.some((file) => fs.existsSync(path.join(rootDir, file)));
+
 export const runDependencyAudit = async (context: EngineContext): Promise<Diagnostic[]> => {
 	if (!shouldRunDependencyAudit(context)) return [];
 
@@ -42,8 +60,14 @@ export const runDependencyAudit = async (context: EngineContext): Promise<Diagno
 		}
 	}
 
-	// pip-audit
-	if (context.languages.includes("python") && context.installedTools["pip-audit"]) {
+	// pip-audit. Requires a Python dependency manifest: bare pip-audit audits the ambient
+	// environment, so without metadata to scope it the result describes aislop's own
+	// interpreter, not the scanned project.
+	if (
+		context.languages.includes("python") &&
+		context.installedTools["pip-audit"] &&
+		hasPythonDependencyManifest(context.rootDirectory)
+	) {
 		promises.push(runPipAudit(context.rootDirectory, timeout));
 	}
 

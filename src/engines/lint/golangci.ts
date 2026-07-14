@@ -1,4 +1,4 @@
-import path from "node:path";
+import { relativePosix } from "../../utils/paths.js";
 import { runSubprocess } from "../../utils/subprocess.js";
 import { resolveToolBinary } from "../../utils/tooling.js";
 import type { Diagnostic, EngineContext } from "../types.js";
@@ -28,7 +28,7 @@ export const runGolangciLint = async (context: EngineContext): Promise<Diagnosti
 		}
 
 		return (parsed.Issues ?? []).map((issue) => ({
-			filePath: path.relative(context.rootDirectory, issue.Pos.Filename),
+			filePath: relativePosix(context.rootDirectory, issue.Pos.Filename),
 			engine: "lint" as const,
 			rule: `go/${issue.FromLinter}`,
 			severity: "warning" as const,
