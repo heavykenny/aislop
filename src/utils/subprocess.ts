@@ -67,7 +67,8 @@ export const runSubprocess = (
 
 export const isToolInstalled = async (tool: string): Promise<boolean> => {
 	try {
-		const result = await runSubprocess("which", [tool]);
+		const command = process.platform === "win32" ? "where.exe" : "which";
+		const result = await runSubprocess(command, [tool]);
 		return result.exitCode === 0 && result.stdout.length > 0;
 	} catch {
 		return false;
