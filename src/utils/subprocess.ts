@@ -53,6 +53,22 @@ const killProcessTree = (child: ChildProcess): void => {
 	}, 1000).unref();
 };
 
+// Every in-flight child is tracked here so an interactive Ctrl-C can reap it.
+// The timeout path already tree-kills its own child; this registry is for the
+// signal path, where cli.ts's SIGINT/SIGTERM handlers would otherwise call
+// process.exit() and orphan any scanner still running. On POSIX each child is a
+// process-group leader (see the detached spawn below), so killProcessTree
+// signals the whole group; on win32 the children are not detached and already
+// receive the console's Ctrl-C directly, making this a best-effort backstop.
+const activeChildren = new Set<ChildProcess>();
+
+export const killActiveChildren = (): void => {
+	for (const child of activeChildren) {
+		killProcessTree(child);
+	}
+	activeChildren.clear();
+};
+
 interface OutputCapture {
 	tempDir: string;
 	stdoutPath: string;
@@ -125,6 +141,8 @@ export const runSubprocess = (
 			detached: process.platform !== "win32",
 		});
 
+		activeChildren.add(child);
+
 		// Runs exactly once, on whichever of 'close'/'error' fires first (a
 		// spawn failure can still emit 'close' afterward). Not gated behind
 		// `settled`: a timeout already rejected before the killed child's
@@ -133,6 +151,7 @@ export const runSubprocess = (
 		const cleanup = (): { stdout: string; stderr: string } => {
 			if (cleanedUp) return { stdout: "", stderr: "" };
 			cleanedUp = true;
+			activeChildren.delete(child);
 			closeSync(capture.outFd);
 			closeSync(capture.errFd);
 			const stdout = readFileSync(capture.stdoutPath, "utf-8").trim();

@@ -1,8 +1,8 @@
-import { readFileSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { runSubprocess } from "../src/utils/subprocess.js";
+import { killActiveChildren, runSubprocess } from "../src/utils/subprocess.js";
 
 // A zombie still occupies a slot in the process table, so kill(pid, 0)
 // succeeds on it even though it is not really running - it is just waiting
@@ -61,6 +61,65 @@ describe("runSubprocess timeout", () => {
 				await new Promise((resolve) => setTimeout(resolve, 100));
 			}
 			expect(isProcessAlive(grandchildPid)).toBe(false);
+		} finally {
+			if (grandchildPid !== undefined && isProcessAlive(grandchildPid)) {
+				try {
+					process.kill(grandchildPid, "SIGKILL");
+				} catch {}
+			}
+			rmSync(pidFile, { force: true });
+		}
+	});
+});
+
+describe("killActiveChildren", () => {
+	it("reaps in-flight children and their process groups, like a Ctrl-C cleanup", async () => {
+		const pidFile = path.join(tmpdir(), `aislop-sigint-${process.pid}-${Date.now()}.pid`);
+		// Same shape as the tree-kill test: the direct child spawns a grandchild
+		// (a scanner's worker), records its PID, then idles. Nothing here has a
+		// timeout - the tree only dies because killActiveChildren reaps it, which
+		// is exactly what cli.ts's SIGINT handler does when the user presses
+		// Ctrl-C mid-scan.
+		const parentScript = [
+			`const child = require("node:child_process").spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: "ignore", detached: process.platform === "win32" });`,
+			`require("node:fs").writeFileSync(${JSON.stringify(pidFile)}, String(child.pid));`,
+			"setInterval(() => {}, 1000);",
+		].join("\n");
+
+		let grandchildPid: number | undefined;
+		// runSubprocess registers the child synchronously, so it is already in the
+		// active set by the time this returns; no timeout means it stays there
+		// until killActiveChildren fires.
+		const promise = runSubprocess(process.execPath, ["-e", parentScript], {});
+		try {
+			// Wait until the child has spawned its grandchild and written a valid
+			// PID before triggering the cleanup.
+			const spawnDeadline = Date.now() + 5000;
+			while (Date.now() < spawnDeadline) {
+				if (existsSync(pidFile)) {
+					const raw = readFileSync(pidFile, "utf-8").trim();
+					if (raw && Number.isInteger(Number(raw))) {
+						grandchildPid = Number(raw);
+						break;
+					}
+				}
+				await new Promise((resolve) => setTimeout(resolve, 50));
+			}
+			expect(grandchildPid).toBeDefined();
+
+			killActiveChildren();
+
+			// The direct child dies with the cleanup; runSubprocess resolves once
+			// its 'close' fires (a signal-killed child reports exitCode null).
+			await promise;
+
+			// The kill is asynchronous (taskkill on Windows, signal escalation
+			// elsewhere) - poll rather than asserting instantly.
+			const deadline = Date.now() + 5000;
+			while (grandchildPid !== undefined && isProcessAlive(grandchildPid) && Date.now() < deadline) {
+				await new Promise((resolve) => setTimeout(resolve, 100));
+			}
+			expect(grandchildPid !== undefined && isProcessAlive(grandchildPid)).toBe(false);
 		} finally {
 			if (grandchildPid !== undefined && isProcessAlive(grandchildPid)) {
 				try {
