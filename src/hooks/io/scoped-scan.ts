@@ -4,9 +4,15 @@ import { findConfigDir, loadConfig, RULES_FILE } from "../../config/index.js";
 import { runEngines } from "../../engines/orchestrator.js";
 import type { Diagnostic, EngineContext, EngineName } from "../../engines/types.js";
 import { calculateScore } from "../../scoring/index.js";
+import { applyRuleSeverities } from "../../scoring/rule-severity.js";
 import { discoverProject } from "../../utils/discover.js";
-import { getChangedFiles } from "../../utils/git.js";
-import { filterProjectFiles, filterTestFiles } from "../../utils/source-files.js";
+import {
+	filterEnumeratedProjectFiles,
+	filterEnumeratedTestFiles,
+	filterProjectDeclarationFiles,
+	listProjectFilesFromDisk,
+	readAislopIgnorePatterns,
+} from "../../utils/source-files.js";
 
 interface ScopedScanResult {
 	diagnostics: Diagnostic[];
@@ -26,26 +32,72 @@ const existingAbsolutePaths = (cwd: string, files: string[]): string[] =>
 		});
 
 export const resolveHookFiles = (cwd: string, files: string[]): string[] => {
-	const direct = existingAbsolutePaths(cwd, files);
-	if (direct.length > 0) return direct;
-	return existingAbsolutePaths(cwd, getChangedFiles(cwd));
+	return existingAbsolutePaths(cwd, files);
 };
 
 export const runScopedScan = async (
 	cwd: string,
 	filePaths: string[],
 ): Promise<ScopedScanResult> => {
-	const project = await discoverProject(cwd);
-	const config = loadConfig(cwd);
-	const configDir = findConfigDir(project.rootDirectory);
+	const rootDirectory = path.resolve(cwd);
+	const config = loadConfig(rootDirectory);
+	const excludePatterns = [...config.exclude, ...readAislopIgnorePatterns(rootDirectory)];
+	const projectCandidates = listProjectFilesFromDisk(rootDirectory);
+	const projectSourceFiles = filterEnumeratedProjectFiles(
+		rootDirectory,
+		projectCandidates,
+		[],
+		excludePatterns,
+		config.include,
+	);
+	const projectTestFiles = filterEnumeratedTestFiles(
+		rootDirectory,
+		projectCandidates,
+		excludePatterns,
+		config.include,
+	);
+	const project = await discoverProject(rootDirectory, excludePatterns, {
+		installedTools: {},
+		projectFiles: projectCandidates,
+		sourceFiles: projectSourceFiles,
+	});
+	const configDir = findConfigDir(rootDirectory);
 	const rulesPath = configDir ? path.join(configDir, RULES_FILE) : undefined;
+	const enumeratedPaths = new Set(
+		projectCandidates.map((filePath) => path.resolve(rootDirectory, filePath)),
+	);
+	const scopedCandidates = filePaths.filter((filePath) =>
+		enumeratedPaths.has(path.resolve(rootDirectory, filePath)),
+	);
 
 	const context: EngineContext = {
 		rootDirectory: project.rootDirectory,
 		languages: project.languages,
 		frameworks: project.frameworks,
-		files: filterProjectFiles(project.rootDirectory, filePaths),
-		testFiles: filterTestFiles(project.rootDirectory, filePaths),
+		files: filterEnumeratedProjectFiles(
+			project.rootDirectory,
+			scopedCandidates,
+			[],
+			excludePatterns,
+			config.include,
+		),
+		testFiles: filterEnumeratedTestFiles(
+			project.rootDirectory,
+			scopedCandidates,
+			excludePatterns,
+			config.include,
+		),
+		projectFiles: [
+			...new Set([
+				...projectSourceFiles,
+				...filterProjectDeclarationFiles(
+					project.rootDirectory,
+					projectCandidates,
+					excludePatterns,
+					config.include,
+				),
+			]),
+		],
 		installedTools: project.installedTools,
 		config: {
 			quality: config.quality,
@@ -69,12 +121,15 @@ export const runScopedScan = async (
 	};
 
 	const results = await runEngines(context, enabled);
-	const diagnostics = results.flatMap((r) => r.diagnostics);
+	const diagnostics = applyRuleSeverities(
+		results.flatMap((result) => result.diagnostics),
+		config.rules,
+	);
 	const { score } = calculateScore(
 		diagnostics,
 		config.scoring.weights,
 		config.scoring.thresholds,
-		project.sourceFileCount,
+		projectSourceFiles.length + projectTestFiles.length,
 		config.scoring.smoothing,
 		config.scoring.maxPerRule,
 	);

@@ -2,31 +2,25 @@ import fs from "node:fs";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
 import { type AislopConfig, findConfigDir, RULES_FILE } from "../config/index.js";
-import { runEngines } from "../engines/orchestrator.js";
-import type { EngineConfig, EngineName } from "../engines/types.js";
-import { ENGINE_INFO, getEngineLabel } from "../output/engine-info.js";
-import { printEngineStatus, renderDiagnostics } from "../output/terminal.js";
+import type { EngineConfig } from "../engines/types.js";
+import { renderDiagnostics } from "../output/terminal.js";
 import { calculateScore } from "../scoring/index.js";
 import { applyRuleSeverities } from "../scoring/rule-severity.js";
 import { isCiEnv } from "../telemetry/env.js";
 import { type EngineCounts, withCommandLifecycle } from "../telemetry/index.js";
 import { renderDisplayRows } from "../ui/display.js";
 import { renderHeader } from "../ui/header.js";
-import { type GridRow, type GridRowOutcome, LiveGrid } from "../ui/live-grid.js";
 import { log } from "../ui/logger.js";
 import { discoverProject } from "../utils/discover.js";
-import { baseRefExists, getChangedFiles, getStagedFiles } from "../utils/git.js";
+import { baseRefExists } from "../utils/git.js";
 import { appendHistory } from "../utils/history.js";
-import {
-	filterProjectFiles,
-	filterTestFiles,
-	listProjectFiles,
-	readAislopIgnorePatterns,
-} from "../utils/source-files.js";
+import { readAislopIgnorePatterns } from "../utils/source-files.js";
 import { applySuppressions } from "../utils/suppress.js";
 import { APP_VERSION } from "../version.js";
 import { renderCoverageNotice } from "./scan-coverage.js";
+import { runEnginesWithProgress } from "./scan-engine-runner.js";
 import { computeScanExitCode } from "./scan-exit-code.js";
+import { collectScanFileScope, type ScanScopeMode } from "./scan-file-scope.js";
 import { buildScanRender } from "./scan-render.js";
 
 export { buildScanRender } from "./scan-render.js";
@@ -49,11 +43,6 @@ interface ScanOptions {
 // SARIF and JSON are machine outputs: suppress all human chrome on stdout.
 const isMachineOutput = (options: ScanOptions): boolean =>
 	Boolean(options.json) || Boolean(options.sarif);
-
-const shouldUseSpinner = (): boolean =>
-	Boolean(process.stderr.isTTY) && process.env.CI !== "true" && process.env.CI !== "1";
-
-const ALL_ENGINE_NAMES = Object.keys(ENGINE_INFO) as EngineName[];
 
 const renderScopeRow = (value: string): string =>
 	`${renderDisplayRows([{ label: "Scope", value }], { indent: 1 }).join("\n")}\n`;
@@ -117,7 +106,6 @@ const runScanBody = async (
 	const startTime = performance.now();
 	const showHeader = options.showHeader !== false;
 	const machineOutput = isMachineOutput(options);
-	const useLiveProgress = !machineOutput && shouldUseSpinner();
 	const projectName = projectInfo.projectName ?? "project";
 	const language = projectInfo.languages[0] ?? "unknown";
 	const printedHumanHeader = !machineOutput && showHeader;
@@ -134,21 +122,17 @@ const runScanBody = async (
 	}
 
 	const excludePatterns = [...config.exclude, ...readAislopIgnorePatterns(resolvedDir)];
-
-	let candidateFiles: string[];
-	let scopeLabel: string;
-	if (options.staged) {
-		candidateFiles = getStagedFiles(resolvedDir);
-		scopeLabel = "staged file(s)";
-	} else if (options.changes) {
-		candidateFiles = getChangedFiles(resolvedDir, options.base);
-		scopeLabel = options.base ? `changed vs ${options.base} file(s)` : "changed file(s)";
-	} else {
-		candidateFiles = listProjectFiles(resolvedDir);
-		scopeLabel = "file(s) after exclusions";
+	let mode: ScanScopeMode = { kind: "full" };
+	if (options.staged) mode = { kind: "staged" };
+	else if (options.changes) {
+		mode = options.base ? { kind: "changes", base: options.base } : { kind: "changes" };
 	}
-	const files = filterProjectFiles(resolvedDir, candidateFiles, [], excludePatterns);
-	const testFiles = filterTestFiles(resolvedDir, candidateFiles, excludePatterns);
+	const { files, projectFiles, scoreFileCount, scopeLabel, testFiles } = collectScanFileScope({
+		excludePatterns,
+		includePatterns: config.include,
+		mode,
+		rootDirectory: resolvedDir,
+	});
 	if (!machineOutput) {
 		process.stdout.write(renderScopeRow(`${files.length + testFiles.length} ${scopeLabel}`));
 	}
@@ -163,58 +147,20 @@ const runScanBody = async (
 		architectureRulesPath: config.engines.architecture ? rulesPath : undefined,
 	};
 
-	const enabledEngines = ALL_ENGINE_NAMES.filter((engine) => config.engines[engine] !== false);
-	const gridRows: GridRow[] = enabledEngines.map((engine) => ({
-		label: getEngineLabel(engine),
-		status: "queued",
-		key: engine,
-	}));
-	const progressRenderer = useLiveProgress ? new LiveGrid(gridRows) : null;
-
-	progressRenderer?.start();
-
-	const rawResults = await runEngines(
+	const rawResults = await runEnginesWithProgress(
 		{
 			rootDirectory: resolvedDir,
 			languages: projectInfo.languages,
 			frameworks: projectInfo.frameworks,
 			files,
 			testFiles,
+			projectFiles,
 			installedTools: projectInfo.installedTools,
 			config: engineConfig,
 		},
 		config.engines,
-		(engine) => {
-			progressRenderer?.update(engine, { status: "running" });
-		},
-		(result) => {
-			if (result.skipped) {
-				progressRenderer?.update(result.engine, { status: "skipped", summary: "skipped" });
-			} else {
-				const errors = result.diagnostics.filter((d) => d.severity === "error").length;
-				const warnings = result.diagnostics.filter((d) => d.severity === "warning").length;
-				let outcome: GridRowOutcome = "ok";
-				let summary = "0 issues";
-				if (errors > 0) {
-					outcome = "fail";
-					summary = `${errors} error${errors === 1 ? "" : "s"}`;
-				} else if (warnings > 0) {
-					outcome = "warn";
-					summary = `${warnings} warning${warnings === 1 ? "" : "s"}`;
-				}
-				progressRenderer?.update(result.engine, {
-					status: "done",
-					outcome,
-					summary,
-					elapsedMs: result.elapsed,
-				});
-			}
-			if (!machineOutput && !progressRenderer) {
-				printEngineStatus(result);
-			}
-		},
+		machineOutput,
 	);
-	progressRenderer?.stop();
 
 	const severityAdjusted = rawResults.map((result) => ({
 		...result,
@@ -232,7 +178,7 @@ const runScanBody = async (
 		allDiagnostics,
 		config.scoring.weights,
 		config.scoring.thresholds,
-		projectInfo.sourceFileCount,
+		scoreFileCount,
 		config.scoring.smoothing,
 		config.scoring.maxPerRule,
 	);

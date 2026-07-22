@@ -1,8 +1,11 @@
 import fs from "node:fs";
 import { isBuiltin } from "node:module";
 import path from "node:path";
+import { maskStringsAndComments } from "../../utils/source-masker.js";
 import { readJson } from "./hallucinated-imports-manifest.js";
 import type { AliasMatcher } from "./js-import-aliases.js";
+
+export { collectDeclaredModuleMatchers } from "./js-declared-modules.js";
 
 const isJsRelativeOrAbsolute = (spec: string): boolean =>
 	spec.startsWith(".") || spec.startsWith("/") || spec.startsWith("~/");
@@ -14,7 +17,16 @@ const isJsBuiltin = (spec: string): boolean => {
 	return isBuiltin(stripped) || isBuiltin(spec);
 };
 
-const VIRTUAL_MODULE_SCHEME_RE = /^[a-z][a-z0-9+.-]*:/i;
+const VIRTUAL_MODULE_PREFIXES = [
+	"astro:",
+	"virtual:",
+	"bun:",
+	"file:",
+	"http:",
+	"https:",
+	"jsr:",
+	"npm:",
+];
 const DOCUSAURUS_VIRTUAL_PREFIXES = ["@docusaurus/", "@theme/", "@theme-original/", "@site"];
 
 const hasDocusaurusDependency = (jsDeps: Set<string>): boolean => {
@@ -46,7 +58,10 @@ const readWorkspaceGlobs = (pkg: Record<string, unknown>): string[] => {
 const isWaspProjectDirectory = (directory: string): boolean => {
 	try {
 		if (fs.existsSync(path.join(directory, "main.wasp"))) return true;
-		const pkg = readJson(path.join(directory, "package.json")) as Record<string, unknown> | null;
+		const pkg = readJson(path.join(directory, "package.json"), directory) as Record<
+			string,
+			unknown
+		> | null;
 		if (!pkg) return false;
 		return readWorkspaceGlobs(pkg).some((glob) => glob.includes("wasp") || glob.includes(".wasp"));
 	} catch {
@@ -69,10 +84,12 @@ const isWaspSdkImport = (spec: string, filePath: string, rootDirectory: string):
 const isJsVirtualModule = (
 	spec: string,
 	jsDeps: Set<string>,
+	declaredModuleMatchers: AliasMatcher[],
 	filePath: string,
 	rootDirectory: string,
 ): boolean => {
-	if (VIRTUAL_MODULE_SCHEME_RE.test(spec)) return true;
+	if (VIRTUAL_MODULE_PREFIXES.some((prefix) => spec.startsWith(prefix))) return true;
+	if (declaredModuleMatchers.some((matches) => matches(spec, filePath))) return true;
 	if (spec === "bun") return true;
 	if (spec === "unfonts.css" && jsDeps.has("unplugin-fonts")) return true;
 	if (spec.startsWith("~icons/") && jsDeps.has("unplugin-icons")) return true;
@@ -116,36 +133,38 @@ const typesPackageName = (pkg: string): string => {
 // `import { ... } from "x"` written *inside* a string literal in source.
 const STATIC_IMPORT_RE = /^\s*import\s+(?:[\w*{},\s]+\s+from\s+)?["']([^"']+)["']/;
 // Dynamic `import("spec")` and `require("spec")` can appear mid-line by design.
-const DYNAMIC_IMPORT_RE = /(?:import|require)\s*\(\s*["']([^"']+)["']/g;
+const DYNAMIC_IMPORT_RE = /\b(import|require)\s*\(\s*["']([^"']+)["']/g;
 
 export const extractJsImports = (content: string): { spec: string; line: number }[] => {
 	const lines = content.split("\n");
+	const maskedLines = maskStringsAndComments(content, ".js").split("\n");
 	const results: { spec: string; line: number }[] = [];
-	let inTemplateLiteral = false;
 
 	for (let i = 0; i < lines.length; i++) {
 		const line = lines[i];
-
-		for (let j = 0; j < line.length; j++) {
-			if (line[j] === "`" && (j === 0 || line[j - 1] !== "\\")) {
-				inTemplateLiteral = !inTemplateLiteral;
-			}
-		}
-		if (inTemplateLiteral) continue;
 
 		const trimmed = line.trim();
 		if (trimmed.startsWith("//") || trimmed.startsWith("*")) continue;
 
 		const staticMatch = STATIC_IMPORT_RE.exec(line);
-		if (staticMatch && isLikelyRealImportSpec(staticMatch[1])) {
+		const staticKeywordIndex = staticMatch ? line.indexOf("import", staticMatch.index) : -1;
+		if (
+			staticMatch &&
+			staticKeywordIndex >= 0 &&
+			maskedLines[i].slice(staticKeywordIndex, staticKeywordIndex + 6) === "import" &&
+			isLikelyRealImportSpec(staticMatch[1])
+		) {
 			results.push({ spec: staticMatch[1], line: i + 1 });
 		}
 
 		DYNAMIC_IMPORT_RE.lastIndex = 0;
 		let dyn: RegExpExecArray | null = DYNAMIC_IMPORT_RE.exec(line);
 		while (dyn !== null) {
-			if (isLikelyRealImportSpec(dyn[1])) {
-				results.push({ spec: dyn[1], line: i + 1 });
+			if (
+				maskedLines[i].slice(dyn.index, dyn.index + dyn[1].length) === dyn[1] &&
+				isLikelyRealImportSpec(dyn[2])
+			) {
+				results.push({ spec: dyn[2], line: i + 1 });
 			}
 			dyn = DYNAMIC_IMPORT_RE.exec(line);
 		}
@@ -180,6 +199,7 @@ export const checkJsImport = (
 	rawSpec: string,
 	jsDeps: Set<string>,
 	tsAliasMatchers: AliasMatcher[],
+	declaredModuleMatchers: AliasMatcher[],
 	filePath: string,
 	rootDirectory: string,
 ): string | null => {
@@ -187,8 +207,8 @@ export const checkJsImport = (
 	if (spec.length === 0) return null;
 	if (isJsRelativeOrAbsolute(spec)) return null;
 	if (isJsBuiltin(spec)) return null;
-	if (isJsVirtualModule(spec, jsDeps, filePath, rootDirectory)) return null;
-	if (tsAliasMatchers.some((m) => m(spec))) return null;
+	if (isJsVirtualModule(spec, jsDeps, declaredModuleMatchers, filePath, rootDirectory)) return null;
+	if (tsAliasMatchers.some((m) => m(spec, filePath))) return null;
 	const pkg = packageNameFromImport(spec);
 	if (pkg === "@prisma/client" && jsDeps.has("prisma")) return null;
 	if (jsDeps.has(pkg)) return null;

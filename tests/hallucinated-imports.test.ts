@@ -1535,8 +1535,7 @@ managed = false
 		expect(
 			diagnostics.some(
 				(diagnostic) =>
-					diagnostic.filePath === "src/main.py" &&
-					diagnostic.message.includes("boto3"),
+					diagnostic.filePath === "src/main.py" && diagnostic.message.includes("boto3"),
 			),
 		).toBe(true);
 		expect(
@@ -1623,10 +1622,7 @@ dependencies = ["sqlalchemy>=2.0"]
 		expect(diagnostics.some((diagnostic) => diagnostic.message.includes("fastapi"))).toBe(true);
 		expect(diagnostics.some((diagnostic) => diagnostic.message.includes("rich"))).toBe(true);
 		expect(
-			diagnostics.every(
-				(diagnostic) =>
-					diagnostic.filePath === "packages/seeds/src/seeds/load.py",
-			),
+			diagnostics.every((diagnostic) => diagnostic.filePath === "packages/seeds/src/seeds/load.py"),
 		).toBe(true);
 	});
 

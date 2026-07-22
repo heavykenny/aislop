@@ -38,6 +38,7 @@ export interface EngineContext {
 	frameworks: Framework[];
 	files?: string[];
 	testFiles?: string[];
+	projectFiles?: string[];
 	installedTools: Record<string, boolean>;
 	config: EngineConfig;
 }

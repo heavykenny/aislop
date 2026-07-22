@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { safeProjectFilePath } from "../../utils/project-path-safety.js";
 import { collectWorkspaceDirs } from "./js-workspaces.js";
 import { PYTHON_MANIFEST_FILES } from "./python-dependency-parser.js";
 import { collectPythonDeps, type PythonDependencyScope } from "./python-manifest.js";
@@ -23,9 +24,10 @@ interface PackageManifest {
 	workspaceMemberDirs: string[];
 }
 
-export const readJson = (filePath: string): unknown => {
+export const readJson = (filePath: string, rootDirectory = path.dirname(filePath)): unknown => {
 	try {
-		return JSON.parse(fs.readFileSync(filePath, "utf-8"));
+		const safePath = safeProjectFilePath(filePath, rootDirectory);
+		return safePath ? JSON.parse(fs.readFileSync(safePath, "utf-8")) : null;
 	} catch {
 		return null;
 	}
@@ -55,10 +57,9 @@ const mergeDeps = (target: Set<string>, source: Set<string>): void => {
 	for (const dep of source) target.add(dep);
 };
 
-const collectJsScope = (directory: string): JsDependencyScope | null => {
+const collectJsScope = (directory: string, rootDirectory: string): JsDependencyScope | null => {
 	const pkgPath = path.join(directory, "package.json");
-	if (!fs.existsSync(pkgPath)) return null;
-	const pkg = readJson(pkgPath) as Record<string, unknown> | null;
+	const pkg = readJson(pkgPath, rootDirectory) as Record<string, unknown> | null;
 	if (!pkg || typeof pkg !== "object") return null;
 	const jsDeps = new Set<string>();
 	addDepsFromPkg(pkg, jsDeps);
@@ -70,7 +71,7 @@ const collectJsScope = (directory: string): JsDependencyScope | null => {
 const collectJsScopes = (rootDir: string): JsDependencyScope[] => {
 	const scopes: JsDependencyScope[] = [];
 	const walk = (dir: string): void => {
-		const scope = collectJsScope(dir);
+		const scope = collectJsScope(dir, rootDir);
 		if (scope) scopes.push(scope);
 		let entries: import("node:fs").Dirent[];
 		try {
@@ -95,8 +96,7 @@ const collectJsDeps = (
 	jsScopes: JsDependencyScope[],
 ): boolean => {
 	const pkgPath = path.join(rootDir, "package.json");
-	if (!fs.existsSync(pkgPath)) return jsScopes.length > 0;
-	const pkg = readJson(pkgPath) as Record<string, unknown> | null;
+	const pkg = readJson(pkgPath, rootDir) as Record<string, unknown> | null;
 	if (!pkg || typeof pkg !== "object") return jsScopes.length > 0;
 
 	for (const scope of jsScopes) {
@@ -105,7 +105,10 @@ const collectJsDeps = (
 
 	const workspaceDirs = collectWorkspaceDirs(rootDir, pkg);
 	for (const wsDir of workspaceDirs) {
-		const wsPkg = readJson(path.join(wsDir, "package.json")) as Record<string, unknown> | null;
+		const wsPkg = readJson(path.join(wsDir, "package.json"), rootDir) as Record<
+			string,
+			unknown
+		> | null;
 		if (!wsPkg) continue;
 		if (typeof wsPkg.name === "string") jsDeps.add(wsPkg.name);
 		addDepsFromPkg(wsPkg, jsDeps);
