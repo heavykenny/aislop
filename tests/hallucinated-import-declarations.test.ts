@@ -84,4 +84,38 @@ describe("ambient declaration module classification", () => {
 
 		expect(diags).toEqual([]);
 	});
+
+	it("does not trust ambient declarations from excluded paths", async () => {
+		writeFile("package.json", JSON.stringify({ name: "app", dependencies: {} }));
+		writeFile("tests/ambient.d.ts", 'declare module "ghost-module" {}\n');
+		writeFile("fixtures/ambient.d.ts", 'declare module "fixture-ghost-module" {}\n');
+		writeFile("src/ambient_test.d.ts", 'declare module "suffix-ghost-module" {}\n');
+		writeFile("src/test_ambient.d.ts", 'declare module "prefix-ghost-module" {}\n');
+		writeFile("src/ambient.story.d.ts", 'declare module "story-ghost-module" {}\n');
+		writeFile(
+			"src/app.ts",
+			[
+				'import value from "ghost-module";',
+				'import fixture from "fixture-ghost-module";',
+				'import suffix from "suffix-ghost-module";',
+				'import prefix from "prefix-ghost-module";',
+				'import story from "story-ghost-module";',
+				"value();",
+				"fixture();",
+				"suffix();",
+				"prefix();",
+				"story();",
+			].join("\n"),
+		);
+
+		const diags = await detectHallucinatedImports(buildContext());
+
+		expect(diags.map((diag) => diag.message)).toEqual([
+			expect.stringContaining("ghost-module"),
+			expect.stringContaining("fixture-ghost-module"),
+			expect.stringContaining("suffix-ghost-module"),
+			expect.stringContaining("prefix-ghost-module"),
+			expect.stringContaining("story-ghost-module"),
+		]);
+	});
 });
