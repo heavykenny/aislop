@@ -92,7 +92,9 @@ export const scanCommand = async (
 	}
 
 	const excludePatterns = [...config.exclude, ...readAislopIgnorePatterns(resolvedDir)];
-	const projectInfo = await discoverProject(resolvedDir, excludePatterns);
+	const projectInfo = await discoverProject(resolvedDir, excludePatterns, {
+		includePatterns: config.include,
+	});
 	const scanScope = collectScanFileScope({
 		excludePatterns,
 		includePatterns: config.include,

@@ -244,6 +244,7 @@ const checkInstalledTools = async (): Promise<Record<string, boolean>> => {
 };
 
 interface DiscoveryInputs {
+	readonly includePatterns?: string[];
 	readonly installedTools?: Record<string, boolean>;
 	readonly projectFiles?: string[];
 	readonly sourceFiles?: string[];
@@ -256,7 +257,11 @@ export const discoverProject = async (
 ): Promise<ProjectInfo> => {
 	const resolvedDir = path.resolve(directory);
 	const sourceFiles = inputs.sourceFiles ?? getSourceFilesForRoot(resolvedDir);
-	const coverage = analyzeCoverage(resolvedDir, excludePatterns, inputs.projectFiles);
+	const coverage = analyzeCoverage(resolvedDir, {
+		excludePatterns,
+		includePatterns: inputs.includePatterns ?? [],
+		...(inputs.projectFiles ? { projectFiles: inputs.projectFiles } : {}),
+	});
 	const installedTools = inputs.installedTools ?? (await checkInstalledTools());
 	const packageJson = readPackageJson(path.join(resolvedDir, "package.json"));
 	return {

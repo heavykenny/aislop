@@ -46,6 +46,7 @@ interface ScanJsonReport {
 	coverage: {
 		scoreable: boolean;
 		supportedFiles: number;
+		unsupportedFiles: number;
 	};
 	summary: {
 		files: number;
@@ -90,6 +91,24 @@ describe("test scan scope", () => {
 		await expect(runJsonScan(buildConfig())).resolves.toMatchObject({
 			findingCount: 1,
 			exitCode: 1,
+		});
+	});
+
+	it("ignores unsupported files outside an explicit include scope", async () => {
+		writeFile("src/app.ts", "export const app = true;\n");
+		for (let index = 0; index < 10; index++) {
+			writeFile(`native/outside-${index}.cpp`, "int main() { return 0; }\n");
+		}
+
+		const completion = await runJsonScan(buildConfig(["src"]));
+		const report = readJsonReport();
+
+		expect(completion.scoreable).toBe(true);
+		expect(report.scoreable).toBe(true);
+		expect(report.coverage).toMatchObject({
+			scoreable: true,
+			supportedFiles: 1,
+			unsupportedFiles: 0,
 		});
 	});
 

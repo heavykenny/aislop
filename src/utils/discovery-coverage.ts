@@ -12,6 +12,12 @@ export interface Coverage {
 	readonly unsupportedFiles: number;
 }
 
+interface CoverageSelection {
+	readonly excludePatterns: string[];
+	readonly includePatterns: string[];
+	readonly projectFiles?: string[];
+}
+
 const UNSUPPORTED_CODE_EXTENSIONS: Readonly<Record<string, string>> = {
 	".c": "C/C++",
 	".h": "C/C++",
@@ -45,21 +51,24 @@ const UNSUPPORTED_CODE_EXTENSIONS: Readonly<Record<string, string>> = {
 	".groovy": "Groovy",
 };
 
-export const analyzeCoverage = (
-	rootDirectory: string,
-	excludePatterns: string[] = [],
-	projectFiles?: string[],
-): Coverage => {
-	const allFiles = projectFiles ?? listProjectFiles(rootDirectory);
-	const selectFiles = projectFiles ? filterEnumeratedProjectFiles : filterProjectFiles;
-	const supportedFiles = selectFiles(rootDirectory, allFiles, [], excludePatterns).length;
+export const analyzeCoverage = (rootDirectory: string, selection: CoverageSelection): Coverage => {
+	const allFiles = selection.projectFiles ?? listProjectFiles(rootDirectory);
+	const selectFiles = selection.projectFiles ? filterEnumeratedProjectFiles : filterProjectFiles;
+	const supportedFiles = selectFiles(
+		rootDirectory,
+		allFiles,
+		[],
+		selection.excludePatterns,
+		selection.includePatterns,
+	).length;
 	const counts = new Map<string, number>();
 	let unsupportedFiles = 0;
 	const candidates = selectFiles(
 		rootDirectory,
 		allFiles,
 		Object.keys(UNSUPPORTED_CODE_EXTENSIONS),
-		excludePatterns,
+		selection.excludePatterns,
+		selection.includePatterns,
 	);
 	for (const file of candidates) {
 		const language = UNSUPPORTED_CODE_EXTENSIONS[path.extname(file).toLowerCase()];
