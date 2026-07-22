@@ -599,8 +599,7 @@ import { helper } from "@wasp.sh/lib-auth/internal";
 
 	it("falls back gracefully when tsconfig.json is malformed (no crash, no alias support)", async () => {
 		writePkgJson({});
-		// Trailing comma — invalid even after comment strip. We proceed without aliases.
-		writeFile("tsconfig.json", `{ "compilerOptions": { "paths": { "@/*": ["./src/*"], }, }, }`);
+		writeFile("tsconfig.json", `{ "compilerOptions": { "paths": { "@/*": } } }`);
 		writeFile("src/index.ts", `import { x } from "@/lib/x";\n`);
 		const diags = await detectHallucinatedImports(buildContext());
 		// Without alias support, this DOES flag — that's the documented degraded behavior, not a regression.
@@ -1536,7 +1535,7 @@ managed = false
 		expect(
 			diagnostics.some(
 				(diagnostic) =>
-				diagnostic.filePath === "src/main.py" &&
+					diagnostic.filePath === "src/main.py" &&
 					diagnostic.message.includes("boto3"),
 			),
 		).toBe(true);
@@ -1626,7 +1625,7 @@ dependencies = ["sqlalchemy>=2.0"]
 		expect(
 			diagnostics.every(
 				(diagnostic) =>
-				diagnostic.filePath === "packages/seeds/src/seeds/load.py",
+					diagnostic.filePath === "packages/seeds/src/seeds/load.py",
 			),
 		).toBe(true);
 	});

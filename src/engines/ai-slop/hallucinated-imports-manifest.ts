@@ -194,6 +194,26 @@ export const jsDepsForFile = (
 	return deps;
 };
 
+const nearestPythonScope = (
+	manifest: PackageManifest,
+	filePath: string,
+	rootDirectory: string,
+): PythonDependencyScope | undefined =>
+	manifest.pyScopes
+		.filter(
+			(scope) =>
+				scope.directory !== rootDirectory &&
+				scope.hasPyManifest &&
+				isWithinDirectory(filePath, scope.directory),
+		)
+		.sort((a, b) => b.directory.length - a.directory.length)[0];
+
+export const pythonImportRootForFile = (
+	manifest: PackageManifest,
+	filePath: string,
+	rootDirectory: string,
+): string => nearestPythonScope(manifest, filePath, rootDirectory)?.directory ?? rootDirectory;
+
 export const pythonDepsForFile = (
 	manifest: PackageManifest,
 	filePath: string,
@@ -211,14 +231,7 @@ export const pythonDepsForFile = (
 		mergeDeps(deps, rootScope.pyDeps);
 	}
 
-	const nestedScope = manifest.pyScopes
-		.filter(
-			(scope) =>
-				scope.directory !== rootDirectory &&
-				scope.hasPyManifest &&
-				isWithinDirectory(filePath, scope.directory),
-		)
-		.sort((a, b) => b.directory.length - a.directory.length)[0];
+	const nestedScope = nearestPythonScope(manifest, filePath, rootDirectory);
 	if (nestedScope) mergeDeps(deps, nestedScope.pyDeps);
 
 	const workspaceDeps = workspaceProjectFile ? manifest.workspaceDeps : null;

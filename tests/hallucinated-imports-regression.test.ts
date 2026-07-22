@@ -34,6 +34,63 @@ afterEach(() => {
 });
 
 describe("hallucinated-import regressions — still catches real slop after FP fixes", () => {
+	it("accepts aliases declared by a referenced TypeScript config", async () => {
+		writeFile("package.json", JSON.stringify({ name: "root", workspaces: ["apps/*"] }));
+		writeFile("apps/playground/package.json", JSON.stringify({ name: "playground" }));
+		writeFile(
+			"apps/playground/tsconfig.json",
+			'{ "references": [{ "path": "./tsconfig.frontend.json" },] }',
+		);
+		writeFile(
+			"apps/playground/tsconfig.frontend.json",
+			JSON.stringify({ compilerOptions: { paths: { "$hooks/*": ["./src/hooks/*"] } } }),
+		);
+		writeFile(
+			"apps/playground/src/hooks/useWorkspace.ts",
+			"export const useWorkspace = () => null;\n",
+		);
+		writeFile(
+			"apps/playground/src/App.ts",
+			'import { useWorkspace } from "$hooks/useWorkspace";\nuseWorkspace();\n',
+		);
+
+		const diags = await detectHallucinatedImports(buildContext());
+
+		expect(diags).toEqual([]);
+	});
+
+	it("accepts colon-namespaced virtual modules", async () => {
+		writeFile("package.json", JSON.stringify({ name: "app", dependencies: {} }));
+		writeFile("src/rpc.ts", 'import { rpc } from "likec4:rpc";\nrpc();\n');
+
+		const diags = await detectHallucinatedImports(buildContext());
+
+		expect(diags).toEqual([]);
+	});
+
+	it("accepts local Python modules resolved from an ancestor source root", async () => {
+		writeFile("requirements.txt", "pytest==9.0.0\n");
+		writeFile("archive/v1/src/pose/__init__.py", "def estimate():\n    return None\n");
+		writeFile(
+			"archive/v1/src/api/main.py",
+			"from src.pose import estimate\n\ndef run():\n    return estimate()\n",
+		);
+
+		const diags = await detectHallucinatedImports(buildContext());
+
+		expect(diags).toEqual([]);
+	});
+
+	it("still flags a truly undeclared Python package", async () => {
+		writeFile("requirements.txt", "pytest==9.0.0\n");
+		writeFile("src/app.py", "from totally_fake_python_package_xyz import run\nrun()\n");
+
+		const diags = await detectHallucinatedImports(buildContext());
+
+		expect(diags).toHaveLength(1);
+		expect(diags[0].message).toContain("totally_fake_python_package_xyz");
+	});
+
 	it("still flags a truly undeclared package in a nested web package", async () => {
 		writeFile("package.json", JSON.stringify({ name: "root", dependencies: {} }));
 		writeFile(

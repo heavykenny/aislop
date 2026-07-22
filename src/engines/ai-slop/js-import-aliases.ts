@@ -47,27 +47,57 @@ const buildViteAliasMatcher = (key: string): AliasMatcher => {
 	return (spec) => spec === key || spec.startsWith(prefix);
 };
 
-const collectAliasMatchersFromConfig = (configPath: string, matchers: AliasMatcher[]): void => {
-	const config = readJsoncFile(configPath) as Record<string, unknown> | null;
-	const opts = config?.compilerOptions;
-	if (!opts || typeof opts !== "object") return;
-	const configDir = path.dirname(configPath);
-	const paths = (opts as Record<string, unknown>).paths;
-	if (paths && typeof paths === "object") {
-		for (const key of Object.keys(paths as Record<string, unknown>)) {
-			matchers.push(buildAliasMatcher(key));
+const resolveTsConfigReference = (configPath: string, referencePath: string): string | null => {
+	const target = path.resolve(path.dirname(configPath), referencePath);
+	const candidates = path.extname(target)
+		? [target]
+		: [`${target}.json`, path.join(target, "tsconfig.json"), target];
+	return candidates.find((candidate) => fs.existsSync(candidate)) ?? null;
+};
+
+const collectAliasMatchersFromConfig = (
+	configPath: string,
+	matchers: AliasMatcher[],
+	visited: Set<string>,
+): void => {
+	const resolvedConfigPath = path.resolve(configPath);
+	if (visited.has(resolvedConfigPath)) return;
+	visited.add(resolvedConfigPath);
+
+	const config = readJsoncFile(resolvedConfigPath) as Record<string, unknown> | null;
+	if (!config) return;
+	const opts = config.compilerOptions;
+	const configDir = path.dirname(resolvedConfigPath);
+	if (opts && typeof opts === "object") {
+		const paths = (opts as Record<string, unknown>).paths;
+		if (paths && typeof paths === "object") {
+			for (const key of Object.keys(paths as Record<string, unknown>)) {
+				matchers.push(buildAliasMatcher(key));
+			}
+		}
+
+		const baseUrl = (opts as Record<string, unknown>).baseUrl;
+		if (typeof baseUrl === "string") {
+			const baseDir = path.resolve(configDir, baseUrl);
+			matchers.push((spec) => {
+				if (spec.startsWith(".") || spec.startsWith("/") || spec.startsWith("@")) return false;
+				return JS_RESOLUTION_EXTENSIONS.some((suffix) =>
+					fs.existsSync(path.join(baseDir, `${spec}${suffix}`)),
+				);
+			});
 		}
 	}
 
-	const baseUrl = (opts as Record<string, unknown>).baseUrl;
-	if (typeof baseUrl === "string") {
-		const baseDir = path.resolve(configDir, baseUrl);
-		matchers.push((spec) => {
-			if (spec.startsWith(".") || spec.startsWith("/") || spec.startsWith("@")) return false;
-			return JS_RESOLUTION_EXTENSIONS.some((suffix) =>
-				fs.existsSync(path.join(baseDir, `${spec}${suffix}`)),
-			);
-		});
+	if (Array.isArray(config.references)) {
+		for (const reference of config.references) {
+			if (!reference || typeof reference !== "object") continue;
+			const referencePath = (reference as Record<string, unknown>).path;
+			if (typeof referencePath !== "string") continue;
+			const referencedConfig = resolveTsConfigReference(resolvedConfigPath, referencePath);
+			if (referencedConfig) {
+				collectAliasMatchersFromConfig(referencedConfig, matchers, visited);
+			}
+		}
 	}
 };
 
@@ -218,10 +248,11 @@ const collectPackageJsonImportMatchers = (pkgPath: string, matchers: AliasMatche
 
 export const collectTsPathAliases = (rootDir: string, workspaceDirs: string[]): AliasMatcher[] => {
 	const matchers: AliasMatcher[] = [];
+	const visited = new Set<string>();
 	const dirs = collectPackageRootDirs(rootDir, workspaceDirs);
 	for (const dir of dirs) {
 		for (const fname of TS_CONFIG_FILES) {
-			collectAliasMatchersFromConfig(path.join(dir, fname), matchers);
+			collectAliasMatchersFromConfig(path.join(dir, fname), matchers, visited);
 		}
 		for (const fname of VITE_ALIAS_FILES) {
 			collectViteAliasesFromConfig(path.join(dir, fname), matchers);

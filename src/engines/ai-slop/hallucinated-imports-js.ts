@@ -1,8 +1,8 @@
 import fs from "node:fs";
 import { isBuiltin } from "node:module";
 import path from "node:path";
-import { type AliasMatcher } from "./js-import-aliases.js";
 import { readJson } from "./hallucinated-imports-manifest.js";
+import type { AliasMatcher } from "./js-import-aliases.js";
 
 const isJsRelativeOrAbsolute = (spec: string): boolean =>
 	spec.startsWith(".") || spec.startsWith("/") || spec.startsWith("~/");
@@ -14,16 +14,7 @@ const isJsBuiltin = (spec: string): boolean => {
 	return isBuiltin(stripped) || isBuiltin(spec);
 };
 
-const VIRTUAL_MODULE_PREFIXES = [
-	"astro:",
-	"virtual:",
-	"bun:",
-	"file:",
-	"http:",
-	"https:",
-	"jsr:",
-	"npm:",
-];
+const VIRTUAL_MODULE_SCHEME_RE = /^[a-z][a-z0-9+.-]*:/i;
 const DOCUSAURUS_VIRTUAL_PREFIXES = ["@docusaurus/", "@theme/", "@theme-original/", "@site"];
 
 const hasDocusaurusDependency = (jsDeps: Set<string>): boolean => {
@@ -81,7 +72,7 @@ const isJsVirtualModule = (
 	filePath: string,
 	rootDirectory: string,
 ): boolean => {
-	if (VIRTUAL_MODULE_PREFIXES.some((p) => spec.startsWith(p))) return true;
+	if (VIRTUAL_MODULE_SCHEME_RE.test(spec)) return true;
 	if (spec === "bun") return true;
 	if (spec === "unfonts.css" && jsDeps.has("unplugin-fonts")) return true;
 	if (spec.startsWith("~icons/") && jsDeps.has("unplugin-icons")) return true;
