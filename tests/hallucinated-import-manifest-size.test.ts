@@ -33,7 +33,7 @@ afterEach(() => {
 	fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
-describe("detectHallucinatedImports — oversized manifests", () => {
+describe("detectHallucinatedImports - oversized manifests", () => {
 	it("still scans JavaScript when the root package manifest is too large to trust", async () => {
 		const oversizedPackage = JSON.stringify({
 			name: "oversized-root",
