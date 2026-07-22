@@ -14,6 +14,7 @@ import { detectNarrativeComments } from "./narrative-comments.js";
 import { detectPythonPatterns } from "./python-patterns.js";
 import { detectRustPatterns } from "./rust-patterns.js";
 import { detectSilentRecovery } from "./silent-recovery.js";
+import { detectTautologicalTests } from "./test-quality.js";
 import { detectUnusedCss } from "./unused-css.js";
 import { detectUnusedImports } from "./unused-imports.js";
 
@@ -41,6 +42,7 @@ export const aiSlopEngine: Engine = {
 			detectSilentRecovery(context),
 			detectMetaComments(context),
 			detectUnusedCss(context),
+			detectTautologicalTests(context),
 		]);
 
 		for (const result of results) {

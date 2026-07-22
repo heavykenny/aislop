@@ -87,8 +87,8 @@
   },
   "packageManager": "pnpm@10.28.0",
   "dependencies": {
-    "@biomejs/biome": "^2.5.2",
-    "@clack/prompts": "^1.2.0",
+    "@biomejs/biome": "^2.5.4",
+    "@clack/prompts": "^1.7.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "adm-zip": "^0.5.18",
     "commander": "^14.0.3",
@@ -97,7 +97,7 @@
     "ink-select-input": "^6.2.0",
     "knip": "^5.85.0",
     "micromatch": "^4.0.8",
-    "oxlint": "^1.72.0",
+    "oxlint": "^1.74.0",
     "picocolors": "^1.1.1",
     "react": "^19.2.7",
     "smol-toml": "^1.7.0",
@@ -112,8 +112,8 @@
     "@types/node": "^25.6.0",
     "@types/react": "^19.2.17",
     "ink-testing-library": "^4.0.0",
-    "tsdown": "^0.20.3",
-    "vite": "^7.3.5",
+    "tsdown": "^0.22.13",
+    "vite": "^8.1.5",
     "vitest": "^4.1.10"
   }
 }

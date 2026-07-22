@@ -1,7 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
-import { filterProjectFiles, getSourceFilesForRoot, listProjectFiles } from "./source-files.js";
+import { analyzeCoverage, type Coverage } from "./discovery-coverage.js";
+import { getSourceFilesForRoot } from "./source-files.js";
 import { isToolAvailable } from "./tooling.js";
+
+export type { Coverage } from "./discovery-coverage.js";
 
 export type Language =
 	| "typescript"
@@ -25,13 +28,6 @@ export type Framework =
 	| "fastapi"
 	| "none";
 
-export interface Coverage {
-	supportedFiles: number;
-	unsupportedFiles: number;
-	dominantUnsupported: string | null;
-	scoreable: boolean;
-}
-
 export interface ProjectInfo {
 	rootDirectory: string;
 	projectName: string;
@@ -41,76 +37,6 @@ export interface ProjectInfo {
 	coverage: Coverage;
 	installedTools: Record<string, boolean>;
 }
-
-// Primary-language extensions aislop has no analyzer for. Used only to judge whether
-// a numeric score would represent the repo or just a sliver of incidental files.
-const UNSUPPORTED_CODE_EXTENSIONS: Record<string, string> = {
-	".c": "C/C++",
-	".h": "C/C++",
-	".cc": "C/C++",
-	".cpp": "C/C++",
-	".cxx": "C/C++",
-	".hpp": "C/C++",
-	".hh": "C/C++",
-	".hxx": "C/C++",
-	".cs": "C#",
-	".swift": "Swift",
-	".kt": "Kotlin",
-	".kts": "Kotlin",
-	".m": "Objective-C",
-	".mm": "Objective-C",
-	".scala": "Scala",
-	".dart": "Dart",
-	".ex": "Elixir",
-	".exs": "Elixir",
-	".erl": "Erlang",
-	".hs": "Haskell",
-	".clj": "Clojure",
-	".cljs": "Clojure",
-	".lua": "Lua",
-	".jl": "Julia",
-	".zig": "Zig",
-	".nim": "Nim",
-	".ml": "OCaml",
-	".fs": "F#",
-	".sol": "Solidity",
-	".groovy": "Groovy",
-};
-
-const analyzeCoverage = (rootDirectory: string, excludePatterns: string[] = []): Coverage => {
-	// Count both sides through the scan's own post-exclude file selection, so the gate reflects exactly what was analyzed.
-	const allFiles = listProjectFiles(rootDirectory);
-	const supportedFiles = filterProjectFiles(rootDirectory, allFiles, [], excludePatterns).length;
-	const counts = new Map<string, number>();
-	let unsupportedFiles = 0;
-	const candidates = filterProjectFiles(
-		rootDirectory,
-		allFiles,
-		Object.keys(UNSUPPORTED_CODE_EXTENSIONS),
-		excludePatterns,
-	);
-	for (const file of candidates) {
-		const lang = UNSUPPORTED_CODE_EXTENSIONS[path.extname(file).toLowerCase()];
-		if (!lang) continue;
-		unsupportedFiles += 1;
-		counts.set(lang, (counts.get(lang) ?? 0) + 1);
-	}
-
-	let dominantUnsupported: string | null = null;
-	let max = 0;
-	for (const [lang, count] of counts) {
-		if (count > max) {
-			max = count;
-			dominantUnsupported = lang;
-		}
-	}
-
-	// Withhold the score when aislop only saw a sliver: nothing it can analyze, or
-	// unsupported-language code outnumbers supported files by more than three to one.
-	const negligible =
-		supportedFiles === 0 || (unsupportedFiles >= 10 && unsupportedFiles > supportedFiles * 3);
-	return { supportedFiles, unsupportedFiles, dominantUnsupported, scoreable: !negligible };
-};
 
 const LANGUAGE_SIGNALS: Record<string, Language> = {
 	"tsconfig.json": "typescript",
@@ -187,9 +113,19 @@ interface PackageJson {
 	devDependencies?: Record<string, string>;
 }
 
-const readPackageJson = (filePath: string): PackageJson | null => {
+const readTextFile = (filePath: string): string | null => {
 	try {
-		return JSON.parse(fs.readFileSync(filePath, "utf-8")) as PackageJson;
+		return fs.readFileSync(filePath, "utf-8");
+	} catch {
+		return null;
+	}
+};
+
+const readPackageJson = (filePath: string): PackageJson | null => {
+	const content = readTextFile(filePath);
+	if (content === null) return null;
+	try {
+		return JSON.parse(content) as PackageJson;
 	} catch {
 		return null;
 	}
@@ -267,14 +203,10 @@ const detectFrameworks = (directory: string): Framework[] => {
 
 	// Python frameworks via requirements or pyproject
 	const requirementsPath = path.join(directory, "requirements.txt");
-	if (fs.existsSync(requirementsPath)) {
-		try {
-			const content = fs.readFileSync(requirementsPath, "utf-8").toLowerCase();
-			for (const [pkg, fw] of Object.entries(PYTHON_FRAMEWORKS)) {
-				if (content.includes(pkg)) frameworks.add(fw);
-			}
-		} catch {
-			// ignore
+	const requirements = readTextFile(requirementsPath)?.toLowerCase();
+	if (requirements) {
+		for (const [pkg, fw] of Object.entries(PYTHON_FRAMEWORKS)) {
+			if (requirements.includes(pkg)) frameworks.add(fw);
 		}
 	}
 
@@ -311,27 +243,33 @@ const checkInstalledTools = async (): Promise<Record<string, boolean>> => {
 	return results;
 };
 
+interface DiscoveryInputs {
+	readonly includePatterns?: string[];
+	readonly installedTools?: Record<string, boolean>;
+	readonly projectFiles?: string[];
+	readonly sourceFiles?: string[];
+}
+
 export const discoverProject = async (
 	directory: string,
 	excludePatterns: string[] = [],
+	inputs: DiscoveryInputs = {},
 ): Promise<ProjectInfo> => {
 	const resolvedDir = path.resolve(directory);
-	const sourceFiles = getSourceFilesForRoot(resolvedDir);
-	const languages = detectLanguages(resolvedDir, sourceFiles);
-	const frameworks = detectFrameworks(resolvedDir);
-	const sourceFileCount = sourceFiles.length;
-	const coverage = analyzeCoverage(resolvedDir, excludePatterns);
-	const installedTools = await checkInstalledTools();
-
+	const sourceFiles = inputs.sourceFiles ?? getSourceFilesForRoot(resolvedDir);
+	const coverage = analyzeCoverage(resolvedDir, {
+		excludePatterns,
+		includePatterns: inputs.includePatterns ?? [],
+		...(inputs.projectFiles ? { projectFiles: inputs.projectFiles } : {}),
+	});
+	const installedTools = inputs.installedTools ?? (await checkInstalledTools());
 	const packageJson = readPackageJson(path.join(resolvedDir, "package.json"));
-	const projectName = packageJson?.name ?? path.basename(resolvedDir);
-
 	return {
 		rootDirectory: resolvedDir,
-		projectName,
-		languages,
-		frameworks,
-		sourceFileCount,
+		projectName: packageJson?.name ?? path.basename(resolvedDir),
+		languages: detectLanguages(resolvedDir, sourceFiles),
+		frameworks: detectFrameworks(resolvedDir),
+		sourceFileCount: sourceFiles.length,
 		coverage,
 		installedTools,
 	};

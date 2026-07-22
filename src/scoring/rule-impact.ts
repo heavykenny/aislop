@@ -193,6 +193,9 @@ export const RULE_SCORE_IMPACTS: Record<string, RuleScoreImpact> = {
 	"ai-slop/hallucinated-import": strict(
 		"Imports missing from the manifest are high-confidence install/runtime failures.",
 	),
+	"ai-slop/tautological-test": standard(
+		"Literal-success assertions are high-confidence test gaps but do not break production directly.",
+	),
 
 	"security/hardcoded-secret": strict("Secret-looking source literals are high-risk."),
 	"security/vulnerable-dependency": strict(
