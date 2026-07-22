@@ -37,6 +37,37 @@ describe("runScopedScan", () => {
 		expect(spawnSync).not.toHaveBeenCalled();
 	});
 
+	it("rejects an existing absolute file outside the hook cwd", () => {
+		const root = makeTempProject();
+		const outsideRoot = makeTempProject();
+		const outsideFile = path.join(outsideRoot, "outside.ts");
+		fs.writeFileSync(outsideFile, "export const outside = true;\n");
+
+		expect(resolveHookFiles(root, [outsideFile])).toEqual([]);
+	});
+
+	it("rejects an in-root symlink whose real file is outside the hook cwd", () => {
+		const root = makeTempProject();
+		const outsideRoot = makeTempProject();
+		const outsideFile = path.join(outsideRoot, "outside.ts");
+		const symlinkPath = path.join(root, "escaped.ts");
+		fs.writeFileSync(outsideFile, "export const outside = true;\n");
+		fs.symlinkSync(outsideFile, symlinkPath);
+
+		expect(resolveHookFiles(root, [symlinkPath])).toEqual([]);
+	});
+
+	it("preserves valid relative and absolute files inside the hook cwd", () => {
+		const root = makeTempProject();
+		const relativePath = path.join("src", "inside.ts");
+		const absolutePath = path.join(root, relativePath);
+		fs.mkdirSync(path.dirname(absolutePath), { recursive: true });
+		fs.writeFileSync(absolutePath, "export const inside = true;\n");
+
+		expect(resolveHookFiles(root, [relativePath])).toEqual([absolutePath]);
+		expect(resolveHookFiles(root, [absolutePath])).toEqual([absolutePath]);
+	});
+
 	it("does not spawn subprocesses while collecting scan evidence", async () => {
 		const root = makeTempProject();
 		fs.writeFileSync(path.join(root, "package.json"), JSON.stringify({ name: "project" }));

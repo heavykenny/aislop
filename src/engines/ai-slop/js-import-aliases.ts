@@ -48,15 +48,13 @@ const safeResolutionEntryExists = (candidate: string, rootDirectory: string): bo
 	}
 };
 
-const resolveTsConfigReference = (
+const resolveTsConfigExtends = (
 	configPath: string,
-	referencePath: string,
+	extendsPath: string,
 	rootDirectory: string,
 ): string | null => {
-	const target = path.resolve(path.dirname(configPath), referencePath);
-	const candidates = path.extname(target)
-		? [target]
-		: [`${target}.json`, path.join(target, "tsconfig.json"), target];
+	const target = path.resolve(path.dirname(configPath), extendsPath);
+	const candidates = path.extname(target) === ".json" ? [target] : [target, `${target}.json`];
 	for (const candidate of candidates) {
 		const safePath = safeConfigFilePath(candidate, rootDirectory);
 		if (safePath) return safePath;
@@ -64,82 +62,109 @@ const resolveTsConfigReference = (
 	return null;
 };
 
+type TsConfigEntry = {
+	readonly configPath: string;
+	readonly config: Record<string, unknown>;
+};
+
+const readTsConfigChain = (
+	configPath: string,
+	rootDirectory: string,
+	chain: Set<string>,
+	depth = 0,
+): TsConfigEntry[] => {
+	if (depth > MAX_TS_CONFIG_DEPTH || chain.size >= MAX_TS_CONFIG_FILES) return [];
+	const resolvedConfigPath = safeConfigFilePath(configPath, rootDirectory);
+	if (!resolvedConfigPath || chain.has(resolvedConfigPath)) return [];
+	chain.add(resolvedConfigPath);
+
+	const config = readJsoncFile(resolvedConfigPath) as Record<string, unknown> | null;
+	if (!config) return [];
+
+	const extendsValue = config.extends;
+	const extendsPaths =
+		typeof extendsValue === "string"
+			? [extendsValue]
+			: Array.isArray(extendsValue)
+				? extendsValue.filter((value): value is string => typeof value === "string")
+				: [];
+	const parents: TsConfigEntry[] = [];
+	for (const extendsPath of extendsPaths) {
+		const parentPath = resolveTsConfigExtends(resolvedConfigPath, extendsPath, rootDirectory);
+		if (!parentPath) continue;
+		parents.push(...readTsConfigChain(parentPath, rootDirectory, chain, depth + 1));
+	}
+	return [...parents, { configPath: resolvedConfigPath, config }];
+};
+
+type TsConfigOption = {
+	readonly configPath: string;
+	readonly value: unknown;
+};
+
 const collectAliasMatchersFromConfig = (
 	configPath: string,
 	matchers: AliasMatcher[],
 	visited: Set<string>,
 	rootDirectory: string,
-	depth = 0,
 ): void => {
-	if (depth > MAX_TS_CONFIG_DEPTH || visited.size >= MAX_TS_CONFIG_FILES) return;
 	const resolvedConfigPath = safeConfigFilePath(configPath, rootDirectory);
 	if (!resolvedConfigPath) return;
-	if (visited.has(resolvedConfigPath)) return;
-	visited.add(resolvedConfigPath);
+	const configScope = path.dirname(resolvedConfigPath);
+	const visitKey = `${resolvedConfigPath}\0${configScope}`;
+	if (visited.has(visitKey)) return;
+	visited.add(visitKey);
 
-	const config = readJsoncFile(resolvedConfigPath) as Record<string, unknown> | null;
-	if (!config) return;
-	const opts = config.compilerOptions;
-	const configDir = path.dirname(resolvedConfigPath);
-	if (opts && typeof opts === "object") {
-		const baseUrl = (opts as Record<string, unknown>).baseUrl;
-		const configuredBaseDirectory =
-			typeof baseUrl === "string"
-				? safeProjectDirectoryPath(path.resolve(configDir, baseUrl), rootDirectory)
-				: configDir;
-		const paths = (opts as Record<string, unknown>).paths;
-		if (configuredBaseDirectory && paths && typeof paths === "object") {
-			for (const [key, value] of Object.entries(paths as Record<string, unknown>)) {
-				if (
-					Array.isArray(value) &&
-					value.some(
-						(target) =>
-							typeof target === "string" &&
-							isRootBoundedTarget(
-								path.resolve(configuredBaseDirectory, target.replaceAll("*", "__aislop__")),
-								rootDirectory,
-							),
-					)
-				) {
-					matchers.push(buildAliasMatcher(key, configDir));
-				}
-			}
+	const chain = readTsConfigChain(resolvedConfigPath, rootDirectory, new Set<string>());
+	let pathsOption: TsConfigOption | undefined;
+	let baseUrlOption: TsConfigOption | undefined;
+	for (const entry of chain) {
+		const opts = entry.config.compilerOptions;
+		if (!opts || typeof opts !== "object") continue;
+		const compilerOptions = opts as Record<string, unknown>;
+		if (Object.hasOwn(compilerOptions, "paths")) {
+			pathsOption = { configPath: entry.configPath, value: compilerOptions.paths };
 		}
+		if (Object.hasOwn(compilerOptions, "baseUrl")) {
+			baseUrlOption = { configPath: entry.configPath, value: compilerOptions.baseUrl };
+		}
+	}
 
-		if (typeof baseUrl === "string") {
-			const baseDir = safeProjectDirectoryPath(path.resolve(configDir, baseUrl), rootDirectory);
-			if (baseDir) {
-				matchers.push((spec, filePath) => {
-					if (!isFileInScope(filePath, configDir)) return false;
-					if (spec.startsWith(".") || spec.startsWith("/") || spec.startsWith("@")) return false;
-					return JS_RESOLUTION_EXTENSIONS.some((suffix) =>
-						safeResolutionEntryExists(path.resolve(baseDir, `${spec}${suffix}`), rootDirectory),
-					);
-				});
+	const baseDir =
+		baseUrlOption && typeof baseUrlOption.value === "string"
+			? safeProjectDirectoryPath(
+					path.resolve(path.dirname(baseUrlOption.configPath), baseUrlOption.value),
+					rootDirectory,
+				)
+			: null;
+	const pathsBaseDirectory = baseDir ?? (pathsOption ? path.dirname(pathsOption.configPath) : null);
+	const paths = pathsOption?.value;
+	if (pathsBaseDirectory && paths && typeof paths === "object") {
+		for (const [key, value] of Object.entries(paths as Record<string, unknown>)) {
+			if (
+				Array.isArray(value) &&
+				value.some(
+					(target) =>
+						typeof target === "string" &&
+						isRootBoundedTarget(
+							path.resolve(pathsBaseDirectory, target.replaceAll("*", "__aislop__")),
+							rootDirectory,
+						),
+				)
+			) {
+				matchers.push(buildAliasMatcher(key, configScope));
 			}
 		}
 	}
 
-	if (Array.isArray(config.references)) {
-		for (const reference of config.references) {
-			if (!reference || typeof reference !== "object") continue;
-			const referencePath = (reference as Record<string, unknown>).path;
-			if (typeof referencePath !== "string") continue;
-			const referencedConfig = resolveTsConfigReference(
-				resolvedConfigPath,
-				referencePath,
-				rootDirectory,
+	if (baseDir) {
+		matchers.push((spec, filePath) => {
+			if (!isFileInScope(filePath, configScope)) return false;
+			if (spec.startsWith(".") || spec.startsWith("/") || spec.startsWith("@")) return false;
+			return JS_RESOLUTION_EXTENSIONS.some((suffix) =>
+				safeResolutionEntryExists(path.resolve(baseDir, `${spec}${suffix}`), rootDirectory),
 			);
-			if (referencedConfig) {
-				collectAliasMatchersFromConfig(
-					referencedConfig,
-					matchers,
-					visited,
-					rootDirectory,
-					depth + 1,
-				);
-			}
-		}
+		});
 	}
 };
 

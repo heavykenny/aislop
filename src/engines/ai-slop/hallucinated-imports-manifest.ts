@@ -68,11 +68,24 @@ const collectJsScope = (directory: string, rootDirectory: string): JsDependencyS
 	return { directory, jsDeps, packageName };
 };
 
+const hasPackageManifest = (filePath: string): boolean => {
+	try {
+		const stats = fs.lstatSync(filePath);
+		return stats.isFile() || stats.isSymbolicLink();
+	} catch {
+		return false;
+	}
+};
+
 const collectJsScopes = (rootDir: string): JsDependencyScope[] => {
 	const scopes: JsDependencyScope[] = [];
 	const walk = (dir: string): void => {
+		const pkgPath = path.join(dir, "package.json");
 		const scope = collectJsScope(dir, rootDir);
 		if (scope) scopes.push(scope);
+		else if (hasPackageManifest(pkgPath)) {
+			scopes.push({ directory: dir, jsDeps: new Set() });
+		}
 		let entries: import("node:fs").Dirent[];
 		try {
 			entries = fs.readdirSync(dir, { withFileTypes: true });

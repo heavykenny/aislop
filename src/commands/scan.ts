@@ -20,7 +20,7 @@ import { APP_VERSION } from "../version.js";
 import { renderCoverageNotice } from "./scan-coverage.js";
 import { runEnginesWithProgress } from "./scan-engine-runner.js";
 import { computeScanExitCode } from "./scan-exit-code.js";
-import { collectScanFileScope, type ScanScopeMode } from "./scan-file-scope.js";
+import { collectScanFileScope, deriveScanCoverage, type ScanScopeMode } from "./scan-file-scope.js";
 import { buildScanRender } from "./scan-render.js";
 
 export { buildScanRender } from "./scan-render.js";
@@ -46,6 +46,14 @@ const isMachineOutput = (options: ScanOptions): boolean =>
 
 const renderScopeRow = (value: string): string =>
 	`${renderDisplayRows([{ label: "Scope", value }], { indent: 1 }).join("\n")}\n`;
+
+const resolveScanScopeMode = (options: ScanOptions): ScanScopeMode => {
+	if (options.staged) return { kind: "staged" };
+	if (options.changes) {
+		return options.base ? { kind: "changes", base: options.base } : { kind: "changes" };
+	}
+	return { kind: "full" };
+};
 
 export const scanCommand = async (
 	directory: string,
@@ -85,15 +93,21 @@ export const scanCommand = async (
 
 	const excludePatterns = [...config.exclude, ...readAislopIgnorePatterns(resolvedDir)];
 	const projectInfo = await discoverProject(resolvedDir, excludePatterns);
+	const scanScope = collectScanFileScope({
+		excludePatterns,
+		includePatterns: config.include,
+		mode: resolveScanScopeMode(options),
+		rootDirectory: resolvedDir,
+	});
 
 	return withCommandLifecycle(
 		{
 			command: options.command ?? "scan",
 			config: config.telemetry,
 			languages: projectInfo.languages,
-			fileCount: projectInfo.sourceFileCount,
+			fileCount: scanScope.scoreFileCount,
 		},
-		() => runScanBody(resolvedDir, config, options, projectInfo),
+		() => runScanBody(resolvedDir, config, options, projectInfo, scanScope),
 	);
 };
 
@@ -102,6 +116,7 @@ const runScanBody = async (
 	config: AislopConfig,
 	options: ScanOptions,
 	projectInfo: Awaited<ReturnType<typeof discoverProject>>,
+	scanScope: ReturnType<typeof collectScanFileScope>,
 ) => {
 	const startTime = performance.now();
 	const showHeader = options.showHeader !== false;
@@ -109,30 +124,25 @@ const runScanBody = async (
 	const projectName = projectInfo.projectName ?? "project";
 	const language = projectInfo.languages[0] ?? "unknown";
 	const printedHumanHeader = !machineOutput && showHeader;
+	const { files, projectFiles, scoreFileCount, scopeLabel, testFiles } = scanScope;
+	const scanCoverage = deriveScanCoverage(projectInfo.coverage, scoreFileCount);
+	const reportProjectInfo = {
+		...projectInfo,
+		coverage: scanCoverage,
+		sourceFileCount: scoreFileCount,
+	};
 
 	if (printedHumanHeader) {
 		process.stdout.write(
 			renderHeader({
 				version: APP_VERSION,
 				command: "Scan result",
-				context: [projectName, language, `${projectInfo.sourceFileCount} files`],
+				context: [projectName, language, `${scoreFileCount} files`],
 				brand: options.printBrand !== false,
 			}),
 		);
 	}
 
-	const excludePatterns = [...config.exclude, ...readAislopIgnorePatterns(resolvedDir)];
-	let mode: ScanScopeMode = { kind: "full" };
-	if (options.staged) mode = { kind: "staged" };
-	else if (options.changes) {
-		mode = options.base ? { kind: "changes", base: options.base } : { kind: "changes" };
-	}
-	const { files, projectFiles, scoreFileCount, scopeLabel, testFiles } = collectScanFileScope({
-		excludePatterns,
-		includePatterns: config.include,
-		mode,
-		rootDirectory: resolvedDir,
-	});
 	if (!machineOutput) {
 		process.stdout.write(renderScopeRow(`${files.length + testFiles.length} ${scopeLabel}`));
 	}
@@ -182,7 +192,7 @@ const runScanBody = async (
 		config.scoring.smoothing,
 		config.scoring.maxPerRule,
 	);
-	const scoreable = projectInfo.coverage.scoreable;
+	const scoreable = scanCoverage.scoreable;
 	const hasErrors = allDiagnostics.some((d) => d.severity === "error");
 	const exitCode = computeScanExitCode({
 		hasErrors,
@@ -217,20 +227,16 @@ const runScanBody = async (
 
 	if (options.json) {
 		const { buildJsonOutput } = await import("../output/json.js");
-		const jsonOut = buildJsonOutput(
-			results,
-			scoreResult,
-			projectInfo.sourceFileCount,
-			elapsedMs,
-			projectInfo.coverage,
-		);
+		const jsonOut = buildJsonOutput(results, scoreResult, scoreFileCount, elapsedMs, scanCoverage);
 		console.log(JSON.stringify(jsonOut, null, 2));
 		return completion;
 	}
 
 	if (!scoreable) {
 		if (!machineOutput) {
-			process.stdout.write(renderCoverageNotice(projectInfo, !printedHumanHeader && showHeader));
+			process.stdout.write(
+				renderCoverageNotice(reportProjectInfo, !printedHumanHeader && showHeader),
+			);
 			// Score is withheld, but findings still ran on the supported files; show them so a CI failure on an error diagnostic is explained.
 			if (allDiagnostics.length > 0) {
 				process.stdout.write(renderDiagnostics(allDiagnostics, options.verbose ?? false));
@@ -248,7 +254,7 @@ const runScanBody = async (
 			score: scoreResult.score,
 			errors: completion.errorCount,
 			warnings: completion.warningCount,
-			files: projectInfo.sourceFileCount,
+			files: scoreFileCount,
 		});
 	}
 
@@ -256,7 +262,7 @@ const runScanBody = async (
 		buildScanRender({
 			projectName,
 			language,
-			fileCount: projectInfo.sourceFileCount,
+			fileCount: scoreFileCount,
 			results,
 			diagnostics: allDiagnostics,
 			score: scoreResult,

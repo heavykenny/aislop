@@ -1,3 +1,4 @@
+import type { Coverage } from "../utils/discover.js";
 import { getChangedFiles, getStagedFiles } from "../utils/git.js";
 import {
 	filterEnumeratedProjectFiles,
@@ -25,6 +26,15 @@ interface ScanFileScope {
 	readonly scopeLabel: string;
 	readonly testFiles: string[];
 }
+
+export const deriveScanCoverage = (coverage: Coverage, fileCount: number): Coverage => ({
+	...coverage,
+	supportedFiles: fileCount,
+	scoreable: !(
+		fileCount === 0 ||
+		(coverage.unsupportedFiles >= 10 && coverage.unsupportedFiles > fileCount * 3)
+	),
+});
 
 const scopedCandidates = (
 	rootDirectory: string,

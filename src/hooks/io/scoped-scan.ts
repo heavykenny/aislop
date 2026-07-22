@@ -20,16 +20,34 @@ interface ScopedScanResult {
 	rootDirectory: string;
 }
 
-const existingAbsolutePaths = (cwd: string, files: string[]): string[] =>
-	files
-		.map((f) => (path.isAbsolute(f) ? f : path.join(cwd, f)))
-		.filter((p) => {
+const isWithinDirectory = (rootDirectory: string, candidate: string): boolean => {
+	const relative = path.relative(rootDirectory, candidate);
+	return (
+		relative === "" ||
+		(!path.isAbsolute(relative) && relative !== ".." && !relative.startsWith(`..${path.sep}`))
+	);
+};
+
+const existingAbsolutePaths = (cwd: string, files: string[]): string[] => {
+	try {
+		const absoluteRoot = path.resolve(cwd);
+		const realRoot = fs.realpathSync(cwd);
+		return files.flatMap((filePath) => {
+			const absolutePath = path.resolve(cwd, filePath);
+			if (!isWithinDirectory(absoluteRoot, absolutePath)) return [];
+
 			try {
-				return fs.statSync(p).isFile();
+				if (!fs.statSync(absolutePath).isFile()) return [];
+				const realPath = fs.realpathSync(absolutePath);
+				return isWithinDirectory(realRoot, realPath) ? [absolutePath] : [];
 			} catch {
-				return false;
+				return [];
 			}
 		});
+	} catch {
+		return [];
+	}
+};
 
 export const resolveHookFiles = (cwd: string, files: string[]): string[] => {
 	return existingAbsolutePaths(cwd, files);

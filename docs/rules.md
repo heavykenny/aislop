@@ -92,7 +92,7 @@ The rules that make aislop unique. These catch the patterns AI assistants leave 
 | `ai-slop/rust-non-test-unwrap` | warning | Rust `.unwrap()` in production code where errors should be handled or documented |
 | `ai-slop/rust-todo-stub` | warning | Rust `todo!()` stubs in production code |
 | `ai-slop/hallucinated-import` | error | Imports of JS/TS packages that are not declared in the project manifest |
-| `ai-slop/tautological-test` | warning | Test assertions that compare fixed equal literals or use Python `assert True`, so they cannot fail |
+| `ai-slop/tautological-test` | warning | JavaScript/TypeScript assertions comparing equal fixed literals, plus standalone Python `assert True` statements, which cannot fail |
 
 ## Security
 
@@ -128,7 +128,7 @@ See [examples/architecture-rules.yml](../examples/architecture-rules.yml) for a 
 | TypeScript | Biome | oxlint | knip, complexity | All rules | All rules |
 | JavaScript | Biome | oxlint | knip, complexity | All rules | All rules |
 | Expo / React Native | Biome | oxlint + expo-doctor | knip, complexity | All rules | All rules |
-| Python | ruff | ruff | complexity | Imports, exceptions, comments | Secrets, audit |
+| Python | ruff | ruff | complexity | Imports, exceptions, comments, tautological tests (`assert True`) | Secrets, audit |
 | Go | gofmt | golangci-lint | complexity | Exceptions, comments | Secrets, audit |
 | Rust | cargo fmt | clippy | complexity | Comments | Secrets, audit |
 | Ruby | rubocop | rubocop | complexity | Exceptions, comments | Secrets |

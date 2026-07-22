@@ -91,7 +91,7 @@ export const collectViteAliasesFromConfig = (
 		const openIndex = match.index + match[0].length - 1;
 		const maskedBlock = findBalancedBlock(commentMasked, openIndex);
 		if (!maskedBlock) continue;
-		const block = content.slice(openIndex, openIndex + maskedBlock.length);
+		const block = commentMasked.slice(openIndex, openIndex + maskedBlock.length);
 		const pattern = block.charCodeAt(0) === 123 ? OBJECT_ALIAS_ENTRY_RE : ARRAY_ALIAS_ENTRY_RE;
 		collectAliases(block, pattern, matchers, configDirectory, rootDirectory);
 	}

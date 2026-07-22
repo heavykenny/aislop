@@ -13,14 +13,19 @@ const MAX_NESTED_EXPORT_DEPTH = 32;
 const MAX_NESTED_EXPORT_NODES = 1024;
 
 const isExternalModuleDeclaration = (content: string): boolean => {
-	const lines = maskStringsAndComments(content, ".ts").split("\n");
+	const maskedContent = maskStringsAndComments(content, ".ts");
 	let braceDepth = 0;
-	for (const line of lines) {
-		if (braceDepth === 0 && /^\s*(?:import|export)\b/.test(line)) return true;
-		for (const character of line) {
+	let cursor = 0;
+	for (const token of maskedContent.matchAll(/\b(?:import|export)\b/g)) {
+		const tokenIndex = token.index;
+		for (let index = cursor; index < tokenIndex; index++) {
+			const character = maskedContent[index];
 			if (character === "{") braceDepth++;
 			if (character === "}") braceDepth = Math.max(0, braceDepth - 1);
 		}
+		const nextCharacter = maskedContent.slice(tokenIndex + token[0].length).trimStart()[0];
+		if (braceDepth === 0 && (token[0] === "export" || nextCharacter !== "(")) return true;
+		cursor = tokenIndex + token[0].length;
 	}
 	return false;
 };

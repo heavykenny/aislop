@@ -34,7 +34,7 @@ afterEach(() => {
 });
 
 describe("hallucinated-import regressions — still catches real slop after FP fixes", () => {
-	it("accepts aliases declared by a referenced TypeScript config", async () => {
+	it("flags aliases declared only by a referenced TypeScript config", async () => {
 		writeFile("package.json", JSON.stringify({ name: "root", workspaces: ["apps/*"] }));
 		writeFile("apps/playground/package.json", JSON.stringify({ name: "playground" }));
 		writeFile(
@@ -56,7 +56,73 @@ describe("hallucinated-import regressions — still catches real slop after FP f
 
 		const diags = await detectHallucinatedImports(buildContext());
 
+		expect(diags).toHaveLength(1);
+		expect(diags[0].filePath).toBe("apps/playground/src/App.ts");
+		expect(diags[0].message).toContain('Imports "$hooks"');
+	});
+
+	it("accepts aliases inherited through TypeScript config extends", async () => {
+		writeFile("package.json", JSON.stringify({ name: "root", workspaces: ["apps/*"] }));
+		writeFile("apps/playground/package.json", JSON.stringify({ name: "playground" }));
+		writeFile(
+			"apps/playground/tsconfig.base.json",
+			JSON.stringify({ compilerOptions: { paths: { "$hooks/*": ["./src/hooks/*"] } } }),
+		);
+		writeFile(
+			"apps/playground/tsconfig.json",
+			JSON.stringify({ extends: "./tsconfig.base", include: ["src/**/*.ts"] }),
+		);
+		writeFile(
+			"apps/playground/src/hooks/useWorkspace.ts",
+			"export const useWorkspace = () => null;\n",
+		);
+		writeFile(
+			"apps/playground/src/App.ts",
+			'import { useWorkspace } from "$hooks/useWorkspace";\nuseWorkspace();\n',
+		);
+
+		const diags = await detectHallucinatedImports(buildContext());
+
 		expect(diags).toEqual([]);
+	});
+
+	it("prefers an exact extensionless TypeScript config over its json sibling", async () => {
+		writeFile("package.json", JSON.stringify({ name: "root" }));
+		writeFile(
+			"tsconfig.base",
+			JSON.stringify({ compilerOptions: { paths: { "$exact/*": ["./src/exact/*"] } } }),
+		);
+		writeFile(
+			"tsconfig.base.json",
+			JSON.stringify({ compilerOptions: { paths: { "$sibling/*": ["./src/sibling/*"] } } }),
+		);
+		writeFile("tsconfig.json", JSON.stringify({ extends: "./tsconfig.base" }));
+		writeFile("src/exact/value.ts", "export const value = true;\n");
+		writeFile("src/app.ts", 'import { value } from "$exact/value";\nvalue;\n');
+
+		const diags = await detectHallucinatedImports(buildContext());
+
+		expect(diags).toEqual([]);
+	});
+
+	it("does not resolve a relative TypeScript extends path as a config directory", async () => {
+		writeFile("package.json", JSON.stringify({ name: "root" }));
+		writeFile(
+			"config-dir/tsconfig.json",
+			JSON.stringify({ compilerOptions: { paths: { "$invalid/*": ["../src/invalid/*"] } } }),
+		);
+		writeFile("tsconfig.json", JSON.stringify({ extends: "./config-dir" }));
+		writeFile("src/invalid/value.ts", "export const value = true;\n");
+		writeFile("src/app.ts", 'import { value } from "$invalid/value";\nvalue;\n');
+
+		const diags = await detectHallucinatedImports(buildContext());
+
+		expect(diags).toEqual([
+			expect.objectContaining({
+				filePath: "src/app.ts",
+				message: expect.stringContaining("$invalid"),
+			}),
+		]);
 	});
 
 	it("accepts colon-namespaced virtual modules", async () => {
@@ -162,7 +228,7 @@ describe("hallucinated-import regressions — still catches real slop after FP f
 		expect(diags[0].message).toContain("ghost_module");
 	});
 
-	it("scopes referenced TypeScript aliases to their config directory", async () => {
+	it("scopes TypeScript aliases to their config directory", async () => {
 		writeFile(
 			"package.json",
 			JSON.stringify({ name: "root", workspaces: ["packages/*"], dependencies: {} }),

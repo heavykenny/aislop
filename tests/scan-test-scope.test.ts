@@ -40,6 +40,25 @@ const runJsonScan = (config: AislopConfig) =>
 		printBrand: false,
 	});
 
+interface ScanJsonReport {
+	score: number | null;
+	scoreable: boolean;
+	coverage: {
+		scoreable: boolean;
+		supportedFiles: number;
+	};
+	summary: {
+		files: number;
+	};
+}
+
+const readJsonReport = (): ScanJsonReport => {
+	const calls = vi.mocked(console.log).mock.calls;
+	const output = calls[calls.length - 1]?.[0];
+	if (typeof output !== "string") throw new Error("Expected JSON scan output");
+	return JSON.parse(output) as ScanJsonReport;
+};
+
 beforeEach(() => {
 	tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "aislop-test-scope-"));
 	vi.spyOn(console, "log").mockImplementation(() => undefined);
@@ -85,6 +104,36 @@ describe("test scan scope", () => {
 		const largeProject = await runJsonScan(buildConfig());
 
 		expect(largeProject.score).toBeGreaterThan(smallProject.score);
+	});
+
+	it("reports production and test files in the score and JSON coverage", async () => {
+		writeFile("src/app.ts", "export const app = true;\n");
+		writeFile("tests/first.test.ts", "expect(true).toBe(true);\n");
+		writeFile("tests/second.test.ts", "expect(true).toBe(true);\n");
+
+		const completion = await runJsonScan(buildConfig());
+		const report = readJsonReport();
+
+		expect(completion.scoreable).toBe(true);
+		expect(report.scoreable).toBe(true);
+		expect(report.score).not.toBeNull();
+		expect(report.summary.files).toBe(3);
+		expect(report.coverage.supportedFiles).toBe(3);
+		expect(report.coverage.scoreable).toBe(true);
+	});
+
+	it("scores and reports a test-only project", async () => {
+		writeFile("tests/test_pipeline.py", "def test_pipeline():\n    assert True\n");
+
+		const completion = await runJsonScan(buildConfig());
+		const report = readJsonReport();
+
+		expect(completion.scoreable).toBe(true);
+		expect(report.scoreable).toBe(true);
+		expect(report.score).not.toBeNull();
+		expect(report.summary.files).toBe(1);
+		expect(report.coverage.supportedFiles).toBe(1);
+		expect(report.coverage.scoreable).toBe(true);
 	});
 
 	it("does not use excluded declarations as import evidence", async () => {
