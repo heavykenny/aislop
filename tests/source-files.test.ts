@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { discoverProject } from "../src/utils/discover.js";
 import {
 	filterProjectFiles,
+	filterTestFiles,
 	getSourceFilesForRoot,
 	readAislopIgnorePatterns,
 } from "../src/utils/source-files.js";
@@ -113,6 +114,24 @@ describe("source file selection", () => {
 			path.join(tmpDir, "src/deleted.ts"),
 		]);
 		expect(result).toEqual([path.join(tmpDir, "src/a.ts")]);
+	});
+
+	it("selects supported test files without adding them to production scan scope", () => {
+		createFile(tmpDir, "src/app.ts", "export const app = true;\n");
+		createFile(tmpDir, "src/app.test.ts", "expect(true).toBe(true);\n");
+		createFile(tmpDir, "tests/test_pipeline.py", "assert True\n");
+		createFile(tmpDir, "tests/helper.ts", "export const helper = true;\n");
+		const candidates = [
+			"src/app.ts",
+			"src/app.test.ts",
+			"tests/test_pipeline.py",
+			"tests/helper.ts",
+		];
+
+		expect(filterProjectFiles(tmpDir, candidates)).toEqual([path.join(tmpDir, "src/app.ts")]);
+		expect(filterTestFiles(tmpDir, candidates).sort()).toEqual(
+			[path.join(tmpDir, "src/app.test.ts"), path.join(tmpDir, "tests/test_pipeline.py")].sort(),
+		);
 	});
 
 	it("skips common docs, tutorial, and sample code paths in zero-config scans", () => {

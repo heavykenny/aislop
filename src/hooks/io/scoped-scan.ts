@@ -6,7 +6,7 @@ import type { Diagnostic, EngineContext, EngineName } from "../../engines/types.
 import { calculateScore } from "../../scoring/index.js";
 import { discoverProject } from "../../utils/discover.js";
 import { getChangedFiles } from "../../utils/git.js";
-import { filterProjectFiles } from "../../utils/source-files.js";
+import { filterProjectFiles, filterTestFiles } from "../../utils/source-files.js";
 
 interface ScopedScanResult {
 	diagnostics: Diagnostic[];
@@ -45,6 +45,7 @@ export const runScopedScan = async (
 		languages: project.languages,
 		frameworks: project.frameworks,
 		files: filterProjectFiles(project.rootDirectory, filePaths),
+		testFiles: filterTestFiles(project.rootDirectory, filePaths),
 		installedTools: project.installedTools,
 		config: {
 			quality: config.quality,

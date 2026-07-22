@@ -37,4 +37,22 @@ describe("runScopedScan", () => {
 
 		expect(fs.existsSync(marker)).toBe(false);
 	});
+
+	it("checks a changed test file for tautological assertions", async () => {
+		const root = makeTempProject();
+		fs.writeFileSync(path.join(root, "package.json"), JSON.stringify({ name: "project" }));
+		fs.mkdirSync(path.join(root, "src"), { recursive: true });
+		fs.writeFileSync(path.join(root, "src", "app.ts"), "export const value = true;\n");
+		const testPath = path.join(root, "src", "app.test.ts");
+		fs.writeFileSync(testPath, "it('passes', () => expect(true).toBe(true));\n");
+
+		const result = await runScopedScan(root, [testPath]);
+
+		expect(result.diagnostics).toEqual([
+			expect.objectContaining({
+				filePath: "src/app.test.ts",
+				rule: "ai-slop/tautological-test",
+			}),
+		]);
+	});
 });

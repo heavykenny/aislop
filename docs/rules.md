@@ -92,6 +92,7 @@ The rules that make aislop unique. These catch the patterns AI assistants leave 
 | `ai-slop/rust-non-test-unwrap` | warning | Rust `.unwrap()` in production code where errors should be handled or documented |
 | `ai-slop/rust-todo-stub` | warning | Rust `todo!()` stubs in production code |
 | `ai-slop/hallucinated-import` | error | Imports of JS/TS packages that are not declared in the project manifest |
+| `ai-slop/tautological-test` | warning | Test assertions that compare fixed equal literals or use Python `assert True`, so they cannot fail |
 
 ## Security
 

@@ -19,6 +19,7 @@ import { baseRefExists, getChangedFiles, getStagedFiles } from "../utils/git.js"
 import { appendHistory } from "../utils/history.js";
 import {
 	filterProjectFiles,
+	filterTestFiles,
 	listProjectFiles,
 	readAislopIgnorePatterns,
 } from "../utils/source-files.js";
@@ -134,29 +135,22 @@ const runScanBody = async (
 
 	const excludePatterns = [...config.exclude, ...readAislopIgnorePatterns(resolvedDir)];
 
-	let files: string[] | undefined;
+	let candidateFiles: string[];
+	let scopeLabel: string;
 	if (options.staged) {
-		files = filterProjectFiles(resolvedDir, getStagedFiles(resolvedDir), [], excludePatterns);
-		if (!machineOutput) {
-			process.stdout.write(renderScopeRow(`${files.length} staged file(s)`));
-		}
+		candidateFiles = getStagedFiles(resolvedDir);
+		scopeLabel = "staged file(s)";
 	} else if (options.changes) {
-		files = filterProjectFiles(
-			resolvedDir,
-			getChangedFiles(resolvedDir, options.base),
-			[],
-			excludePatterns,
-		);
-		if (!machineOutput) {
-			const scope = options.base ? `changed vs ${options.base}` : "changed";
-			process.stdout.write(renderScopeRow(`${files.length} ${scope} file(s)`));
-		}
+		candidateFiles = getChangedFiles(resolvedDir, options.base);
+		scopeLabel = options.base ? `changed vs ${options.base} file(s)` : "changed file(s)";
 	} else {
-		const allFiles = listProjectFiles(resolvedDir);
-		files = filterProjectFiles(resolvedDir, allFiles, [], excludePatterns);
-		if (!machineOutput) {
-			process.stdout.write(renderScopeRow(`${files.length} file(s) after exclusions`));
-		}
+		candidateFiles = listProjectFiles(resolvedDir);
+		scopeLabel = "file(s) after exclusions";
+	}
+	const files = filterProjectFiles(resolvedDir, candidateFiles, [], excludePatterns);
+	const testFiles = filterTestFiles(resolvedDir, candidateFiles, excludePatterns);
+	if (!machineOutput) {
+		process.stdout.write(renderScopeRow(`${files.length + testFiles.length} ${scopeLabel}`));
 	}
 
 	const configDir = findConfigDir(resolvedDir);
@@ -185,6 +179,7 @@ const runScanBody = async (
 			languages: projectInfo.languages,
 			frameworks: projectInfo.frameworks,
 			files,
+			testFiles,
 			installedTools: projectInfo.installedTools,
 			config: engineConfig,
 		},
