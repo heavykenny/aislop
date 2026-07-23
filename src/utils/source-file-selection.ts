@@ -19,6 +19,10 @@ const GENERATED_DECLARATION_DIRECTORIES = new Set(["generated", "__generated__",
 const DECLARATION_EXCLUDED_DIRECTORIES = EXCLUDED_SOURCE_DIRECTORIES.filter(
 	(directory) => !GENERATED_DECLARATION_DIRECTORIES.has(directory),
 );
+const MAX_GLOB_PATTERN_LENGTH = 4_096;
+
+const supportedGlobPatterns = (patterns: string[]): string[] =>
+	patterns.filter((pattern) => pattern.length <= MAX_GLOB_PATTERN_LENGTH);
 
 export const listProjectFiles = (rootDirectory: string): string[] =>
 	enumerateProjectFiles(rootDirectory, WALK_PRUNE_DIRECTORIES);
@@ -28,21 +32,27 @@ export const listProjectFilesFromDisk = (rootDirectory: string): string[] =>
 
 const normalizeExcludePatterns = (patterns: string[]): string[] =>
 	patterns.flatMap((pattern) => {
-		const normalized = pattern.trim().replace(/^\.\//, "").replace(/\/+$/, "");
+		const trimmed = pattern.trim();
+		const withoutProjectPrefix = trimmed.startsWith("./") ? trimmed.slice(2) : trimmed;
+		let end = withoutProjectPrefix.length;
+		while (end > 0 && withoutProjectPrefix[end - 1] === "/") end -= 1;
+		const normalized = withoutProjectPrefix.slice(0, end);
 		if (normalized.length === 0) return [];
+		if (normalized.length > MAX_GLOB_PATTERN_LENGTH) return [];
 		if (micromatch.scan(normalized).isGlob) return [normalized];
 		if (normalized.startsWith(".") && !normalized.includes("/")) {
-			return [`**/*${normalized}`, `**/${normalized}/**`];
+			return supportedGlobPatterns([`**/*${normalized}`, `**/${normalized}/**`]);
 		}
-		return [normalized, `${normalized}/**`];
+		return supportedGlobPatterns([normalized, `${normalized}/**`]);
 	});
 
 const normalizeIncludePatterns = (patterns: string[]): string[] =>
 	patterns.flatMap((pattern) => {
 		const normalized = pattern.trim().replace(/^\.\//, "").replace(/\/$/, "");
 		if (normalized === "" || normalized === ".") return ["**"];
+		if (normalized.length > MAX_GLOB_PATTERN_LENGTH) return [];
 		if (micromatch.scan(normalized).isGlob) return [normalized];
-		return [normalized, `${normalized}/**`];
+		return supportedGlobPatterns([normalized, `${normalized}/**`]);
 	});
 
 interface FileFilterOptions {
