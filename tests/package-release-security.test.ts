@@ -180,7 +180,7 @@ describe("package release security", () => {
 		expect(moveMajorCondition).toBe(
 			`${expressionStart} (github.event_name == 'release' && ${stableRelease}) || ` +
 				`(github.event_name == 'workflow_dispatch' && inputs.publish && ` +
-				`inputs.move-major-tag && ${stableRelease}) }}`,
+				`inputs['move-major-tag'] && ${stableRelease}) }}`,
 		);
 	});
 });
