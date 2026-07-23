@@ -95,7 +95,7 @@ describe("package release security", () => {
 			contents: "read",
 			packages: "write",
 		});
-		expect(workflow.jobs["move-major-tag"].permissions).toEqual({ contents: "write" });
+		expect(workflow.jobs["move-major-tag"].permissions).toEqual({ contents: "read" });
 	});
 
 	it("resolves an existing GitHub release before executing its code", () => {
@@ -105,11 +105,9 @@ describe("package release security", () => {
 		const resolveJob = workflow.jobs["resolve-release"];
 		const resolveStep = resolveJob.steps.find((step) => step.name === "Resolve release");
 		const resolvedSha = "${{ needs.resolve-release.outputs.sha }}";
-		const checkoutRefs = [
-			workflow.jobs["publish-npm"],
-			workflow.jobs["publish-gpr"],
-			workflow.jobs["move-major-tag"],
-		].map((job) => job.steps.find((step) => step.uses?.startsWith("actions/checkout@"))?.with?.ref);
+		const checkoutRefs = [workflow.jobs["publish-npm"], workflow.jobs["publish-gpr"]].map(
+			(job) => job.steps.find((step) => step.uses?.startsWith("actions/checkout@"))?.with?.ref,
+		);
 
 		expect(resolveJob.permissions).toEqual({ contents: "read" });
 		expect(resolveJob.outputs).toEqual({
@@ -142,10 +140,32 @@ describe("package release security", () => {
 		expect(resolveStep?.run).toContain(
 			'if [ "$compare_status" != "ahead" ] && [ "$compare_status" != "identical" ]',
 		);
-		expect(checkoutRefs).toEqual([resolvedSha, resolvedSha, resolvedSha]);
+		expect(checkoutRefs).toEqual([resolvedSha, resolvedSha]);
 		expect(workflow.jobs["publish-npm"].needs).toBe("resolve-release");
 		expect(workflow.jobs["publish-gpr"].needs).toEqual(["resolve-release", "publish-npm"]);
 		expect(workflow.jobs["move-major-tag"].needs).toEqual(["resolve-release", "publish-npm"]);
+		expect(
+			workflow.jobs["move-major-tag"].steps.some((step) =>
+				step.uses?.startsWith("actions/checkout@"),
+			),
+		).toBe(false);
+	});
+
+	it("authenticates the v1 tag move with the workflow-capable bot token", () => {
+		const workflow = ReleaseWorkflowSchema.parse(
+			parseYaml(fs.readFileSync(".github/workflows/release.yml", "utf8")),
+		);
+		const moveMajorTag = workflow.jobs["move-major-tag"];
+		const updateRef = moveMajorTag.steps.find((step) => step.name?.startsWith("Re-point v1"));
+
+		expect(updateRef?.env).toEqual({
+			GH_TOKEN: "${{ secrets.SYNC_BOT_PAT }}",
+			RELEASE_SHA: "${{ needs.resolve-release.outputs.sha }}",
+		});
+		expect(updateRef?.run).toContain("--method PATCH");
+		expect(updateRef?.run).toContain('"repos/$GITHUB_REPOSITORY/git/refs/tags/v1"');
+		expect(updateRef?.run).toContain('--field "sha=$RELEASE_SHA"');
+		expect(updateRef?.run).toContain("--field force=true");
 	});
 
 	it("keeps manual recovery non-publishing unless explicitly enabled", () => {
