@@ -2,7 +2,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { filterEnumeratedProjectFiles } from "../src/utils/source-files.js";
+import {
+	filterEnumeratedProjectFiles,
+	filterProjectDeclarationFiles,
+} from "../src/utils/source-files.js";
 
 describe("exclude pattern normalization", () => {
 	let tmpDir: string;
@@ -63,4 +66,29 @@ describe("exclude pattern normalization", () => {
 
 		expect(filtered).toEqual([path.join(tmpDir, "src/app.ts")]);
 	});
+
+	it.each([256, 257])(
+		"handles a %i-character pattern without disabling scans",
+		(patternLength) => {
+			createFile("src/app.ts");
+			createFile("src/types.d.ts");
+			const pattern = "x".repeat(patternLength);
+			const files = ["src/app.ts", "src/types.d.ts"];
+			const absoluteFiles = files.map((file) => path.join(tmpDir, file));
+			const expectedIncludeFiles = patternLength === 256 ? [] : absoluteFiles;
+			const expectedDeclarationIncludes =
+				patternLength === 256 ? [] : [path.join(tmpDir, "src/types.d.ts")];
+
+			expect(filterEnumeratedProjectFiles(tmpDir, files, [], [pattern])).toEqual(absoluteFiles);
+			expect(filterEnumeratedProjectFiles(tmpDir, files, [], [], [pattern])).toEqual(
+				expectedIncludeFiles,
+			);
+			expect(filterProjectDeclarationFiles(tmpDir, files, [pattern])).toEqual([
+				path.join(tmpDir, "src/types.d.ts"),
+			]);
+			expect(filterProjectDeclarationFiles(tmpDir, files, [], [pattern])).toEqual(
+				expectedDeclarationIncludes,
+			);
+		},
+	);
 });
