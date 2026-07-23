@@ -48,15 +48,19 @@ describe("exclude pattern normalization", () => {
 		createFile(".hidden.ts");
 		createFile("src/.hidden.ts");
 		createFile("src/app.ts");
+		createFile("src/foo.hidden.ts");
 
 		const filtered = filterEnumeratedProjectFiles(
 			tmpDir,
-			[".hidden.ts", "src/.hidden.ts", "src/app.ts"],
+			[".hidden.ts", "src/.hidden.ts", "src/app.ts", "src/foo.hidden.ts"],
 			[],
 			[".hidden.ts"],
 		);
 
-		expect(filtered).toEqual([path.join(tmpDir, "src/app.ts")]);
+		expect(filtered).toEqual([
+			path.join(tmpDir, "src/app.ts"),
+			path.join(tmpDir, "src/foo.hidden.ts"),
+		]);
 	});
 
 	it.each(["", "   ", "./", "/", "///"])("ignores empty or root-like exclusion %j", (exclude) => {
