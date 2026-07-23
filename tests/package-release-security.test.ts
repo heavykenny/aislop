@@ -119,6 +119,7 @@ describe("package release security", () => {
 		});
 		expect(resolveJob.steps.some((step) => step.uses?.startsWith("actions/checkout@"))).toBe(false);
 		expect(resolveStep?.env).toEqual({
+			DEFAULT_BRANCH: "${{ github.event.repository.default_branch }}",
 			GH_TOKEN: "${{ github.token }}",
 			RELEASE_TAG: "${{ github.event.release.tag_name || inputs.tag }}",
 		});
@@ -135,6 +136,12 @@ describe("package release security", () => {
 			'gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG"',
 		);
 		expect(resolveStep?.run).toContain('if [ "$object_type" != "commit" ]');
+		expect(resolveStep?.run).toContain(
+			'gh api "repos/$GITHUB_REPOSITORY/compare/$object_sha...$DEFAULT_BRANCH"',
+		);
+		expect(resolveStep?.run).toContain(
+			'if [ "$compare_status" != "ahead" ] && [ "$compare_status" != "identical" ]',
+		);
 		expect(checkoutRefs).toEqual([resolvedSha, resolvedSha, resolvedSha]);
 		expect(workflow.jobs["publish-npm"].needs).toBe("resolve-release");
 		expect(workflow.jobs["publish-gpr"].needs).toEqual(["resolve-release", "publish-npm"]);
