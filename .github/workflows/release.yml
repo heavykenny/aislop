@@ -192,7 +192,7 @@ jobs:
           needs.resolve-release.outputs.prerelease == 'false') ||
         (github.event_name == 'workflow_dispatch' &&
           inputs.publish &&
-          inputs.move-major-tag &&
+          inputs['move-major-tag'] &&
           needs.resolve-release.outputs.prerelease == 'false')
       }}
     permissions:
