@@ -71,7 +71,7 @@ const parseStringLiteral = (rawValue: string): string | null => {
 			const decoded = parseHexEscape(digits);
 			if (decoded === null) return null;
 			value += decoded;
-			index = end;
+			index = hasBraces ? end : end - 1;
 			continue;
 		}
 		value += escapeCode;

@@ -59,6 +59,7 @@ describe("tautological test assertions", () => {
 			[
 				`it("matches strings", () => { expect("ok").toBe('ok'); });`,
 				"it('matches numbers', () => { assert.strictEqual(1.0, 1); });",
+				String.raw`it("matches escapes", () => { expect("\u0041b").toBe("Ab"); });`,
 			].join("\n"),
 		);
 
@@ -67,6 +68,7 @@ describe("tautological test assertions", () => {
 		expect(result.diagnostics.filter((d) => d.rule === "ai-slop/tautological-test")).toEqual([
 			expect.objectContaining({ filePath: "src/value.test.ts", line: 1 }),
 			expect.objectContaining({ filePath: "src/value.test.ts", line: 2 }),
+			expect.objectContaining({ filePath: "src/value.test.ts", line: 3 }),
 		]);
 	});
 
