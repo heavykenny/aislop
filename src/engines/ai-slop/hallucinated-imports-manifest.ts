@@ -1,15 +1,17 @@
 import fs from "node:fs";
 import path from "node:path";
+import { safeProjectFilePath } from "../../utils/project-path-safety.js";
 import { collectWorkspaceDirs } from "./js-workspaces.js";
+import { PYTHON_MANIFEST_FILES } from "./python-dependency-parser.js";
 import { collectPythonDeps, type PythonDependencyScope } from "./python-manifest.js";
 
-export interface JsDependencyScope {
+interface JsDependencyScope {
 	directory: string;
 	jsDeps: Set<string>;
 	packageName?: string;
 }
 
-export interface PackageManifest {
+interface PackageManifest {
 	jsDeps: Set<string>;
 	jsScopes: JsDependencyScope[];
 	pyDeps: Set<string>;
@@ -17,11 +19,15 @@ export interface PackageManifest {
 	hasPyManifest: boolean;
 	rootHasPyManifest: boolean;
 	pyScopes: PythonDependencyScope[];
+	workspaceDeps: Set<string> | null;
+	workspaceRootDir: string | null;
+	workspaceMemberDirs: string[];
 }
 
-export const readJson = (filePath: string): unknown => {
+export const readJson = (filePath: string, rootDirectory = path.dirname(filePath)): unknown => {
 	try {
-		return JSON.parse(fs.readFileSync(filePath, "utf-8"));
+		const safePath = safeProjectFilePath(filePath, rootDirectory);
+		return safePath ? JSON.parse(fs.readFileSync(safePath, "utf-8")) : null;
 	} catch {
 		return null;
 	}
@@ -51,10 +57,9 @@ const mergeDeps = (target: Set<string>, source: Set<string>): void => {
 	for (const dep of source) target.add(dep);
 };
 
-const collectJsScope = (directory: string): JsDependencyScope | null => {
+const collectJsScope = (directory: string, rootDirectory: string): JsDependencyScope | null => {
 	const pkgPath = path.join(directory, "package.json");
-	if (!fs.existsSync(pkgPath)) return null;
-	const pkg = readJson(pkgPath) as Record<string, unknown> | null;
+	const pkg = readJson(pkgPath, rootDirectory) as Record<string, unknown> | null;
 	if (!pkg || typeof pkg !== "object") return null;
 	const jsDeps = new Set<string>();
 	addDepsFromPkg(pkg, jsDeps);
@@ -63,11 +68,24 @@ const collectJsScope = (directory: string): JsDependencyScope | null => {
 	return { directory, jsDeps, packageName };
 };
 
+const hasPackageManifest = (filePath: string): boolean => {
+	try {
+		const stats = fs.lstatSync(filePath);
+		return stats.isFile() || stats.isSymbolicLink();
+	} catch {
+		return false;
+	}
+};
+
 const collectJsScopes = (rootDir: string): JsDependencyScope[] => {
 	const scopes: JsDependencyScope[] = [];
 	const walk = (dir: string): void => {
-		const scope = collectJsScope(dir);
+		const pkgPath = path.join(dir, "package.json");
+		const scope = collectJsScope(dir, rootDir);
 		if (scope) scopes.push(scope);
+		else if (hasPackageManifest(pkgPath)) {
+			scopes.push({ directory: dir, jsDeps: new Set() });
+		}
 		let entries: import("node:fs").Dirent[];
 		try {
 			entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -91,8 +109,7 @@ const collectJsDeps = (
 	jsScopes: JsDependencyScope[],
 ): boolean => {
 	const pkgPath = path.join(rootDir, "package.json");
-	if (!fs.existsSync(pkgPath)) return jsScopes.length > 0;
-	const pkg = readJson(pkgPath) as Record<string, unknown> | null;
+	const pkg = readJson(pkgPath, rootDir) as Record<string, unknown> | null;
 	if (!pkg || typeof pkg !== "object") return jsScopes.length > 0;
 
 	for (const scope of jsScopes) {
@@ -101,7 +118,10 @@ const collectJsDeps = (
 
 	const workspaceDirs = collectWorkspaceDirs(rootDir, pkg);
 	for (const wsDir of workspaceDirs) {
-		const wsPkg = readJson(path.join(wsDir, "package.json")) as Record<string, unknown> | null;
+		const wsPkg = readJson(path.join(wsDir, "package.json"), rootDir) as Record<
+			string,
+			unknown
+		> | null;
 		if (!wsPkg) continue;
 		if (typeof wsPkg.name === "string") jsDeps.add(wsPkg.name);
 		addDepsFromPkg(wsPkg, jsDeps);
@@ -113,7 +133,15 @@ export const loadManifest = (rootDir: string): PackageManifest => {
 	const jsScopes = collectJsScopes(rootDir);
 	const jsDeps = new Set<string>();
 	const hasJsManifest = collectJsDeps(rootDir, jsDeps, jsScopes);
-	const { pyDeps, hasPyManifest, rootHasPyManifest, scopes } = collectPythonDeps(rootDir);
+	const {
+		pyDeps,
+		hasPyManifest,
+		rootHasPyManifest,
+		scopes,
+		workspaceDeps,
+		workspaceRootDir,
+		workspaceMemberDirs,
+	} = collectPythonDeps(rootDir);
 	return {
 		jsDeps,
 		jsScopes,
@@ -122,14 +150,37 @@ export const loadManifest = (rootDir: string): PackageManifest => {
 		hasPyManifest,
 		rootHasPyManifest,
 		pyScopes: scopes,
+		workspaceDeps,
+		workspaceRootDir,
+		workspaceMemberDirs,
 	};
 };
 
 const isWithinDirectory = (filePath: string, directory: string): boolean => {
 	const relative = path.relative(directory, filePath);
 	return (
-		relative === "" || (!!relative && !relative.startsWith("..") && !path.isAbsolute(relative))
+		relative === "" ||
+		(relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative))
 	);
+};
+
+const isWorkspaceProjectFile = (manifest: PackageManifest, filePath: string): boolean => {
+	if (!manifest.workspaceRootDir) return false;
+	const workspaceRoot = path.resolve(manifest.workspaceRootDir);
+	let directory = path.dirname(path.resolve(filePath));
+	while (isWithinDirectory(directory, workspaceRoot)) {
+		if (PYTHON_MANIFEST_FILES.some((fileName) => fs.existsSync(path.join(directory, fileName)))) {
+			return (
+				directory === workspaceRoot ||
+				manifest.workspaceMemberDirs.some((memberDir) => path.resolve(memberDir) === directory)
+			);
+		}
+		if (directory === workspaceRoot) break;
+		const parent = path.dirname(directory);
+		if (parent === directory) break;
+		directory = parent;
+	}
+	return false;
 };
 
 export const jsDepsForFile = (
@@ -159,16 +210,12 @@ export const jsDepsForFile = (
 	return deps;
 };
 
-export const pythonDepsForFile = (
+const nearestPythonScope = (
 	manifest: PackageManifest,
 	filePath: string,
 	rootDirectory: string,
-): Set<string> | null => {
-	const deps = new Set<string>();
-	const rootScope = manifest.pyScopes.find((scope) => scope.directory === rootDirectory);
-	if (manifest.rootHasPyManifest && rootScope) mergeDeps(deps, rootScope.pyDeps);
-
-	const nestedScope = manifest.pyScopes
+): PythonDependencyScope | undefined =>
+	manifest.pyScopes
 		.filter(
 			(scope) =>
 				scope.directory !== rootDirectory &&
@@ -176,9 +223,39 @@ export const pythonDepsForFile = (
 				isWithinDirectory(filePath, scope.directory),
 		)
 		.sort((a, b) => b.directory.length - a.directory.length)[0];
+
+export const pythonImportRootForFile = (
+	manifest: PackageManifest,
+	filePath: string,
+	rootDirectory: string,
+): string => nearestPythonScope(manifest, filePath, rootDirectory)?.directory ?? rootDirectory;
+
+export const pythonDepsForFile = (
+	manifest: PackageManifest,
+	filePath: string,
+	rootDirectory: string,
+): Set<string> | null => {
+	const deps = new Set<string>();
+	const rootScope = manifest.pyScopes.find((scope) => scope.directory === rootDirectory);
+	const workspaceProjectFile =
+		manifest.workspaceDeps !== null && isWorkspaceProjectFile(manifest, filePath);
+	if (
+		manifest.rootHasPyManifest &&
+		rootScope &&
+		(manifest.workspaceDeps === null || workspaceProjectFile)
+	) {
+		mergeDeps(deps, rootScope.pyDeps);
+	}
+
+	const nestedScope = nearestPythonScope(manifest, filePath, rootDirectory);
 	if (nestedScope) mergeDeps(deps, nestedScope.pyDeps);
 
-	if (!manifest.rootHasPyManifest && !nestedScope) return null;
-	if (deps.size === 0 && manifest.pyDeps.size > 0) return manifest.pyDeps;
+	const workspaceDeps = workspaceProjectFile ? manifest.workspaceDeps : null;
+	if (workspaceDeps) mergeDeps(deps, workspaceDeps);
+
+	if (!manifest.rootHasPyManifest && !nestedScope && !workspaceDeps) return null;
+	if (deps.size === 0 && manifest.pyDeps.size > 0 && !manifest.workspaceDeps) {
+		return manifest.pyDeps;
+	}
 	return deps;
 };

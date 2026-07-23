@@ -145,8 +145,9 @@ describe("unused file path safety", () => {
 		const { getRelativePathWithinRoot } = await import("../src/engines/code-quality/knip.js");
 
 		expect(getRelativePathWithinRoot(appRoot, monorepoRoot, "victim.ts")).toBeNull();
+		// POSIX separators on every OS (relativePosix); guards the Windows backslash regression.
 		expect(getRelativePathWithinRoot(appRoot, monorepoRoot, "packages/app/src/unused.ts")).toBe(
-			path.join("src", "unused.ts"),
+			"src/unused.ts",
 		);
 	});
 

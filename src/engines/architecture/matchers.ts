@@ -1,6 +1,7 @@
 // aislop-ignore-file duplicate-block
 import fs from "node:fs";
 import path from "node:path";
+import { relativePosix } from "../../utils/paths.js";
 import { getSourceFiles } from "../../utils/source-files.js";
 import type { Diagnostic, EngineContext } from "../types.js";
 import type { ArchitectureRule } from "./rule-loader.js";
@@ -197,7 +198,7 @@ export const checkRules = async (
 			continue;
 		}
 
-		const relativePath = path.relative(context.rootDirectory, filePath);
+		const relativePath = relativePosix(context.rootDirectory, filePath);
 		const imports = extractImports(content, path.extname(filePath));
 
 		for (const rule of rules) {

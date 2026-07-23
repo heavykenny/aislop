@@ -53,5 +53,7 @@ describe("cli json output", () => {
 		expect(
 			parsed.diagnostics.some((diagnostic) => diagnostic.rule === "security/hardcoded-secret"),
 		).toBe(true);
-	}, 15_000);
+		// Heavy test: scans 450 files through the full CLI subprocess. 15s was too tight under
+		// parallel load (CI/local both flaked ~15.6s); match sibling heavy tests' headroom.
+	}, 30_000);
 });

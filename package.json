@@ -1,11 +1,12 @@
 {
   "name": "aislop",
-  "version": "0.13.1",
+  "version": "0.14.0",
   "description": "Catch the slop AI coding agents leave in your code: narrative comments, swallowed exceptions, as-any casts, dead code, oversized functions. 50+ rules across 8 language targets (TypeScript, JavaScript, Expo / React Native, Python, Go, Rust, Ruby, PHP). Sub-second, deterministic, no LLM at runtime. MIT-licensed.",
   "type": "module",
   "bin": {
-    "aislop": "./dist/cli.js",
-    "aislop-mcp": "./dist/mcp.js"
+    "aislop": "dist/cli.js",
+    "aislop-mcp": "dist/mcp.js",
+    "aislop-tools": "scripts/install-tools.mjs"
   },
   "files": [
     "dist",
@@ -40,7 +41,6 @@
   "scripts": {
     "dev": "tsdown --watch",
     "build": "tsdown",
-    "postinstall": "node scripts/postinstall-tools.mjs",
     "typecheck": "tsc --noEmit",
     "gen:schema": "node --experimental-strip-types scripts/gen-config-schema.mjs",
     "test": "pnpm build && vitest run",
@@ -87,32 +87,33 @@
   },
   "packageManager": "pnpm@10.28.0",
   "dependencies": {
-    "@biomejs/biome": "^2.5.1",
-    "@clack/prompts": "^1.2.0",
+    "@biomejs/biome": "^2.5.4",
+    "@clack/prompts": "^1.7.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "adm-zip": "^0.5.16",
+    "adm-zip": "^0.5.18",
     "commander": "^14.0.3",
-    "expo-doctor": "^1.19.10",
+    "expo-doctor": "^1.20.0",
     "ink": "^6.8.0",
     "ink-select-input": "^6.2.0",
     "knip": "^5.85.0",
     "micromatch": "^4.0.8",
-    "oxlint": "^1.71.0",
+    "oxlint": "^1.74.0",
     "picocolors": "^1.1.1",
     "react": "^19.2.7",
+    "smol-toml": "^1.7.0",
     "tar": "^7.5.19",
     "typescript": "^5.9.3",
     "wcwidth": "^1.0.1",
-    "yaml": "^2.8.2",
-    "zod": "^4.3.6"
+    "yaml": "^2.9.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/micromatch": "^4.0.10",
     "@types/node": "^25.6.0",
     "@types/react": "^19.2.17",
     "ink-testing-library": "^4.0.0",
-    "tsdown": "^0.20.3",
-    "vite": "^7.3.5",
-    "vitest": "^4.1.8"
+    "tsdown": "^0.22.13",
+    "vite": "^8.1.5",
+    "vitest": "^4.1.10"
   }
 }

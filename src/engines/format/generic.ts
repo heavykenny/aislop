@@ -1,4 +1,5 @@
 import type { Language } from "../../utils/discover.js";
+import { projectRelativePosix } from "../../utils/paths.js";
 import { runSubprocess } from "../../utils/subprocess.js";
 import type { Diagnostic, EngineContext } from "../types.js";
 
@@ -112,7 +113,10 @@ export const runGenericFormatter = async (
 
 		const output = result.stdout || result.stderr;
 		if (!output) return [];
-		return config.parseOutput(output, context.rootDirectory);
+		return config.parseOutput(output, context.rootDirectory).map((diagnostic) => ({
+			...diagnostic,
+			filePath: projectRelativePosix(context.rootDirectory, diagnostic.filePath),
+		}));
 	} catch {
 		return [];
 	}

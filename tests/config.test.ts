@@ -180,14 +180,14 @@ describe("findConfigDir", () => {
 	});
 
 	it("returns null when no .aislop directory exists", () => {
-		const result = findConfigDir(tmpDir);
+		const result = findConfigDir(tmpDir, tmpDir);
 		expect(result).toBeNull();
 	});
 
 	it("finds .aislop in the given directory", () => {
 		const aislopDir = path.join(tmpDir, CONFIG_DIR);
 		fs.mkdirSync(aislopDir);
-		const result = findConfigDir(tmpDir);
+		const result = findConfigDir(tmpDir, tmpDir);
 		expect(result).toBe(aislopDir);
 	});
 
@@ -196,14 +196,14 @@ describe("findConfigDir", () => {
 		fs.mkdirSync(aislopDir);
 		const nestedDir = path.join(tmpDir, "src", "lib");
 		fs.mkdirSync(nestedDir, { recursive: true });
-		const result = findConfigDir(nestedDir);
+		const result = findConfigDir(nestedDir, tmpDir);
 		expect(result).toBe(aislopDir);
 	});
 
 	it("does not match a file named .aislop (must be a directory)", () => {
 		// create a file named .aislop instead of a directory
 		fs.writeFileSync(path.join(tmpDir, CONFIG_DIR), "not a dir");
-		const result = findConfigDir(tmpDir);
+		const result = findConfigDir(tmpDir, tmpDir);
 		expect(result).toBeNull();
 	});
 });
