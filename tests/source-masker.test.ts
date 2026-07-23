@@ -83,7 +83,7 @@ describe("maskStringsAndComments still masks string bodies", () => {
 
 describe("maskStringsAndComments recognises regex literals", () => {
 	// A regex whose body contains quotes/backticks/comment markers must not be read as
-	// a string/template/comment — otherwise the scanner desyncs and blanks real code.
+	// a string/template/comment; otherwise the scanner desyncs and blanks real code.
 	it("does not let a quote inside a regex swallow following code", () => {
 		const src = ["const re = /(?:`|[\"'])\\s*/;", 'const kept = "after";', ""].join("\n");
 		const out = maskStringsAndComments(src, ".ts");

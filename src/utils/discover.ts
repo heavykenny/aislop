@@ -131,13 +131,19 @@ const readPackageJson = (filePath: string): PackageJson | null => {
 	}
 };
 
-const detectLanguages = (directory: string, sourceFiles: string[]): Language[] => {
+export const detectSourceLanguages = (sourceFiles: string[]): Language[] => {
 	const languages = new Set<Language>();
 
 	for (const sourceFile of sourceFiles) {
 		const lang = EXTENSION_LANGUAGES[path.extname(sourceFile).toLowerCase()];
 		if (lang) languages.add(lang);
 	}
+
+	return [...languages];
+};
+
+const detectLanguages = (directory: string, sourceFiles: string[]): Language[] => {
+	const languages = new Set<Language>(detectSourceLanguages(sourceFiles));
 
 	for (const [file, lang] of Object.entries(LANGUAGE_SIGNALS)) {
 		if (fs.existsSync(path.join(directory, file))) {
