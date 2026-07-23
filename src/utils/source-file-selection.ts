@@ -6,6 +6,7 @@ import { enumerateProjectFiles, enumerateProjectFilesFromDisk } from "./project-
 import {
 	EXCLUDED_SOURCE_DIRECTORIES,
 	hasAllowedSourceExtension,
+	isInExcludedDirectory,
 	isSafeRegularProjectFile,
 	isTestFile,
 	isWithinProject,
@@ -13,6 +14,11 @@ import {
 	toProjectPath,
 	WALK_PRUNE_DIRECTORIES,
 } from "./source-file-policy.js";
+
+const GENERATED_DECLARATION_DIRECTORIES = new Set(["generated", "__generated__", "auto-generated"]);
+const DECLARATION_EXCLUDED_DIRECTORIES = EXCLUDED_SOURCE_DIRECTORIES.filter(
+	(directory) => !GENERATED_DECLARATION_DIRECTORIES.has(directory),
+);
 
 export const listProjectFiles = (rootDirectory: string): string[] =>
 	enumerateProjectFiles(rootDirectory, WALK_PRUNE_DIRECTORIES);
@@ -22,12 +28,13 @@ export const listProjectFilesFromDisk = (rootDirectory: string): string[] =>
 
 const normalizeExcludePatterns = (patterns: string[]): string[] =>
 	patterns.flatMap((pattern) => {
-		const normalized = pattern.trim();
-		if (normalized.startsWith(".")) return [`**/*${normalized}`];
-		if (!normalized.includes("*") && !normalized.includes(".")) {
-			return [`${normalized}/**`];
+		const normalized = pattern.trim().replace(/^\.\//, "").replace(/\/+$/, "");
+		if (normalized.length === 0) return [];
+		if (micromatch.scan(normalized).isGlob) return [normalized];
+		if (normalized.startsWith(".") && !normalized.includes("/")) {
+			return [`**/*${normalized}`, `**/${normalized}/**`];
 		}
-		return [normalized];
+		return [normalized, `${normalized}/**`];
 	});
 
 const normalizeIncludePatterns = (patterns: string[]): string[] =>
@@ -87,16 +94,9 @@ const filterFiles = (
 
 	return normalizedFiles
 		.filter(({ absolutePath, relativePath }) => {
-			const normalizedPath = relativePath.toLowerCase();
-			const excludedDirectory = excludedDirectories.some(
-				(directory) =>
-					normalizedPath === directory ||
-					normalizedPath.startsWith(`${directory}/`) ||
-					normalizedPath.includes(`/${directory}/`),
-			);
 			if (
 				!isSafeRegularProjectFile(rootDirectory, absolutePath) ||
-				excludedDirectory ||
+				isInExcludedDirectory(relativePath, excludedDirectories) ||
 				isTestFile(relativePath) !== options.testFiles ||
 				isGeneratedArtifactFile(relativePath) ||
 				ignoredPaths.has(relativePath)
@@ -184,6 +184,12 @@ export const filterProjectDeclarationFiles = (
 	return filterExplicitFiles(rootDirectory, files).filter((filePath) => {
 		if (!filePath.endsWith(".d.ts")) return false;
 		const relativePath = toProjectPath(rootDirectory, filePath);
+		if (
+			isTestFile(relativePath) ||
+			isInExcludedDirectory(relativePath, DECLARATION_EXCLUDED_DIRECTORIES)
+		) {
+			return false;
+		}
 		if (
 			includePatterns.length > 0 &&
 			!micromatch.isMatch(relativePath, includePatterns, { dot: true })

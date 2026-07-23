@@ -110,9 +110,9 @@ export const WALK_PRUNE_DIRECTORIES = new Set([
 const TEST_FILE_PATTERNS = [
 	/(?:^|\/).*\.test\.[^/]+$/i,
 	/(?:^|\/).*\.spec\.[^/]+$/i,
-	/(?:^|\/).*\.stories?\.[^/]+$/i,
-	/(?:^|\/)test_[^/]+\.(?:py|rb|php|js|jsx|ts|tsx|java)$/i,
-	/(?:^|\/)[^/]+_test\.(?:py|go|rb|php|js|jsx|ts|tsx|java)$/i,
+	/(?:^|\/).*\.stor(?:y|ies)\.[^/]+$/i,
+	/(?:^|\/)test_[^/]+\.(?:py|rb|php|js|jsx|d\.ts|ts|tsx|java)$/i,
+	/(?:^|\/)[^/]+_test\.(?:py|go|rb|php|js|jsx|d\.ts|ts|tsx|java)$/i,
 ];
 
 export const toProjectPath = (rootDirectory: string, filePath: string): string => {
@@ -142,9 +142,12 @@ export const hasAllowedSourceExtension = (
 ): boolean =>
 	SOURCE_EXTENSIONS.has(path.extname(filePath)) || extraExtensions.has(path.extname(filePath));
 
-const isExcludedPath = (filePath: string): boolean => {
+export const isInExcludedDirectory = (
+	filePath: string,
+	excludedDirectories: readonly string[],
+): boolean => {
 	const normalized = filePath.toLowerCase();
-	return EXCLUDED_SOURCE_DIRECTORIES.some(
+	return excludedDirectories.some(
 		(directory) =>
 			normalized === directory ||
 			normalized.startsWith(`${directory}/`) ||
@@ -153,7 +156,8 @@ const isExcludedPath = (filePath: string): boolean => {
 };
 
 export const isExcludedFromScan = (relativePath: string): boolean =>
-	isExcludedPath(relativePath) || isGeneratedArtifactFile(relativePath);
+	isInExcludedDirectory(relativePath, EXCLUDED_SOURCE_DIRECTORIES) ||
+	isGeneratedArtifactFile(relativePath);
 
 export const isTestFile = (filePath: string): boolean =>
 	TEST_FILE_PATTERNS.some((pattern) => pattern.test(filePath));
