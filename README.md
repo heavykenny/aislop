@@ -479,7 +479,7 @@ aislop rules are shaped by public scans and benchmark-derived failure modes, not
 
 ## Community
 
-[Discussions](https://github.com/scanaislop/aislop/discussions) for questions, rule requests, and false-positive triage · [Issues](https://github.com/scanaislop/aislop/issues) for bugs
+[Discord](https://discord.gg/Mzz4A6mfj6) for community chat and support · [Discussions](https://github.com/scanaislop/aislop/discussions) for questions, rule requests, and false-positive triage · [Issues](https://github.com/scanaislop/aislop/issues) for bugs
 
 ## Contributing
 
