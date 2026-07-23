@@ -24,9 +24,61 @@ permissions:
   contents: read
 
 jobs:
+  resolve-release:
+    name: Resolve release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      prerelease: ${{ steps.release.outputs.prerelease }}
+      sha: ${{ steps.release.outputs.sha }}
+      tag: ${{ steps.release.outputs.tag }}
+
+    steps:
+      - name: Resolve release
+        id: release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: |
+          set -euo pipefail
+          if ! [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Release tag must be a semantic version prefixed with v" >&2
+            exit 1
+          fi
+
+          release_data="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" --jq '[.draft, .prerelease, .published_at] | @tsv')"
+          IFS=$'\t' read -r draft prerelease published_at <<< "$release_data"
+
+          if [ "$draft" != "false" ] || [ -z "$published_at" ] || [ "$published_at" = "null" ]; then
+            echo "Release tag must belong to a published GitHub Release" >&2
+            exit 1
+          fi
+
+          ref_data="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" --jq '[.object.type, .object.sha] | @tsv')"
+          IFS=$'\t' read -r object_type object_sha <<< "$ref_data"
+
+          if [ "$object_type" = "tag" ]; then
+            tag_data="$(gh api "repos/$GITHUB_REPOSITORY/git/tags/$object_sha" --jq '[.object.type, .object.sha] | @tsv')"
+            IFS=$'\t' read -r object_type object_sha <<< "$tag_data"
+          fi
+
+          if [ "$object_type" != "commit" ]; then
+            echo "Release tag does not resolve to a commit" >&2
+            exit 1
+          fi
+
+          {
+            echo "prerelease=$prerelease"
+            echo "sha=$object_sha"
+            echo "tag=$RELEASE_TAG"
+          } >> "$GITHUB_OUTPUT"
+
   publish-npm:
     name: Publish to npm
     runs-on: ubuntu-latest
+    needs: resolve-release
     permissions:
       contents: read
       id-token: write
@@ -34,7 +86,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.release.tag_name || inputs.tag }}
+          ref: ${{ needs.resolve-release.outputs.sha }}
 
       - uses: pnpm/action-setup@v6
 
@@ -49,7 +101,7 @@ jobs:
 
       - name: Verify release tag
         env:
-          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+          RELEASE_TAG: ${{ needs.resolve-release.outputs.tag }}
         run: |
           expected_tag="v$(node -p 'require("./package.json").version')"
           if [ "$RELEASE_TAG" != "$expected_tag" ]; then
@@ -96,7 +148,7 @@ jobs:
   publish-gpr:
     name: Publish to GitHub Packages
     runs-on: ubuntu-latest
-    needs: publish-npm
+    needs: [resolve-release, publish-npm]
     if: ${{ github.event_name == 'release' || inputs.publish }}
     permissions:
       contents: read
@@ -105,7 +157,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.release.tag_name || inputs.tag }}
+          ref: ${{ needs.resolve-release.outputs.sha }}
 
       - uses: pnpm/action-setup@v6
 
@@ -133,11 +185,15 @@ jobs:
   move-major-tag:
     name: Move v1 Action tag to this release
     runs-on: ubuntu-latest
-    needs: publish-npm
+    needs: [resolve-release, publish-npm]
     if: >-
       ${{
-        (github.event_name == 'release' && !github.event.release.prerelease) ||
-        (github.event_name == 'workflow_dispatch' && inputs.publish && inputs.move-major-tag)
+        (github.event_name == 'release' &&
+          needs.resolve-release.outputs.prerelease == 'false') ||
+        (github.event_name == 'workflow_dispatch' &&
+          inputs.publish &&
+          inputs.move-major-tag &&
+          needs.resolve-release.outputs.prerelease == 'false')
       }}
     permissions:
       contents: write
@@ -145,9 +201,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.release.tag_name || inputs.tag }}
+          ref: ${{ needs.resolve-release.outputs.sha }}
 
-      - name: Re-point v1 to ${{ github.event.release.tag_name || inputs.tag }}
+      - name: Re-point v1 to ${{ needs.resolve-release.outputs.tag }}
         run: |
           git tag -f v1
           git push origin v1 --force

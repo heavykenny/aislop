@@ -121,7 +121,7 @@ This applies to regex patterns, string literals, and diagnostic messages in all 
 
 - **Branch model**: branch from current `origin/develop`; open PRs to `develop` unless the task explicitly says otherwise.
 - **Main promotion**: `develop` -> `main` is a maintainer decision. Do not merge it just because checks are green.
-- **Releases**: automated via `.github/workflows/release.yml` on `v*` tags.
+- **Releases**: publishing a GitHub Release runs `.github/workflows/release.yml`; failed npm publishes can use its guarded manual recovery after promotion to `main`.
 - **CI**: Node 22 + 24 matrix, typecheck + build + test + self-scan.
 - All changes should pass: `pnpm typecheck && pnpm test && pnpm scan`.
 

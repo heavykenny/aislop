@@ -258,6 +258,15 @@ The npm package's trusted publisher must match these values exactly:
 - Workflow filename: `release.yml`
 - Allowed action: `npm publish`
 
+If npm publication fails after the GitHub Release is published, do not move or
+recreate the release tag. Promote the recovery workflow to the default branch,
+then run `Release` manually with the existing tag and leave both boolean inputs
+disabled. This performs the npm OIDC preflight without publishing. After that
+preflight succeeds, a maintainer may run it again with `publish` enabled.
+Enable `move-major-tag` only for a stable release. The recovery workflow accepts
+published GitHub Release tags and checks out their resolved commit, not a branch
+or arbitrary ref.
+
 Version bumps follow [semver](https://semver.org/):
 
 - **patch** -- bug fixes, false-positive fixes
