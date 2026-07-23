@@ -11,7 +11,7 @@ import { type EngineCounts, withCommandLifecycle } from "../telemetry/index.js";
 import { renderDisplayRows } from "../ui/display.js";
 import { renderHeader } from "../ui/header.js";
 import { log } from "../ui/logger.js";
-import { discoverProject } from "../utils/discover.js";
+import { detectSourceLanguages, discoverProject } from "../utils/discover.js";
 import { baseRefExists } from "../utils/git.js";
 import { appendHistory } from "../utils/history.js";
 import { readAislopIgnorePatterns } from "../utils/source-files.js";
@@ -92,15 +92,19 @@ export const scanCommand = async (
 	}
 
 	const excludePatterns = [...config.exclude, ...readAislopIgnorePatterns(resolvedDir)];
-	const projectInfo = await discoverProject(resolvedDir, excludePatterns, {
-		includePatterns: config.include,
-	});
 	const scanScope = collectScanFileScope({
 		excludePatterns,
 		includePatterns: config.include,
 		mode: resolveScanScopeMode(options),
 		rootDirectory: resolvedDir,
 	});
+	const discoveredProject = await discoverProject(resolvedDir, excludePatterns, {
+		includePatterns: config.include,
+	});
+	const projectInfo = {
+		...discoveredProject,
+		languages: detectSourceLanguages([...scanScope.files, ...scanScope.testFiles]),
+	};
 
 	return withCommandLifecycle(
 		{

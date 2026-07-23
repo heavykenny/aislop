@@ -208,7 +208,7 @@ describe("checkComplexity — function too long", () => {
 	});
 });
 
-describe("analyzeFunctions — braces inside strings/comments don't skew length", () => {
+describe("analyzeFunctions: braces inside strings/comments don't skew length", () => {
 	it("does not count a brace inside a line comment as opening a block", () => {
 		const content = [
 			"function tiny(a: number) {",
@@ -252,7 +252,7 @@ describe("analyzeFunctions — braces inside strings/comments don't skew length"
 	});
 });
 
-describe("analyzeFunctions — Python end-detection uses masked lines", () => {
+describe("analyzeFunctions: Python end-detection uses masked lines", () => {
 	it("does not truncate a Python function at a comment dedented to column 0", () => {
 		const content = [
 			"def f():",
