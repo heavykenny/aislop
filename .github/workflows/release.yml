@@ -221,14 +221,16 @@ jobs:
           needs.resolve-release.outputs.prerelease == 'false')
       }}
     permissions:
-      contents: write
+      contents: read
 
     steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ needs.resolve-release.outputs.sha }}
-
       - name: Re-point v1 to ${{ needs.resolve-release.outputs.tag }}
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_BOT_PAT }}
+          RELEASE_SHA: ${{ needs.resolve-release.outputs.sha }}
         run: |
-          git tag -f v1
-          git push origin v1 --force
+          gh api \
+            --method PATCH \
+            "repos/$GITHUB_REPOSITORY/git/refs/tags/v1" \
+            --field "sha=$RELEASE_SHA" \
+            --field force=true
