@@ -10,18 +10,44 @@ const PackageManifestSchema = z.object({
 
 const WorkflowStepSchema = z.object({
 	env: z.record(z.string(), z.string()).optional(),
+	if: z.string().optional(),
 	name: z.string().optional(),
 	run: z.string().optional(),
+	shell: z.string().optional(),
 	uses: z.string().optional(),
 	with: z.record(z.string(), z.unknown()).optional(),
 });
 
 const WorkflowJobSchema = z.object({
+	if: z.string().optional(),
 	permissions: z.record(z.string(), z.string()),
 	steps: z.array(WorkflowStepSchema),
 });
 
 const ReleaseWorkflowSchema = z.object({
+	on: z.object({
+		release: z.object({
+			types: z.array(z.string()),
+		}),
+		workflow_dispatch: z.object({
+			inputs: z.object({
+				"move-major-tag": z.object({
+					default: z.boolean(),
+					required: z.boolean(),
+					type: z.literal("boolean"),
+				}),
+				publish: z.object({
+					default: z.boolean(),
+					required: z.boolean(),
+					type: z.literal("boolean"),
+				}),
+				tag: z.object({
+					required: z.boolean(),
+					type: z.literal("string"),
+				}),
+			}),
+		}),
+	}),
 	jobs: z.object({
 		"move-major-tag": WorkflowJobSchema,
 		"publish-gpr": WorkflowJobSchema,
@@ -49,6 +75,7 @@ describe("package release security", () => {
 		const workflow = ReleaseWorkflowSchema.parse(parseYaml(workflowSource));
 		const npmJob = workflow.jobs["publish-npm"];
 		const setupNode = npmJob.steps.find((step) => step.uses?.startsWith("actions/setup-node@"));
+		const installNpm = npmJob.steps.find((step) => step.name === "Install npm 12");
 		const publish = npmJob.steps.find((step) => step.name === "Publish to npm");
 
 		expect(workflow.permissions).toEqual({ contents: "read" });
@@ -57,6 +84,7 @@ describe("package release security", () => {
 			"node-version": 24,
 			"package-manager-cache": false,
 		});
+		expect(installNpm?.run).toBe("npm install --global npm@12.0.1");
 		expect(publish?.run).toBe("npm publish --access public");
 		expect(publish?.env).toBeUndefined();
 		expect(workflowSource).not.toContain("secrets.NPM_TOKEN");
@@ -65,5 +93,47 @@ describe("package release security", () => {
 			packages: "write",
 		});
 		expect(workflow.jobs["move-major-tag"].permissions).toEqual({ contents: "write" });
+	});
+
+	it("supports a guarded manual recovery for an existing release tag", () => {
+		const workflow = ReleaseWorkflowSchema.parse(
+			parseYaml(fs.readFileSync(".github/workflows/release.yml", "utf8")),
+		);
+		const npmJob = workflow.jobs["publish-npm"];
+		const releaseRef = "${{ github.event.release.tag_name || inputs.tag }}";
+		const checkoutRefs = Object.values(workflow.jobs).map(
+			(job) => job.steps.find((step) => step.uses?.startsWith("actions/checkout@"))?.with?.ref,
+		);
+		const verifyTag = npmJob.steps.find((step) => step.name === "Verify release tag");
+		const verifyTrust = npmJob.steps.find((step) => step.name === "Verify npm trusted publishing");
+
+		expect(workflow.on.release.types).toEqual(["published"]);
+		expect(workflow.on.workflow_dispatch.inputs.tag).toMatchObject({
+			required: true,
+			type: "string",
+		});
+		expect(workflow.on.workflow_dispatch.inputs["move-major-tag"]).toEqual({
+			default: false,
+			required: true,
+			type: "boolean",
+		});
+		expect(workflow.on.workflow_dispatch.inputs.publish).toEqual({
+			default: false,
+			required: true,
+			type: "boolean",
+		});
+		expect(checkoutRefs).toEqual([releaseRef, releaseRef, releaseRef]);
+		expect(verifyTag?.env).toEqual({ RELEASE_TAG: releaseRef });
+		expect(verifyTag?.run).toContain('expected_tag="v$(node -p');
+		expect(verifyTag?.run).toContain('if [ "$RELEASE_TAG" != "$expected_tag" ]');
+		expect(verifyTrust?.shell).toBe("bash");
+		expect(verifyTrust?.run).toContain("npm publish --access public --dry-run --loglevel verbose");
+		expect(verifyTrust?.run).toContain('grep -Fq "Successfully retrieved and set token"');
+		expect(npmJob.steps.find((step) => step.name === "Publish to npm")?.if).toContain(
+			"inputs.publish",
+		);
+		expect(workflow.jobs["publish-gpr"].if).toContain("inputs.publish");
+		expect(workflow.jobs["move-major-tag"].if).toContain("inputs.move-major-tag");
+		expect(workflow.jobs["move-major-tag"].if).toContain("inputs.publish");
 	});
 });
