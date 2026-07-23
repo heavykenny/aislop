@@ -41,7 +41,7 @@ const normalizeExcludePatterns = (patterns: string[]): string[] =>
 		if (normalized.length > MAX_GLOB_PATTERN_LENGTH) return [];
 		if (micromatch.scan(normalized).isGlob) return [normalized];
 		if (normalized.startsWith(".") && !normalized.includes("/")) {
-			return supportedGlobPatterns([`**/*${normalized}`, `**/${normalized}/**`]);
+			return supportedGlobPatterns([`**/${normalized}`, `**/${normalized}/**`]);
 		}
 		return supportedGlobPatterns([normalized, `${normalized}/**`]);
 	});
