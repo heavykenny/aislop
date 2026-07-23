@@ -80,6 +80,8 @@ npm install -g aislop
 
 Also available as [`@scanaislop/aislop`](docs/installation.md) on GitHub Packages.
 
+Package installation does not run dependency lifecycle scripts. After installing, run `aislop-tools` once if you want bundled Ruff and golangci-lint coverage; the core scanner works without it.
+
 **Homebrew** (macOS / Linux)
 
 ```bash
@@ -96,7 +98,7 @@ pipx install aislop
 
 `pipx` keeps `aislop` in its own isolated environment. Needs Node.js on `PATH`. Details: [PyPI package](https://pypi.org/project/aislop/).
 
-Full reference for every channel, bundled tooling, and external tools: [docs/installation.md](docs/installation.md).
+Full reference for every channel, optional bundled tooling, and external tools: [docs/installation.md](docs/installation.md).
 
 ---
 

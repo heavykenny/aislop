@@ -4,8 +4,9 @@
   "description": "Catch the slop AI coding agents leave in your code: narrative comments, swallowed exceptions, as-any casts, dead code, oversized functions. 50+ rules across 8 language targets (TypeScript, JavaScript, Expo / React Native, Python, Go, Rust, Ruby, PHP). Sub-second, deterministic, no LLM at runtime. MIT-licensed.",
   "type": "module",
   "bin": {
-    "aislop": "./dist/cli.js",
-    "aislop-mcp": "./dist/mcp.js"
+    "aislop": "dist/cli.js",
+    "aislop-mcp": "dist/mcp.js",
+    "aislop-tools": "scripts/install-tools.mjs"
   },
   "files": [
     "dist",
@@ -40,7 +41,6 @@
   "scripts": {
     "dev": "tsdown --watch",
     "build": "tsdown",
-    "postinstall": "node scripts/postinstall-tools.mjs",
     "typecheck": "tsc --noEmit",
     "gen:schema": "node --experimental-strip-types scripts/gen-config-schema.mjs",
     "test": "pnpm build && vitest run",
