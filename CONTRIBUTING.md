@@ -249,7 +249,14 @@ Language support involves several layers:
 
 ## Releases
 
-Releases are automated. When a maintainer creates a GitHub Release (or pushes a `v*` tag), CI builds and publishes to npm using OIDC trusted publishing -- no long-lived tokens required. See `.github/workflows/release.yml`.
+Releases are automated. Publishing a GitHub Release runs `.github/workflows/release.yml`, which publishes to npm through OIDC trusted publishing without a long-lived npm token.
+
+The npm package's trusted publisher must match these values exactly:
+
+- Organization: `scanaislop`
+- Repository: `aislop`
+- Workflow filename: `release.yml`
+- Allowed action: `npm publish`
 
 Version bumps follow [semver](https://semver.org/):
 

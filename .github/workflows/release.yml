@@ -5,14 +5,15 @@ on:
     types: [published]
 
 permissions:
-  contents: write
-  packages: write
-  id-token: write
+  contents: read
 
 jobs:
   publish-npm:
     name: Publish to npm
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
 
     steps:
       - uses: actions/checkout@v7
@@ -23,8 +24,8 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: 22
-          cache: pnpm
+          node-version: 24
+          package-manager-cache: false
           registry-url: https://registry.npmjs.org
 
       - name: Install dependencies
@@ -41,16 +42,22 @@ jobs:
 
       - name: Self-scan
         run: node dist/cli.js scan . --json
+        env:
+          AISLOP_NO_HISTORY: "1"
+          AISLOP_NO_TELEMETRY: "1"
+          AISLOP_NO_UPDATE_NOTIFIER: "1"
+          DO_NOT_TRACK: "1"
 
       - name: Publish to npm
         run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   publish-gpr:
     name: Publish to GitHub Packages
     runs-on: ubuntu-latest
     needs: publish-npm
+    permissions:
+      contents: read
+      packages: write
 
     steps:
       - uses: actions/checkout@v7
@@ -61,8 +68,8 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: 22
-          cache: pnpm
+          node-version: 24
+          package-manager-cache: false
           registry-url: https://npm.pkg.github.com
           scope: '@scanaislop'
 
@@ -85,6 +92,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: publish-npm
     if: ${{ !github.event.release.prerelease }}
+    permissions:
+      contents: write
 
     steps:
       - uses: actions/checkout@v7

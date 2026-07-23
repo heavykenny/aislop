@@ -25,10 +25,12 @@ Minor release: expands project discovery and Python workspace awareness, makes d
 
 - **Dependency and CI updates.** Refreshed Biome, Expo Doctor, oxlint, Vitest, YAML, Zod, adm-zip, and the pnpm setup action while preserving the Node 20 runtime floor.
 - **Agent guidance.** Claude Code and Gemini CLI now load the canonical contributor instructions through lightweight pointer files ([#272](https://github.com/scanaislop/aislop/pull/272)).
+- **npm v12-safe installation.** Package installation no longer relies on a dependency `postinstall` script. The core scanner installs without lifecycle execution; `aislop-tools` explicitly installs the optional Ruff and golangci-lint binaries and fails visibly if that setup cannot complete.
+- **Tokenless npm publishing.** The release job now uses npm trusted publishing with OIDC, Node 24, disabled release caches, and job-scoped least-privilege permissions instead of a long-lived `NPM_TOKEN`.
 
 ### Tests
 
-Full suite at 1,471 passing, including regression coverage for provider failures, Windows paths, source-only language detection, ignored TypeScript projects, complexity masking, and uv workspace boundaries.
+Full suite at 1,553 passing, including regression coverage for provider failures, Windows paths, source-only language detection, ignored TypeScript projects, complexity masking, uv workspace boundaries, npm v12-safe packaging, and the OIDC release contract.
 
 ## 0.13.1 (2026-06-29)
 

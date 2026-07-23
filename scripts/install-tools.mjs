@@ -218,11 +218,6 @@ const installTool = async (tool) => {
 };
 
 const main = async () => {
-	if (process.env.AISLOP_SKIP_TOOL_DOWNLOAD === "1") {
-		info("Skipping bundled tool download (AISLOP_SKIP_TOOL_DOWNLOAD=1).");
-		return;
-	}
-
 	const failures = [];
 	for (const tool of TOOL_DEFINITIONS) {
 		try {
@@ -245,6 +240,8 @@ const main = async () => {
 		warn(
 			"aislop will still run, but coverage for those tools may be reduced until installation succeeds.",
 		);
+		process.exitCode = 1;
+		return;
 	}
 
 	printNextSteps();
@@ -260,6 +257,7 @@ const printNextSteps = () => {
 
 main().catch((error) => {
 	warn(
-		`postinstall failed: ${error instanceof Error ? error.message : String(error)}`,
+		`tool installation failed: ${error instanceof Error ? error.message : String(error)}`,
 	);
+	process.exitCode = 1;
 });
