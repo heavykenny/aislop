@@ -149,6 +149,7 @@ describe("package release security", () => {
 		const verifyTag = npmJob.steps.find((step) => step.name === "Verify release tag");
 		const verifyTrust = npmJob.steps.find((step) => step.name === "Verify npm trusted publishing");
 		const publish = npmJob.steps.find((step) => step.name === "Publish to npm");
+		const recoveryPublish = npmJob.steps.find((step) => step.name === "Publish recovery to npm");
 		const publishCondition = "${{ github.event_name == 'release' || inputs.publish }}";
 		const stableRelease = "needs.resolve-release.outputs.prerelease == 'false'";
 		const expressionStart = "${{";
@@ -175,7 +176,12 @@ describe("package release security", () => {
 		expect(verifyTrust?.shell).toBe("bash");
 		expect(verifyTrust?.run).toContain("npm publish --access public --dry-run --loglevel verbose");
 		expect(verifyTrust?.run).toContain('grep -Fq "Successfully retrieved and set token"');
-		expect(publish?.if).toBe(publishCondition);
+		expect(publish?.if).toBe("${{ github.event_name == 'release' }}");
+		expect(recoveryPublish).toMatchObject({
+			env: { NPM_CONFIG_PROVENANCE: "false" },
+			if: "${{ github.event_name == 'workflow_dispatch' && inputs.publish }}",
+			run: "npm publish --access public",
+		});
 		expect(workflow.jobs["publish-gpr"].if).toBe(publishCondition);
 		expect(moveMajorCondition).toBe(
 			`${expressionStart} (github.event_name == 'release' && ${stableRelease}) || ` +
