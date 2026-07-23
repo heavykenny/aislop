@@ -153,9 +153,9 @@ const runScanBody = async (
 		}
 	} else {
 		const allFiles = listProjectFiles(resolvedDir);
-		files = filterProjectFiles(resolvedDir, allFiles, [], excludePatterns);
+		const filteredFiles = filterProjectFiles(resolvedDir, allFiles, [], excludePatterns);
 		if (!machineOutput) {
-			process.stdout.write(renderScopeRow(`${files.length} file(s) after exclusions`));
+			process.stdout.write(renderScopeRow(`${filteredFiles.length} file(s) after exclusions`));
 		}
 	}
 
