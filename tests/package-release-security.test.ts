@@ -150,7 +150,10 @@ describe("package release security", () => {
 		const verifyTrust = npmJob.steps.find((step) => step.name === "Verify npm trusted publishing");
 		const publish = npmJob.steps.find((step) => step.name === "Publish to npm");
 		const recoveryPublish = npmJob.steps.find((step) => step.name === "Publish recovery to npm");
-		const publishCondition = "${{ github.event_name == 'release' || inputs.publish }}";
+		const defaultBranch =
+			"github.ref == format('refs/heads/{0}', github.event.repository.default_branch)";
+		const recoveryPublishCondition = recoveryPublish?.if?.replace(/\s+/g, " ").trim();
+		const publishGprCondition = workflow.jobs["publish-gpr"].if?.replace(/\s+/g, " ").trim();
 		const stableRelease = "needs.resolve-release.outputs.prerelease == 'false'";
 		const expressionStart = "${{";
 		const moveMajorCondition = workflow.jobs["move-major-tag"].if?.replace(/\s+/g, " ").trim();
@@ -179,13 +182,19 @@ describe("package release security", () => {
 		expect(publish?.if).toBe("${{ github.event_name == 'release' }}");
 		expect(recoveryPublish).toMatchObject({
 			env: { NPM_CONFIG_PROVENANCE: "false" },
-			if: "${{ github.event_name == 'workflow_dispatch' && inputs.publish }}",
 			run: "npm publish --access public",
 		});
-		expect(workflow.jobs["publish-gpr"].if).toBe(publishCondition);
+		expect(recoveryPublishCondition).toBe(
+			`${expressionStart} github.event_name == 'workflow_dispatch' && ${defaultBranch} && ` +
+				"inputs.publish }}",
+		);
+		expect(publishGprCondition).toBe(
+			`${expressionStart} github.event_name == 'release' || ` +
+				`(github.event_name == 'workflow_dispatch' && ${defaultBranch} && inputs.publish) }}`,
+		);
 		expect(moveMajorCondition).toBe(
 			`${expressionStart} (github.event_name == 'release' && ${stableRelease}) || ` +
-				`(github.event_name == 'workflow_dispatch' && inputs.publish && ` +
+				`(github.event_name == 'workflow_dispatch' && ${defaultBranch} && inputs.publish && ` +
 				`inputs['move-major-tag'] && ${stableRelease}) }}`,
 		);
 	});
