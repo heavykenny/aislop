@@ -142,8 +142,14 @@ jobs:
           fi
 
       - name: Publish to npm
-        if: ${{ github.event_name == 'release' || inputs.publish }}
+        if: ${{ github.event_name == 'release' }}
         run: npm publish --access public
+
+      - name: Publish recovery to npm
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish }}
+        run: npm publish --access public
+        env:
+          NPM_CONFIG_PROVENANCE: "false"
 
   publish-gpr:
     name: Publish to GitHub Packages

@@ -265,7 +265,9 @@ disabled. This performs the npm OIDC preflight without publishing. After that
 preflight succeeds, a maintainer may run it again with `publish` enabled.
 Enable `move-major-tag` only for a stable release. The recovery workflow accepts
 published GitHub Release tags and checks out their resolved commit, not a branch
-or arbitrary ref.
+or arbitrary ref. Manual recovery publishes disable npm provenance because the
+workflow run's default-branch ref differs from the release commit; normal
+GitHub Release publishes retain automatic trusted-publishing provenance.
 
 Version bumps follow [semver](https://semver.org/):
 
