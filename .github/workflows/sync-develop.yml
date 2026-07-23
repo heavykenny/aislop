@@ -16,11 +16,10 @@ jobs:
         with:
           fetch-depth: 0
           ref: develop
-          # SYNC_BOT_PAT is a fine-grained PAT with contents:write +
-          # pull-requests:write on this repo. Pushes via this token attribute
-          # to the PAT's user, which means downstream pull_request workflows
-          # (CI) actually fire — GITHUB_TOKEN can't because of GitHub's
-          # anti-loop guard.
+          # SYNC_BOT_PAT is a fine-grained PAT with contents:write,
+          # pull-requests:write, and workflows:write on this repo. Pushes via
+          # this token attribute to the PAT's user, so downstream pull_request
+          # workflows run; GITHUB_TOKEN cannot because of GitHub's anti-loop guard.
           token: ${{ secrets.SYNC_BOT_PAT }}
 
       - name: Configure git identity
