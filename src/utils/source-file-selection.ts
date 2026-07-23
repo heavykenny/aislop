@@ -19,7 +19,7 @@ const GENERATED_DECLARATION_DIRECTORIES = new Set(["generated", "__generated__",
 const DECLARATION_EXCLUDED_DIRECTORIES = EXCLUDED_SOURCE_DIRECTORIES.filter(
 	(directory) => !GENERATED_DECLARATION_DIRECTORIES.has(directory),
 );
-const MAX_GLOB_PATTERN_LENGTH = 4_096;
+const MAX_GLOB_PATTERN_LENGTH = 256;
 
 const supportedGlobPatterns = (patterns: string[]): string[] =>
 	patterns.filter((pattern) => pattern.length <= MAX_GLOB_PATTERN_LENGTH);
@@ -54,6 +54,11 @@ const normalizeIncludePatterns = (patterns: string[]): string[] =>
 		if (micromatch.scan(normalized).isGlob) return [normalized];
 		return supportedGlobPatterns([normalized, `${normalized}/**`]);
 	});
+
+const createPathMatcher = (patterns: string[]): ((filePath: string) => boolean) => {
+	const matchers = patterns.map((pattern) => micromatch.matcher(pattern, { dot: true }));
+	return (filePath) => matchers.some((matches) => matches(filePath));
+};
 
 interface FileFilterOptions {
 	readonly exclude: string[];
@@ -98,6 +103,8 @@ const filterFiles = (
 		: new Set<string>();
 	const excludePatterns = normalizeExcludePatterns(options.exclude);
 	const includePatterns = normalizeIncludePatterns(options.include);
+	const matchesExclude = createPathMatcher(excludePatterns);
+	const matchesInclude = createPathMatcher(includePatterns);
 	const excludedDirectories = options.testFiles
 		? TEST_EXCLUDED_DIRECTORIES
 		: EXCLUDED_SOURCE_DIRECTORIES;
@@ -113,16 +120,10 @@ const filterFiles = (
 			) {
 				return false;
 			}
-			if (
-				includePatterns.length > 0 &&
-				!micromatch.isMatch(relativePath, includePatterns, { dot: true })
-			) {
+			if (includePatterns.length > 0 && !matchesInclude(relativePath)) {
 				return false;
 			}
-			if (
-				excludePatterns.length > 0 &&
-				micromatch.isMatch(relativePath, excludePatterns, { dot: true })
-			) {
+			if (matchesExclude(relativePath)) {
 				return false;
 			}
 			return hasAllowedSourceExtension(relativePath, extraExtensions);
@@ -191,6 +192,8 @@ export const filterProjectDeclarationFiles = (
 ): string[] => {
 	const excludePatterns = normalizeExcludePatterns(exclude);
 	const includePatterns = normalizeIncludePatterns(include);
+	const matchesExclude = createPathMatcher(excludePatterns);
+	const matchesInclude = createPathMatcher(includePatterns);
 	return filterExplicitFiles(rootDirectory, files).filter((filePath) => {
 		if (!filePath.endsWith(".d.ts")) return false;
 		const relativePath = toProjectPath(rootDirectory, filePath);
@@ -200,14 +203,9 @@ export const filterProjectDeclarationFiles = (
 		) {
 			return false;
 		}
-		if (
-			includePatterns.length > 0 &&
-			!micromatch.isMatch(relativePath, includePatterns, { dot: true })
-		) {
+		if (includePatterns.length > 0 && !matchesInclude(relativePath)) {
 			return false;
 		}
-		return !(
-			excludePatterns.length > 0 && micromatch.isMatch(relativePath, excludePatterns, { dot: true })
-		);
+		return !matchesExclude(relativePath);
 	});
 };
