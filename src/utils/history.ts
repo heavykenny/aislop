@@ -14,13 +14,13 @@ export interface HistoryRecord {
 	cliVersion: string;
 }
 
-const isHistoryDisabled = (env: NodeJS.ProcessEnv = process.env): boolean =>
+export const isHistoryDisabled = (env: NodeJS.ProcessEnv = process.env): boolean =>
 	env.AISLOP_NO_HISTORY === "1";
 
 const historyPath = (directory: string): string =>
 	path.join(path.resolve(directory), CONFIG_DIR, HISTORY_FILE);
 
-interface AppendHistoryInput {
+export interface AppendHistoryInput {
 	directory: string;
 	score: number;
 	errors: number;
