@@ -6,6 +6,50 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## Unreleased
 
+## 0.14.0 (2026-07-14)
+
+Minor release: expands project discovery and Python workspace awareness, makes diagnostics and tool execution reliable across operating systems, and tightens scanner accuracy around real-world source layouts.
+
+### Added
+
+- **uv workspace-aware Python import checks.** The hallucinated-import detector resolves root and member dependencies across uv workspaces, including member globs, exclusions, nested packages, editable sources, and shared workspace environments ([#270](https://github.com/scanaislop/aislop/pull/270)).
+
+### Fixed
+
+- **Agent provider failures stop immediately.** A provider process that exits non-zero now fails the repair session instead of verifying an unchanged diff and offering repeated passes ([#228](https://github.com/scanaislop/aislop/issues/228)).
+- **Cross-platform diagnostics and CI.** Diagnostic paths are stable POSIX-style paths on Windows, namespaced and short paths resolve correctly, external-tool discovery is portable, and the CI matrix now covers Windows on Node 22 and 24 ([#261](https://github.com/scanaislop/aislop/pull/261)).
+- **Project and tooling discovery.** Bare source trees are detected without requiring a manifest, ignored TypeScript projects stay out of typechecking, and executable tools installed by the project take precedence over bundled fallbacks ([#258](https://github.com/scanaislop/aislop/pull/258), [#259](https://github.com/scanaislop/aislop/pull/259), [#260](https://github.com/scanaislop/aislop/pull/260)).
+- **Complexity masking.** Braces inside strings, comments, and regex literals no longer distort function boundaries or produce false complexity findings ([#271](https://github.com/scanaislop/aislop/pull/271)).
+
+### Changed
+
+- **Dependency and CI updates.** Refreshed Biome, Expo Doctor, oxlint, Vitest, YAML, Zod, adm-zip, and the pnpm setup action while preserving the Node 20 runtime floor.
+- **Agent guidance.** Claude Code and Gemini CLI now load the canonical contributor instructions through lightweight pointer files ([#272](https://github.com/scanaislop/aislop/pull/272)).
+- **npm v12-safe installation.** Package installation no longer relies on a dependency `postinstall` script. The core scanner installs without lifecycle execution; `aislop-tools` explicitly installs the optional Ruff and golangci-lint binaries and fails visibly if that setup cannot complete.
+- **Tokenless npm publishing.** The release job now uses npm trusted publishing with OIDC, Node 24, disabled release caches, and job-scoped least-privilege permissions instead of a long-lived `NPM_TOKEN`.
+
+### Tests
+
+Full suite at 1,553 passing, including regression coverage for provider failures, Windows paths, source-only language detection, ignored TypeScript projects, complexity masking, uv workspace boundaries, npm v12-safe packaging, and the OIDC release contract.
+
+## 0.13.1 (2026-06-29)
+
+Patch release: calibrates the new `ai-slop/hidden-fallback` rule so it stops flagging error-message defaults, points Dependabot at the `develop` branch, and pulls in routine dependency and CI-action updates.
+
+### Fixed
+
+- **`ai-slop/hidden-fallback` false positives.** The rule no longer flags error-message string defaults (`err?.message || "Failed to load"`), empty-string normalizers (`?? ""`), or optional env-var defaults (`process.env.X ?? fallback`). A string fallback counts as a masked value only when it is a status/success token (`"ok"`, `"success"`, …); bare string returns from a catch are still flagged ([#251](https://github.com/scanaislop/aislop/pull/251)).
+- **Comment masker no longer mis-reads regex literals.** A regex literal containing `/*` inside a character class (e.g. `/[/*]/`) was treated as a block comment that masked through end-of-file, producing false complexity / function-too-long diagnostics on regex-heavy code. The JS/TS masker now consumes regex literals before comment detection.
+
+### Changed
+
+- **Dependabot targets `develop`.** Dependency PRs now open against the `develop` integration branch instead of `main` ([#252](https://github.com/scanaislop/aislop/pull/252)).
+- **Dependency & CI-action bumps.** `oxlint` 1.51 → 1.71, `@biomejs/biome` 2.4.5 → 2.5.1, `expo-doctor` 1.18.10 → 1.19.10, `tar` 7.5.16 → 7.5.19, and the `actions/checkout`, `actions/setup-node`, and `pnpm/action-setup` GitHub Actions — the last clears the Node 20 deprecation warning in the publish workflow ([#243](https://github.com/scanaislop/aislop/pull/243)–[#249](https://github.com/scanaislop/aislop/pull/249)). The `knip` 5 → 6 bump was reverted: v6 moves unused files to `issues[].files`, which the scanner's parser does not yet read, so it is deferred to a dedicated migration.
+
+### Tests
+
+Full suite green; new coverage for the hidden-fallback message-default and env-default cases, plus the preserved bare-empty-string catch detection.
+
 ## 0.13.0 (2026-06-28)
 
 Telemetry now reports how users install aislop (npm, Homebrew, pip, pipx, and more), MCP and lifecycle events flush reliably, and new quality rules catch hidden fallbacks while framework-specific scans ship as optional adapter entrypoints.

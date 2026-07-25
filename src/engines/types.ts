@@ -36,7 +36,12 @@ export interface EngineContext {
 	rootDirectory: string;
 	languages: Language[];
 	frameworks: Framework[];
+	readonly dependencyAuditFiles?: string[];
+	readonly dependencyAuditLanguages?: Language[];
+	readonly dependencyAuditScope?: "full" | "files";
 	files?: string[];
+	testFiles?: string[];
+	projectFiles?: string[];
 	installedTools: Record<string, boolean>;
 	config: EngineConfig;
 }

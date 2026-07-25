@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
+import { relativePosix } from "../../utils/paths.js";
 import { runSubprocess } from "../../utils/subprocess.js";
 import type { Diagnostic } from "../types.js";
 
@@ -98,7 +99,7 @@ const collectIssues = (
 		const symbol = issue.name ?? issue.symbol ?? "unknown";
 		const absolutePath = path.resolve(knipCwd, fileIssue.file);
 		diagnostics.push({
-			filePath: path.relative(rootDir, absolutePath),
+			filePath: relativePosix(rootDir, absolutePath),
 			engine: "code-quality",
 			rule: `knip/${issueType}`,
 			severity,
@@ -146,7 +147,7 @@ export const getRelativePathWithinRoot = (
 	const rootPath = path.resolve(rootDirectory);
 	const absolutePath = path.resolve(baseDirectory, reportedPath);
 	if (!isSubpath(rootPath, absolutePath)) return null;
-	return path.relative(rootPath, absolutePath);
+	return relativePosix(rootPath, absolutePath);
 };
 
 export const getSafeUnusedFilePath = (rootDirectory: string, filePath: string): string | null => {

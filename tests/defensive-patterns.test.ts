@@ -134,6 +134,33 @@ describe("hidden fallback logic", () => {
 		const matches = diagnostics.filter((d) => d.rule === "ai-slop/hidden-fallback");
 		expect(matches).toHaveLength(1);
 		expect(matches[0].line).toBe(4);
+		expect(matches[0].filePath).toBe("score.ts");
+	});
+
+	it("emits POSIX paths and skips nested fixture files", async () => {
+		const sourcePath = writeFile(
+			"src/nested/score.ts",
+			[
+				"function effectiveFiles(diagnostics: Diagnostic[]) {",
+				"  // Fallback when source files are missing.",
+				"  return Math.max(1, diagnostics.length);",
+				"}",
+			].join("\n"),
+		);
+		const fixturePath = writeFile(
+			"fixtures/nested/score.ts",
+			[
+				"function effectiveFiles(diagnostics: Diagnostic[]) {",
+				"  // Fallback when source files are missing.",
+				"  return Math.max(1, diagnostics.length);",
+				"}",
+			].join("\n"),
+		);
+
+		const diagnostics = await detectHiddenFallbacks(makeContext([sourcePath, fixturePath]));
+		const matches = diagnostics.filter((d) => d.rule === "ai-slop/hidden-fallback");
+		expect(matches).toHaveLength(1);
+		expect(matches[0].filePath).toBe("src/nested/score.ts");
 	});
 
 	it("detects count fallbacks that hide failed counts", async () => {
@@ -185,6 +212,25 @@ describe("hidden fallback logic", () => {
 		const matches = diagnostics.filter((d) => d.rule === "ai-slop/hidden-fallback");
 		expect(matches).toHaveLength(1);
 		expect(matches[0].line).toBe(6);
+	});
+
+	it("detects catch blocks that return a bare empty-string fallback", async () => {
+		const filePath = writeFile(
+			"catch-empty-string.ts",
+			[
+				"async function loadName() {",
+				"  // Fallback when the fetch failed should not pretend success.",
+				"  try {",
+				"    return await fetchName();",
+				"  } catch {",
+				"    return '';",
+				"  }",
+				"}",
+			].join("\n"),
+		);
+
+		const diagnostics = await detectHiddenFallbacks(makeContext([filePath]));
+		expect(diagnostics.filter((d) => d.rule === "ai-slop/hidden-fallback")).toHaveLength(1);
 	});
 
 	it("does not flag ordinary optional defaults without failure context", async () => {
@@ -256,6 +302,67 @@ describe("hidden fallback logic", () => {
 
 		const diagnostics = await detectHiddenFallbacks(makeContext([filePath]));
 		expect(diagnostics.filter((d) => d.rule === "ai-slop/hidden-fallback")).toEqual([]);
+	});
+
+	it("does not flag error-message string defaults that surface the failure", async () => {
+		const filePath = writeFile(
+			"error-message-default.ts",
+			[
+				"function loadTeam(err: unknown) {",
+				"  // failed",
+				"  const message = (err as Error)?.message || 'Failed to load team';",
+				"  return message;",
+				"}",
+			].join("\n"),
+		);
+
+		const diagnostics = await detectHiddenFallbacks(makeContext([filePath]));
+		expect(diagnostics.filter((d) => d.rule === "ai-slop/hidden-fallback")).toEqual([]);
+	});
+
+	it("does not flag an empty-string message default", async () => {
+		const filePath = writeFile(
+			"empty-string-default.ts",
+			[
+				"function transient(err: unknown) {",
+				"  const msg = (err as Error)?.message ?? '';",
+				"  return /timeout|reset/.test(msg);",
+				"}",
+			].join("\n"),
+		);
+
+		const diagnostics = await detectHiddenFallbacks(makeContext([filePath]));
+		expect(diagnostics.filter((d) => d.rule === "ai-slop/hidden-fallback")).toEqual([]);
+	});
+
+	it("does not flag optional env-var defaults", async () => {
+		const filePath = writeFile(
+			"env-default.ts",
+			[
+				"function optional(key: string, fallback: string): string {",
+				"  return process.env[key] ?? fallback;",
+				"}",
+			].join("\n"),
+		);
+
+		const diagnostics = await detectHiddenFallbacks(makeContext([filePath]));
+		expect(diagnostics.filter((d) => d.rule === "ai-slop/hidden-fallback")).toEqual([]);
+	});
+
+	it("still flags a status token that masks failed state", async () => {
+		const filePath = writeFile(
+			"status-token.ts",
+			[
+				"function check(response: { status?: string }) {",
+				"  // failed status fallback",
+				"  const status = response.status || 'ok';",
+				"  return status;",
+				"}",
+			].join("\n"),
+		);
+
+		const diagnostics = await detectHiddenFallbacks(makeContext([filePath]));
+		expect(diagnostics.filter((d) => d.rule === "ai-slop/hidden-fallback")).toHaveLength(1);
 	});
 });
 

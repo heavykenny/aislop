@@ -664,6 +664,40 @@ describe("dead code patterns", () => {
 		const constant = diagnostics.filter((d) => d.rule === "ai-slop/constant-condition");
 		expect(constant.length).toBe(1);
 	});
+	it("does not treat an unbraced if/else return as unconditional (JS)", async () => {
+		const filePath = writeFile(
+			"brace-less-else.js",
+			[
+				"function f(a) {",
+				"  if (a)",
+				"    output = 1;",
+				"  else",
+				"    return -1;",
+				"  return output;",
+				"}",
+			].join("\n"),
+		);
+		const diagnostics = await detectDeadPatterns(makeContext([filePath]));
+		const unreachable = diagnostics.filter((d) => d.rule === "ai-slop/unreachable-code");
+		expect(unreachable).toHaveLength(0);
+	});
+	it("still flags code after an unbraced do-loop return as unreachable (JS)", async () => {
+		const filePath = writeFile(
+			"brace-less-do.js",
+			[
+				"function f(cond) {",
+				"  do",
+				"    return 1;",
+				"  while (cond);",
+				"  return 2;",
+				"}",
+			].join("\n"),
+		);
+		const diagnostics = await detectDeadPatterns(makeContext([filePath]));
+		const unreachable = diagnostics.filter((d) => d.rule === "ai-slop/unreachable-code");
+		expect(unreachable).toHaveLength(1);
+		expect(unreachable[0].line).toBe(4);
+	});
 });
 
 // ─── Unsafe Type Assertions ──────────────────────────────────────────────────

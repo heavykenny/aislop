@@ -23,6 +23,35 @@ pnpm scan              # Build + run aislop on itself
 node dist/cli.js scan . # Run after building manually
 ```
 
+## Cross-platform scripts
+
+Contributors and CI run on Linux, macOS, and Windows. Keep `package.json`
+scripts portable:
+
+- **No Unix-only shell in scripts.** `rm -rf`, `cp`, `mv`, etc. fail under
+  cmd.exe on Windows. tsdown already cleans its output directory before each
+  build, so an explicit `rm -rf dist` is redundant; the `build` script is just
+  `tsdown`.
+- **No `VAR=value cmd` prefixes.** cmd.exe cannot parse a leading env-var
+  assignment, so `NODE_ENV=production tsdown` errors with
+  `'NODE_ENV' is not recognized`. If a script genuinely needs an env var set
+  cross-platform, add the `cross-env` dev dependency and use
+  `cross-env VAR=value cmd`.
+- **A green Linux CI run is not a Windows guarantee.** A handful of
+  path/permission tests (home-dir resolution, `0600` permission bits,
+  repo-relative path conversion) are environment-specific and may fail locally
+  on Windows while passing in CI. Emit forward-slash paths in diagnostics so
+  `/`-anchored classifiers match on every OS.
+
+## Writing conventions
+
+- **No hard-coded machine-specific paths** in shipped code (e.g.
+  `C:\Users\...`, `/home/...`). Derive from `os.homedir()`, env vars, or
+  arguments so it works across machines and CI.
+- **Avoid em-dashes** (U+2014) in committed prose and string literals; a stray
+  em-dash can force a cp1252 re-encode on some Windows toolchains. Use ASCII
+  (` - `, `:`, or parentheses).
+
 ## Key architecture decisions
 
 - **TypeScript strict mode**, ES2022 target, bundler module resolution
@@ -92,7 +121,7 @@ This applies to regex patterns, string literals, and diagnostic messages in all 
 
 - **Branch model**: branch from current `origin/develop`; open PRs to `develop` unless the task explicitly says otherwise.
 - **Main promotion**: `develop` -> `main` is a maintainer decision. Do not merge it just because checks are green.
-- **Releases**: automated via `.github/workflows/release.yml` on `v*` tags.
+- **Releases**: publishing a GitHub Release runs `.github/workflows/release.yml`; failed npm publishes can use its guarded manual recovery after promotion to `main`.
 - **CI**: Node 22 + 24 matrix, typecheck + build + test + self-scan.
 - All changes should pass: `pnpm typecheck && pnpm test && pnpm scan`.
 

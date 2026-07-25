@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { relativePosix } from "../../utils/paths.js";
 import { getSourceFiles } from "../../utils/source-files.js";
 import { maskStringsAndComments } from "../../utils/source-masker.js";
 import type { Diagnostic, EngineContext } from "../types.js";
@@ -189,7 +190,7 @@ export const detectRiskyConstructs = async (context: EngineContext): Promise<Dia
 			continue;
 		}
 
-		const relativePath = path.relative(context.rootDirectory, filePath);
+		const relativePath = relativePosix(context.rootDirectory, filePath);
 		const masked = maskStringsAndComments(content, ext);
 		const lines = content.split("\n");
 

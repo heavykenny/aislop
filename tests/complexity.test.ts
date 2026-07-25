@@ -208,6 +208,76 @@ describe("checkComplexity — function too long", () => {
 	});
 });
 
+describe("analyzeFunctions: braces inside strings/comments don't skew length", () => {
+	it("does not count a brace inside a line comment as opening a block", () => {
+		const content = [
+			"function tiny(a: number) {",
+			"  // a single-statement loop body `for (...)` with no `{`",
+			"  return a + 1;",
+			"}",
+			"function after() {",
+			"  return 2;",
+			"}",
+		].join("\n");
+		const tiny = analyzeFunctions(content, ".ts").find((f) => f.name === "tiny");
+		expect(tiny?.lineCount).toBe(4);
+	});
+
+	it("does not count a brace inside a string literal", () => {
+		const content = [
+			"function parses(line: string) {",
+			'  if (!line.startsWith("{")) return null;',
+			"  return JSON.parse(line);",
+			"}",
+			"function after() {",
+			"  return 2;",
+			"}",
+		].join("\n");
+		const parses = analyzeFunctions(content, ".ts").find((f) => f.name === "parses");
+		expect(parses?.lineCount).toBe(4);
+	});
+
+	it("does not count a brace inside a block comment", () => {
+		const content = [
+			"function blocky() {",
+			"  /* shape: { a, b } but unbalanced { here */",
+			"  return 1;",
+			"}",
+			"function after() {",
+			"  return 2;",
+			"}",
+		].join("\n");
+		const blocky = analyzeFunctions(content, ".ts").find((f) => f.name === "blocky");
+		expect(blocky?.lineCount).toBe(4);
+	});
+});
+
+describe("analyzeFunctions: Python end-detection uses masked lines", () => {
+	it("does not truncate a Python function at a comment dedented to column 0", () => {
+		const content = [
+			"def f():",
+			"    x = 1",
+			"# dedented comment",
+			"    y = 2",
+			"    return x + y",
+		].join("\n");
+		const fn = analyzeFunctions(content, ".py").find((f) => f.name === "f");
+		expect(fn?.lineCount).toBe(5);
+	});
+
+	it("does not truncate a Python function at a triple-quoted string line dedented to column 0", () => {
+		const content = [
+			"def g():",
+			'    text = """',
+			"some content at column 0",
+			'    """',
+			"    return text",
+		].join("\n");
+		const fn = analyzeFunctions(content, ".py").find((f) => f.name === "g");
+		expect(fn?.lineCount).toBe(5);
+	});
+});
+
 describe("checkComplexity — too many parameters", () => {
 	it("returns no too-many-params diagnostic for acceptable parameter count", async () => {
 		const content = "function fn(a: string, b: number) { return a; }";

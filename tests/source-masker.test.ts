@@ -51,6 +51,26 @@ describe("maskComments", () => {
 		const src = "anything // not a comment here\n";
 		expect(maskComments(src, ".txt")).toBe(src);
 	});
+
+	it("does not treat /* inside a regex character class as a block comment", () => {
+		const src = [
+			"function f() {",
+			"  const re = /[/*]/;",
+			"  return re.test('x');",
+			"}",
+			"const after = 1;",
+			"",
+		].join("\n");
+		const out = maskComments(src, ".ts");
+		expect(out).toContain("const after = 1;");
+		expect(out).toContain("re.test");
+	});
+
+	it("still masks a line comment that follows a division", () => {
+		const out = maskComments("const r = a / b // secret\n", ".ts");
+		expect(out).toContain("a / b");
+		expect(out).not.toContain("secret");
+	});
 });
 
 describe("maskStringsAndComments still masks string bodies", () => {
@@ -58,5 +78,33 @@ describe("maskStringsAndComments still masks string bodies", () => {
 		const out = maskStringsAndComments(`const u = "https://api.example.com" // x\n`, ".ts");
 		expect(out).not.toContain("https://api.example.com");
 		expect(out).toContain("const u =");
+	});
+});
+
+describe("maskStringsAndComments recognises regex literals", () => {
+	// A regex whose body contains quotes/backticks/comment markers must not be read as
+	// a string/template/comment; otherwise the scanner desyncs and blanks real code.
+	it("does not let a quote inside a regex swallow following code", () => {
+		const src = ["const re = /(?:`|[\"'])\\s*/;", 'const kept = "after";', ""].join("\n");
+		const out = maskStringsAndComments(src, ".ts");
+		// The regex body is blanked, but the statement after it survives intact.
+		expect(out).toContain("const re =");
+		expect(out).toContain("const kept =");
+		expect(out).not.toContain("after");
+	});
+
+	it("keeps braces after a regex balanced (regex braces are not block delimiters)", () => {
+		const src = ["function f() {", "  return /^}\\s*{/.test(x);", "}", "const y = 2;"].join("\n");
+		const out = maskStringsAndComments(src, ".ts").split("\n");
+		// The regex on line 2 (with `}` and `{`) is blanked, so only the real braces remain.
+		const braceLine = out[1];
+		expect(braceLine).not.toContain("}");
+		expect(braceLine).not.toContain("{");
+		expect(out[0]).toContain("function f()");
+	});
+
+	it("still treats division as division (not a regex)", () => {
+		const out = maskStringsAndComments("const r = a / b + c;\n", ".ts");
+		expect(out).toContain("const r = a / b + c;");
 	});
 });
