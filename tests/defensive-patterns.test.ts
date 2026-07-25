@@ -134,6 +134,33 @@ describe("hidden fallback logic", () => {
 		const matches = diagnostics.filter((d) => d.rule === "ai-slop/hidden-fallback");
 		expect(matches).toHaveLength(1);
 		expect(matches[0].line).toBe(4);
+		expect(matches[0].filePath).toBe("score.ts");
+	});
+
+	it("emits POSIX paths and skips nested fixture files", async () => {
+		const sourcePath = writeFile(
+			"src/nested/score.ts",
+			[
+				"function effectiveFiles(diagnostics: Diagnostic[]) {",
+				"  // Fallback when source files are missing.",
+				"  return Math.max(1, diagnostics.length);",
+				"}",
+			].join("\n"),
+		);
+		const fixturePath = writeFile(
+			"fixtures/nested/score.ts",
+			[
+				"function effectiveFiles(diagnostics: Diagnostic[]) {",
+				"  // Fallback when source files are missing.",
+				"  return Math.max(1, diagnostics.length);",
+				"}",
+			].join("\n"),
+		);
+
+		const diagnostics = await detectHiddenFallbacks(makeContext([sourcePath, fixturePath]));
+		const matches = diagnostics.filter((d) => d.rule === "ai-slop/hidden-fallback");
+		expect(matches).toHaveLength(1);
+		expect(matches[0].filePath).toBe("src/nested/score.ts");
 	});
 
 	it("detects count fallbacks that hide failed counts", async () => {

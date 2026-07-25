@@ -210,8 +210,8 @@ export const renderStarCta = (deps: SummaryDeps = {}): string => {
 
 export const renderTeamCta = (deps: SummaryDeps = {}): string => {
 	const t = deps.theme ?? defaultTheme;
-	const href = terminalLink("https://scanaislop.com");
-	return `\n ${style(t, "muted", `→ Make this your team's standard. Gate every PR free at ${href}`)}\n`;
+	const href = terminalLink("https://scanaislop.com/contact?intent=team-baseline");
+	return `\n ${style(t, "muted", `→ Using aislop with a team? Get a 14-day team baseline at ${href}`)}\n`;
 };
 
 export const renderCleanRun = (

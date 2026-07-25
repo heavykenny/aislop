@@ -5,10 +5,12 @@ import { runEngines } from "../../engines/orchestrator.js";
 import type { Diagnostic, EngineContext, EngineName } from "../../engines/types.js";
 import { calculateScore } from "../../scoring/index.js";
 import { discoverProject } from "../../utils/discover.js";
+import { toPosix } from "../../utils/paths.js";
 import { atomicWrite, readIfExists } from "../io/atomic-write.js";
 
 interface Baseline {
 	schema: "aislop.baseline.v2";
+	pathFormat?: "posix";
 	updatedAt: string;
 	score: number;
 	byEngine: Record<string, number>;
@@ -18,9 +20,43 @@ interface Baseline {
 }
 
 const fingerprintDiagnostic = (d: Diagnostic, rootDirectory: string): string => {
-	const rel = path.isAbsolute(d.filePath) ? path.relative(rootDirectory, d.filePath) : d.filePath;
+	const rel = toPosix(
+		path.isAbsolute(d.filePath) ? path.relative(rootDirectory, d.filePath) : d.filePath,
+	);
 	return `${rel}:${d.line}:${d.rule}`;
 };
+
+// Markerless baselines captured on Windows may contain native separators. On POSIX,
+// preserve a backslash only when the fingerprint resolves to an existing literal filename.
+// This lets copied Windows baselines migrate without corrupting real POSIX paths.
+const normalizeLegacyFingerprint = (fingerprint: string): string => fingerprint.replace(/\\/g, "/");
+
+const hasExistingLiteralBackslashPath = (cwd: string, fingerprint: string): boolean => {
+	if (process.platform === "win32") return false;
+	const match = fingerprint.match(/^(.*):\d+:[^:]+$/);
+	const fingerprintPath = match?.[1];
+	if (!fingerprintPath?.includes("\\")) return false;
+	try {
+		const absolutePath = path.resolve(cwd, fingerprintPath);
+		const stats = fs.lstatSync(absolutePath);
+		if (!stats.isFile() || stats.isSymbolicLink()) return false;
+		const realRoot = fs.realpathSync(cwd);
+		const realPath = fs.realpathSync(absolutePath);
+		const relativePath = path.relative(realRoot, realPath);
+		return (
+			!path.isAbsolute(relativePath) &&
+			relativePath !== ".." &&
+			!relativePath.startsWith(`..${path.sep}`)
+		);
+	} catch {
+		return false;
+	}
+};
+
+const migrateMarkerlessFingerprint = (cwd: string, fingerprint: string): string =>
+	hasExistingLiteralBackslashPath(cwd, fingerprint)
+		? fingerprint
+		: normalizeLegacyFingerprint(fingerprint);
 
 const BASELINE_REL = path.join(".aislop", "baseline.json");
 
@@ -36,14 +72,19 @@ export const readBaseline = (cwd: string): Baseline | null => {
 		if (parsed.schema !== "aislop.baseline.v2" && parsed.schema !== "aislop.baseline.v1") {
 			return null;
 		}
+		const findingFingerprints = parsed.findingFingerprints ?? [];
+		const needsWindowsMigration = parsed.pathFormat !== "posix";
 		return {
 			schema: "aislop.baseline.v2",
+			pathFormat: "posix",
 			updatedAt: parsed.updatedAt ?? "",
 			score: parsed.score ?? 0,
 			byEngine: parsed.byEngine ?? {},
 			fileCount: parsed.fileCount ?? 0,
 			commit: parsed.commit,
-			findingFingerprints: parsed.findingFingerprints ?? [],
+			findingFingerprints: needsWindowsMigration
+				? findingFingerprints.map((fingerprint) => migrateMarkerlessFingerprint(cwd, fingerprint))
+				: findingFingerprints,
 		};
 	} catch {
 		return null;
@@ -52,7 +93,7 @@ export const readBaseline = (cwd: string): Baseline | null => {
 
 export const writeBaseline = (cwd: string, baseline: Baseline): string => {
 	const target = baselinePath(cwd);
-	atomicWrite(target, `${JSON.stringify(baseline, null, 2)}\n`);
+	atomicWrite(target, `${JSON.stringify({ ...baseline, pathFormat: "posix" }, null, 2)}\n`);
 	return target;
 };
 
@@ -110,6 +151,7 @@ export const captureBaseline = async (
 		.map((d) => fingerprintDiagnostic(d, project.rootDirectory));
 	const baseline: Baseline = {
 		schema: "aislop.baseline.v2",
+		pathFormat: "posix",
 		updatedAt: new Date().toISOString(),
 		score,
 		byEngine,

@@ -52,7 +52,9 @@ const resolveExtendsRef = (ref: string, fromDir: string): string => {
 	if (path.isAbsolute(ref)) {
 		throw new Error(`Absolute extends paths are not allowed: ${ref}`);
 	}
-	if (ref.startsWith("./") || ref.startsWith("../")) {
+	// Accept POSIX (./, ../) and Windows (.\, ..\) relative prefixes alike; on Windows
+	// `path.relative` yields backslash-prefixed refs that must still resolve as relative.
+	if (/^\.\.?[/\\]/.test(ref)) {
 		return path.resolve(fromDir, ref);
 	}
 	throw new Error(`Package-name extends not yet supported: ${ref} (use a relative path for now)`);

@@ -8,13 +8,15 @@ export const CONFIG_DIR = ".aislop";
 export const CONFIG_FILE = "config.yml";
 export const RULES_FILE = "rules.yml";
 
-export const findConfigDir = (startDir: string): string | null => {
+export const findConfigDir = (startDir: string, stopAt?: string): string | null => {
 	let current = path.resolve(startDir);
+	const boundary = stopAt ? path.resolve(stopAt) : null;
 	while (true) {
 		const candidate = path.join(current, CONFIG_DIR);
 		if (fs.existsSync(candidate) && fs.statSync(candidate).isDirectory()) {
 			return candidate;
 		}
+		if (boundary && current === boundary) break;
 		const parent = path.dirname(current);
 		if (parent === current) break;
 		current = parent;

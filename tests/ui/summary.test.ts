@@ -239,6 +239,8 @@ describe("summary", () => {
 
 	it("renders the team CTA with a visible https URL", () => {
 		const out = strip(renderTeamCta(opts));
-		expect(out).toContain("Gate every PR free at https://scanaislop.com");
+		expect(out).toContain(
+			"Get a 14-day team baseline at https://scanaislop.com/contact?intent=team-baseline",
+		);
 	});
 });

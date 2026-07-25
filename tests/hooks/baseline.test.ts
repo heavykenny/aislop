@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	appendSessionFiles,
 	baselinePath,
@@ -18,6 +18,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+	vi.restoreAllMocks();
 	fs.rmSync(cwd, { recursive: true, force: true });
 });
 
@@ -35,6 +36,85 @@ describe("baseline read/write", () => {
 		expect(read?.score).toBe(87);
 		expect(read?.findingFingerprints).toEqual(["src/x.ts:10:ai-slop/foo"]);
 		expect(baselinePath(cwd)).toBe(path.join(cwd, ".aislop", "baseline.json"));
+	});
+
+	it("normalises legacy backslash fingerprints from a pre-POSIX Windows baseline", () => {
+		// Before fingerprints were POSIX-normalized, a Windows capture stored backslash
+		// paths. On read they must convert to forward slashes so they match the
+		// fingerprints produced now, otherwise every prior finding looks new after upgrade.
+		fs.mkdirSync(path.join(cwd, ".aislop"));
+		fs.writeFileSync(
+			path.join(cwd, ".aislop", "baseline.json"),
+			JSON.stringify({
+				schema: "aislop.baseline.v2",
+				updatedAt: "2026-03-01T00:00:00Z",
+				score: 80,
+				byEngine: { lint: 90 },
+				fileCount: 30,
+				findingFingerprints: ["src\\utils\\x.ts:10:ai-slop/foo"],
+			}),
+		);
+		vi.spyOn(process, "platform", "get").mockReturnValue("darwin");
+		const read = readBaseline(cwd);
+		expect(read?.findingFingerprints).toEqual(["src/utils/x.ts:10:ai-slop/foo"]);
+	});
+
+	it("preserves an existing literal backslash path in a markerless POSIX baseline", () => {
+		const literalPath = path.join(cwd, "src", "foo\\bar.ts");
+		fs.mkdirSync(path.dirname(literalPath), { recursive: true });
+		fs.writeFileSync(literalPath, "export const value = 1;\n");
+		fs.mkdirSync(path.join(cwd, ".aislop"));
+		fs.writeFileSync(
+			path.join(cwd, ".aislop", "baseline.json"),
+			JSON.stringify({
+				schema: "aislop.baseline.v2",
+				findingFingerprints: ["src/foo\\bar.ts:10:ai-slop/foo"],
+			}),
+		);
+		vi.spyOn(process, "platform", "get").mockReturnValue("darwin");
+
+		const read = readBaseline(cwd);
+		expect(read?.findingFingerprints).toEqual(["src/foo\\bar.ts:10:ai-slop/foo"]);
+	});
+
+	it.runIf(process.platform !== "win32")(
+		"does not trust a literal-backslash symlink that resolves outside the project",
+		() => {
+			const outsideFile = path.join(os.tmpdir(), `aislop-baseline-outside-${Date.now()}.ts`);
+			const symlinkPath = path.join(cwd, "src", "probe\\name.ts");
+			try {
+				fs.writeFileSync(outsideFile, "export const outside = true;\n");
+				fs.mkdirSync(path.dirname(symlinkPath), { recursive: true });
+				fs.symlinkSync(outsideFile, symlinkPath);
+				fs.mkdirSync(path.join(cwd, ".aislop"));
+				fs.writeFileSync(
+					path.join(cwd, ".aislop", "baseline.json"),
+					JSON.stringify({
+						schema: "aislop.baseline.v2",
+						findingFingerprints: ["src/probe\\name.ts:10:ai-slop/foo"],
+					}),
+				);
+
+				const read = readBaseline(cwd);
+				expect(read?.findingFingerprints).toEqual(["src/probe/name.ts:10:ai-slop/foo"]);
+			} finally {
+				fs.rmSync(outsideFile, { force: true });
+			}
+		},
+	);
+
+	it("preserves a valid POSIX filename containing a backslash", () => {
+		writeBaseline(cwd, {
+			schema: "aislop.baseline.v2",
+			updatedAt: "2026-04-19T00:00:00Z",
+			score: 87,
+			byEngine: { lint: 95 },
+			fileCount: 1,
+			findingFingerprints: ["src/foo\\bar.ts:10:ai-slop/foo"],
+		});
+
+		const read = readBaseline(cwd);
+		expect(read?.findingFingerprints).toEqual(["src/foo\\bar.ts:10:ai-slop/foo"]);
 	});
 
 	it("reads a legacy v1 baseline and normalises to v2 with empty fingerprints", () => {

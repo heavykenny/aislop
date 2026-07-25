@@ -1,4 +1,4 @@
-import path from "node:path";
+import { relativePosix } from "../../utils/paths.js";
 import { runSubprocess } from "../../utils/subprocess.js";
 import type { Diagnostic, EngineContext } from "../types.js";
 
@@ -13,7 +13,7 @@ export const runGofmt = async (context: EngineContext): Promise<Diagnostic[]> =>
 
 		const files = result.stdout.split("\n").filter((f) => f.length > 0);
 		return files.map((file) => ({
-			filePath: path.relative(context.rootDirectory, file),
+			filePath: relativePosix(context.rootDirectory, file),
 			engine: "format" as const,
 			rule: "go-formatting",
 			severity: "warning" as const,
