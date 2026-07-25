@@ -41,6 +41,7 @@ describe("scan render", () => {
 				elapsedMs: 2300,
 				thresholds: { good: 85, ok: 65 },
 				verbose: false,
+				showPilotInvitation: true,
 			}),
 		);
 		expect(out).toContain("aislop");
@@ -57,7 +58,27 @@ describe("scan render", () => {
 		);
 		expect(out).toMatch(/Auto-fix\s+aislop fix\s+auto-fix 1 issue/);
 		expect(out).not.toContain("aislop fix --claude");
-		expect(out).toContain("Gate every PR free at https://scanaislop.com");
+		expect(out).toContain("14-day team baseline");
+		expect(out).toContain("https://scanaislop.com/contact?intent=team-baseline");
+	});
+
+	it("omits the pilot invitation when the scan is not eligible", () => {
+		const out = strip(
+			buildScanRender({
+				projectName: "my-app",
+				language: "typescript",
+				fileCount: 142,
+				results: [engineResult({ diagnostics: [diag()] })],
+				diagnostics: [diag()],
+				score: { score: 89, label: "Healthy" },
+				elapsedMs: 1000,
+				thresholds: { good: 85, ok: 65 },
+				verbose: false,
+				showPilotInvitation: false,
+			}),
+		);
+
+		expect(out).not.toContain("14-day team baseline");
 	});
 
 	it("renders clean-run one-liner when score is 100 and 0 issues", () => {
