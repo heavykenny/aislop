@@ -1,12 +1,10 @@
 // aislop-ignore-file duplicate-block
 import fs from "node:fs";
 import path from "node:path";
+import { isDependencyAuditInputFile } from "../../utils/source-file-selection.js";
 import { runSubprocess } from "../../utils/subprocess.js";
 import type { Diagnostic, EngineContext } from "../types.js";
 import { runCargoAudit, runGovulncheck, runPipAudit } from "./audit-ecosystem.js";
-
-const AUDIT_INPUT_FILE_RE =
-	/(?:^|\/)(?:package\.json|package-lock\.json|pnpm-lock\.yaml|yarn\.lock|bun\.lockb?|requirements(?:\.[\w-]+)?\.txt|pyproject\.toml|Pipfile|Pipfile\.lock|poetry\.lock|go\.mod|go\.sum|Cargo\.toml|Cargo\.lock)$/i;
 
 const toRelativePath = (rootDirectory: string, filePath: string): string => {
 	const absolute = path.isAbsolute(filePath) ? filePath : path.resolve(rootDirectory, filePath);
@@ -14,9 +12,11 @@ const toRelativePath = (rootDirectory: string, filePath: string): string => {
 };
 
 export const shouldRunDependencyAudit = (context: EngineContext): boolean => {
-	if (!context.files) return true;
-	return context.files.some((file) =>
-		AUDIT_INPUT_FILE_RE.test(toRelativePath(context.rootDirectory, file)),
+	if (context.dependencyAuditScope === "full") return true;
+	const scopedFiles = context.dependencyAuditFiles ?? context.files;
+	if (!scopedFiles) return true;
+	return scopedFiles.some((file) =>
+		isDependencyAuditInputFile(toRelativePath(context.rootDirectory, file)),
 	);
 };
 
@@ -43,11 +43,12 @@ export const runDependencyAudit = async (context: EngineContext): Promise<Diagno
 
 	const diagnostics: Diagnostic[] = [];
 	const timeout = context.config.security.auditTimeout;
+	const auditLanguages = context.dependencyAuditLanguages ?? context.languages;
 
 	const promises: Promise<Diagnostic[]>[] = [];
 
 	// npm/pnpm/bun audit
-	if (context.languages.includes("typescript") || context.languages.includes("javascript")) {
+	if (auditLanguages.includes("typescript") || auditLanguages.includes("javascript")) {
 		if (fs.existsSync(path.join(context.rootDirectory, "pnpm-lock.yaml"))) {
 			promises.push(runPnpmAuditWithFallback(context.rootDirectory, timeout));
 		} else if (hasBunLockfile(context.rootDirectory)) {
@@ -64,7 +65,7 @@ export const runDependencyAudit = async (context: EngineContext): Promise<Diagno
 	// environment, so without metadata to scope it the result describes aislop's own
 	// interpreter, not the scanned project.
 	if (
-		context.languages.includes("python") &&
+		auditLanguages.includes("python") &&
 		context.installedTools["pip-audit"] &&
 		hasPythonDependencyManifest(context.rootDirectory)
 	) {
@@ -72,12 +73,12 @@ export const runDependencyAudit = async (context: EngineContext): Promise<Diagno
 	}
 
 	// govulncheck
-	if (context.languages.includes("go") && context.installedTools.govulncheck) {
+	if (auditLanguages.includes("go") && context.installedTools.govulncheck) {
 		promises.push(runGovulncheck(context.rootDirectory, timeout));
 	}
 
 	// cargo audit
-	if (context.languages.includes("rust")) {
+	if (auditLanguages.includes("rust")) {
 		promises.push(runCargoAudit(context.rootDirectory, timeout));
 	}
 

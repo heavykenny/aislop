@@ -12,7 +12,7 @@ import { type EngineCounts, withCommandLifecycle } from "../telemetry/index.js";
 import { renderDisplayRows } from "../ui/display.js";
 import { renderHeader } from "../ui/header.js";
 import { log } from "../ui/logger.js";
-import { detectSourceLanguages, discoverProject } from "../utils/discover.js";
+import { detectSourceLanguages, discoverProject, type Language } from "../utils/discover.js";
 import { baseRefExists } from "../utils/git.js";
 import { readAislopIgnorePatterns } from "../utils/source-files.js";
 import { applySuppressions } from "../utils/suppress.js";
@@ -93,7 +93,15 @@ export const scanCommand = async (
 			languages: projectInfo.languages,
 			fileCount: scanScope.scoreFileCount,
 		},
-		() => runScanBody(resolvedDir, config, options, projectInfo, scanScope),
+		() =>
+			runScanBody(
+				resolvedDir,
+				config,
+				options,
+				projectInfo,
+				scanScope,
+				discoveredProject.languages,
+			),
 	);
 };
 
@@ -103,6 +111,7 @@ const runScanBody = async (
 	options: ScanOptions,
 	projectInfo: Awaited<ReturnType<typeof discoverProject>>,
 	scanScope: ReturnType<typeof collectScanFileScope>,
+	dependencyAuditLanguages: Language[],
 ) => {
 	const startTime = performance.now();
 	const showHeader = options.showHeader !== false;
@@ -110,7 +119,15 @@ const runScanBody = async (
 	const projectName = projectInfo.projectName ?? "project";
 	const language = projectInfo.languages[0] ?? "unknown";
 	const printedHumanHeader = !machineOutput && showHeader;
-	const { files, projectFiles, scoreFileCount, scopeLabel, testFiles } = scanScope;
+	const {
+		dependencyAuditFiles,
+		dependencyAuditScope,
+		files,
+		projectFiles,
+		scoreFileCount,
+		scopeLabel,
+		testFiles,
+	} = scanScope;
 	const scanCoverage = deriveScanCoverage(projectInfo.coverage, scoreFileCount);
 	const reportProjectInfo = {
 		...projectInfo,
@@ -148,6 +165,9 @@ const runScanBody = async (
 			rootDirectory: resolvedDir,
 			languages: projectInfo.languages,
 			frameworks: projectInfo.frameworks,
+			dependencyAuditFiles,
+			dependencyAuditLanguages,
+			dependencyAuditScope,
 			files,
 			testFiles,
 			projectFiles,

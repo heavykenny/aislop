@@ -20,6 +20,11 @@ const DECLARATION_EXCLUDED_DIRECTORIES = EXCLUDED_SOURCE_DIRECTORIES.filter(
 	(directory) => !GENERATED_DECLARATION_DIRECTORIES.has(directory),
 );
 const MAX_GLOB_PATTERN_LENGTH = 256;
+const DEPENDENCY_AUDIT_INPUT_FILE_RE =
+	/(?:^|\/)(?:package\.json|package-lock\.json|pnpm-lock\.yaml|yarn\.lock|bun\.lockb?|requirements(?:\.[\w-]+)?\.txt|pyproject\.toml|Pipfile|Pipfile\.lock|poetry\.lock|go\.mod|go\.sum|Cargo\.toml|Cargo\.lock)$/i;
+
+export const isDependencyAuditInputFile = (filePath: string): boolean =>
+	DEPENDENCY_AUDIT_INPUT_FILE_RE.test(filePath);
 
 const supportedGlobPatterns = (patterns: string[]): string[] =>
 	patterns.filter((pattern) => pattern.length <= MAX_GLOB_PATTERN_LENGTH);
@@ -163,6 +168,38 @@ export const filterProjectFiles = createProjectFileFilter(true);
 export const filterTestFiles = createTestFileFilter(true);
 export const filterEnumeratedProjectFiles = createProjectFileFilter(false);
 export const filterEnumeratedTestFiles = createTestFileFilter(false);
+
+export const filterDependencyAuditFiles = (
+	rootDirectory: string,
+	files: string[],
+	exclude: string[] = [],
+	include: string[] = [],
+): string[] => {
+	const excludePatterns = normalizeExcludePatterns(exclude);
+	const includePatterns = normalizeIncludePatterns(include);
+	const matchesExclude = createPathMatcher(excludePatterns);
+	const matchesInclude = createPathMatcher(includePatterns);
+	return files
+		.map((file) => {
+			const absolutePath = path.isAbsolute(file) ? file : path.resolve(rootDirectory, file);
+			return { absolutePath, relativePath: toProjectPath(rootDirectory, absolutePath) };
+		})
+		.filter(({ relativePath }) => {
+			if (
+				!isWithinProject(relativePath) ||
+				isInExcludedDirectory(relativePath, EXCLUDED_SOURCE_DIRECTORIES) ||
+				isGeneratedArtifactFile(relativePath) ||
+				!isDependencyAuditInputFile(relativePath)
+			) {
+				return false;
+			}
+			if (includePatterns.length > 0 && !matchesInclude(relativePath)) {
+				return false;
+			}
+			return !matchesExclude(relativePath);
+		})
+		.map(({ absolutePath }) => absolutePath);
+};
 
 export const filterExplicitFiles = (
 	rootDirectory: string,
