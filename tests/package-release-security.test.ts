@@ -95,7 +95,7 @@ describe("package release security", () => {
 			contents: "read",
 			packages: "write",
 		});
-		expect(workflow.jobs["move-major-tag"].permissions).toEqual({ contents: "write" });
+		expect(workflow.jobs["move-major-tag"].permissions).toEqual({ contents: "read" });
 	});
 
 	it("resolves an existing GitHub release before executing its code", () => {
@@ -105,11 +105,9 @@ describe("package release security", () => {
 		const resolveJob = workflow.jobs["resolve-release"];
 		const resolveStep = resolveJob.steps.find((step) => step.name === "Resolve release");
 		const resolvedSha = "${{ needs.resolve-release.outputs.sha }}";
-		const checkoutRefs = [
-			workflow.jobs["publish-npm"],
-			workflow.jobs["publish-gpr"],
-			workflow.jobs["move-major-tag"],
-		].map((job) => job.steps.find((step) => step.uses?.startsWith("actions/checkout@"))?.with?.ref);
+		const checkoutRefs = [workflow.jobs["publish-npm"], workflow.jobs["publish-gpr"]].map(
+			(job) => job.steps.find((step) => step.uses?.startsWith("actions/checkout@"))?.with?.ref,
+		);
 
 		expect(resolveJob.permissions).toEqual({ contents: "read" });
 		expect(resolveJob.outputs).toEqual({
@@ -119,6 +117,7 @@ describe("package release security", () => {
 		});
 		expect(resolveJob.steps.some((step) => step.uses?.startsWith("actions/checkout@"))).toBe(false);
 		expect(resolveStep?.env).toEqual({
+			DEFAULT_BRANCH: "${{ github.event.repository.default_branch }}",
 			GH_TOKEN: "${{ github.token }}",
 			RELEASE_TAG: "${{ github.event.release.tag_name || inputs.tag }}",
 		});
@@ -135,10 +134,38 @@ describe("package release security", () => {
 			'gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG"',
 		);
 		expect(resolveStep?.run).toContain('if [ "$object_type" != "commit" ]');
-		expect(checkoutRefs).toEqual([resolvedSha, resolvedSha, resolvedSha]);
+		expect(resolveStep?.run).toContain(
+			'gh api "repos/$GITHUB_REPOSITORY/compare/$object_sha...$DEFAULT_BRANCH"',
+		);
+		expect(resolveStep?.run).toContain(
+			'if [ "$compare_status" != "ahead" ] && [ "$compare_status" != "identical" ]',
+		);
+		expect(checkoutRefs).toEqual([resolvedSha, resolvedSha]);
 		expect(workflow.jobs["publish-npm"].needs).toBe("resolve-release");
 		expect(workflow.jobs["publish-gpr"].needs).toEqual(["resolve-release", "publish-npm"]);
 		expect(workflow.jobs["move-major-tag"].needs).toEqual(["resolve-release", "publish-npm"]);
+		expect(
+			workflow.jobs["move-major-tag"].steps.some((step) =>
+				step.uses?.startsWith("actions/checkout@"),
+			),
+		).toBe(false);
+	});
+
+	it("authenticates the v1 tag move with the workflow-capable bot token", () => {
+		const workflow = ReleaseWorkflowSchema.parse(
+			parseYaml(fs.readFileSync(".github/workflows/release.yml", "utf8")),
+		);
+		const moveMajorTag = workflow.jobs["move-major-tag"];
+		const updateRef = moveMajorTag.steps.find((step) => step.name?.startsWith("Re-point v1"));
+
+		expect(updateRef?.env).toEqual({
+			GH_TOKEN: "${{ secrets.SYNC_BOT_PAT }}",
+			RELEASE_SHA: "${{ needs.resolve-release.outputs.sha }}",
+		});
+		expect(updateRef?.run).toContain("--method PATCH");
+		expect(updateRef?.run).toContain('"repos/$GITHUB_REPOSITORY/git/refs/tags/v1"');
+		expect(updateRef?.run).toContain('--field "sha=$RELEASE_SHA"');
+		expect(updateRef?.run).toContain("--field force=true");
 	});
 
 	it("keeps manual recovery non-publishing unless explicitly enabled", () => {
@@ -149,7 +176,11 @@ describe("package release security", () => {
 		const verifyTag = npmJob.steps.find((step) => step.name === "Verify release tag");
 		const verifyTrust = npmJob.steps.find((step) => step.name === "Verify npm trusted publishing");
 		const publish = npmJob.steps.find((step) => step.name === "Publish to npm");
-		const publishCondition = "${{ github.event_name == 'release' || inputs.publish }}";
+		const recoveryPublish = npmJob.steps.find((step) => step.name === "Publish recovery to npm");
+		const defaultBranch =
+			"github.ref == format('refs/heads/{0}', github.event.repository.default_branch)";
+		const recoveryPublishCondition = recoveryPublish?.if?.replace(/\s+/g, " ").trim();
+		const publishGprCondition = workflow.jobs["publish-gpr"].if?.replace(/\s+/g, " ").trim();
 		const stableRelease = "needs.resolve-release.outputs.prerelease == 'false'";
 		const expressionStart = "${{";
 		const moveMajorCondition = workflow.jobs["move-major-tag"].if?.replace(/\s+/g, " ").trim();
@@ -175,12 +206,23 @@ describe("package release security", () => {
 		expect(verifyTrust?.shell).toBe("bash");
 		expect(verifyTrust?.run).toContain("npm publish --access public --dry-run --loglevel verbose");
 		expect(verifyTrust?.run).toContain('grep -Fq "Successfully retrieved and set token"');
-		expect(publish?.if).toBe(publishCondition);
-		expect(workflow.jobs["publish-gpr"].if).toBe(publishCondition);
+		expect(publish?.if).toBe("${{ github.event_name == 'release' }}");
+		expect(recoveryPublish).toMatchObject({
+			env: { NPM_CONFIG_PROVENANCE: "false" },
+			run: "npm publish --access public",
+		});
+		expect(recoveryPublishCondition).toBe(
+			`${expressionStart} github.event_name == 'workflow_dispatch' && ${defaultBranch} && ` +
+				"inputs.publish }}",
+		);
+		expect(publishGprCondition).toBe(
+			`${expressionStart} github.event_name == 'release' || ` +
+				`(github.event_name == 'workflow_dispatch' && ${defaultBranch} && inputs.publish) }}`,
+		);
 		expect(moveMajorCondition).toBe(
 			`${expressionStart} (github.event_name == 'release' && ${stableRelease}) || ` +
-				`(github.event_name == 'workflow_dispatch' && inputs.publish && ` +
-				`inputs.move-major-tag && ${stableRelease}) }}`,
+				`(github.event_name == 'workflow_dispatch' && ${defaultBranch} && inputs.publish && ` +
+				`inputs['move-major-tag'] && ${stableRelease}) }}`,
 		);
 	});
 });
