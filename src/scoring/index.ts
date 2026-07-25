@@ -21,8 +21,8 @@ const resolveEffectiveFileCount = (
 	if (typeof sourceFileCount === "number" && sourceFileCount > 0) {
 		return { effectiveSourceFileCount: sourceFileCount, sourceFileCountMode: "provided" };
 	}
-	if (typeof sourceFileCount === "number") {
-		throw new Error("sourceFileCount must be greater than 0 when diagnostics are present.");
+	if (typeof sourceFileCount === "number" && sourceFileCount < 0) {
+		throw new Error("sourceFileCount cannot be negative.");
 	}
 
 	const observedDiagnosticFiles = new Set(diagnostics.map((d) => d.filePath).filter(Boolean)).size;

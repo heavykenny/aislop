@@ -4,7 +4,7 @@ The same CLI is published to npm, Homebrew, and PyPI. Pick whichever fits your s
 
 | Channel | Command | Notes |
 |---|---|---|
-| npm / npx | `npx aislop@latest scan` | No install; bundles its own tooling |
+| npm / npx | `npx aislop@latest scan` | No install; optional native tools are described below |
 | Homebrew | `brew install scanaislop/tap/aislop` | macOS / Linux; pulls Node as a dependency |
 | Python / pipx | `pipx install aislop` | Isolated env; needs Node on `PATH` |
 
@@ -71,13 +71,21 @@ pipx install aislop
 
 ## Bundled tooling
 
-`aislop` ships with Node-based tooling (oxlint, biome, knip) as package dependencies. On install it also downloads bundled binaries for **ruff** and **golangci-lint**.
+`aislop` ships with its Node-based tooling (oxlint, biome, knip) as package dependencies. Installing the package does not run dependency lifecycle scripts, so the core scanner works with npm v12's secure install defaults.
 
-To skip binary downloads:
+For bundled **ruff** and **golangci-lint** coverage, run the explicit tool installer once after installing `aislop`:
 
 ```bash
-AISLOP_SKIP_TOOL_DOWNLOAD=1 npm install
+aislop-tools
 ```
+
+For a one-off npx installation:
+
+```bash
+npx --yes --package=aislop@latest aislop-tools
+```
+
+The command exits non-zero if a supported binary cannot be installed. Run `aislop doctor` afterwards to verify the tools available to each engine.
 
 ## External tools
 

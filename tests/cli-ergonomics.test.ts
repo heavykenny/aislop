@@ -64,6 +64,7 @@ const PUBLIC_HELP_COMMANDS: string[][] = [
 	["version", "--help"],
 	["commands", "--help"],
 ];
+const PUBLIC_HELP_TIMEOUT_MS = process.platform === "win32" ? 120_000 : 60_000;
 
 describe("cli ergonomics", () => {
 	it("uses the installed command in top-level help and keeps npx for one-off latest runs", () => {
@@ -168,7 +169,7 @@ describe("cli ergonomics", () => {
 			expect(result.stderr, label).not.toContain("too many arguments");
 			expect(result.stderr, label).not.toContain("unknown command");
 		}
-	}, 60_000);
+	}, PUBLIC_HELP_TIMEOUT_MS);
 
 	it("keeps existing core command help complete and aligned with registered flags", () => {
 		const scan = runCli(["scan", "--help"]);

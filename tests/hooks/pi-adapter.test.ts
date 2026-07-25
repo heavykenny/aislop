@@ -1,9 +1,17 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { formatPiMessage, parsePiStdin, runPiHook } from "../../src/hooks/adapters/pi.js";
 import type { AislopFeedback } from "../../src/hooks/feedback.js";
+
+const { spawnSync } = vi.hoisted(() => ({
+	spawnSync: vi.fn(() => {
+		throw new Error("automatic hook scans must not spawn subprocesses");
+	}),
+}));
+
+vi.mock("node:child_process", () => ({ spawnSync }));
 
 const baseFeedback = (overrides: Partial<AislopFeedback> = {}): AislopFeedback => ({
 	schema: "aislop.hook.v2",
@@ -84,6 +92,7 @@ describe("runPiHook (integration)", () => {
 	});
 
 	afterEach(() => {
+		spawnSync.mockClear();
 		fs.rmSync(cwd, { recursive: true, force: true });
 	});
 
@@ -116,5 +125,6 @@ describe("runPiHook (integration)", () => {
 		});
 		expect(code).toBe(0);
 		expect(written).toBe("");
+		expect(spawnSync).not.toHaveBeenCalled();
 	});
 });
