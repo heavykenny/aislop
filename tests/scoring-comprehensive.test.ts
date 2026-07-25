@@ -629,10 +629,16 @@ describe("density-aware scoring (sourceFileCount)", () => {
 		expect(withoutFileCount.sourceFileCountMode).toBe("estimated-from-diagnostics");
 	});
 
-	it("sourceFileCount=0 with diagnostics is treated as an invalid impossible state", () => {
-		expect(() =>
-			calculateScore([makeInnerHTMLDiagnostic()], defaultWeights, defaultThresholds, 0),
-		).toThrow("sourceFileCount must be greater than 0 when diagnostics are present");
+	it("sourceFileCount=0 estimates density from diagnostic files for test-only projects", () => {
+		const result = calculateScore(
+			[makeInnerHTMLDiagnostic()],
+			defaultWeights,
+			defaultThresholds,
+			0,
+		);
+
+		expect(result.effectiveSourceFileCount).toBe(1);
+		expect(result.sourceFileCountMode).toBe("estimated-from-diagnostics");
 	});
 
 	it("density caps at 1.0 for heavily polluted codebases", () => {

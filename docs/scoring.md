@@ -83,7 +83,7 @@ Different rule families continue to accumulate normally.
 
 ## Density normalization
 
-The final score uses **logarithmic scaling with issue-density normalization**. Penalties are measured relative to the number of source files in the project, so:
+The final score uses **logarithmic scaling with issue-density normalization**. Penalties are measured relative to the number of production and test files in the project, so:
 
 - A few issues in a large codebase don't tank the score unfairly
 - A single issue in an otherwise clean project stays proportional

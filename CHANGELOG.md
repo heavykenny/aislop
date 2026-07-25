@@ -6,6 +6,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## Unreleased
 
+## 0.14.0 (2026-07-14)
+
+Minor release: expands project discovery and Python workspace awareness, makes diagnostics and tool execution reliable across operating systems, and tightens scanner accuracy around real-world source layouts.
+
+### Added
+
+- **uv workspace-aware Python import checks.** The hallucinated-import detector resolves root and member dependencies across uv workspaces, including member globs, exclusions, nested packages, editable sources, and shared workspace environments ([#270](https://github.com/scanaislop/aislop/pull/270)).
+
+### Fixed
+
+- **Agent provider failures stop immediately.** A provider process that exits non-zero now fails the repair session instead of verifying an unchanged diff and offering repeated passes ([#228](https://github.com/scanaislop/aislop/issues/228)).
+- **Cross-platform diagnostics and CI.** Diagnostic paths are stable POSIX-style paths on Windows, namespaced and short paths resolve correctly, external-tool discovery is portable, and the CI matrix now covers Windows on Node 22 and 24 ([#261](https://github.com/scanaislop/aislop/pull/261)).
+- **Project and tooling discovery.** Bare source trees are detected without requiring a manifest, ignored TypeScript projects stay out of typechecking, and executable tools installed by the project take precedence over bundled fallbacks ([#258](https://github.com/scanaislop/aislop/pull/258), [#259](https://github.com/scanaislop/aislop/pull/259), [#260](https://github.com/scanaislop/aislop/pull/260)).
+- **Complexity masking.** Braces inside strings, comments, and regex literals no longer distort function boundaries or produce false complexity findings ([#271](https://github.com/scanaislop/aislop/pull/271)).
+
+### Changed
+
+- **Dependency and CI updates.** Refreshed Biome, Expo Doctor, oxlint, Vitest, YAML, Zod, adm-zip, and the pnpm setup action while preserving the Node 20 runtime floor.
+- **Agent guidance.** Claude Code and Gemini CLI now load the canonical contributor instructions through lightweight pointer files ([#272](https://github.com/scanaislop/aislop/pull/272)).
+- **npm v12-safe installation.** Package installation no longer relies on a dependency `postinstall` script. The core scanner installs without lifecycle execution; `aislop-tools` explicitly installs the optional Ruff and golangci-lint binaries and fails visibly if that setup cannot complete.
+- **Tokenless npm publishing.** The release job now uses npm trusted publishing with OIDC, Node 24, disabled release caches, and job-scoped least-privilege permissions instead of a long-lived `NPM_TOKEN`.
+
+### Tests
+
+Full suite at 1,553 passing, including regression coverage for provider failures, Windows paths, source-only language detection, ignored TypeScript projects, complexity masking, uv workspace boundaries, npm v12-safe packaging, and the OIDC release contract.
+
 ## 0.13.1 (2026-06-29)
 
 Patch release: calibrates the new `ai-slop/hidden-fallback` rule so it stops flagging error-message defaults, points Dependabot at the `develop` branch, and pulls in routine dependency and CI-action updates.

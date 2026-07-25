@@ -265,6 +265,7 @@ const BUILTIN_RULES: { engine: string; rules: string[] }[] = [
 			"ai-slop/rust-non-test-unwrap",
 			"ai-slop/rust-todo-stub",
 			"ai-slop/hallucinated-import",
+			"ai-slop/tautological-test",
 		],
 	},
 	{

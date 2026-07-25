@@ -22,7 +22,7 @@ const pythonContext = (rootDirectory: string): EngineContext =>
 		config: { security: { auditTimeout: 1000 } },
 	}) as unknown as EngineContext;
 
-describe("runDependencyAudit — Python dependency-manifest gate", () => {
+describe("runDependencyAudit: Python dependency-manifest gate", () => {
 	let dir: string;
 
 	beforeEach(() => {
