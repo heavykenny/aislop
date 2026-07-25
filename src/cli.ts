@@ -25,10 +25,18 @@ import { renderCommandReference, renderRootHelp } from "./ui/home.js";
 import { log } from "./ui/logger.js";
 import { suggestClosest } from "./ui/suggest.js";
 import { maybeNotifyUpdate } from "./update-notifier.js";
+import { killActiveChildren } from "./utils/subprocess.js";
 import { APP_VERSION } from "./version.js";
 
-process.on("SIGINT", () => process.exit(0));
-process.on("SIGTERM", () => process.exit(0));
+// Reap any scanner still running before exiting: on POSIX the tools are spawned
+// in their own process groups, so a Ctrl-C to the CLI's group would otherwise
+// leave them orphaned (win32 children share the console and get Ctrl-C anyway).
+const handleTerminationSignal = (): void => {
+	killActiveChildren();
+	process.exit(0);
+};
+process.on("SIGINT", handleTerminationSignal);
+process.on("SIGTERM", handleTerminationSignal);
 
 const fireInstalledOnce = (): void => {
 	if (isTelemetryDisabled(loadConfig(process.cwd()).telemetry)) return;
