@@ -51,12 +51,44 @@ const stripJsonComments = (raw: string): string => {
 	return result;
 };
 
+const stripTrailingCommas = (raw: string): string => {
+	let result = "";
+	let inString = false;
+	let escaped = false;
+	for (let index = 0; index < raw.length; index++) {
+		const character = raw[index];
+		if (inString) {
+			result += character;
+			if (escaped) {
+				escaped = false;
+			} else if (character === "\\") {
+				escaped = true;
+			} else if (character === '"') {
+				inString = false;
+			}
+			continue;
+		}
+		if (character === '"') {
+			inString = true;
+			result += character;
+			continue;
+		}
+		if (character === ",") {
+			let nextIndex = index + 1;
+			while (/\s/.test(raw[nextIndex] ?? "")) nextIndex++;
+			if (raw[nextIndex] === "}" || raw[nextIndex] === "]") continue;
+		}
+		result += character;
+	}
+	return result;
+};
+
 export const parseJsonc = (raw: string): unknown => {
 	try {
 		return JSON.parse(raw);
 	} catch {
 		try {
-			return JSON.parse(stripJsonComments(raw));
+			return JSON.parse(stripTrailingCommas(stripJsonComments(raw)));
 		} catch {
 			return null;
 		}

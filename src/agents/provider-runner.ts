@@ -1,5 +1,21 @@
 import { spawn } from "node:child_process";
-import type { AgentProvider } from "./providers.js";
+import type { AgentProvider, AgentProviderId } from "./providers.js";
+
+class ProviderExitError extends Error {
+	readonly name = "ProviderExitError";
+
+	constructor(
+		readonly providerId: AgentProviderId,
+		providerLabel: string,
+		readonly exitCode: number | null,
+	) {
+		super(
+			exitCode === null
+				? `${providerLabel} exited without reporting a status code.`
+				: `${providerLabel} exited with code ${exitCode}.`,
+		);
+	}
+}
 
 interface ProviderRunEvent {
 	stream: "stdout" | "stderr";
@@ -43,5 +59,11 @@ export const runProvider = (
 		child.stdout?.on("data", flushLine("stdout"));
 		child.stderr?.on("data", flushLine("stderr"));
 		child.once("error", (error) => reject(error));
-		child.once("close", (code) => resolve(code));
+		child.once("close", (code) => {
+			if (code === 0) {
+				resolve(code);
+				return;
+			}
+			reject(new ProviderExitError(provider.id, provider.label, code));
+		});
 	});

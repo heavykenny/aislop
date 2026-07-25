@@ -13,8 +13,15 @@ describe("read-jsonc", () => {
 		expect(parsed.compilerOptions.paths["@/*"]).toEqual(["./src/*"]);
 	});
 
-	it("returns null for invalid JSON after comment strip", () => {
-		expect(parseJsonc('{ "a": 1, }')).toBeNull();
+	it("parses JSONC trailing commas", () => {
+		expect(parseJsonc('{ "a": 1, "nested": [true,], }')).toEqual({
+			a: 1,
+			nested: [true],
+		});
+	});
+
+	it("returns null for invalid JSON after JSONC normalization", () => {
+		expect(parseJsonc('{ "a": }')).toBeNull();
 	});
 
 	it("parses strict JSON with https URLs without mangling them", () => {
