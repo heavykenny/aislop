@@ -20,6 +20,7 @@ import {
 	removeUnusedDeclarations,
 } from "../engines/code-quality/unused-removal.js";
 import { fixBiomeFormat, runBiomeFormat } from "../engines/format/biome.js";
+import { fixDotnetFormat, runDotnetFormat } from "../engines/format/dotnet-format.js";
 import { fixGenericFormatter, runGenericFormatter } from "../engines/format/generic.js";
 import { fixGofmt, runGofmt } from "../engines/format/gofmt.js";
 import { fixRuffFormat, runRuffFormat } from "../engines/format/ruff-format.js";
@@ -239,6 +240,16 @@ export const runFormattingStep = async (deps: PipelineDeps): Promise<void> => {
 		}
 	} else if (deps.projectInfo.languages.includes("php")) {
 		log.warn("PHP detected but php-cs-fixer is not installed; skipping PHP formatting fixes.");
+	}
+
+	if (deps.projectInfo.languages.includes("csharp") && deps.projectInfo.installedTools.dotnet) {
+		await deps.runStep(
+			"Formatting (csharp)",
+			() => runDotnetFormat(deps.context),
+			() => fixDotnetFormat(deps.resolvedDir),
+		);
+	} else if (deps.projectInfo.languages.includes("csharp")) {
+		log.warn("C# detected but dotnet is not installed; skipping C# formatting fixes.");
 	}
 };
 

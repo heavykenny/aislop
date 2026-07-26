@@ -1,5 +1,6 @@
 import type { Diagnostic, Engine, EngineContext, EngineResult } from "../types.js";
 import { runBiomeFormat } from "./biome.js";
+import { runDotnetFormat } from "./dotnet-format.js";
 import { runGenericFormatter } from "./generic.js";
 import { runGofmt } from "./gofmt.js";
 import { runRuffFormat } from "./ruff-format.js";
@@ -35,6 +36,23 @@ export const formatEngine: Engine = {
 
 		if (languages.includes("php") && installedTools["php-cs-fixer"]) {
 			promises.push(runGenericFormatter(context, "php"));
+		}
+
+		if (languages.includes("csharp") && installedTools.dotnet) {
+			promises.push(runDotnetFormat(context));
+		}
+
+		// No formatter matched the detected languages/installed tools. Report this as
+		// skipped (mirroring `doctor`) rather than returning an empty result, which the
+		// scan summary would otherwise launder into a misleading "done (0 issues)".
+		if (promises.length === 0) {
+			return {
+				engine: "format",
+				diagnostics,
+				elapsed: 0,
+				skipped: true,
+				skipReason: "no formatter for the detected languages",
+			};
 		}
 
 		const results = await Promise.allSettled(promises);

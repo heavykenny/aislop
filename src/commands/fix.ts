@@ -11,6 +11,7 @@ import { LiveRail } from "../ui/live-rail.js";
 import { log } from "../ui/logger.js";
 import { theme as defaultTheme, style } from "../ui/theme.js";
 import { discoverProject } from "../utils/discover.js";
+import { readAislopIgnorePatterns } from "../utils/source-files.js";
 import { APP_VERSION } from "../version.js";
 import { launchAgent, printPrompt } from "./fix-code.js";
 import {
@@ -193,6 +194,7 @@ const runFixBody = async (
 			rootDirectory: resolvedDir,
 			languages: projectInfo.languages,
 			frameworks: projectInfo.frameworks,
+			excludePatterns: [...config.exclude, ...readAislopIgnorePatterns(resolvedDir)],
 			installedTools: context.installedTools,
 			config: engineConfig,
 		},
