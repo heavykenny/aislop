@@ -1,6 +1,12 @@
-type Language = "typescript" | "javascript" | "python" | "java";
+type Language = "typescript" | "javascript" | "python" | "java" | "csharp";
 
-const ALL_LANGUAGES: ReadonlyArray<Language> = ["typescript", "javascript", "python", "java"];
+const ALL_LANGUAGES: ReadonlyArray<Language> = [
+	"typescript",
+	"javascript",
+	"python",
+	"java",
+	"csharp",
+];
 
 interface LanguageProperties {
 	language_summary: string;
@@ -8,6 +14,7 @@ interface LanguageProperties {
 	lang_javascript: boolean;
 	lang_python: boolean;
 	lang_java: boolean;
+	lang_csharp: boolean;
 }
 
 export const buildLanguageProperties = (detected: ReadonlyArray<string>): LanguageProperties => {
@@ -21,5 +28,6 @@ export const buildLanguageProperties = (detected: ReadonlyArray<string>): Langua
 		lang_javascript: present.has("javascript"),
 		lang_python: present.has("python"),
 		lang_java: present.has("java"),
+		lang_csharp: present.has("csharp"),
 	};
 };

@@ -27,7 +27,6 @@ const UNSUPPORTED_CODE_EXTENSIONS: Readonly<Record<string, string>> = {
 	".hpp": "C/C++",
 	".hh": "C/C++",
 	".hxx": "C/C++",
-	".cs": "C#",
 	".swift": "Swift",
 	".kt": "Kotlin",
 	".kts": "Kotlin",

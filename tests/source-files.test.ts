@@ -386,3 +386,20 @@ describe("source file selection", () => {
 		expect(filtered).toEqual([path.join(tmpDir, "src/app.ts")]);
 	});
 });
+
+describe("C# file discovery", () => {
+	it("includes .cs source files", () => {
+		const root = fs.mkdtempSync(path.join(os.tmpdir(), "aislop-cs-"));
+		fs.writeFileSync(path.join(root, "Service.cs"), "class Service {}");
+		const result = filterProjectFiles(root, ["Service.cs"]);
+		expect(result).toHaveLength(1);
+	});
+
+	it("excludes C# test files by convention", () => {
+		const root = fs.mkdtempSync(path.join(os.tmpdir(), "aislop-cs-"));
+		fs.writeFileSync(path.join(root, "ServiceTests.cs"), "class ServiceTests {}");
+		fs.writeFileSync(path.join(root, "Widget.Test.cs"), "class WidgetTest {}");
+		const result = filterProjectFiles(root, ["ServiceTests.cs", "Widget.Test.cs"]);
+		expect(result).toHaveLength(0);
+	});
+});

@@ -15,6 +15,7 @@ const SOURCE_EXTENSIONS = new Set([
 	".rb",
 	".java",
 	".php",
+	".cs",
 ]);
 
 export const EXCLUDED_SOURCE_DIRECTORIES = [
@@ -113,6 +114,10 @@ const TEST_FILE_PATTERNS = [
 	/(?:^|\/).*\.stor(?:y|ies)\.[^/]+$/i,
 	/(?:^|\/)test_[^/]+\.(?:py|rb|php|js|jsx|d\.ts|ts|tsx|java)$/i,
 	/(?:^|\/)[^/]+_test\.(?:py|go|rb|php|js|jsx|d\.ts|ts|tsx|java)$/i,
+	// C#: *Tests.cs / *Test.cs / *.Tests.cs, or anything under a Tests/ dir
+	/(?:^|\/)[^/]+Tests?\.cs$/i,
+	/(?:^|\/)[^/]+\.Tests?\.cs$/i,
+	/(?:^|\/)[^/]*Tests?\/.*\.cs$/i,
 ];
 
 export const toProjectPath = (rootDirectory: string, filePath: string): string => {

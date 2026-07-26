@@ -9,6 +9,7 @@ describe("buildLanguageProperties", () => {
 			lang_javascript: false,
 			lang_python: false,
 			lang_java: false,
+			lang_csharp: false,
 		});
 	});
 
@@ -34,5 +35,11 @@ describe("buildLanguageProperties", () => {
 	it("deduplicates repeated languages", () => {
 		const props = buildLanguageProperties(["typescript", "typescript", "python"]);
 		expect(props.language_summary).toBe("python,typescript");
+	});
+
+	it("reports csharp presence", () => {
+		const props = buildLanguageProperties(["csharp"]);
+		expect(props.lang_csharp).toBe(true);
+		expect(props.language_summary).toContain("csharp");
 	});
 });

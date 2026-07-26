@@ -50,6 +50,17 @@ describe("coverage gate (discoverProject)", () => {
 		expect(info.coverage.scoreable).toBe(true);
 	});
 
+	it("scores a pure C# repo (C# is supported, not 'dominantUnsupported')", async () => {
+		for (let i = 0; i < 15; i++) {
+			write(`src/Class${i}.cs`, `namespace App;\npublic class Class${i} { }\n`);
+		}
+
+		const info = await discoverProject(tmpDir);
+		expect(info.coverage.scoreable).toBe(true);
+		expect(info.coverage.dominantUnsupported).toBeNull();
+		expect(info.coverage.unsupportedFiles).toBe(0);
+	});
+
 	it("does not count an excluded subtree (vendor/) toward unsupported coverage", async () => {
 		for (let i = 0; i < 5; i++) write(`src/m${i}.ts`, `export const v${i} = ${i};\n`);
 		for (let i = 0; i < 50; i++) write(`vendor/lib/c${i}.c`, "int x;\n");

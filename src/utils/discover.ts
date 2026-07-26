@@ -14,7 +14,8 @@ export type Language =
 	| "rust"
 	| "java"
 	| "ruby"
-	| "php";
+	| "php"
+	| "csharp";
 
 export type Framework =
 	| "nextjs"
@@ -76,6 +77,7 @@ const EXTENSION_LANGUAGES: Record<string, Language> = {
 	".rb": "ruby",
 	".java": "java",
 	".php": "php",
+	".cs": "csharp",
 };
 
 const FRAMEWORK_PACKAGES: Record<string, Framework> = {
@@ -174,6 +176,22 @@ const detectLanguages = (directory: string, sourceFiles: string[]): Language[] =
 		}
 	}
 
+	// C# project files have arbitrary basenames (*.csproj / *.sln / *.slnx) plus a
+	// fixed global.json, so scan the directory rather than keying off a fixed name.
+	const hasDotnetProject = (() => {
+		if (fs.existsSync(path.join(directory, "global.json"))) return true;
+		try {
+			return fs
+				.readdirSync(directory)
+				.some(
+					(name) => name.endsWith(".csproj") || name.endsWith(".sln") || name.endsWith(".slnx"),
+				);
+		} catch {
+			return false;
+		}
+	})();
+	if (hasDotnetProject) languages.add("csharp");
+
 	return [...languages];
 };
 
@@ -220,7 +238,7 @@ const detectFrameworks = (directory: string): Framework[] => {
 	return [...frameworks];
 };
 
-const TOOLS_TO_CHECK = [
+export const TOOLS_TO_CHECK = [
 	"oxlint",
 	"biome",
 	"ruff",
@@ -237,6 +255,9 @@ const TOOLS_TO_CHECK = [
 	"rubocop",
 	"phpcs",
 	"php-cs-fixer",
+	"dotnet",
+	"roslynator",
+	"jb",
 ];
 
 const checkInstalledTools = async (): Promise<Record<string, boolean>> => {
