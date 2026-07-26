@@ -6,13 +6,19 @@ import { runSubprocess } from "../../utils/subprocess.js";
 import { resolveBundledJbSettings, resolveToolBinary } from "../../utils/tooling.js";
 import { findJbTargets, projectsSkippedNotice } from "../dotnet-targets.js";
 import type { Diagnostic, EngineContext, Severity } from "../types.js";
-import { decodeEntities } from "./xml-entities.js";
+import { resolveCppLintConfig } from "./cppcheck.js";
+import { decodeEntities, xmlAttribute } from "./xml-entities.js";
 
-type JbSeverity = "ERROR" | "WARNING" | "SUGGESTION" | "HINT";
+export type JbSeverity = "ERROR" | "WARNING" | "SUGGESTION" | "HINT";
 
-interface JbParseOptions {
+interface JbLanguageOptions {
 	excludeTypes: Set<string>;
 	severityFloor: JbSeverity;
+}
+
+interface JbParseOptions {
+	csharp: JbLanguageOptions;
+	cpp: JbLanguageOptions;
 }
 
 const SEVERITY_RANK: Record<JbSeverity, number> = { HINT: 0, SUGGESTION: 1, WARNING: 2, ERROR: 3 };
@@ -24,8 +30,8 @@ const toAislopSeverity = (severity: JbSeverity): Severity =>
 	SEVERITY_RANK[severity] >= SEVERITY_RANK.WARNING ? "warning" : "info";
 
 const attribute = (tag: string, name: string): string | null => {
-	const match = new RegExp(`\\b${name}="([^"]*)"`).exec(tag);
-	return match ? decodeEntities(match[1]) : null;
+	const value = xmlAttribute(tag, name);
+	return value !== null ? decodeEntities(value) : null;
 };
 
 const asSeverity = (raw: string | null): JbSeverity =>
@@ -33,6 +39,7 @@ const asSeverity = (raw: string | null): JbSeverity =>
 
 // Regex parse (no XML dependency, matching dotnet.ts). Builds a TypeId->Severity
 // map from <IssueType> tags, then maps each <Issue> tag to a Diagnostic.
+// Per-language floors and exclude sets are applied by the "Cpp" prefix test.
 export const parseJbXml = (
 	xml: string,
 	rootDirectory: string,
@@ -49,7 +56,6 @@ export const parseJbXml = (
 		}
 
 		const result: Diagnostic[] = [];
-		const floorRank = SEVERITY_RANK[options.severityFloor];
 		const issueTagRe = /<Issue\b[^>]*\/?>/g;
 		let issueTag = issueTagRe.exec(xml);
 		while (issueTag !== null) {
@@ -57,9 +63,12 @@ export const parseJbXml = (
 			issueTag = issueTagRe.exec(xml);
 			const typeId = attribute(tag, "TypeId");
 			const file = attribute(tag, "File");
-			if (!typeId || !file || options.excludeTypes.has(typeId)) continue;
+			if (!typeId || !file) continue;
+			const isCpp = typeId.startsWith("Cpp");
+			const langOptions = isCpp ? options.cpp : options.csharp;
+			if (langOptions.excludeTypes.has(typeId)) continue;
 			const severity = severityByType.get(typeId) ?? "WARNING";
-			if (SEVERITY_RANK[severity] < floorRank) continue;
+			if (SEVERITY_RANK[severity] < SEVERITY_RANK[langOptions.severityFloor]) continue;
 
 			// jb reports File with backslash separators regardless of host OS, and on
 			// Linux path.sep never matches them, so normalize before relativizing to
@@ -75,7 +84,7 @@ export const parseJbXml = (
 				help: "",
 				line: lineRaw ? Number(lineRaw) : 1,
 				column: 1,
-				category: "C# Lint",
+				category: isCpp ? "C++ Lint" : "C# Lint",
 				fixable: false,
 			});
 		}
@@ -117,11 +126,19 @@ export const resolveCsharpLintConfig = (context: EngineContext): CsharpLintConfi
 // than report a misleading subset. See reference_jb_inspectcode_cache.
 const reportLooksComplete = (xml: string): boolean => /<Project\b/.test(xml);
 
+// Pick the lower of two severity floors so the inspectcode pre-filter lets both
+// languages' issues through; parseJbXml re-applies each language's floor authoritatively.
+const minSeverityFloor = (a: JbSeverity, b: JbSeverity): JbSeverity =>
+	SEVERITY_RANK[a] <= SEVERITY_RANK[b] ? a : b;
+
 const analyzeJbTarget = async (
 	context: EngineContext,
 	jb: string,
 	settings: string | null,
-	csharp: CsharpLintConfig,
+	parseOptions: JbParseOptions,
+	coarseFloor: JbSeverity,
+	projectScope: string | undefined,
+	includeCpp: boolean,
 	target: string,
 ): Promise<Diagnostic[]> => {
 	// Fresh caches every run: jb's result cache survives config edits and a cold
@@ -135,11 +152,13 @@ const analyzeJbTarget = async (
 			"--format=Xml",
 			`--output=${outputPath}`,
 			`--caches-home=${cachesHome}`,
-			// Coarse pre-filter only; parseJbXml re-applies the floor and is authoritative.
-			`--severity=${csharp.jbSeverityFloor}`,
+			// Coarse pre-filter only; parseJbXml re-applies per-language floors.
+			`--severity=${coarseFloor}`,
 		];
 		if (settings) args.push(`--settings=${settings}`);
-		if (csharp.jbProjects) args.push(`--project=${csharp.jbProjects}`);
+		if (projectScope) args.push(`--project=${projectScope}`);
+		// C++ inspection does not require an MSBuild build pass.
+		if (includeCpp) args.push("--no-build");
 		// jb is slow (solution-wide, with build): allow up to 10 minutes.
 		await runSubprocess(jb, args, { cwd: context.rootDirectory, timeout: 600000 });
 
@@ -150,10 +169,7 @@ const analyzeJbTarget = async (
 			return [];
 		}
 		if (!reportLooksComplete(xml)) return [];
-		return parseJbXml(xml, context.rootDirectory, {
-			excludeTypes: new Set(csharp.jbExcludeTypes),
-			severityFloor: csharp.jbSeverityFloor,
-		});
+		return parseJbXml(xml, context.rootDirectory, parseOptions);
 	} catch {
 		return [];
 	} finally {
@@ -161,16 +177,63 @@ const analyzeJbTarget = async (
 	}
 };
 
-export const runJbLint = async (context: EngineContext): Promise<Diagnostic[]> => {
+export const buildJbProjectScope = (
+	csharpProjects: string | undefined,
+	cppProjects: string | undefined,
+): string | undefined => {
+	const parts = [csharpProjects, cppProjects].filter((p): p is string => !!p && p.length > 0);
+	return parts.length > 0 ? parts.join(";") : undefined;
+};
+
+export const runJbLint = async (
+	context: EngineContext,
+	options: { includeCsharp: boolean; includeCpp: boolean },
+): Promise<Diagnostic[]> => {
 	const selection = findJbTargets(context);
-	const notice = projectsSkippedNotice(selection, context.rootDirectory);
+	// Only the C# side owns the notice: a C++-only inspection has no stake in
+	// skipped .csproj projects (and would misattribute them to C++ lint).
+	const notice = options.includeCsharp
+		? projectsSkippedNotice(selection, context.rootDirectory)
+		: [];
 	if (selection.targets.length === 0) return notice;
 	const csharp = resolveCsharpLintConfig(context);
-	const jb = resolveToolBinary("jb"); // not bundled -> resolves to "jb" on PATH
+	const cpp = resolveCppLintConfig(context);
+	const jbBinary = resolveToolBinary("jb"); // not bundled -> resolves to "jb" on PATH
 	const settings = resolveBundledJbSettings();
+
+	const projectScope = buildJbProjectScope(
+		options.includeCsharp ? csharp.jbProjects : undefined,
+		options.includeCpp ? cpp.jbProjects : undefined,
+	);
+	const coarseFloor = minSeverityFloor(
+		options.includeCsharp ? csharp.jbSeverityFloor : "ERROR",
+		options.includeCpp ? cpp.jbSeverityFloor : "ERROR",
+	);
+	const parseOptions: JbParseOptions = {
+		csharp: {
+			excludeTypes: new Set(csharp.jbExcludeTypes),
+			severityFloor: csharp.jbSeverityFloor,
+		},
+		cpp: {
+			excludeTypes: new Set(cpp.jbExcludeTypes),
+			severityFloor: cpp.jbSeverityFloor,
+		},
+	};
+
 	const diagnostics: Diagnostic[] = [];
 	for (const target of selection.targets) {
-		diagnostics.push(...(await analyzeJbTarget(context, jb, settings, csharp, target)));
+		diagnostics.push(
+			...(await analyzeJbTarget(
+				context,
+				jbBinary,
+				settings,
+				parseOptions,
+				coarseFloor,
+				projectScope,
+				options.includeCpp,
+				target,
+			)),
+		);
 	}
 	return [...diagnostics, ...notice];
 };

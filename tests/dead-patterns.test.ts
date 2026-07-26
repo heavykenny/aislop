@@ -675,6 +675,70 @@ describe("dead code patterns", () => {
 		expect(unreachable).toHaveLength(1);
 	});
 
+	it("detects unreachable code after throw in a C++ function", async () => {
+		const filePath = writeFile(
+			"a.cpp",
+			["int f() {", '  throw std::runtime_error("x");', "  return 0;", "}"].join("\n"),
+		);
+		const diagnostics = await detectDeadPatterns(makeContext([filePath]));
+		const unreachable = diagnostics.filter((d) => d.rule === "ai-slop/unreachable-code");
+		expect(unreachable).toHaveLength(1);
+	});
+
+	it("does not flag a closing brace after return in C++", async () => {
+		const filePath = writeFile("b.cpp", ["int f() {", "  return 0;", "}"].join("\n"));
+		const diagnostics = await detectDeadPatterns(makeContext([filePath]));
+		const unreachable = diagnostics.filter((d) => d.rule === "ai-slop/unreachable-code");
+		expect(unreachable).toHaveLength(0);
+	});
+
+	it("does not treat an unbraced if/else return as unconditional (LLVM brace-less style, C++)", async () => {
+		const filePath = writeFile(
+			"BraceLessElse.cpp",
+			[
+				"bool evaluate() {",
+				"  if (ErrorOr<int64_t> InputVal =",
+				"          getOperandVal(Inst.getOperand(1).getReg()))",
+				"    Output = *InputVal - Inst.getOperand(2).getImm();",
+				"  else",
+				"    return false;",
+				"  break;",
+				"}",
+			].join("\n"),
+		);
+		const diagnostics = await detectDeadPatterns(makeContext([filePath]));
+		const unreachable = diagnostics.filter((d) => d.rule === "ai-slop/unreachable-code");
+		expect(unreachable).toHaveLength(0);
+	});
+
+	it("does not flag an unbraced if body followed by more code (C++)", async () => {
+		const filePath = writeFile(
+			"UnbracedIf.cpp",
+			["void f(bool a) {", "  if (a)", "    return 1;", "  DoWork();", "}"].join("\n"),
+		);
+		const diagnostics = await detectDeadPatterns(makeContext([filePath]));
+		const unreachable = diagnostics.filter((d) => d.rule === "ai-slop/unreachable-code");
+		expect(unreachable).toHaveLength(0);
+	});
+
+	it("does not flag a bare unbraced else return (C++)", async () => {
+		const filePath = writeFile(
+			"BareElse.cpp",
+			[
+				"void f(bool a) {",
+				"  if (a)",
+				"    DoWork();",
+				"  else",
+				"    return;",
+				"  next();",
+				"}",
+			].join("\n"),
+		);
+		const diagnostics = await detectDeadPatterns(makeContext([filePath]));
+		const unreachable = diagnostics.filter((d) => d.rule === "ai-slop/unreachable-code");
+		expect(unreachable).toHaveLength(0);
+	});
+
 	it("does not treat an unbraced if/else return as unconditional (C#)", async () => {
 		const filePath = writeFile(
 			"BraceLessElse.cs",
@@ -712,10 +776,21 @@ describe("dead code patterns", () => {
 		const unreachable = diagnostics.filter((d) => d.rule === "ai-slop/unreachable-code");
 		expect(unreachable).toHaveLength(0);
 	});
-	it("still flags plain unreachable code after a sequential return (C#)", async () => {
+
+	it("still flags plain unreachable code after a sequential return (C++)", async () => {
 		const filePath = writeFile(
-			"PlainReturn.cs",
-			["class C {", "  void F() {", "    return;", "    DoWork();", "  }", "}"].join("\n"),
+			"PlainReturn.cpp",
+			["void f() {", "  return;", "  DoWork();", "}"].join("\n"),
+		);
+		const diagnostics = await detectDeadPatterns(makeContext([filePath]));
+		const unreachable = diagnostics.filter((d) => d.rule === "ai-slop/unreachable-code");
+		expect(unreachable).toHaveLength(1);
+	});
+
+	it("still flags plain unreachable code after a sequential throw (C++)", async () => {
+		const filePath = writeFile(
+			"PlainThrow.cpp",
+			["void f() {", '  throw std::runtime_error("x");', "  work();", "}"].join("\n"),
 		);
 		const diagnostics = await detectDeadPatterns(makeContext([filePath]));
 		const unreachable = diagnostics.filter((d) => d.rule === "ai-slop/unreachable-code");
@@ -737,6 +812,23 @@ describe("dead code patterns", () => {
 		const diagnostics = await detectDeadPatterns(makeContext([filePath]));
 		const unreachable = diagnostics.filter((d) => d.rule === "ai-slop/unreachable-code");
 		expect(unreachable).toHaveLength(0);
+	});
+
+	it("does not flag unreachable code that is only inside a C++ comment", async () => {
+		const filePath = writeFile(
+			"c.cpp",
+			["int f() {", "  return 0;", "  // var x = 1; (explanatory note)", "}"].join("\n"),
+		);
+		const diagnostics = await detectDeadPatterns(makeContext([filePath]));
+		const unreachable = diagnostics.filter((d) => d.rule === "ai-slop/unreachable-code");
+		expect(unreachable).toHaveLength(0);
+	});
+
+	it("detects a constant condition in a C++ file", async () => {
+		const filePath = writeFile("d.cpp", "void f() { if (false) { run(); } }");
+		const diagnostics = await detectDeadPatterns(makeContext([filePath]));
+		const constant = diagnostics.filter((d) => d.rule === "ai-slop/constant-condition");
+		expect(constant.length).toBe(1);
 	});
 
 	it("does not flag a return before #else as unreachable in C#", async () => {
@@ -772,6 +864,24 @@ describe("dead code patterns", () => {
 				"    return 1;",
 				"#endif",
 				"  }",
+				"}",
+			].join("\n"),
+		);
+		const diagnostics = await detectDeadPatterns(makeContext([filePath]));
+		const unreachable = diagnostics.filter((d) => d.rule === "ai-slop/unreachable-code");
+		expect(unreachable).toHaveLength(0);
+	});
+
+	it("does not flag a return before #else as unreachable in C++", async () => {
+		const filePath = writeFile(
+			"platform.cpp",
+			[
+				"int f() {",
+				"#ifdef _WIN32",
+				"  return 1;",
+				"#else",
+				"  return 2;",
+				"#endif",
 				"}",
 			].join("\n"),
 		);

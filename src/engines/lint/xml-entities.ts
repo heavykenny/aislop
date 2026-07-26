@@ -7,3 +7,9 @@ export const decodeEntities = (value: string): string =>
 		.replace(/&quot;/g, '"')
 		.replace(/&apos;/g, "'")
 		.replace(/&amp;/g, "&");
+
+// Reads one `name="value"` attribute out of a single XML tag string. Shared by
+// the regex-based (no XML dependency) parsers for cppcheck, jb, and roslynator
+// output; returns null when the attribute is absent.
+export const xmlAttribute = (tag: string, name: string): string | null =>
+	new RegExp(`\\b${name}="([^"]*)"`).exec(tag)?.[1] ?? null;

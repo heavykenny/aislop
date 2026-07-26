@@ -3,6 +3,7 @@ import path from "node:path";
 import { relativePosix } from "../../utils/paths.js";
 import { getSourceFiles } from "../../utils/source-files.js";
 import { maskStringsAndComments } from "../../utils/source-masker.js";
+import { CPP_SOURCE_EXTENSIONS } from "../cpp-targets.js";
 import type { Diagnostic, EngineContext } from "../types.js";
 import { consumeTemplateLiteral, isSafeInnerHtmlAssignment } from "./html-safety.js";
 
@@ -22,6 +23,8 @@ const DB_RECEIVER =
 	"(?:db|database|knex|client|connection|conn|pool|sql|prisma|trx|tx|sequelize|mongoose|typeorm|postgres|pg|mysql|sqlite|model|orm|datasource)";
 const DB_METHOD =
 	"(?:query|execute|exec|raw|\\$queryRaw|\\$queryRawUnsafe|\\$executeRaw|\\$executeRawUnsafe)";
+
+const CPP_EXTS = [...CPP_SOURCE_EXTENSIONS];
 
 // C# string-building SQL sinks (ADO.NET command types/CommandText and EF Core's
 // *Raw* helpers). The parameter-safe EF Core `FromSqlInterpolated` /
@@ -155,6 +158,24 @@ const RISKY_PATTERNS: RiskyPattern[] = [
 		name: "unsafe-deserialization",
 		message: "Unsafe deserializer can execute arbitrary code on untrusted input",
 		help: "Use System.Text.Json or DataContractSerializer with a known, restricted set of types",
+	},
+	// C / C++
+	{
+		// Negative lookbehind skips member access (`.system`, `->system`) but keeps
+		// the qualified `std::system`, which is the same dangerous call.
+		pattern: /(?<![\w.>])\b(?:system|popen)\s*\(/g,
+		extensions: CPP_EXTS,
+		name: "shell-injection",
+		message: "Use of system()/popen() spawns a shell — a command-injection risk",
+		help: "Use posix_spawn/exec-family with an explicit argument vector, or a vetted process library",
+	},
+	{
+		// Unbounded C string functions with classic buffer-overflow footguns.
+		pattern: /(?<![\w.>])\b(?:gets|strcpy|strcat|sprintf)\s*\(/g,
+		extensions: CPP_EXTS,
+		name: "unsafe-c-call",
+		message: "Memory-unsafe C string function — buffer overflow risk",
+		help: "Use bounded variants (snprintf, strncpy/strncat, fgets) or std::string / std::format",
 	},
 ];
 

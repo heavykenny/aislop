@@ -902,4 +902,53 @@ describe("detectRiskyConstructs", () => {
 		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));
 		expect(diagnostics.filter((d) => d.rule === "security/unsafe-deserialization")).toHaveLength(1);
 	});
+
+	// ── C / C++ ─────────────────────────────────────────────────────────────
+	it("detects a C++ system() call", async () => {
+		const filePath = writeFile("main.cpp", "int rc = system(cmd.c_str());");
+		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));
+		expect(diagnostics.filter((d) => d.rule === "security/shell-injection")).toHaveLength(1);
+	});
+
+	it("detects a qualified std::system() call but not a member access .system()", async () => {
+		const filePath = writeFile(
+			"main.cpp",
+			"std::system(cmd);\nmyRunner.system(cmd);\nobj->system(cmd);",
+		);
+		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));
+		expect(diagnostics.filter((d) => d.rule === "security/shell-injection")).toHaveLength(1);
+	});
+
+	it("detects unsafe C string functions in a .cpp file", async () => {
+		const filePath = writeFile(
+			"buf.cpp",
+			'strcpy(dest, src);\nsprintf(buf, "%s", src);\ngets(line);',
+		);
+		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));
+		expect(diagnostics.filter((d) => d.rule === "security/unsafe-c-call")).toHaveLength(3);
+	});
+
+	it("does NOT flag bounded C string functions (snprintf/strncpy)", async () => {
+		const filePath = writeFile("buf.cpp", 'snprintf(buf, n, "%s", src);\nstrncpy(dest, src, n);');
+		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));
+		expect(diagnostics.filter((d) => d.rule === "security/unsafe-c-call")).toHaveLength(0);
+	});
+
+	it("detects unsafe string functions in a C++ header (.hpp)", async () => {
+		const filePath = writeFile(
+			"inline.hpp",
+			"inline void copy(char* d, const char* s) { strcpy(d, s); }",
+		);
+		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));
+		expect(diagnostics.filter((d) => d.rule === "security/unsafe-c-call")).toHaveLength(1);
+	});
+
+	it("does NOT flag system() mentioned in a C++ comment", async () => {
+		const filePath = writeFile(
+			"main.cpp",
+			"// never call system() with untrusted input\nint x = 1;",
+		);
+		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));
+		expect(diagnostics.filter((d) => d.rule === "security/shell-injection")).toHaveLength(0);
+	});
 });

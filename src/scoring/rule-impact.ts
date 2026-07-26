@@ -238,6 +238,31 @@ export const RULE_SCORE_IMPACTS: Record<string, RuleScoreImpact> = {
 		"Repeated string += in a loop is O(n^2) allocation churn; a StringBuilder is the fix.",
 	),
 
+	"ai-slop/cpp-not-implemented": standard(
+		"Stubs that throw or assert 'not implemented' usually indicate unfinished behavior.",
+	),
+	"ai-slop/cpp-using-namespace-std-in-header": maintainability(
+		"A using-directive at header scope leaks std names into every includer, a hygiene debt.",
+	),
+	"ai-slop/cpp-c-style-cast": style(
+		"A C-style cast in C++ is a cleanup/style finding; a named cast makes intent explicit.",
+	),
+	"ai-slop/cpp-manual-delete": maintainability(
+		"Manual delete is a memory-safety hazard; RAII/smart pointers own the resource instead.",
+	),
+	"ai-slop/cpp-iostream-leftover": style(
+		"Leftover std::cout/std::cerr in library code is visible cleanup unless it leaks data.",
+	),
+	"ai-slop/cpp-null-literal": style(
+		"NULL versus nullptr is a modernization/style finding; nullptr avoids integer-overload pitfalls.",
+	),
+	"ai-slop/cpp-define-constant": style(
+		"A macro constant instead of constexpr is a style/hygiene finding, not a behavior bug.",
+	),
+	"ai-slop/cpp-endl-in-stream": style(
+		"std::endl versus '\\n' is a minor performance/style finding from redundant flushes.",
+	),
+
 	"security/hardcoded-secret": strict("Secret-looking source literals are high-risk."),
 	"security/vulnerable-dependency": strict(
 		"Known vulnerabilities deserve full impact even when remediation varies.",
@@ -250,11 +275,17 @@ export const RULE_SCORE_IMPACTS: Record<string, RuleScoreImpact> = {
 	"security/unsafe-deserialization": strict(
 		"Deserializing untrusted data with a legacy .NET formatter can become remote code execution.",
 	),
+	"security/unsafe-c-call": strict(
+		"Unbounded C string and process calls can become buffer overflows or command execution.",
+	),
 	"security/dependency-audit-skipped": advisory(
 		"An unavailable audit is visibility loss, not evidence of a vulnerability.",
 	),
 	"dotnet/projects-skipped": advisory(
 		"Skipping unrestored C# projects is visibility loss, not evidence of a defect.",
+	),
+	"cppcheck/chunks-skipped": advisory(
+		"A skipped cppcheck chunk is visibility loss, not evidence that the skipped files have a defect.",
 	),
 
 	"eslint/no-undef": strict("Undefined identifiers are high-confidence runtime failures."),
