@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	buildDoctorRender,
 	type DoctorEngineRow,
+	planFormatForTest,
 	planLintForTest,
 } from "../../src/commands/doctor.js";
 import { stripAnsi as strip } from "../helpers/ansi.js";
@@ -108,5 +109,28 @@ describe("planLint csharp linter selection", () => {
 		expect(decision.status).toBe("missing");
 		expect(decision.tool).toContain("not found");
 		expect(decision.remediation).toContain("JetBrains.ReSharper.GlobalTools");
+	});
+});
+
+describe("planFormat/planLint cpp tools", () => {
+	it("reports cpp tools: clang-format for format, cppcheck preferred for lint", () => {
+		const decisionFormat = planFormatForTest({
+			languages: ["cpp"],
+			installedTools: { "clang-format": true },
+		});
+		expect(decisionFormat).toMatchObject({ tool: "clang-format (system)", status: "ok" });
+
+		const decisionLint = planLintForTest({
+			languages: ["cpp"],
+			installedTools: { cppcheck: true, "clang-tidy": true },
+		});
+		expect(decisionLint).toMatchObject({ tool: "cppcheck (system)", status: "ok" });
+
+		const none = planLintForTest({
+			languages: ["cpp"],
+			installedTools: {},
+		});
+		expect(none.status).toBe("missing");
+		expect(none.tool).toContain("cppcheck not found");
 	});
 });

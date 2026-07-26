@@ -1,5 +1,6 @@
 import type { Diagnostic, Engine, EngineContext, EngineResult } from "../types.js";
 import { runBiomeFormat } from "./biome.js";
+import { runClangFormat } from "./clang-format.js";
 import { runDotnetFormat } from "./dotnet-format.js";
 import { runGenericFormatter } from "./generic.js";
 import { runGofmt } from "./gofmt.js";
@@ -40,6 +41,10 @@ export const formatEngine: Engine = {
 
 		if (languages.includes("csharp") && installedTools.dotnet) {
 			promises.push(runDotnetFormat(context));
+		}
+
+		if (languages.includes("cpp") && installedTools["clang-format"]) {
+			promises.push(runClangFormat(context));
 		}
 
 		// No formatter matched the detected languages/installed tools. Report this as

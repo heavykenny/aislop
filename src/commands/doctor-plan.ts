@@ -120,6 +120,12 @@ const FORMAT_SPECS: LangToolSpec[] = [
 		"dotnet format whitespace",
 		"Install the .NET SDK: https://dotnet.microsoft.com/download",
 	),
+	spec(
+		"cpp",
+		"clang-format",
+		"clang-format",
+		"Install LLVM: apt-get install clang-format | brew install clang-format | winget install LLVM.LLVM",
+	),
 ];
 
 const LINT_SPECS: LangToolSpec[] = [
@@ -138,6 +144,18 @@ const LINT_SPECS: LangToolSpec[] = [
 		"roslynator",
 		"roslynator",
 		"Install: dotnet tool install -g roslynator.dotnet.cli",
+	),
+	spec(
+		"cpp",
+		"cppcheck",
+		"cppcheck",
+		"Install: apt-get install cppcheck | brew install cppcheck | winget install Cppcheck.Cppcheck",
+	),
+	spec(
+		"cpp",
+		"clang-tidy",
+		"clang-tidy",
+		"Install LLVM: apt-get install clang-tidy | brew install llvm | winget install LLVM.LLVM",
 	),
 ];
 
@@ -203,6 +221,12 @@ const makeTestPlanContext = (overrides: {
 	},
 	config: DEFAULT_CONFIG,
 });
+
+/** Exported for unit tests only. Runs planFormat with a minimal synthetic context. */
+export const planFormatForTest = (overrides: {
+	languages: Language[];
+	installedTools: Record<string, boolean>;
+}): ToolDecision => planFormat(makeTestPlanContext(overrides));
 
 /** Exported for unit tests only. Runs planLint with a minimal synthetic context. */
 export const planLintForTest = (overrides: {

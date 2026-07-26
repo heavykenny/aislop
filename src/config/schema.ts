@@ -33,6 +33,16 @@ const CsharpLintSchema = z.object({
 	jbProjects: z.string().optional(),
 });
 
+const CppLintSchema = z.object({
+	cppcheck: z.boolean().default(true),
+	clangTidy: z.boolean().default(true),
+	cppcheckEnable: z.string().default("warning,performance,portability"),
+	jb: z.boolean().default(false),
+	jbProjects: z.string().optional(),
+	jbSeverityFloor: z.enum(["ERROR", "WARNING", "SUGGESTION", "HINT"]).default("WARNING"),
+	jbExcludeTypes: z.array(z.string()).default(() => []),
+});
+
 const LintConfigSchema = z.object({
 	typecheck: z.boolean().default(false),
 	/**
@@ -45,6 +55,14 @@ const LintConfigSchema = z.object({
 		roslynator: true,
 		jbSeverityFloor: "WARNING" as const,
 		jbExcludeTypes: ["InconsistentNaming"],
+	})),
+	cpp: CppLintSchema.default(() => ({
+		cppcheck: true,
+		clangTidy: true,
+		cppcheckEnable: "warning,performance,portability",
+		jb: false,
+		jbSeverityFloor: "WARNING" as const,
+		jbExcludeTypes: [],
 	})),
 });
 
@@ -105,6 +123,14 @@ const AislopConfigSchema = z.object({
 			roslynator: true,
 			jbSeverityFloor: "WARNING" as const,
 			jbExcludeTypes: ["InconsistentNaming"],
+		},
+		cpp: {
+			cppcheck: true,
+			clangTidy: true,
+			cppcheckEnable: "warning,performance,portability",
+			jb: false,
+			jbSeverityFloor: "WARNING" as const,
+			jbExcludeTypes: [],
 		},
 	})),
 	security: SecurityConfigSchema.default(() => ({

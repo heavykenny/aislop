@@ -27,6 +27,14 @@ export const DEFAULT_CONFIG: AislopConfig = {
 			jbSeverityFloor: "WARNING",
 			jbExcludeTypes: ["InconsistentNaming"],
 		},
+		cpp: {
+			cppcheck: true,
+			clangTidy: true,
+			cppcheckEnable: "warning,performance,portability",
+			jb: false,
+			jbSeverityFloor: "WARNING" as const,
+			jbExcludeTypes: [],
+		},
 	},
 	security: {
 		audit: true,

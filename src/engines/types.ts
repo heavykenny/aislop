@@ -72,6 +72,15 @@ export interface EngineConfig {
 			jbExcludeTypes: string[];
 			jbProjects?: string;
 		};
+		cpp?: {
+			cppcheck: boolean;
+			clangTidy: boolean;
+			cppcheckEnable: string;
+			jb: boolean;
+			jbProjects?: string;
+			jbSeverityFloor: "ERROR" | "WARNING" | "SUGGESTION" | "HINT";
+			jbExcludeTypes: string[];
+		};
 	};
 	allowProjectLocalTools?: boolean;
 	architectureRulesPath?: string;

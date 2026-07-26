@@ -76,13 +76,126 @@
 		},
 		"lint": {
 			"default": {
-				"typecheck": false
+				"typecheck": false,
+				"expoDoctor": false,
+				"csharp": {
+					"jb": true,
+					"roslynator": true,
+					"jbSeverityFloor": "WARNING",
+					"jbExcludeTypes": [
+						"InconsistentNaming"
+					]
+				},
+				"cpp": {
+					"cppcheck": true,
+					"clangTidy": true,
+					"cppcheckEnable": "warning,performance,portability",
+					"jb": false,
+					"jbSeverityFloor": "WARNING",
+					"jbExcludeTypes": []
+				}
 			},
 			"type": "object",
 			"properties": {
 				"typecheck": {
 					"default": false,
 					"type": "boolean"
+				},
+				"expoDoctor": {
+					"default": false,
+					"type": "boolean"
+				},
+				"csharp": {
+					"default": {
+						"jb": true,
+						"roslynator": true,
+						"jbSeverityFloor": "WARNING",
+						"jbExcludeTypes": [
+							"InconsistentNaming"
+						]
+					},
+					"type": "object",
+					"properties": {
+						"jb": {
+							"default": true,
+							"type": "boolean"
+						},
+						"roslynator": {
+							"default": true,
+							"type": "boolean"
+						},
+						"jbSeverityFloor": {
+							"default": "WARNING",
+							"type": "string",
+							"enum": [
+								"ERROR",
+								"WARNING",
+								"SUGGESTION",
+								"HINT"
+							]
+						},
+						"jbExcludeTypes": {
+							"default": [
+								"InconsistentNaming"
+							],
+							"type": "array",
+							"items": {
+								"type": "string"
+							}
+						},
+						"jbProjects": {
+							"type": "string"
+						}
+					}
+				},
+				"cpp": {
+					"default": {
+						"cppcheck": true,
+						"clangTidy": true,
+						"cppcheckEnable": "warning,performance,portability",
+						"jb": false,
+						"jbSeverityFloor": "WARNING",
+						"jbExcludeTypes": []
+					},
+					"type": "object",
+					"properties": {
+						"cppcheck": {
+							"default": true,
+							"type": "boolean"
+						},
+						"clangTidy": {
+							"default": true,
+							"type": "boolean"
+						},
+						"cppcheckEnable": {
+							"default": "warning,performance,portability",
+							"type": "string"
+						},
+						"jb": {
+							"default": false,
+							"type": "boolean"
+						},
+						"jbProjects": {
+							"type": "string"
+						},
+						"jbSeverityFloor": {
+							"default": "WARNING",
+							"type": "string",
+							"enum": [
+								"ERROR",
+								"WARNING",
+								"SUGGESTION",
+								"HINT"
+							]
+						},
+						"jbExcludeTypes": {
+							"default": [],
+							"type": "array",
+							"items": {
+								"type": "string"
+							}
+						}
+					}
 				}
 			}
 		},
