@@ -132,6 +132,42 @@ describe("checkComplexity — file too large", () => {
 		expect(fileDiags).toHaveLength(1);
 		expect(fileDiags[0]).toContain("logic.ts");
 	});
+
+	it("gives C/C++ files a 2.5x file budget (same as Rust)", async () => {
+		// maxFileLoc = 10 → C++ budget 25, trigger at ceil(25 * 1.1) = 28.
+		const within = writeFile("ok.cpp", makeLines(28, "int x = 1;"));
+		const over = writeFile("big.cpp", makeLines(29, "int x = 1;"));
+		const diagnostics = await checkComplexity(makeContext([within, over], { maxFileLoc: 10 }));
+		const fileDiags = diagnostics.filter((d) => d.rule === "complexity/file-too-large");
+		expect(fileDiags).toHaveLength(1);
+		expect(fileDiags[0].filePath).toContain("big.cpp");
+		expect(fileDiags[0].message).toContain("max: 25");
+	});
+
+	it("points oversized C++ files at the component-as-translation-unit pattern", async () => {
+		const filePath = writeFile("mft.cpp", makeLines(30, "int x = 1;"));
+		const diagnostics = await checkComplexity(makeContext([filePath], { maxFileLoc: 10 }));
+		const fileDiags = diagnostics.filter((d) => d.rule === "complexity/file-too-large");
+		expect(fileDiags).toHaveLength(1);
+		expect(fileDiags[0].help).toContain("component-as-translation-unit pattern");
+		expect(fileDiags[0].help).toContain("docs/cpp-component-pattern.md");
+	});
+
+	it("applies the C++ component hint to ambiguous .h headers in a C++ tree", async () => {
+		const header = writeFile("mft.h", makeLines(30, "int x = 1;"));
+		const diagnostics = await checkComplexity(makeContext([header], { maxFileLoc: 10 }));
+		const fileDiags = diagnostics.filter((d) => d.rule === "complexity/file-too-large");
+		expect(fileDiags).toHaveLength(1);
+		expect(fileDiags[0].help).toContain("component-as-translation-unit pattern");
+	});
+
+	it("keeps the generic split hint for non-C++ files", async () => {
+		const filePath = writeFile("logic.ts", makeLines(15, "const x = 1;"));
+		const diagnostics = await checkComplexity(makeContext([filePath], { maxFileLoc: 10 }));
+		const fileDiags = diagnostics.filter((d) => d.rule === "complexity/file-too-large");
+		expect(fileDiags).toHaveLength(1);
+		expect(fileDiags[0].help).toBe("Consider splitting this file into smaller modules");
+	});
 });
 
 describe("checkComplexity — function too long", () => {
@@ -381,6 +417,23 @@ describe("checkComplexity — too many parameters", () => {
 		const diagnostics = await checkComplexity(makeContext([filePath], { maxParams: 6 }));
 		const paramDiags = diagnostics.filter((d) => d.rule === "complexity/too-many-params");
 		expect(paramDiags).toHaveLength(0);
+	});
+
+	it("still counts genuine top-level params past the limit despite generic types", async () => {
+		// Eight real parameters, one of which carries an internal generic comma:
+		// the count must be eight (not nine), and the finding must still fire.
+		const content =
+			"void ParseAllChunks(\n" +
+			"    ReadChunkFn readChunk, void* readContext, std::array<uint8_t*, 2>& buf,\n" +
+			"    unsigned numThreads, const FilterSpec& filter, PathLookup* lookup,\n" +
+			"    uint64_t totalRecords, ParseState& state) {\n" +
+			"    return;\n" +
+			"}\n";
+		const filePath = writeFile("chunks.cpp", content);
+		const diagnostics = await checkComplexity(makeContext([filePath], { maxParams: 6 }));
+		const paramDiags = diagnostics.filter((d) => d.rule === "complexity/too-many-params");
+		expect(paramDiags).toHaveLength(1);
+		expect(paramDiags[0].detail).toContain("8 params");
 	});
 
 	it("counts a positional record's component list toward too-many-params like any parameter list", async () => {
@@ -780,7 +833,147 @@ describe("analyzeFunctions — brace masking regressions", () => {
 	});
 });
 
-describe("analyzeFunctions — C# constructor & multi-line signature detection", () => {
+// C++ false-positive regression: a function-call expression on a `return` statement
+// must NOT be mistaken for a function definition.
+describe("checkComplexity — C++ function-call false positive regression", () => {
+	// Mirrors a real Win32 source layout:
+	//   namespace { ... short wrapper ... }
+	//   extern "C" { ... long real code ... }
+	// The bug: `return GetOverlappedResult(...)` on the last line of the short wrapper
+	// was matched as a function definition header, then brace-scanning from that point
+	// consumed the `extern "C" {` block, reporting a ~300-line phantom function.
+	const CPP_NAMESPACE_EXTERN_FIXTURE = [
+		"#include <windows.h>",
+		"",
+		"namespace {",
+		"",
+		"BOOL UsnGetOverlappedResult(HANDLE handle, LPOVERLAPPED overlapped, LPDWORD bytesReturned, BOOL wait) {",
+		"    if (ShouldAbort()) {",
+		"        SetLastError(ERROR_OPERATION_ABORTED);",
+		"        return FALSE;",
+		"    }",
+		"    return GetOverlappedResult(handle, overlapped, bytesReturned, wait);",
+		"}",
+		"",
+		"}  // namespace",
+		"",
+		'extern "C" {',
+		...Array(60).fill("    int realWork = doStuff();"),
+		"}",
+	].join("\n");
+
+	it("does NOT report function-too-long for a 6-line C++ wrapper whose last line is a function call", async () => {
+		const filePath = writeFile("usn_journal.cpp", CPP_NAMESPACE_EXTERN_FIXTURE);
+		const diagnostics = await checkComplexity(makeContext([filePath], { maxFunctionLoc: 80 }));
+		const fnDiags = diagnostics.filter((d) => d.rule === "complexity/function-too-long");
+		// GetOverlappedResult is a CALL, not a definition - must not appear in findings
+		const phantom = fnDiags.find((d) => d.detail?.includes("GetOverlappedResult"));
+		expect(phantom).toBeUndefined();
+	});
+
+	it("does NOT report deep-nesting for the same phantom function", async () => {
+		const filePath = writeFile("usn_journal.cpp", CPP_NAMESPACE_EXTERN_FIXTURE);
+		const diagnostics = await checkComplexity(makeContext([filePath], { maxFunctionLoc: 80 }));
+		const nestDiags = diagnostics.filter((d) => d.rule === "complexity/deep-nesting");
+		const phantom = nestDiags.find((d) => d.detail?.includes("GetOverlappedResult"));
+		expect(phantom).toBeUndefined();
+	});
+
+	it("still detects a genuinely long C++ function in the same namespace/extern-C pattern", async () => {
+		const longBody = Array(100).fill("    doWork();").join("\n");
+		const content = [
+			"namespace {",
+			`BOOL TrulyLongFunction(HANDLE h, LPOVERLAPPED o) {\n${longBody}\n    return TRUE;\n}`,
+			"}",
+		].join("\n");
+		const filePath = writeFile("long_real.cpp", content);
+		const diagnostics = await checkComplexity(makeContext([filePath], { maxFunctionLoc: 80 }));
+		const fnDiags = diagnostics.filter((d) => d.rule === "complexity/function-too-long");
+		expect(fnDiags.length).toBeGreaterThanOrEqual(1);
+		expect(fnDiags[0].detail).toContain("TrulyLongFunction");
+	});
+
+	it("does NOT flag a bare return-call statement in a .cpp file as a function definition", async () => {
+		// Minimal repro: a single return statement whose callee name matches the
+		// C++ function-definition pattern regex.
+		const content = [
+			"namespace {",
+			"BOOL Wrapper(HANDLE h) {",
+			"    return SomeApiCall(h, nullptr, 0);",
+			"}",
+			"}",
+		].join("\n");
+		const filePath = writeFile("wrapper.cpp", content);
+		const diagnostics = await checkComplexity(makeContext([filePath], { maxFunctionLoc: 80 }));
+		const fnDiags = diagnostics.filter((d) => d.rule === "complexity/function-too-long");
+		const phantom = fnDiags.find((d) => d.detail?.includes("SomeApiCall"));
+		expect(phantom).toBeUndefined();
+	});
+});
+
+// Header coverage: inline / class-member function bodies in C++ headers must be
+// nesting-checked, while declaration prototypes in the same headers must not be
+// mistaken for definitions (they carry no body).
+describe("checkComplexity — C++ header nesting coverage", () => {
+	const DEEP_INLINE_BODY = [
+		"    if (a) {",
+		"        if (b) {",
+		"            if (c) {",
+		"                if (d) {",
+		"                    doWork();",
+		"                }",
+		"            }",
+		"        }",
+		"    }",
+	].join("\n");
+
+	for (const ext of [".hpp", ".h", ".hh", ".hxx", ".cc", ".cxx"]) {
+		it(`detects deep nesting in an inline function body in a ${ext} file`, async () => {
+			const content = [
+				"struct Widget {",
+				`    void render() {\n${DEEP_INLINE_BODY}\n    }`,
+				"};",
+			].join("\n");
+			const filePath = writeFile(`widget${ext}`, content);
+			const diagnostics = await checkComplexity(makeContext([filePath], { maxNesting: 2 }));
+			const nestDiags = diagnostics.filter((d) => d.rule === "complexity/deep-nesting");
+			const hit = nestDiags.find((d) => d.detail?.includes("render"));
+			expect(hit).toBeDefined();
+		});
+	}
+
+	it("does NOT treat a declaration prototype in a header as a function definition", async () => {
+		// The prototype's `;` arrives before any `{`, and the deeply-nested inline
+		// definition that follows would be mis-attributed to it without the guard.
+		const content = [
+			"struct Widget {",
+			"    void declaredOnly(int x);",
+			`    void inlineDefined() {\n${DEEP_INLINE_BODY}\n    }`,
+			"};",
+		].join("\n");
+		const filePath = writeFile("widget.hpp", content);
+		const diagnostics = await checkComplexity(makeContext([filePath], { maxNesting: 2 }));
+		const nestDiags = diagnostics.filter((d) => d.rule === "complexity/deep-nesting");
+		expect(nestDiags.find((d) => d.detail?.includes("declaredOnly"))).toBeUndefined();
+		expect(nestDiags.find((d) => d.detail?.includes("inlineDefined"))).toBeDefined();
+	});
+
+	it("does NOT flag a typedef'd function pointer in a header as a definition", async () => {
+		const content = [
+			"typedef void (*Callback)(int code);",
+			"typedef int (*Reducer)(int a, int b);",
+		].join("\n");
+		const filePath = writeFile("callbacks.h", content);
+		const diagnostics = await checkComplexity(makeContext([filePath], { maxNesting: 2 }));
+		const nestDiags = diagnostics.filter((d) => d.rule === "complexity/deep-nesting");
+		expect(nestDiags).toHaveLength(0);
+	});
+});
+
+// C#/C++ function detection: constructors, multi-modifier/complex-return methods,
+// out-of-line (scoped) definitions, and multi-line signatures - plus adversarial
+// cases (calls, control flow, prototypes) that must NOT be counted as functions.
+describe("analyzeFunctions — C#/C++ constructor & multi-line signature detection", () => {
 	const names = (src: string, ext: string) => analyzeFunctions(src, ext).map((f) => f.name);
 
 	it("detects a C# constructor (no return type)", () => {
@@ -859,6 +1052,23 @@ describe("analyzeFunctions — C# constructor & multi-line signature detection",
 		expect(params.find((d) => d.detail?.includes("Many"))).toBeDefined();
 	});
 
+	it("detects C++ out-of-line scoped method, constructor, and destructor", () => {
+		expect(names("void Widget::doThing(int a) {\n  work();\n}", ".cpp")).toContain(
+			"Widget::doThing",
+		);
+		expect(names("Widget::Widget(int a) {\n  init();\n}", ".cpp")).toContain("Widget::Widget");
+		expect(names("Widget::~Widget() {\n  cleanup();\n}", ".cpp")).toContain("Widget::~Widget");
+	});
+
+	it("detects a C++ method with a multi-line (wrapped) signature", () => {
+		const src =
+			"int compute(\n    int a,\n    int b) {\n  if (a) { if (b) { return a; } }\n  return 0;\n}";
+		const compute = analyzeFunctions(src, ".cpp").find((f) => f.name === "compute");
+		expect(compute).toBeDefined();
+		expect(compute?.maxNesting).toBe(2);
+		expect(compute?.paramCount).toBe(2);
+	});
+
 	it("does NOT count C# method calls or control-flow as functions", () => {
 		const src =
 			"class C {\n  void M() {\n    Console.WriteLine(x);\n    DoThing(a, b);\n    if (a) { }\n    foreach (var x in y) { }\n  }\n}";
@@ -869,5 +1079,41 @@ describe("analyzeFunctions — C# constructor & multi-line signature detection",
 		const src =
 			"class C {\n  public static readonly int[] V = Build(x);\n  public int Count { get; set; }\n}";
 		expect(analyzeFunctions(src, ".cs")).toHaveLength(0);
+	});
+
+	it("does NOT count a C++ static-call statement as a function", () => {
+		const src = "void M() {\n  Foo::Bar(a, b, c, d, e, f, g);\n}";
+		expect(names(src, ".cpp")).toEqual(["M"]);
+	});
+
+	it("does NOT count a C++ prototype in a header as a function", () => {
+		expect(analyzeFunctions("class C {\n  void declaredOnly(int x);\n};", ".hpp")).toHaveLength(0);
+	});
+
+	it("detects bare in-class C++ constructors and destructors", () => {
+		expect(names("class C {\n  Widget(int a) {\n    init();\n  }\n};", ".cpp")).toContain("Widget");
+		expect(names("class C {\n  ~Widget() {\n    cleanup();\n  }\n};", ".cpp")).toContain("~Widget");
+		expect(names("class C {\n  Widget(int a) : x_(a) {\n    init();\n  }\n};", ".cpp")).toContain(
+			"Widget",
+		);
+	});
+
+	it("counts nesting inside a bare in-class C++ constructor", () => {
+		const src = "class C {\n  Widget(int a) {\n    if (a) { if (a) { if (a) { go(); } } }\n  }\n};";
+		const ctor = analyzeFunctions(src, ".cpp").find((f) => f.name === "Widget");
+		expect(ctor?.maxNesting).toBe(3);
+	});
+
+	it("does NOT mistake C++ control-flow or calls for bare constructors", () => {
+		expect(names("void M() {\n  if (a) { }\n  while (b) { }\n  switch (c) { }\n}", ".cpp")).toEqual(
+			["M"],
+		);
+		expect(names("void M() {\n  doThing(a, b);\n  int y = foo(a) + bar(b);\n}", ".cpp")).toEqual([
+			"M",
+		]);
+	});
+
+	it("does NOT apply bare-constructor detection to C (.c) files", () => {
+		expect(analyzeFunctions("Widget(a) {\n  init();\n}", ".c")).toHaveLength(0);
 	});
 });
