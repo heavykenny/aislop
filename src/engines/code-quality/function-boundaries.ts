@@ -29,9 +29,21 @@ const findBraceFunctionEnd = (
 
 		for (let ci = 0; ci < l.length; ci++) {
 			const ch = l[ci];
+			if (ch === ";" && !started) {
+				// A `;` reached before the body's opening `{` means this signature is
+				// a declaration/prototype (`void foo(int x);`), a static-call
+				// statement (`Foo::Bar(x);`), or an init the pattern matched by shape,
+				// not a definition. Signal "no function" (endLine < 0) so the caller
+				// skips it entirely rather than counting a body-less 1-line function.
+				return { endLine: -1, maxNesting: 0 };
+			}
 			if (ch === "{") {
 				depth++;
-				if (!started) {
+				if (!started && depth === 1) {
+					// Only latch onto the opening brace when depth transitions 0->1.
+					// If depth is already negative (we are inside a surrounding block
+					// that was open before startIndex), a `{` just brings depth toward
+					// zero and must not be treated as the function body opener.
 					started = true;
 					functionStartDepth = depth;
 					braceStack.push(false);

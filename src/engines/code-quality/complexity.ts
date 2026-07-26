@@ -49,12 +49,87 @@ const FUNCTION_PATTERNS: FunctionPattern[] = [
 		langFilter: [".rs"],
 	},
 	{
-		regex: /^\s*(?:public|private|protected)?\s*(?:static\s+)?(?:\w+\s+)(\w+)\s*\(([^)]*)\)/,
+		// The (?:(?!STMT_KW)\w+\s+) part requires that the "return type" token is not a
+		// statement keyword. This prevents a call expression like `return Foo(args)` or
+		// `if (Foo(args))` from matching as a definition: `return` / `if` / etc. would
+		// be parsed as the return type, but the negative lookahead inside the token group
+		// rejects them before \w+ can consume the keyword.
+		regex:
+			/^\s*(?:public|private|protected)?\s*(?:static\s+)?(?:(?!(?:return|if|for|while|switch|do|else|throw|delete|new|break|continue|goto|try|catch)\b)\w+\s+)(\w+)\s*\(([^)]*)\)/,
 		langFilter: [".java", ".cs", ".cpp", ".c", ".php"],
+	},
+	{
+		// C# methods and constructors the single-token pattern above misses: any
+		// run of access/async/etc. modifiers, then an arbitrary return type (which
+		// may be generic/array/qualified/nullable, or absent for a constructor),
+		// then the member name. A modifier is required so bare `Type name(...)`
+		// calls/declarations are not matched. `[^()=;{]` stops the lazy return-type
+		// run before a body brace, an expression-body `=>`, or a field initializer.
+		regex:
+			/^\s*(?:\[[^\]]*\]\s*)*(?:(?:public|private|protected|internal|static|async|virtual|override|sealed|abstract|extern|unsafe|new|partial|readonly)\s+)+[^()=;{]*?(\w+)\s*\(([^)]*)\)/,
+		langFilter: [".cs"],
 	},
 ];
 
-const countParams = (p: string): number => (p.trim() ? p.split(",").length : 0);
+// Extensions whose function signatures may wrap across multiple physical lines
+// and so need logical-signature joining before the patterns are applied. Scoped
+// to C# so Java/PHP/C-family detection stays byte-identical to the single-line path.
+const MULTILINE_SIGNATURE_EXTS = new Set([".cs"]);
+
+// A brace-language signature can span lines (wrapped parameter lists). When the
+// line at `startIndex` opens more parens than it closes, join following lines
+// (up to a small cap, stopping at a statement `;`) so the single-line
+// FUNCTION_PATTERNS can see the whole `name(...)` on one logical line. Newlines
+// become spaces; the reported start line stays `startIndex`.
+const logicalSignatureLine = (lines: string[], startIndex: number): string => {
+	const first = lines[startIndex];
+	let depth = 0;
+	let sawOpen = false;
+	for (const ch of first) {
+		if (ch === "(") {
+			depth++;
+			sawOpen = true;
+		} else if (ch === ")") depth--;
+	}
+	if (!sawOpen || depth <= 0) return first;
+
+	let joined = first;
+	for (let j = startIndex + 1; j < lines.length && j < startIndex + 12; j++) {
+		const line = lines[j];
+		joined += ` ${line}`;
+		for (const ch of line) {
+			if (ch === "(") depth++;
+			else if (ch === ")") depth--;
+		}
+		if (depth <= 0) break;
+		if (line.includes(";")) break;
+	}
+	return joined;
+};
+
+// Count top-level parameters, ignoring commas nested inside generic type
+// arguments (`IReadOnlyDictionary<string, int>`), tuples (`(int, int)`), arrays,
+// or default initializers. A plain `.split(",")` overcounts C# signatures
+// whose parameter types carry commas - a 5-parameter constructor of
+// dictionary-typed arguments would be misreported as 9. Bracket depth floors at
+// zero so an unmatched closer (a stray relational `>` in a default expression)
+// cannot drive the depth negative and leak inner commas back to the top level.
+const countParams = (parameterList: string): number => {
+	const trimmed = parameterList.trim();
+	if (!trimmed) return 0;
+	let depth = 0;
+	let count = 1;
+	for (const ch of trimmed) {
+		if (ch === "(" || ch === "[" || ch === "{" || ch === "<") {
+			depth++;
+		} else if (ch === ")" || ch === "]" || ch === "}" || ch === ">") {
+			depth = Math.max(0, depth - 1);
+		} else if (ch === "," && depth === 0) {
+			count++;
+		}
+	}
+	return count;
+};
 
 const matchFunctionOnLine = (
 	line: string,
@@ -106,7 +181,12 @@ export const analyzeFunctions = (content: string, ext: string): FunctionInfo[] =
 	const functions: FunctionInfo[] = [];
 
 	for (let i = 0; i < lines.length; i++) {
-		const fnMatch = matchFunctionOnLine(lines[i], ext);
+		// For C# match against the masked (string/comment-blanked) source so a
+		// wrapped signature is joined on balanced parens and literals never skew it.
+		const matchLine = MULTILINE_SIGNATURE_EXTS.has(ext)
+			? logicalSignatureLine(maskedLines, i)
+			: lines[i];
+		const fnMatch = matchFunctionOnLine(matchLine, ext);
 		if (!fnMatch) continue;
 
 		const isPython = fnMatch.patternIndex === 2;
@@ -116,6 +196,9 @@ export const analyzeFunctions = (content: string, ext: string): FunctionInfo[] =
 		}
 
 		const { endLine, maxNesting } = findFunctionEnd(maskedLines, i, isPython);
+		// endLine < 0 marks a non-definition (prototype, static-call statement) that
+		// matched a pattern by shape but has no body - skip it entirely.
+		if (endLine < 0) continue;
 		let templateLines: number;
 		let paramCount: number;
 		if (isPython) {
@@ -157,6 +240,15 @@ const FILE_LOC_MULTIPLIERS: Record<string, number> = {
 
 const DECLARATION_FILE_RE = /\.d\.ts$/i;
 
+const GENERIC_FILE_TOO_LARGE_HELP = "Consider splitting this file into smaller modules";
+// C# has a language-native remediation: partial classes split a type across
+// files with no API or linkage cost, so point C# users at it directly.
+const CSHARP_FILE_TOO_LARGE_HELP =
+	"Consider splitting this file into partial class files or smaller modules";
+
+const fileTooLargeHelp = (ext: string): string =>
+	ext === ".cs" ? CSHARP_FILE_TOO_LARGE_HELP : GENERIC_FILE_TOO_LARGE_HELP;
+
 const fileLocBudget = (ext: string, relativePath: string, base: number): number => {
 	if (DECLARATION_FILE_RE.test(relativePath)) return Number.POSITIVE_INFINITY;
 	const multiplier = FILE_LOC_MULTIPLIERS[ext] ?? 1;
@@ -185,7 +277,7 @@ const checkFileDiagnostics = (
 			rule: "complexity/file-too-large",
 			severity: "warning",
 			message: `File too large (max: ${configuredMax})`,
-			help: "Consider splitting this file into smaller modules",
+			help: fileTooLargeHelp(ext),
 			line: 0,
 			column: 0,
 			category: "Complexity",
