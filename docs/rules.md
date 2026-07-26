@@ -27,6 +27,85 @@ Catches bugs and bad practices.
 | Go | golangci-lint |
 | Rust | clippy |
 | Ruby | rubocop |
+| C# | jb inspectcode + Roslynator + AsyncFixer/Meziantou (optional, requires .NET SDK; each tool toggleable independently) |
+
+### C# linting: hybrid jb + Roslynator
+
+The C# lint pass is a **hybrid of two independently togglable tools** that both run when available, with findings merged and de-duplicated:
+
+- **jb inspectcode** (`jb/*` rules) - ReSharper-native inspections via the JetBrains CLI
+- **Roslynator** (`dotnet/*` rules) - Roslyn analyzer diagnostics
+
+Both tools run by default when available: each runs only when it is enabled (both default to on) AND its CLI is installed AND a `.csproj`/`.sln` is present. Missing tooling is silently skipped.
+
+**Restore-evidence gate.** With a solution file at the repo root, the whole solution is analyzed in one pass. Without one, both tools fan out per `.csproj` - and every project costs a full MSBuild workspace load, so aislop only analyzes projects with restore evidence (`project.assets.json`, written by `dotnet restore` or a build, in `obj/` beside the project or in an arcade-style central `artifacts/obj/<ProjectName>/`), capped at 32 projects per scan. Skipped projects are reported once per scan as an advisory `dotnet/projects-skipped` info diagnostic rather than silently dropped. On a cold checkout the build-backed passes step aside instead of serially burning their timeouts, and the text-tier C# rules still run. `dotnet format` applies the same gate silently.
+
+#### jb inspectcode (`jb/*`)
+
+Rules are named `jb/<ReSharper-inspection-id>`, e.g. `jb/RedundantUsingDirective`. jb inspectcode produces ReSharper-native inspections across the full solution.
+
+**Severity mapping:**
+
+| jb severity | aislop severity |
+|---|---|
+| ERROR, WARNING | warning |
+| SUGGESTION, HINT | info |
+
+The floor is controlled by `jbSeverityFloor` (default: `WARNING`). Findings below the floor are dropped. `InconsistentNaming` is excluded by default because it binds to a machine-global ReSharper config and produces unreliable results via the CLI.
+
+**Install:**
+
+```bash
+dotnet tool install -g JetBrains.ReSharper.GlobalTools
+```
+
+#### Roslynator (`dotnet/*`)
+
+Shells out to the [`roslynator`](https://github.com/dotnet/roslynator) CLI and reports a curated subset of analyzer diagnostics, each prefixed `dotnet/`:
+
+| Rule | What it catches |
+|---|---|
+| `dotnet/AsyncFixer01` | Unnecessary `async`/`await` (the await is the last statement) |
+| `dotnet/AsyncFixer02` | Long-running or blocking operations inside an `async` method |
+| `dotnet/AsyncFixer03` | Fire-and-forget `async void` - unhandled exceptions crash the process |
+| `dotnet/MA0040` / `MA0042` / `MA0045` | Meziantou async/`Task` best practices (cancellation tokens, blocking calls) |
+| `dotnet/CS0219` / `CS0162` | Unused variable / unreachable code (compiler diagnostics) |
+| `dotnet/IDISP001` | An `IDisposable` is created but never disposed (resource leak; from IDisposableAnalyzers) |
+| `dotnet/projects-skipped` | Advisory notice: projects without restore evidence (or beyond the 32-project cap) were not analyzed by the build-backed passes |
+
+**Install:**
+
+```bash
+dotnet tool install -g roslynator.dotnet.cli
+```
+
+aislop bundles the AsyncFixer, Meziantou.Analyzer, and IDisposableAnalyzers assemblies so these rules fire even on projects that don't reference them. Where Roslynator reports an accurate async finding, the approximate Phase-1 regex rule (`ai-slop/csharp-async-void` / `ai-slop/csharp-sync-over-async`) at the same line is suppressed so you never see both.
+
+#### De-duplication
+
+When both tools run, findings are merged and de-duplicated by `(filePath, line, bare-rule-id)`, where the bare rule id is the part after the `jb/` or `dotnet/` namespace prefix (so a `jb/CS0219` and a `dotnet/CS0219` at the same site count as one). When jb and roslynator report an equivalent finding at the same location, the jb finding wins.
+
+#### `lint.csharp` config block
+
+Both passes are independently togglable via the `lint.csharp` config block:
+
+```yaml
+lint:
+  csharp:
+    jb: true                              # run jb inspectcode if installed
+    roslynator: true                      # run roslynator if installed
+    jbSeverityFloor: WARNING              # ERROR | WARNING | SUGGESTION | HINT
+    jbExcludeTypes: [InconsistentNaming]  # CLI-unreliable; bound to machine-global config
+    # jbProjects: "MyApp*"               # optional --project glob to scope big solutions
+```
+
+| Field | Default | Description |
+|---|---|---|
+| `jb` | `true` | Run jb inspectcode when installed |
+| `roslynator` | `true` | Run roslynator when installed |
+| `jbSeverityFloor` | `WARNING` | Drop jb findings below this severity |
+| `jbExcludeTypes` | `["InconsistentNaming"]` | Inspection type IDs to exclude from jb results |
+| `jbProjects` | (unset) | Optional `--project` glob passed to jb inspectcode to scope analysis in large solutions |
 
 ## Code Quality
 
@@ -58,7 +137,7 @@ The rules that make aislop unique. These catch the patterns AI assistants leave 
 |---|---|---|
 | `ai-slop/trivial-comment` | warning | Comments restating the code (`// Import React`, `// Return the value`) |
 | `ai-slop/narrative-comment` | warning | Decorative separators, phase/section headers, JSDoc preambles without meaningful tags (caught on top-level *and* interface/type members), cross-reference commentary, and longer prose blocks that carry an AI-narration signal (a restatement opener or step-by-step narration). Length alone is not flagged. |
-| `ai-slop/swallowed-exception` | error | Empty catch blocks, catch blocks that only log (JS/TS/Python/Go/Ruby/Java) |
+| `ai-slop/swallowed-exception` | error | Empty catch blocks, catch blocks that only log (JS/TS/Python/Go/Ruby/Java/C#) |
 | `ai-slop/silent-recovery` | warning | Catch blocks that log without including the caught error and then continue |
 | `ai-slop/meta-comment` | warning | Comments about implementation phases, agent behavior, or generated-code process instead of the code itself |
 | `ai-slop/hidden-fallback` | warning | JS/TS fallback logic that turns missing counts, failed diagnostics, or impossible states into safe-looking values without surfacing the missing input or failure |
@@ -93,6 +172,21 @@ The rules that make aislop unique. These catch the patterns AI assistants leave 
 | `ai-slop/rust-todo-stub` | warning | Rust `todo!()` stubs in production code |
 | `ai-slop/hallucinated-import` | error | Imports of JS/TS packages that are not declared in the project manifest |
 | `ai-slop/tautological-test` | warning | JavaScript/TypeScript assertions comparing equal fixed literals, plus standalone Python `assert True` statements, which cannot fail |
+| `ai-slop/csharp-not-implemented` | warning | C# `throw new NotImplementedException()` stubs the agent forgot to fill in |
+| `ai-slop/csharp-redundant-doc-comment` | warning | C# XML-doc `<summary>` that just restates the member (`Gets or sets the X`) without adding information |
+| `ai-slop/csharp-async-void` | warning | C# `async void` methods that aren't event handlers (can't be awaited; exceptions crash the process) |
+| `ai-slop/csharp-sync-over-async` | warning | C# blocking on a Task via `.Result` / `.Wait()` / `.GetAwaiter().GetResult()` (deadlock risk) |
+| `ai-slop/csharp-suppressed-warning` | warning | C# `#pragma warning disable` / `[SuppressMessage]` without a justification comment |
+| `ai-slop/csharp-empty-catch-rethrow` | warning | C# catch blocks that only rethrow without adding context, cleanup, or recovery |
+| `ai-slop/csharp-null-forgiving` | warning | C# null-forgiving `!` operator silencing nullable warnings instead of handling null |
+| `ai-slop/csharp-console-leftover` | warning | C# `Console.*` / `Debug.*` / `Trace.*` output left in library code |
+| `ai-slop/csharp-broad-catch` | warning | C# `catch (Exception)` that catches everything (non-empty, non-rethrow) instead of the specific type(s) it can handle |
+| `ai-slop/csharp-linq-count` | warning | C# `.Count() > 0` / `.Count() == 0` enumerating a whole sequence where `.Any()` short-circuits |
+| `ai-slop/csharp-index-loop` | warning | C# index `for` loop over `.Length`/`.Count` that reads more clearly as `foreach` |
+| `ai-slop/csharp-if-ladder` | warning | C# chain of 4+ if/else-if branches comparing one value against constants (a `switch` in disguise) |
+| `ai-slop/csharp-string-concat-in-loop` | warning | C# string built with `+=` inside a loop (O(n^2) reallocation; use a `StringBuilder`) |
+
+Note: `ai-slop/trivial-comment`, `ai-slop/narrative-comment`, and `ai-slop/swallowed-exception` also cover C# (`.cs`).
 
 ## Security
 
@@ -104,8 +198,9 @@ Finds secrets, risky constructs, and vulnerable dependencies.
 | `security/eval` | `eval()` usage (JS/TS/Python/Ruby/PHP) |
 | `security/innerhtml` | Direct `.innerHTML` assignment |
 | `security/dangerously-set-innerhtml` | React `dangerouslySetInnerHTML` usage that needs sanitization |
-| `security/sql-injection` | String concatenation in SQL queries |
-| `security/shell-injection` | User input in command execution |
+| `security/sql-injection` | String concatenation/interpolation in SQL queries (JS/TS, C#) |
+| `security/shell-injection` | User input in command execution (JS/TS/Python, C#) |
+| `security/unsafe-deserialization` | Legacy .NET formatters (`BinaryFormatter`, `SoapFormatter`, ...) that deserialize arbitrary types |
 | `security/vulnerable-dependency` | npm/pip/cargo/go dependency audit |
 | `security/dependency-audit-skipped` | Dependency audit could not run because tooling or lockfile context was missing |
 
@@ -133,3 +228,4 @@ See [examples/architecture-rules.yml](../examples/architecture-rules.yml) for a 
 | Rust | cargo fmt | clippy | complexity | Comments | Secrets, audit |
 | Ruby | rubocop | rubocop | complexity | Exceptions, comments | Secrets |
 | PHP | php-cs-fixer | -- | complexity | Comments | Secrets |
+| C# | -- | jb inspectcode + Roslynator (optional, each independently togglable) | complexity | NotImplementedException, redundant XML-doc, async, exceptions, comments | Secrets |

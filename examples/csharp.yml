@@ -1,0 +1,57 @@
+# .aislop/config.yml — C# / .NET project
+#
+# C# support has two layers:
+#   1. Build-free AI-slop rules (ai-slop/csharp-*) and the language-agnostic
+#      comment + swallowed-exception checks — these always run, no SDK needed.
+#   2. An optional hybrid lint pass (dotnet/* and jb/* rules) combining jb inspectcode
+#      and roslynator. Each tool runs only when installed and skips silently otherwise,
+#      so this config is safe on machines without the toolchain. Both are independently
+#      togglable via the lint.csharp block below.
+#
+# To enable the optional lint passes:
+#   dotnet tool install -g roslynator.dotnet.cli   # Roslynator (dotnet/* rules)
+#   dotnet tool install -g JetBrains.ReSharper.GlobalTools  # jb inspectcode (jb/* rules)
+
+version: 1
+
+engines:
+  format: true
+  lint: true
+  code-quality: true
+  ai-slop: true
+  architecture: false
+  security: true
+
+lint:
+  csharp:
+    jb: true                              # run jb inspectcode if installed (jb/* rules)
+    roslynator: true                      # run roslynator if installed (dotnet/* rules)
+    jbSeverityFloor: WARNING              # ERROR | WARNING | SUGGESTION | HINT
+    jbExcludeTypes: [InconsistentNaming]  # CLI-unreliable; bound to machine-global config
+    # jbProjects: "MyApp*"               # optional --project glob to scope big solutions
+
+quality:
+  maxFunctionLoc: 80
+  maxFileLoc: 500
+  maxNesting: 5
+  maxParams: 6
+
+security:
+  audit: false
+  auditTimeout: 30000
+
+scoring:
+  weights:
+    format: 0.5
+    lint: 1.0
+    code-quality: 1.5
+    ai-slop: 1.0
+    architecture: 1.0
+    security: 2.5
+  thresholds:
+    good: 75
+    ok: 50
+
+ci:
+  failBelow: 60
+  format: json

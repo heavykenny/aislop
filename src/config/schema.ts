@@ -25,6 +25,14 @@ const QualitySchema = z.object({
 	maxParams: z.number().positive().default(6),
 });
 
+const CsharpLintSchema = z.object({
+	jb: z.boolean().default(true),
+	roslynator: z.boolean().default(true),
+	jbSeverityFloor: z.enum(["ERROR", "WARNING", "SUGGESTION", "HINT"]).default("WARNING"),
+	jbExcludeTypes: z.array(z.string()).default(() => ["InconsistentNaming"]),
+	jbProjects: z.string().optional(),
+});
+
 const LintConfigSchema = z.object({
 	typecheck: z.boolean().default(false),
 	/**
@@ -32,6 +40,12 @@ const LintConfigSchema = z.object({
 	 * disabled by default so scans do not execute code from untrusted repos.
 	 */
 	expoDoctor: z.boolean().default(false),
+	csharp: CsharpLintSchema.default(() => ({
+		jb: true,
+		roslynator: true,
+		jbSeverityFloor: "WARNING" as const,
+		jbExcludeTypes: ["InconsistentNaming"],
+	})),
 });
 
 const SecurityConfigSchema = z.object({
@@ -86,6 +100,12 @@ const AislopConfigSchema = z.object({
 	lint: LintConfigSchema.default(() => ({
 		typecheck: false,
 		expoDoctor: false,
+		csharp: {
+			jb: true,
+			roslynator: true,
+			jbSeverityFloor: "WARNING" as const,
+			jbExcludeTypes: ["InconsistentNaming"],
+		},
 	})),
 	security: SecurityConfigSchema.default(() => ({
 		audit: true,

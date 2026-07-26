@@ -93,3 +93,37 @@ jobs:
 
       - name: aislop ci
         run: node dist/cli.js ci .
+
+  dotnet-lint:
+    name: C# lint integration
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install roslynator CLI
+        run: dotnet tool install -g roslynator.dotnet.cli
+
+      - name: Build
+        run: pnpm build
+
+      - name: Scan sample C# project and assert dotnet diagnostics appear
+        run: |
+          export PATH="$PATH:$HOME/.dotnet/tools"
+          node dist/cli.js scan tests/fixtures/dotnet/sample-project --json > scan.json || true
+          cat scan.json
+          grep -q '"dotnet/' scan.json
