@@ -664,6 +664,37 @@ describe("dead code patterns", () => {
 		const constant = diagnostics.filter((d) => d.rule === "ai-slop/constant-condition");
 		expect(constant.length).toBe(1);
 	});
+
+	it("detects unreachable code after return in a C# method", async () => {
+		const filePath = writeFile(
+			"Svc.cs",
+			["class C {", "  int F() {", "    return 42;", "    var x = 1;", "  }", "}"].join("\n"),
+		);
+		const diagnostics = await detectDeadPatterns(makeContext([filePath]));
+		const unreachable = diagnostics.filter((d) => d.rule === "ai-slop/unreachable-code");
+		expect(unreachable).toHaveLength(1);
+	});
+
+	it("does not treat an unbraced if/else return as unconditional (C#)", async () => {
+		const filePath = writeFile(
+			"BraceLessElse.cs",
+			[
+				"class C {",
+				"  int F(bool a) {",
+				"    if (a)",
+				"      Output = 1;",
+				"    else",
+				"      return -1;",
+				"    return Output;",
+				"  }",
+				"}",
+			].join("\n"),
+		);
+		const diagnostics = await detectDeadPatterns(makeContext([filePath]));
+		const unreachable = diagnostics.filter((d) => d.rule === "ai-slop/unreachable-code");
+		expect(unreachable).toHaveLength(0);
+	});
+
 	it("does not treat an unbraced if/else return as unconditional (JS)", async () => {
 		const filePath = writeFile(
 			"brace-less-else.js",
@@ -681,6 +712,84 @@ describe("dead code patterns", () => {
 		const unreachable = diagnostics.filter((d) => d.rule === "ai-slop/unreachable-code");
 		expect(unreachable).toHaveLength(0);
 	});
+	it("still flags plain unreachable code after a sequential return (C#)", async () => {
+		const filePath = writeFile(
+			"PlainReturn.cs",
+			["class C {", "  void F() {", "    return;", "    DoWork();", "  }", "}"].join("\n"),
+		);
+		const diagnostics = await detectDeadPatterns(makeContext([filePath]));
+		const unreachable = diagnostics.filter((d) => d.rule === "ai-slop/unreachable-code");
+		expect(unreachable).toHaveLength(1);
+	});
+
+	it("does not flag a one-line guarded return in C# (early exit)", async () => {
+		const filePath = writeFile(
+			"Guard.cs",
+			[
+				"class C {",
+				"  int F(int k) {",
+				"    if (k == 0) return 1;",
+				"    return Compute(k);",
+				"  }",
+				"}",
+			].join("\n"),
+		);
+		const diagnostics = await detectDeadPatterns(makeContext([filePath]));
+		const unreachable = diagnostics.filter((d) => d.rule === "ai-slop/unreachable-code");
+		expect(unreachable).toHaveLength(0);
+	});
+
+	it("does not flag a return before #else as unreachable in C#", async () => {
+		const filePath = writeFile(
+			"Debug.cs",
+			[
+				"class C {",
+				"  string Name() {",
+				"#if DEBUG",
+				'    return "Debug";',
+				"#else",
+				'    return "Release";',
+				"#endif",
+				"  }",
+				"}",
+			].join("\n"),
+		);
+		const diagnostics = await detectDeadPatterns(makeContext([filePath]));
+		const unreachable = diagnostics.filter((d) => d.rule === "ai-slop/unreachable-code");
+		expect(unreachable).toHaveLength(0);
+	});
+
+	it("does not flag statements after #else following a return in C#", async () => {
+		const filePath = writeFile(
+			"ResolveCommand.cs",
+			[
+				"class C {",
+				"  int Run() {",
+				"#if WINDOWS",
+				"    return 0;",
+				"#else",
+				'    Console.Error.WriteLine("not supported");',
+				"    return 1;",
+				"#endif",
+				"  }",
+				"}",
+			].join("\n"),
+		);
+		const diagnostics = await detectDeadPatterns(makeContext([filePath]));
+		const unreachable = diagnostics.filter((d) => d.rule === "ai-slop/unreachable-code");
+		expect(unreachable).toHaveLength(0);
+	});
+
+	it("still flags plain unreachable code after return in C# with no preprocessor", async () => {
+		const filePath = writeFile(
+			"Plain.cs",
+			["class C {", "  void F() {", "    return;", "    DoThing();", "  }", "}"].join("\n"),
+		);
+		const diagnostics = await detectDeadPatterns(makeContext([filePath]));
+		const unreachable = diagnostics.filter((d) => d.rule === "ai-slop/unreachable-code");
+		expect(unreachable).toHaveLength(1);
+	});
+
 	it("still flags code after an unbraced do-loop return as unreachable (JS)", async () => {
 		const filePath = writeFile(
 			"brace-less-do.js",

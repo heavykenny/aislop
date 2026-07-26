@@ -1,6 +1,7 @@
 import type { Diagnostic, Engine, EngineContext, EngineResult } from "../types.js";
 import { detectOverAbstraction } from "./abstractions.js";
 import { detectTrivialComments } from "./comments.js";
+import { detectCSharpPatterns } from "./csharp-patterns.js";
 import { detectDeadPatterns } from "./dead-patterns.js";
 import { detectDefensivePatterns } from "./defensive-patterns.js";
 import { detectDuplicateImports } from "./duplicate-imports.js";
@@ -41,6 +42,7 @@ export const aiSlopEngine: Engine = {
 			detectHallucinatedImports(context),
 			detectSilentRecovery(context),
 			detectMetaComments(context),
+			detectCSharpPatterns(context),
 			detectUnusedCss(context),
 			detectTautologicalTests(context),
 		]);

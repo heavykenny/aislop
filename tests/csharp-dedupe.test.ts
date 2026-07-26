@@ -1,0 +1,91 @@
+import { describe, expect, it } from "vitest";
+import { dedupeCSharpAsync } from "../src/engines/csharp-dedupe.js";
+import type { Diagnostic, EngineName, EngineResult } from "../src/engines/types.js";
+
+const mk = (engine: EngineName, rule: string, filePath: string, line: number): Diagnostic => ({
+	filePath,
+	engine,
+	rule,
+	severity: "warning",
+	message: "",
+	help: "",
+	line,
+	column: 1,
+	category: "",
+	fixable: false,
+});
+
+describe("dedupeCSharpAsync", () => {
+	it("drops the approximate ai-slop async finding when dotnet reports same file:line", () => {
+		const results: EngineResult[] = [
+			{
+				engine: "ai-slop",
+				diagnostics: [mk("ai-slop", "ai-slop/csharp-async-void", "A.cs", 10)],
+				elapsed: 0,
+				skipped: false,
+			},
+			{
+				engine: "lint",
+				diagnostics: [mk("lint", "dotnet/AsyncFixer03", "A.cs", 10)],
+				elapsed: 0,
+				skipped: false,
+			},
+		];
+		const out = dedupeCSharpAsync(results);
+		const aiSlop = out.find((r) => r.engine === "ai-slop");
+		expect(aiSlop?.diagnostics).toHaveLength(0);
+	});
+
+	it("keeps the ai-slop finding when no dotnet finding overlaps", () => {
+		const results: EngineResult[] = [
+			{
+				engine: "ai-slop",
+				diagnostics: [mk("ai-slop", "ai-slop/csharp-async-void", "A.cs", 10)],
+				elapsed: 0,
+				skipped: false,
+			},
+			{ engine: "lint", diagnostics: [], elapsed: 0, skipped: false },
+		];
+		const out = dedupeCSharpAsync(results);
+		expect(out.find((r) => r.engine === "ai-slop")?.diagnostics).toHaveLength(1);
+	});
+
+	it("drops the approximate finding at a nested-path location (proves the join key isn't fooled by path segments)", () => {
+		const results: EngineResult[] = [
+			{
+				engine: "ai-slop",
+				diagnostics: [mk("ai-slop", "ai-slop/csharp-sync-over-async", "src/Sub/Leak.cs", 42)],
+				elapsed: 0,
+				skipped: false,
+			},
+			{
+				engine: "lint",
+				diagnostics: [mk("lint", "dotnet/MA0042", "src/Sub/Leak.cs", 42)],
+				elapsed: 0,
+				skipped: false,
+			},
+		];
+		const out = dedupeCSharpAsync(results);
+		const aiSlop = out.find((r) => r.engine === "ai-slop");
+		expect(aiSlop?.diagnostics).toHaveLength(0);
+	});
+
+	it("keeps non-approximate ai-slop findings even at a dotnet-reported location", () => {
+		const results: EngineResult[] = [
+			{
+				engine: "ai-slop",
+				diagnostics: [mk("ai-slop", "ai-slop/csharp-not-implemented", "A.cs", 10)],
+				elapsed: 0,
+				skipped: false,
+			},
+			{
+				engine: "lint",
+				diagnostics: [mk("lint", "dotnet/AsyncFixer03", "A.cs", 10)],
+				elapsed: 0,
+				skipped: false,
+			},
+		];
+		const out = dedupeCSharpAsync(results);
+		expect(out.find((r) => r.engine === "ai-slop")?.diagnostics).toHaveLength(1);
+	});
+});
