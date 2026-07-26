@@ -23,6 +23,20 @@ const DB_RECEIVER =
 const DB_METHOD =
 	"(?:query|execute|exec|raw|\\$queryRaw|\\$queryRawUnsafe|\\$executeRaw|\\$executeRawUnsafe)";
 
+// C# string-building SQL sinks (ADO.NET command types/CommandText and EF Core's
+// *Raw* helpers). The parameter-safe EF Core `FromSqlInterpolated` /
+// `ExecuteSqlInterpolated` are deliberately excluded.
+const CS_SQL_SINK =
+	"(?:SqlCommand|MySqlCommand|NpgsqlCommand|SqliteCommand|OleDbCommand|OracleCommand|SqlDataAdapter|CommandText|FromSqlRaw|FromSqlRawAsync|ExecuteSqlRaw|ExecuteSqlRawAsync|ExecuteSqlCommand)";
+// An interpolated string opener: `$"`, `$@"`, or `@$"`. After masking the body
+// is blanked but the `$`/`@` prefix and the opening quote survive.
+const CS_INTERP = '(?:\\$@?|@\\$)"';
+// A masked, plain (non-interpolated) string literal immediately concatenated
+// with `+`, e.g. `"...LIKE " + name`. Shared by the SQL and command sinks below.
+const CS_CONCAT = '@?"[^"]*"\\s*\\+';
+// A C# command-execution sink: Process.Start(...) or a ProcessStartInfo.Arguments assignment.
+const CS_CMD_SINK = "(?:\\bProcess\\.Start\\s*\\(|\\.Arguments\\s*=)";
+
 const RISKY_PATTERNS: RiskyPattern[] = [
 	{
 		// Negative lookbehind skips method-call forms (`.eval(`, `->eval(`, `::eval(`, `\eval(`)
@@ -98,6 +112,49 @@ const RISKY_PATTERNS: RiskyPattern[] = [
 		name: "sql-injection",
 		message: "Possible SQL injection — string concatenation in query",
 		help: "Use parameterized queries or an ORM instead of string concatenation",
+	},
+	// C#
+	{
+		// Interpolated string ($"...{x}...") passed to an ADO.NET command or an
+		// EF Core *Raw* helper.
+		pattern: new RegExp(`\\b${CS_SQL_SINK}\\b\\s*[(=]\\s*${CS_INTERP}`, "g"),
+		extensions: [".cs"],
+		name: "sql-injection",
+		message: "Possible SQL injection — interpolated string in query",
+		help: "Use parameterized queries (SqlParameter) or EF Core FromSqlInterpolated/ExecuteSqlInterpolated",
+	},
+	{
+		// String-concatenated query passed to the same sinks.
+		pattern: new RegExp(`\\b${CS_SQL_SINK}\\b\\s*[(=]\\s*${CS_CONCAT}`, "g"),
+		extensions: [".cs"],
+		name: "sql-injection",
+		message: "Possible SQL injection — string concatenation in query",
+		help: "Use parameterized queries (SqlParameter) instead of string concatenation",
+	},
+	{
+		// Interpolated command/arguments handed to Process.Start / ProcessStartInfo.
+		pattern: new RegExp(`${CS_CMD_SINK}\\s*${CS_INTERP}`, "g"),
+		extensions: [".cs"],
+		name: "shell-injection",
+		message: "Possible command injection — interpolated string in process invocation",
+		help: "Pass arguments as a ProcessStartInfo.ArgumentList collection, not an interpolated command string",
+	},
+	{
+		// Concatenated command/arguments handed to Process.Start / ProcessStartInfo.
+		pattern: new RegExp(`${CS_CMD_SINK}\\s*${CS_CONCAT}`, "g"),
+		extensions: [".cs"],
+		name: "shell-injection",
+		message: "Possible command injection — string concatenation in process invocation",
+		help: "Pass arguments as a ProcessStartInfo.ArgumentList collection, not a concatenated command string",
+	},
+	{
+		// Legacy .NET formatters that deserialize arbitrary types (RCE gadget chains).
+		pattern:
+			/\b(?:BinaryFormatter|NetDataContractSerializer|SoapFormatter|LosFormatter|ObjectStateFormatter)\b/g,
+		extensions: [".cs"],
+		name: "unsafe-deserialization",
+		message: "Unsafe deserializer can execute arbitrary code on untrusted input",
+		help: "Use System.Text.Json or DataContractSerializer with a known, restricted set of types",
 	},
 ];
 

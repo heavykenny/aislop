@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseBunAudit, parseJsAudit } from "../src/engines/security/audit.js";
+import { parseBunAudit, parseDotnetAudit, parseJsAudit } from "../src/engines/security/audit.js";
 
 describe("parseJsAudit — modern vulnerabilities", () => {
 	it("collapses a transitive chain to the package that carries the advisory", () => {
@@ -92,6 +92,86 @@ describe("parseJsAudit — modern vulnerabilities", () => {
 		expect(diagnostics).toHaveLength(2);
 		expect(diagnostics.map((d) => d.message).join(" ")).toContain("uuid");
 		expect(diagnostics.map((d) => d.message).join(" ")).toContain("lodash");
+	});
+});
+
+describe("parseDotnetAudit — dotnet list package --vulnerable", () => {
+	const report = (frameworks: unknown): string =>
+		JSON.stringify({
+			version: 1,
+			parameters: "--vulnerable --include-transitive",
+			projects: [{ path: "/repo/src/App/App.csproj", frameworks }],
+		});
+
+	it("reports a vulnerable top-level package with severity and advisory", () => {
+		const diagnostics = parseDotnetAudit(
+			report([
+				{
+					framework: "net8.0",
+					topLevelPackages: [
+						{
+							id: "Newtonsoft.Json",
+							resolvedVersion: "11.0.1",
+							vulnerabilities: [
+								{ severity: "High", advisoryurl: "https://github.com/advisories/GHSA-xxxx" },
+							],
+						},
+					],
+				},
+			]),
+		);
+
+		expect(diagnostics).toHaveLength(1);
+		expect(diagnostics[0].rule).toBe("security/vulnerable-dependency");
+		expect(diagnostics[0].severity).toBe("error");
+		expect(diagnostics[0].filePath).toBe("App.csproj");
+		expect(diagnostics[0].message).toContain("Newtonsoft.Json@11.0.1");
+		expect(diagnostics[0].message).toContain("high");
+		expect(diagnostics[0].help).toContain("GHSA-xxxx");
+		expect(diagnostics[0].detail).toBe("dotnet");
+	});
+
+	it("marks transitive findings and downgrades moderate to a warning", () => {
+		const diagnostics = parseDotnetAudit(
+			report([
+				{
+					framework: "net8.0",
+					transitivePackages: [
+						{
+							id: "System.Text.Encodings.Web",
+							resolvedVersion: "4.5.0",
+							vulnerabilities: [{ severity: "Moderate", advisoryurl: "" }],
+						},
+					],
+				},
+			]),
+		);
+
+		expect(diagnostics).toHaveLength(1);
+		expect(diagnostics[0].severity).toBe("warning");
+		expect(diagnostics[0].message).toContain("transitive");
+	});
+
+	it("dedupes a package that appears under multiple target frameworks", () => {
+		const vulnerablePkg = {
+			id: "Newtonsoft.Json",
+			resolvedVersion: "11.0.1",
+			vulnerabilities: [{ severity: "Critical", advisoryurl: "https://x" }],
+		};
+		const diagnostics = parseDotnetAudit(
+			report([
+				{ framework: "net8.0", topLevelPackages: [vulnerablePkg] },
+				{ framework: "net10.0", topLevelPackages: [vulnerablePkg] },
+			]),
+		);
+
+		expect(diagnostics).toHaveLength(1);
+	});
+
+	it("returns nothing for a clean report or empty output", () => {
+		expect(parseDotnetAudit(report([{ framework: "net8.0", topLevelPackages: [] }]))).toEqual([]);
+		expect(parseDotnetAudit("")).toEqual([]);
+		expect(parseDotnetAudit("not json")).toEqual([]);
 	});
 });
 
