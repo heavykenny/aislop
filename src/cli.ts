@@ -219,13 +219,17 @@ for (const a of FIX_AGENT_FLAGS) fixProgram.option(`--${a.flag}`, a.help);
 
 fixProgram.action(async (directory = ".", _flags, command) => {
 	const flags = command.optsWithGlobals() as Record<string, boolean | undefined>;
-	await fixCommand(directory, loadConfig(directory), {
+	const { exitCode } = await fixCommand(directory, loadConfig(directory), {
 		verbose: Boolean(flags.verbose),
 		force: Boolean(flags.force),
 		safe: Boolean(flags.safe),
 		prompt: Boolean(flags.prompt),
 		agent: matchFixAgent(flags),
 	});
+	if (exitCode !== 0) {
+		await flushTelemetry();
+		process.exitCode = exitCode;
+	}
 });
 
 registerAgentCommand(program);

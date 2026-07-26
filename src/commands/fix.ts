@@ -91,20 +91,23 @@ export const fixCommand = async (
 	directory: string,
 	config: AislopConfig,
 	options: FixOptions = { verbose: false, showHeader: true },
-): Promise<void> => {
+): Promise<{ exitCode: number }> => {
 	const resolvedDir = path.resolve(directory);
+	const pathExists = fs.existsSync(resolvedDir);
 
-	if (!fs.existsSync(resolvedDir) || !fs.statSync(resolvedDir).isDirectory()) {
-		const msg = !fs.existsSync(resolvedDir)
+	if (!pathExists || !fs.statSync(resolvedDir).isDirectory()) {
+		const msg = !pathExists
 			? `Path does not exist: ${resolvedDir}`
 			: `Not a directory: ${resolvedDir}`;
-		log.error(msg);
-		return;
+		return withCommandLifecycle({ command: "fix", config: config.telemetry }, async () => {
+			log.error(msg);
+			return { exitCode: 1 };
+		});
 	}
 
 	const projectInfo = await discoverProject(resolvedDir);
 
-	await withCommandLifecycle(
+	return withCommandLifecycle(
 		{
 			command: "fix",
 			config: config.telemetry,
