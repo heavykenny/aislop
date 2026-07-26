@@ -163,6 +163,25 @@ describe("discoverProject", () => {
 		expect(info.languages).toContain("csharp");
 	});
 
+	it("detects cpp from source files and CMakeLists, and scores them", async () => {
+		gitInit(tmpDir);
+		fs.mkdirSync(path.join(tmpDir, "src"), { recursive: true });
+		createFile(tmpDir, "CMakeLists.txt", "cmake_minimum_required(VERSION 3.20)\n");
+		createFile(
+			tmpDir,
+			"src/foo.cpp",
+			"#include <vector>\nint add(int a, int b) { return a + b; }\n",
+		);
+		createFile(tmpDir, "src/foo.h", "#pragma once\nint add(int, int);\n");
+		const info = await discoverProject(tmpDir);
+		expect(info.languages).toContain("cpp");
+		expect(info.coverage.scoreable).toBe(true);
+		expect(info.coverage.dominantUnsupported).toBe(null);
+		expect(info.installedTools).toHaveProperty("cppcheck");
+		expect(info.installedTools).toHaveProperty("clang-format");
+		expect(info.installedTools).toHaveProperty("clang-tidy");
+	});
+
 	it("detects multiple languages in the same project", async () => {
 		createFile(tmpDir, "tsconfig.json", "{}");
 		createFile(tmpDir, "go.mod", "module example.com/app\n\ngo 1.21");

@@ -4,9 +4,9 @@ const JS_EXTS = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"]);
 const PY_EXTS = new Set([".py"]);
 const RB_EXTS = new Set([".rb"]);
 const PHP_EXTS = new Set([".php"]);
-// C-family: C#. It uses C-style `"..."` / `'...'` literals and `//` + `/* */`
-// comments, so maskSimple handles it.
-const C_EXTS = new Set([".cs"]);
+// C-family: C#, C, and C++ (including headers). They share C-style `"..."` /
+// `'...'` literals and `//` + `/* */` comments, so maskSimple handles them.
+const C_EXTS = new Set([".cs", ".c", ".cc", ".cpp", ".cxx", ".h", ".hh", ".hpp", ".hxx"]);
 const C_STYLE_COMMENT_EXTS = new Set([".go"]);
 
 const familyForExt = (ext: string): LangFamily => {

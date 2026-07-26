@@ -25,12 +25,12 @@ afterEach(() => {
 
 describe("coverage gate (discoverProject)", () => {
 	it("withholds the score for a repo dominated by an unsupported language", async () => {
-		for (let i = 0; i < 15; i++) write(`f${i}.c`, "int main(){return 0;}\n");
+		for (let i = 0; i < 15; i++) write(`f${i}.swift`, "func main() { print(0) }\n");
 		write("util.py", "def add(a, b):\n    return a + b\n");
 
 		const info = await discoverProject(tmpDir);
 		expect(info.coverage.scoreable).toBe(false);
-		expect(info.coverage.dominantUnsupported).toBe("C/C++");
+		expect(info.coverage.dominantUnsupported).toBe("Swift");
 		expect(info.coverage.unsupportedFiles).toBe(15);
 	});
 
@@ -44,7 +44,7 @@ describe("coverage gate (discoverProject)", () => {
 
 	it("still scores a supported repo with a minority of unsupported files", async () => {
 		for (let i = 0; i < 30; i++) write(`m${i}.py`, `def f${i}():\n    return ${i}\n`);
-		for (let i = 0; i < 5; i++) write(`ext${i}.c`, "int x;\n");
+		for (let i = 0; i < 5; i++) write(`ext${i}.swift`, "let x = 0\n");
 
 		const info = await discoverProject(tmpDir);
 		expect(info.coverage.scoreable).toBe(true);
@@ -63,7 +63,7 @@ describe("coverage gate (discoverProject)", () => {
 
 	it("does not count an excluded subtree (vendor/) toward unsupported coverage", async () => {
 		for (let i = 0; i < 5; i++) write(`src/m${i}.ts`, `export const v${i} = ${i};\n`);
-		for (let i = 0; i < 50; i++) write(`vendor/lib/c${i}.c`, "int x;\n");
+		for (let i = 0; i < 50; i++) write(`vendor/lib/c${i}.swift`, "let x = 0\n");
 
 		const info = await discoverProject(tmpDir);
 		expect(info.coverage.unsupportedFiles).toBe(0);
@@ -72,13 +72,13 @@ describe("coverage gate (discoverProject)", () => {
 
 	it("honors user exclude patterns so an ignored unsupported tree does not withhold the score", async () => {
 		for (let i = 0; i < 5; i++) write(`src/m${i}.ts`, `export const v${i} = ${i};\n`);
-		for (let i = 0; i < 50; i++) write(`legacy/c${i}.c`, "int x;\n");
+		for (let i = 0; i < 50; i++) write(`legacy/c${i}.swift`, "let x = 0\n");
 
-		// Without the exclude the C tree dominates and the score is withheld.
+		// Without the exclude the Swift tree dominates and the score is withheld.
 		const withoutExclude = await discoverProject(tmpDir);
 		expect(withoutExclude.coverage.scoreable).toBe(false);
 
-		// With the same exclude the scan applies, the C tree is ignored and the TS is scored.
+		// With the same exclude the scan applies, the Swift tree is ignored and the TS is scored.
 		const withExclude = await discoverProject(tmpDir, ["legacy"]);
 		expect(withExclude.coverage.unsupportedFiles).toBe(0);
 		expect(withExclude.coverage.scoreable).toBe(true);
@@ -86,10 +86,10 @@ describe("coverage gate (discoverProject)", () => {
 
 	it("counts supported files post-exclude, so excluding supported code can still withhold the score", async () => {
 		write("src/main.ts", "export const x = 1;\n");
-		for (let i = 0; i < 50; i++) write(`c${i}.c`, "int x;\n");
+		for (let i = 0; i < 50; i++) write(`c${i}.swift`, "let x = 0\n");
 		for (let i = 0; i < 30; i++) write(`legacy/old${i}.ts`, `export const y${i} = ${i};\n`);
 
-		// Excluding the legacy TS tree leaves 1 scanned TS file against 50 C files → withheld.
+		// Excluding the legacy TS tree leaves 1 scanned TS file against 50 Swift files -> withheld.
 		const info = await discoverProject(tmpDir, ["legacy"]);
 		expect(info.coverage.supportedFiles).toBe(1);
 		expect(info.coverage.scoreable).toBe(false);
@@ -110,10 +110,10 @@ describe("coverageReason", () => {
 		const msg = coverageReason({
 			supportedFiles: 0,
 			unsupportedFiles: 6000,
-			dominantUnsupported: "C/C++",
+			dominantUnsupported: "Swift",
 			scoreable: false,
 		});
-		expect(msg).toContain("C/C++");
+		expect(msg).toContain("Swift");
 		expect(msg).toContain("does not analyze");
 	});
 
@@ -121,7 +121,7 @@ describe("coverageReason", () => {
 		const msg = coverageReason({
 			supportedFiles: 2,
 			unsupportedFiles: 6000,
-			dominantUnsupported: "C/C++",
+			dominantUnsupported: "Swift",
 			scoreable: false,
 		});
 		expect(msg).toContain("only 2 supported files");

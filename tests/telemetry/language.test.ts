@@ -10,6 +10,7 @@ describe("buildLanguageProperties", () => {
 			lang_python: false,
 			lang_java: false,
 			lang_csharp: false,
+			lang_cpp: false,
 		});
 	});
 
@@ -41,5 +42,11 @@ describe("buildLanguageProperties", () => {
 		const props = buildLanguageProperties(["csharp"]);
 		expect(props.lang_csharp).toBe(true);
 		expect(props.language_summary).toContain("csharp");
+	});
+
+	it("tracks cpp", () => {
+		const props = buildLanguageProperties(["cpp"]);
+		expect(props.lang_cpp).toBe(true);
+		expect(props.language_summary).toBe("cpp");
 	});
 });

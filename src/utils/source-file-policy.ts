@@ -16,6 +16,14 @@ const SOURCE_EXTENSIONS = new Set([
 	".java",
 	".php",
 	".cs",
+	".c",
+	".cc",
+	".cpp",
+	".cxx",
+	".h",
+	".hh",
+	".hpp",
+	".hxx",
 ]);
 
 export const EXCLUDED_SOURCE_DIRECTORIES = [
@@ -118,6 +126,9 @@ const TEST_FILE_PATTERNS = [
 	/(?:^|\/)[^/]+Tests?\.cs$/i,
 	/(?:^|\/)[^/]+\.Tests?\.cs$/i,
 	/(?:^|\/)[^/]*Tests?\/.*\.cs$/i,
+	// C/C++: foo_test.cpp / test_foo.cc / foo_tests.cxx
+	/(?:^|\/)[^/]+_tests?\.(?:c|cc|cpp|cxx)$/i,
+	/(?:^|\/)test_[^/]+\.(?:c|cc|cpp|cxx)$/i,
 ];
 
 export const toProjectPath = (rootDirectory: string, filePath: string): string => {

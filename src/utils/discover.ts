@@ -15,7 +15,8 @@ export type Language =
 	| "java"
 	| "ruby"
 	| "php"
-	| "csharp";
+	| "csharp"
+	| "cpp";
 
 export type Framework =
 	| "nextjs"
@@ -77,6 +78,14 @@ const EXTENSION_LANGUAGES: Record<string, Language> = {
 	".rb": "ruby",
 	".java": "java",
 	".php": "php",
+	".c": "cpp",
+	".cc": "cpp",
+	".cpp": "cpp",
+	".cxx": "cpp",
+	".h": "cpp",
+	".hh": "cpp",
+	".hpp": "cpp",
+	".hxx": "cpp",
 	".cs": "csharp",
 };
 
@@ -192,6 +201,20 @@ const detectLanguages = (directory: string, sourceFiles: string[]): Language[] =
 	})();
 	if (hasDotnetProject) languages.add("csharp");
 
+	// C/C++ projects have no single manifest name; recognize the common build-system
+	// markers in addition to the extension-based detection above. compile_commands.json
+	// in particular tells the lint engine clang-tidy is runnable.
+	const hasCppProject = (() => {
+		if (fs.existsSync(path.join(directory, "CMakeLists.txt"))) return true;
+		if (fs.existsSync(path.join(directory, "compile_commands.json"))) return true;
+		try {
+			return fs.readdirSync(directory).some((name) => name.endsWith(".vcxproj"));
+		} catch {
+			return false;
+		}
+	})();
+	if (hasCppProject) languages.add("cpp");
+
 	return [...languages];
 };
 
@@ -258,6 +281,9 @@ export const TOOLS_TO_CHECK = [
 	"dotnet",
 	"roslynator",
 	"jb",
+	"cppcheck",
+	"clang-format",
+	"clang-tidy",
 ];
 
 const checkInstalledTools = async (): Promise<Record<string, boolean>> => {
