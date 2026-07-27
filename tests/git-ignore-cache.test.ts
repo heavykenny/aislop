@@ -10,29 +10,20 @@ const { spawnSync } = vi.hoisted(() => ({ spawnSync: vi.fn() }));
 
 vi.mock("node:child_process", () => ({ spawnSync }));
 
-interface SpawnOptions {
-	input: string;
-}
+const NOT_IGNORED_ARGUMENTS = ["ls-files", "--cached", "--others", "--exclude-standard", "-z"];
 
-const requestedPathsOf = (callIndex: number): string[] => {
-	const options = spawnSync.mock.calls[callIndex][2] as SpawnOptions;
-	return options.input.split("\n").filter((line) => line.length > 0);
-};
+const commandArgumentsOf = (callIndex: number): string[] =>
+	spawnSync.mock.calls[callIndex][1] as string[];
 
-// Stand in for `git check-ignore --stdin`: echo back the requested paths that are
-// ignored, exit 1 when none of them are.
-const gitIgnores = (ignoredPaths: string[]): void => {
-	const ignored = new Set(ignoredPaths);
-	spawnSync.mockImplementation((_command, _args, options) => {
-		const requested = (options as SpawnOptions).input.split("\n").filter((line) => line.length > 0);
-		const matched = requested.filter((line) => ignored.has(line));
-		return {
-			status: matched.length > 0 ? 0 : 1,
-			stdout: matched.map((line) => `${line}\n`).join(""),
-			stderr: "",
-			error: undefined,
-		};
-	});
+// Stand in for `git ls-files --cached --others --exclude-standard -z`: the NUL-delimited
+// not-ignored universe for the root.
+const gitEnumerates = (notIgnoredPaths: string[]): void => {
+	spawnSync.mockImplementation(() => ({
+		status: 0,
+		stdout: notIgnoredPaths.map((entry) => `${entry}\0`).join(""),
+		stderr: "",
+		error: undefined,
+	}));
 };
 
 const gitFails = (): void => {
@@ -49,25 +40,35 @@ afterEach(() => {
 	resetGitIgnoreCacheForTests();
 });
 
-describe("getIgnoredPaths caching", () => {
-	it("classifies a repeated path through git only once", () => {
-		gitIgnores(["build/output.js"]);
-		const root = "/repo";
+describe("getIgnoredPaths snapshots", () => {
+	it("takes one snapshot on the first call", () => {
+		gitEnumerates(["source/main.ts"]);
 		const files = ["source/main.ts", "build/output.js"];
 
-		expect(getIgnoredPaths(root, files)).toEqual(new Set(["build/output.js"]));
-		expect(getIgnoredPaths(root, files)).toEqual(new Set(["build/output.js"]));
-		expect(getIgnoredPaths(root, ["source/main.ts"])).toEqual(new Set<string>());
+		expect(getIgnoredPaths("/repo", files)).toEqual(new Set(["build/output.js"]));
 		expect(spawnSync).toHaveBeenCalledTimes(1);
+		expect(commandArgumentsOf(0)).toEqual(NOT_IGNORED_ARGUMENTS);
+		expect(spawnSync.mock.calls[0][0]).toBe("git");
 	});
 
-	it("sends only the new paths when a later call is a superset", () => {
-		gitIgnores(["build/output.js", "vendor/library.ts"]);
+	it("passes the root as the working directory and no stdin", () => {
+		gitEnumerates([]);
+		getIgnoredPaths("/repo", ["source/main.ts"]);
+
+		const options = spawnSync.mock.calls[0][2] as { cwd: string; input?: string };
+		expect(options.cwd).toBe("/repo");
+		expect(options.input).toBeUndefined();
+	});
+
+	it("answers a larger later request without spawning again", () => {
+		gitEnumerates(["source/main.ts", "source/helper.ts"]);
 		const root = "/repo";
 
 		expect(getIgnoredPaths(root, ["source/main.ts", "build/output.js"])).toEqual(
 			new Set(["build/output.js"]),
 		);
+		expect(spawnSync).toHaveBeenCalledTimes(1);
+
 		expect(
 			getIgnoredPaths(root, [
 				"source/main.ts",
@@ -76,10 +77,23 @@ describe("getIgnoredPaths caching", () => {
 				"source/helper.ts",
 			]),
 		).toEqual(new Set(["build/output.js", "vendor/library.ts"]));
+		expect(spawnSync).toHaveBeenCalledTimes(1);
+	});
 
-		expect(spawnSync).toHaveBeenCalledTimes(2);
-		expect(requestedPathsOf(0)).toEqual(["source/main.ts", "build/output.js"]);
-		expect(requestedPathsOf(1)).toEqual(["vendor/library.ts", "source/helper.ts"]);
+	// --cached puts tracked files in the listing whether or not a pattern matches them,
+	// which is how check-ignore behaves without --no-index.
+	it("keeps a tracked file the listing reports", () => {
+		gitEnumerates(["source/main.ts", "secret.txt"]);
+
+		expect(getIgnoredPaths("/repo", ["source/main.ts", "secret.txt"])).toEqual(new Set<string>());
+	});
+
+	it("reads NUL-delimited records so a non-ASCII name survives", () => {
+		gitEnumerates(["tëst.txt"]);
+
+		expect(getIgnoredPaths("/repo", ["tëst.txt", "büild/output.js"])).toEqual(
+			new Set(["büild/output.js"]),
+		);
 	});
 
 	it("remembers a failed git invocation instead of respawning it", () => {
@@ -105,10 +119,10 @@ describe("getIgnoredPaths caching", () => {
 	});
 
 	it("keeps roots independent", () => {
-		gitIgnores(["build/output.js"]);
-
+		gitEnumerates([]);
 		expect(getIgnoredPaths("/first", ["build/output.js"])).toEqual(new Set(["build/output.js"]));
-		gitIgnores([]);
+
+		gitEnumerates(["build/output.js"]);
 		expect(getIgnoredPaths("/second", ["build/output.js"])).toEqual(new Set<string>());
 		expect(getIgnoredPaths("/first", ["build/output.js"])).toEqual(new Set(["build/output.js"]));
 
@@ -116,7 +130,7 @@ describe("getIgnoredPaths caching", () => {
 	});
 
 	it("treats an unresolved root as the resolved one", () => {
-		gitIgnores(["build/output.js"]);
+		gitEnumerates(["source/main.ts"]);
 		const root = path.resolve("/repo/project");
 
 		expect(getIgnoredPaths(root, ["build/output.js"])).toEqual(new Set(["build/output.js"]));
@@ -126,8 +140,8 @@ describe("getIgnoredPaths caching", () => {
 		expect(spawnSync).toHaveBeenCalledTimes(1);
 	});
 
-	it("shares the cache with dropGitIgnoredPaths", () => {
-		gitIgnores(["build/output.js"]);
+	it("shares the snapshot with dropGitIgnoredPaths", () => {
+		gitEnumerates(["source/main.ts"]);
 		const root = path.resolve("/repo");
 
 		expect(getIgnoredPaths(root, ["source/main.ts", "build/output.js"])).toEqual(
@@ -143,7 +157,7 @@ describe("getIgnoredPaths caching", () => {
 	});
 
 	it("re-queries git after the cache is reset", () => {
-		gitIgnores(["build/output.js"]);
+		gitEnumerates(["source/main.ts"]);
 		const root = "/repo";
 
 		expect(getIgnoredPaths(root, ["build/output.js"])).toEqual(new Set(["build/output.js"]));
@@ -158,13 +172,13 @@ describe("getIgnoredPaths caching", () => {
 
 		expect(getIgnoredPaths(root, ["build/output.js"])).toEqual(new Set<string>());
 		resetGitIgnoreCacheForTests();
-		gitIgnores(["build/output.js"]);
-		expect(getIgnoredPaths(root, ["build/output.js"])).toEqual(new Set(["build/output.js"]));
+		gitEnumerates(["build/output.js"]);
+		expect(getIgnoredPaths(root, ["build/output.js"])).toEqual(new Set<string>());
 		expect(spawnSync).toHaveBeenCalledTimes(2);
 	});
 
 	it("never spawns git for an empty request", () => {
-		gitIgnores([]);
+		gitEnumerates([]);
 
 		expect(getIgnoredPaths("/repo", [])).toEqual(new Set<string>());
 		expect(dropGitIgnoredPaths("/repo", [])).toEqual([]);
