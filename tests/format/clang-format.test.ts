@@ -1,15 +1,25 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_CONFIG } from "../../src/config/defaults.js";
 import {
 	chunkFilePaths,
+	fixClangFormat,
 	hasClangFormatConfig,
 	parseClangFormatViolations,
 	runClangFormat,
 } from "../../src/engines/format/clang-format.js";
 import type { EngineContext } from "../../src/engines/types.js";
+
+const { runSubprocess } = vi.hoisted(() => ({ runSubprocess: vi.fn() }));
+
+// Only the spawn is stubbed; chunkFilePaths stays real so the pooled paths below
+// are driven by the same chunk boundaries production uses.
+vi.mock("../../src/utils/subprocess.js", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("../../src/utils/subprocess.js")>();
+	return { ...actual, runSubprocess };
+});
 
 let tmpDir: string;
 
@@ -125,5 +135,110 @@ describe("parseClangFormatViolations", () => {
 		expect(parseClangFormatViolations("doesnotexist.cpp: no such file or directory")).toEqual(
 			new Set(),
 		);
+	});
+});
+
+// 450 sources split into 3 chunks under the shared 200-file cap, enough to have
+// chunks complete out of order while the pool is still holding others back.
+const SOURCE_COUNT = 450;
+const CHUNK_COUNT = 3;
+const POOL_WIDTH = Math.max(1, os.availableParallelism() - 2);
+
+const sleep = (milliseconds: number): Promise<void> =>
+	new Promise((resolve) => setTimeout(resolve, milliseconds));
+
+const writeSources = (rootDirectory: string): void => {
+	fs.writeFileSync(path.join(rootDirectory, ".clang-format"), "BasedOnStyle: Google\n");
+	fs.mkdirSync(path.join(rootDirectory, "src"), { recursive: true });
+	for (let index = 0; index < SOURCE_COUNT; index += 1) {
+		const name = `f${String(index).padStart(3, "0")}.cpp`;
+		fs.writeFileSync(path.join(rootDirectory, "src", name), "int  a ;\n");
+	}
+};
+
+// The file paths a chunk invocation was given, i.e. everything after the `--`
+// sentinel that separates clang-format's options from its positional args.
+const chunkFilesOf = (args: string[]): string[] => args.slice(args.indexOf("--") + 1);
+
+const violationReport = (files: string[]): string =>
+	files
+		.map((file) => `${file}:1:4: error: code should be clang-formatted [-Wclang-format-violations]`)
+		.join("\n");
+
+describe("runClangFormat - pooled chunk execution", () => {
+	beforeEach(() => {
+		runSubprocess.mockReset();
+		writeSources(tmpDir);
+	});
+
+	it("caps concurrent clang-format invocations at the pool width", async () => {
+		let inFlight = 0;
+		let peakInFlight = 0;
+		runSubprocess.mockImplementation(async () => {
+			inFlight += 1;
+			peakInFlight = Math.max(peakInFlight, inFlight);
+			await sleep(25);
+			inFlight -= 1;
+			return { stdout: "", stderr: "", exitCode: 0 };
+		});
+
+		await runClangFormat(makeContext(tmpDir));
+
+		expect(runSubprocess).toHaveBeenCalledTimes(CHUNK_COUNT);
+		expect(peakInFlight).toBe(Math.min(POOL_WIDTH, CHUNK_COUNT));
+	});
+
+	it("produces identical diagnostics no matter which chunk finishes first", async () => {
+		const scanWithDelays = async (delayForCall: (callIndex: number) => number) => {
+			let callIndex = 0;
+			runSubprocess.mockImplementation(async (_command: string, args: string[]) => {
+				const delay = delayForCall(callIndex);
+				callIndex += 1;
+				const files = chunkFilesOf(args);
+				await sleep(delay);
+				return { stdout: "", stderr: violationReport(files), exitCode: 1 };
+			});
+			return runClangFormat(makeContext(tmpDir));
+		};
+
+		const firstChunkLast = await scanWithDelays((callIndex) => (CHUNK_COUNT - callIndex) * 15);
+		const firstChunkFirst = await scanWithDelays((callIndex) => (callIndex + 1) * 15);
+
+		expect(firstChunkLast).toEqual(firstChunkFirst);
+		expect(firstChunkLast).toHaveLength(SOURCE_COUNT);
+		expect(firstChunkLast.map((diagnostic) => diagnostic.filePath).sort()).toEqual(
+			Array.from(
+				{ length: SOURCE_COUNT },
+				(_, index) => `src/f${String(index).padStart(3, "0")}.cpp`,
+			),
+		);
+	});
+});
+
+describe("fixClangFormat - pooled chunk execution", () => {
+	beforeEach(() => {
+		runSubprocess.mockReset();
+		writeSources(tmpDir);
+	});
+
+	it("rethrows the lowest-index chunk failure after every in-flight chunk has finished", async () => {
+		const completedCalls: number[] = [];
+		let callIndex = 0;
+		// Chunks are claimed in index order, so the nth call is the nth chunk.
+		// Chunk 2 fails first in wall-clock time; chunk 1's error must still win.
+		runSubprocess.mockImplementation(async () => {
+			const index = callIndex;
+			callIndex += 1;
+			await sleep(index === 1 ? 30 : 5);
+			completedCalls.push(index);
+			if (index === 0) return { stdout: "", stderr: "", exitCode: 0 };
+			return { stdout: "", stderr: `chunk ${index} exploded`, exitCode: 1 };
+		});
+
+		await expect(fixClangFormat(tmpDir)).rejects.toThrow("chunk 1 exploded");
+
+		expect(runSubprocess).toHaveBeenCalledTimes(CHUNK_COUNT);
+		expect(completedCalls.sort()).toEqual([0, 1, 2]);
+		expect((runSubprocess.mock.calls[0][1] as string[]).slice(0, 2)).toEqual(["-i", "--"]);
 	});
 });

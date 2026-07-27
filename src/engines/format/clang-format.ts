@@ -1,5 +1,7 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
+import { mapWithConcurrencyLimit } from "../../utils/concurrency.js";
 import { relativePosix } from "../../utils/paths.js";
 import { chunkFilePaths, runSubprocess } from "../../utils/subprocess.js";
 import { findCppSources, findCppSourcesForRoot } from "../cpp-targets.js";
@@ -9,6 +11,14 @@ import type { Diagnostic, EngineContext } from "../types.js";
 // (command-line construction); cppcheck.ts and clang-tidy.ts import it directly
 // from there, this re-export just keeps existing imports/tests in this file working.
 export { chunkFilePaths };
+
+// A clang-format process is single-threaded and has no -j of its own, so running
+// the chunks concurrently is the only way a large tree uses more than one core;
+// serially, a tree the size of llvm's spends most of a scan in this one engine.
+// Same width as cppcheck's CPPCHECK_JOB_COUNT (which buys its parallelism inside
+// a single process instead): leave two cores free, since aislop runs its own
+// engines concurrently.
+const CLANG_FORMAT_CHUNK_CONCURRENCY = Math.max(1, os.availableParallelism() - 2);
 
 const CONFIG_NAMES = [".clang-format", "_clang-format"];
 
@@ -79,11 +89,16 @@ export const runClangFormat = async (context: EngineContext): Promise<Diagnostic
 	const files = findCppSources(context);
 	if (files.length === 0) return [];
 
+	// Merged from per-chunk results indexed by chunk position, so which chunk
+	// finishes first cannot change what ends up in the set.
+	const chunkResults = await mapWithConcurrencyLimit(
+		chunkFilePaths(files),
+		CLANG_FORMAT_CHUNK_CONCURRENCY,
+		(chunk) => runDryRunChunk(chunk, context.rootDirectory),
+	);
 	const flagged = new Set<string>();
-	for (const chunk of chunkFilePaths(files)) {
-		for (const filePath of await runDryRunChunk(chunk, context.rootDirectory)) {
-			flagged.add(filePath);
-		}
+	for (const chunkFlagged of chunkResults) {
+		for (const filePath of chunkFlagged) flagged.add(filePath);
 	}
 
 	// Preserve the discovery order of `files` rather than the flagged set's
@@ -98,13 +113,21 @@ export const fixClangFormat = async (rootDirectory: string): Promise<void> => {
 	if (!hasClangFormatConfig(rootDirectory)) return;
 	const files = findCppSourcesForRoot(rootDirectory);
 	if (files.length === 0) return;
-	for (const chunk of chunkFilePaths(files)) {
-		const result = await runSubprocess("clang-format", ["-i", "--", ...chunk], {
-			cwd: rootDirectory,
-			timeout: 120000,
-		});
-		if (result.exitCode !== 0) {
-			throw new Error(result.stderr || result.stdout || `clang-format exited ${result.exitCode}`);
-		}
-	}
+	// Safe to run concurrently: chunks are disjoint file sets and `-i` rewrites
+	// each file in place, so no two invocations ever touch the same path. A
+	// failing chunk still throws the lowest-index chunk's error, as the serial
+	// loop did, after the invocations already in flight finish their writes.
+	await mapWithConcurrencyLimit(
+		chunkFilePaths(files),
+		CLANG_FORMAT_CHUNK_CONCURRENCY,
+		async (chunk) => {
+			const result = await runSubprocess("clang-format", ["-i", "--", ...chunk], {
+				cwd: rootDirectory,
+				timeout: 120000,
+			});
+			if (result.exitCode !== 0) {
+				throw new Error(result.stderr || result.stdout || `clang-format exited ${result.exitCode}`);
+			}
+		},
+	);
 };
