@@ -292,6 +292,14 @@ describe("csharp-patterns: console-leftover (Console.*)", () => {
 		expect(diags.some((d) => d.rule === "ai-slop/csharp-console-leftover")).toBe(false);
 	});
 
+	it("does NOT flag Console.WriteLine in a Sdk.Web project with no OutputType", async () => {
+		const root = fs.mkdtempSync(path.join(os.tmpdir(), "aislop-csp-"));
+		fs.writeFileSync(path.join(root, "App.csproj"), '<Project Sdk="Microsoft.NET.Sdk.Web"></Project>');
+		write(root, "A.cs", 'class A { void M() { Console.WriteLine("hi"); } }');
+		const diags = await detectCSharpPatterns(ctx(root));
+		expect(diags.some((d) => d.rule === "ai-slop/csharp-console-leftover")).toBe(false);
+	});
+
 	it("does NOT flag Console.Error.WriteLine even in a library", async () => {
 		const root = fs.mkdtempSync(path.join(os.tmpdir(), "aislop-csp-"));
 		fs.writeFileSync(path.join(root, "Lib.csproj"), "<Project></Project>");

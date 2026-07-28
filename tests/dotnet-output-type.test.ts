@@ -53,4 +53,76 @@ describe("buildOutputTypeResolver", () => {
 		const resolver = buildOutputTypeResolver(root);
 		expect(resolver.isExeProject(cs)).toBe(false);
 	});
+
+	it("treats a Sdk.Web project with no OutputType as an exe", () => {
+		const root = fs.mkdtempSync(path.join(os.tmpdir(), "aislop-ot-"));
+		fs.writeFileSync(
+			path.join(root, "App.csproj"),
+			'<Project Sdk="Microsoft.NET.Sdk.Web"><PropertyGroup></PropertyGroup></Project>',
+		);
+		const cs = path.join(root, "Program.cs");
+		fs.writeFileSync(cs, "");
+		const resolver = buildOutputTypeResolver(root);
+		expect(resolver.isExeProject(cs)).toBe(true);
+	});
+
+	it("treats a Sdk.Worker project with no OutputType as an exe", () => {
+		const root = fs.mkdtempSync(path.join(os.tmpdir(), "aislop-ot-"));
+		fs.writeFileSync(
+			path.join(root, "Service.csproj"),
+			'<Project Sdk="Microsoft.NET.Sdk.Worker"><PropertyGroup></PropertyGroup></Project>',
+		);
+		const cs = path.join(root, "Program.cs");
+		fs.writeFileSync(cs, "");
+		const resolver = buildOutputTypeResolver(root);
+		expect(resolver.isExeProject(cs)).toBe(true);
+	});
+
+	it("treats a Sdk.BlazorWebAssembly project with no OutputType as an exe", () => {
+		const root = fs.mkdtempSync(path.join(os.tmpdir(), "aislop-ot-"));
+		fs.writeFileSync(
+			path.join(root, "Client.csproj"),
+			'<Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly"><PropertyGroup></PropertyGroup></Project>',
+		);
+		const cs = path.join(root, "Program.cs");
+		fs.writeFileSync(cs, "");
+		const resolver = buildOutputTypeResolver(root);
+		expect(resolver.isExeProject(cs)).toBe(true);
+	});
+
+	it("treats a plain Sdk project with no OutputType as a library", () => {
+		const root = fs.mkdtempSync(path.join(os.tmpdir(), "aislop-ot-"));
+		fs.writeFileSync(
+			path.join(root, "Lib.csproj"),
+			'<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup></PropertyGroup></Project>',
+		);
+		const cs = path.join(root, "Class1.cs");
+		fs.writeFileSync(cs, "");
+		const resolver = buildOutputTypeResolver(root);
+		expect(resolver.isExeProject(cs)).toBe(false);
+	});
+
+	it("lets an explicit OutputType override the Sdk.Web default", () => {
+		const root = fs.mkdtempSync(path.join(os.tmpdir(), "aislop-ot-"));
+		fs.writeFileSync(
+			path.join(root, "Lib.csproj"),
+			'<Project Sdk="Microsoft.NET.Sdk.Web"><PropertyGroup><OutputType>Library</OutputType></PropertyGroup></Project>',
+		);
+		const cs = path.join(root, "Class1.cs");
+		fs.writeFileSync(cs, "");
+		const resolver = buildOutputTypeResolver(root);
+		expect(resolver.isExeProject(cs)).toBe(false);
+	});
+
+	it("matches the Sdk attribute case-insensitively and ignores a version suffix", () => {
+		const root = fs.mkdtempSync(path.join(os.tmpdir(), "aislop-ot-"));
+		fs.writeFileSync(
+			path.join(root, "App.csproj"),
+			'<Project Sdk="MICROSOFT.NET.SDK.WEB/8.0.100"><PropertyGroup></PropertyGroup></Project>',
+		);
+		const cs = path.join(root, "Program.cs");
+		fs.writeFileSync(cs, "");
+		const resolver = buildOutputTypeResolver(root);
+		expect(resolver.isExeProject(cs)).toBe(true);
+	});
 });
