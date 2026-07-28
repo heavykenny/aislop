@@ -79,7 +79,7 @@ const UNSUPPORTED_GLOB_SYNTAX = /[?[\]{}!|()\\]/;
 const isDotnetFormatPath = (pattern: string): boolean =>
 	!pattern.startsWith("-") && !UNSUPPORTED_GLOB_SYNTAX.test(pattern);
 
-export interface DotnetFormatExcludeScope {
+interface DotnetFormatExcludeScope {
 	/** Patterns to hand to `dotnet format --exclude`. */
 	excludeArguments: string[];
 	/** Patterns dotnet format has no way to express. */
