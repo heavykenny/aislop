@@ -30,3 +30,17 @@ export const CPP_FUNCTION_PATTERNS: FunctionPattern[] = [
 		langFilter: [".cc", ".cpp", ".cxx", ".hh", ".hpp", ".hxx"],
 	},
 ];
+
+// C++ files can't be split into separate translation units without promoting
+// internal-linkage helpers to public API, so cohesive C/C++ modules
+// idiomatically run long - give them the same file-size budget Rust gets.
+export const CPP_FILE_LOC_MULTIPLIERS: Record<string, number> = Object.fromEntries(
+	[...CPP_SOURCE_EXTENSIONS].map((extension) => [extension, 2.5]),
+);
+
+// C++ files can't be split into separate compilation units without leaking
+// internal-linkage symbols across translation units. Point them at the
+// component-as-translation-unit pattern instead of generic module splitting.
+export const CPP_FILE_TOO_LARGE_HELP =
+	"Split this C++ file into a component using the component-as-translation-unit pattern; " +
+	"see docs/cpp-component-pattern.md";
