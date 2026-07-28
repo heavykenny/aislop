@@ -285,4 +285,23 @@ describe("discoverProject", () => {
 		const info = await discoverProject(tmpDir);
 		expect(info.sourceFileCount).toBeGreaterThanOrEqual(0);
 	});
+
+	// discoverProject is the shared entry point every scan flavor (scan, ci, doctor, fix,
+	// both MCP tools) calls exactly once, so it resets the gitignore snapshot cache at its
+	// own top. Without that, a long-lived process such as the MCP server would keep
+	// answering a second scan from the first scan's snapshot, silently missing any file
+	// created after that first scan. This calls discoverProject twice in the same process,
+	// with no manual cache reset in between, to prove the production code path handles it.
+	it("sees a file created between two scans in the same process", async () => {
+		gitInit(tmpDir);
+		createFile(tmpDir, "first.ts", "export const first = true;\n");
+
+		const firstScan = await discoverProject(tmpDir);
+		expect(firstScan.sourceFileCount).toBe(1);
+
+		createFile(tmpDir, "second.ts", "export const second = true;\n");
+
+		const secondScan = await discoverProject(tmpDir);
+		expect(secondScan.sourceFileCount).toBe(2);
+	});
 });

@@ -112,9 +112,21 @@ export const getIgnoredPaths = (rootDirectory: string, files: string[]): Set<str
 	return ignoredPaths;
 };
 
-// Tests only: within a scan the snapshot is meant to live for the whole process.
-export const resetGitIgnoreCacheForTests = (): void => {
+// Discards every cached snapshot so the next getIgnoredPaths/dropGitIgnoredPaths call
+// rebuilds from git rather than answering from a listing taken before this call. The
+// comment above the cache still holds within a single scan: call this once at the start
+// of a scan (discoverProject does, for every scan flavor), not before each individual
+// lookup, or the perf win this snapshot exists for disappears. Without a call somewhere,
+// a long-lived process such as the MCP server keeps its first scan's snapshot forever and
+// misclassifies a file created, deleted, or renamed after that first scan.
+export const resetGitIgnoreSnapshots = (): void => {
 	snapshotByRoot.clear();
+};
+
+// Tests only: identical to resetGitIgnoreSnapshots, kept under its original name so
+// existing tests did not need to change when production code gained its own caller.
+export const resetGitIgnoreCacheForTests = (): void => {
+	resetGitIgnoreSnapshots();
 };
 
 // Drop any absolute paths that git would ignore, so target discovery (tsconfigs,

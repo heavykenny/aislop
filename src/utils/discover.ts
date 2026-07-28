@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { analyzeCoverage, type Coverage } from "./discovery-coverage.js";
+import { resetGitIgnoreSnapshots } from "./git-ignore.js";
 import { getSourceFilesForRoot } from "./source-files.js";
 import { isToolAvailable } from "./tooling.js";
 
@@ -262,6 +263,13 @@ export const discoverProject = async (
 	inputs: DiscoveryInputs = {},
 ): Promise<ProjectInfo> => {
 	const resolvedDir = path.resolve(directory);
+	// Every scan flavor (scan, ci, doctor, fix, both MCP tools) calls discoverProject
+	// exactly once, so resetting here at the top gives each scan a fresh gitignore
+	// snapshot without giving up the perf win: discovery and the engines that run after
+	// it in this same scan still share whatever snapshot gets lazily built on their first
+	// call. A long-lived process (the MCP server, an interactive loop) would otherwise
+	// keep answering from the first scan's snapshot forever.
+	resetGitIgnoreSnapshots();
 	const sourceFiles = inputs.sourceFiles ?? getSourceFilesForRoot(resolvedDir);
 	const coverage = analyzeCoverage(resolvedDir, {
 		excludePatterns,

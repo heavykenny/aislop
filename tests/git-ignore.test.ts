@@ -7,6 +7,7 @@ import {
 	dropGitIgnoredPaths,
 	getIgnoredPaths,
 	resetGitIgnoreCacheForTests,
+	resetGitIgnoreSnapshots,
 } from "../src/utils/git-ignore.js";
 
 const write = (root: string, relativePath: string, body: string): string => {
@@ -169,5 +170,43 @@ describe("getIgnoredPaths honors core.ignorecase", () => {
 		resetGitIgnoreCacheForTests();
 
 		expect(getIgnoredPaths(root, ["übung.ts"])).toEqual(new Set(["übung.ts"]));
+	});
+});
+
+describe("resetGitIgnoreSnapshots invalidates the process-global cache across scans", () => {
+	let root: string;
+
+	beforeEach(() => {
+		root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "aislop-git-ignore-reset-")));
+		git(root, "init");
+		write(root, "existing.ts", "export const existing = true;\n");
+		resetGitIgnoreCacheForTests();
+	});
+
+	afterEach(() => {
+		resetGitIgnoreCacheForTests();
+		fs.rmSync(root, { recursive: true, force: true });
+	});
+
+	// The snapshot is a process-global cache with no expiry of its own; a long-lived
+	// process (the MCP server, an interactive watch loop) that never calls the reset
+	// keeps answering scan 2 from scan 1's listing. discoverProject calls
+	// resetGitIgnoreSnapshots at the top of every scan specifically to avoid this.
+	it("misclassifies a file created after the snapshot until the cache is reset", () => {
+		// Scan 1 builds and caches the snapshot.
+		expect(getIgnoredPaths(root, ["existing.ts"])).toEqual(new Set<string>());
+
+		// A file appears after scan 1 (a build step, an agent edit, a git pull).
+		write(root, "new-file.ts", "export const created = true;\n");
+
+		// Scan 2, same process, no reset: this is the bug. The new file is absent from
+		// the stale snapshot and reads as ignored even though git does not ignore it.
+		expect(getIgnoredPaths(root, ["existing.ts", "new-file.ts"])).toEqual(
+			new Set(["new-file.ts"]),
+		);
+
+		// The reset a new scan performs fixes it: a fresh snapshot sees the new file.
+		resetGitIgnoreSnapshots();
+		expect(getIgnoredPaths(root, ["existing.ts", "new-file.ts"])).toEqual(new Set<string>());
 	});
 });
