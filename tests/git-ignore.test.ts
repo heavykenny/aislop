@@ -210,3 +210,94 @@ describe("resetGitIgnoreSnapshots invalidates the process-global cache across sc
 		expect(getIgnoredPaths(root, ["existing.ts", "new-file.ts"])).toEqual(new Set<string>());
 	});
 });
+
+describe("getIgnoredPaths across an embedded repository boundary", () => {
+	let root: string;
+	let submoduleSource: string | undefined;
+
+	beforeEach(() => {
+		root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "aislop-git-ignore-embed-")));
+		git(root, "init");
+		// A CI runner has no global git identity, so a bare `git commit` below would
+		// exit 128 with "Author identity unknown". Match this file's other real-git
+		// fixtures (see audit-scope.test.ts, git.test.ts, ci-changes-base.test.ts).
+		git(root, "config", "user.email", "test@example.com");
+		git(root, "config", "user.name", "test");
+		write(root, ".gitignore", "*.log\n");
+		write(root, "outer.ts", "export const outer = true;\n");
+		git(root, "add", "outer.ts", ".gitignore");
+		git(root, "commit", "-m", "outer initial");
+		resetGitIgnoreCacheForTests();
+	});
+
+	afterEach(() => {
+		resetGitIgnoreCacheForTests();
+		fs.rmSync(root, { recursive: true, force: true });
+		if (submoduleSource) fs.rmSync(submoduleSource, { recursive: true, force: true });
+		submoduleSource = undefined;
+	});
+
+	// ls-files never recurses into a tracked submodule: it lists the gitlink itself (a
+	// bare path, no trailing slash) and nothing beneath it, so a plain miss on
+	// "sub/inner.ts" would read as ignored without the ancestor-prefix fallback in
+	// isBeneathEmbeddedRepository. Ground truth here cannot come from check-ignore: it
+	// refuses outright for a path inside a submodule (`fatal: Pathspec 'sub/inner.ts' is
+	// in submodule 'sub'`, exit 128, for both a single path and a --stdin batch that
+	// includes one), which is exactly why the fix has to be structural rather than
+	// deferring to git for an answer.
+	//
+	// protocol.file.allow=always is required because git 2.38+ blocks the file://
+	// transport `submodule add` uses for a same-machine path by default; without it this
+	// test breaks in CI on a current git.
+	it("keeps a file inside a tracked submodule", () => {
+		submoduleSource = fs.realpathSync(
+			fs.mkdtempSync(path.join(os.tmpdir(), "aislop-submodule-src-")),
+		);
+		git(submoduleSource, "init");
+		git(submoduleSource, "config", "user.email", "test@example.com");
+		git(submoduleSource, "config", "user.name", "test");
+		write(submoduleSource, "inner.ts", "export const inner = true;\n");
+		git(submoduleSource, "add", "inner.ts");
+		git(submoduleSource, "commit", "-m", "submodule content");
+
+		git(root, "-c", "protocol.file.allow=always", "submodule", "add", submoduleSource, "sub");
+		resetGitIgnoreCacheForTests();
+
+		expect(getIgnoredPaths(root, ["outer.ts", "sub/inner.ts"])).toEqual(new Set<string>());
+	});
+
+	// An untracked nested repository (a directory holding its own .git, never added as a
+	// submodule) is a different ls-files shape: the directory itself, WITH a trailing
+	// slash, and again nothing beneath it. Unlike a submodule, check-ignore answers
+	// normally for a path inside one (no fatal exit), so this test can use it as ground
+	// truth.
+	it("keeps a file inside an untracked nested repository", () => {
+		write(root, "nested-repo/nested-file.ts", "export const nested = true;\n");
+		git(path.join(root, "nested-repo"), "init");
+		resetGitIgnoreCacheForTests();
+
+		const files = ["outer.ts", "nested-repo/nested-file.ts"];
+		expect(getIgnoredPaths(root, files)).toEqual(new Set<string>());
+		expect(getIgnoredPaths(root, files)).toEqual(checkIgnore(root, files));
+	});
+
+	// Accepted approximation, not a bug (documented in git-ignore.ts): check-ignore
+	// applies the outer .gitignore through a nested-repo boundary, but the ancestor rule
+	// here stops as soon as it finds the boundary, so an outer pattern that would match
+	// inside the embedded repo is no longer honored there. Other discovery layers filter
+	// excluded directories (node_modules among them) independently of this module.
+	it("no longer honors an outer pattern that would match inside a nested repository", () => {
+		write(root, ".gitignore", "*.log\nnode_modules/\n");
+		write(root, "nested-repo/node_modules/x.ts", "export const dep = true;\n");
+		git(path.join(root, "nested-repo"), "init");
+		resetGitIgnoreCacheForTests();
+
+		const files = ["nested-repo/node_modules/x.ts"];
+		// Ground truth: check-ignore matches the outer node_modules/ pattern right
+		// through the nested-repo boundary.
+		expect(checkIgnore(root, files)).toEqual(new Set(files));
+		// The ancestor rule keeps it instead, once nested-repo is recognized as a
+		// boundary in the snapshot.
+		expect(getIgnoredPaths(root, files)).toEqual(new Set<string>());
+	});
+});

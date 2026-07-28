@@ -75,9 +75,16 @@ const buildSnapshot = (rootDirectory: string): RootSnapshot => {
 	}
 
 	const ignoreCase = readIgnoreCase(rootDirectory);
-	// The listing also carries tracked symlinks and submodule gitlink entries. Callers only
-	// ask about regular files, so their presence cannot change an answer.
-	const entries = result.stdout.split("\0").filter((entry) => entry.length > 0);
+	// The listing also carries tracked symlinks, and two shapes of embedded repository
+	// boundary git does not recurse past: a tracked submodule, listed as a bare gitlink
+	// entry with no trailing slash, and an untracked nested repository (a directory
+	// holding its own .git), listed as the directory itself with a trailing slash. Strip
+	// that slash so both shapes normalize to the same plain path an ancestor-prefix
+	// lookup can match; see isBeneathEmbeddedRepository below.
+	const entries = result.stdout
+		.split("\0")
+		.filter((entry) => entry.length > 0)
+		.map((entry) => (entry.endsWith("/") ? entry.slice(0, -1) : entry));
 	return {
 		notIgnoredPaths: new Set(ignoreCase ? entries.map(foldAsciiCase) : entries),
 		ignoreCase,
@@ -94,6 +101,25 @@ const getRootSnapshot = (rootDirectory: string): RootSnapshot => {
 	return created;
 };
 
+// A submodule or an untracked nested repository is a boundary git does not recurse past
+// when building the snapshot (see buildSnapshot), so no path beneath one is ever a member
+// of notIgnoredPaths, however the file walker that produces candidates does recurse into
+// it on disk. Without this, every such path would read as ignored on a plain miss. Walk
+// candidate's ancestor directories outward; the first one present in the snapshot is that
+// boundary, and a path beneath it matches no ignore pattern (verified against a real
+// tracked submodule and a real untracked nested repository; see tests/git-ignore.test.ts).
+// O(path depth) per miss.
+const isBeneathEmbeddedRepository = (snapshot: RootSnapshot, file: string): boolean => {
+	let ancestor = file;
+	for (;;) {
+		const slashIndex = ancestor.lastIndexOf("/");
+		if (slashIndex === -1) return false;
+		ancestor = ancestor.slice(0, slashIndex);
+		const key = snapshot.ignoreCase ? foldAsciiCase(ancestor) : ancestor;
+		if (snapshot.notIgnoredPaths.has(key)) return true;
+	}
+};
+
 // The subset of `files` (relative to rootDirectory) that git would ignore. Returns an
 // empty set outside a git repo or on any git failure, so callers fall back to keeping
 // every path rather than dropping work they cannot classify. Callers pass paths that exist
@@ -107,7 +133,9 @@ export const getIgnoredPaths = (rootDirectory: string, files: string[]): Set<str
 	const ignoredPaths = new Set<string>();
 	for (const file of files) {
 		const lookupKey = snapshot.ignoreCase ? foldAsciiCase(file) : file;
-		if (!snapshot.notIgnoredPaths.has(lookupKey)) ignoredPaths.add(file);
+		if (snapshot.notIgnoredPaths.has(lookupKey)) continue;
+		if (isBeneathEmbeddedRepository(snapshot, file)) continue;
+		ignoredPaths.add(file);
 	}
 	return ignoredPaths;
 };
