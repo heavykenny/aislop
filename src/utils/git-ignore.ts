@@ -14,14 +14,31 @@ const MAX_BUFFER = 50 * 1024 * 1024;
 // apply core.quotepath C-style escaping and no membership test would match.
 const NOT_IGNORED_ARGUMENTS = ["ls-files", "--cached", "--others", "--exclude-standard", "-z"];
 
+// core.ignorecase defaults to true on Windows and macOS checkouts (case-insensitive
+// filesystems), and git honors it in both wildmatch pattern matching and the index's
+// name lookup. A missing key (never configured) and a non-zero exit both mean "not set",
+// which reads the same as false: fold nothing.
+const IGNORE_CASE_ARGUMENTS = ["config", "--type=bool", "core.ignorecase"];
+
 const toProjectPath = (rootDirectory: string, filePath: string): string => {
 	const absolutePath = path.isAbsolute(filePath) ? filePath : path.resolve(rootDirectory, filePath);
 	return path.relative(rootDirectory, absolutePath).split(path.sep).join("/");
 };
 
+// git's own case folding, in wildmatch (WM_CASEFOLD) and the on-disk index's name-hash
+// alike, is a byte-wise ASCII tolower: it lowercases A-Z and leaves every other byte,
+// including every non-ASCII code point, untouched. String.prototype.toLowerCase performs
+// a full Unicode case fold instead, which would treat distinct bytes such as U+00DC (Ü)
+// and U+00FC (ü) as equal even though git keeps them apart under core.ignorecase=true.
+// Folding only A-Z here mirrors what git actually does.
+const foldAsciiCase = (value: string): string =>
+	value.replace(/[A-Z]/g, (letter) => letter.toLowerCase());
+
 interface RootSnapshot {
-	/** Root-relative paths git does not ignore. A path outside this set is ignored. */
+	/** Root-relative paths git does not ignore, case-folded per `ignoreCase`. A path outside this set is ignored. */
 	notIgnoredPaths: Set<string>;
+	/** core.ignorecase for this root. When true, membership tests fold ASCII case to match git's own semantics. */
+	ignoreCase: boolean;
 	/** A git invocation for this root already failed, so further ones would too. */
 	gitInvocationFailed: boolean;
 }
@@ -34,6 +51,15 @@ interface RootSnapshot {
 // it covers every path under the root, so later calls need no further invocation.
 const snapshotByRoot = new Map<string, RootSnapshot>();
 
+const readIgnoreCase = (rootDirectory: string): boolean => {
+	const result = spawnSync("git", IGNORE_CASE_ARGUMENTS, {
+		cwd: rootDirectory,
+		encoding: "utf-8",
+	});
+	if (result.error || result.status !== 0) return false;
+	return result.stdout.trim() === "true";
+};
+
 const buildSnapshot = (rootDirectory: string): RootSnapshot => {
 	const result = spawnSync("git", NOT_IGNORED_ARGUMENTS, {
 		cwd: rootDirectory,
@@ -45,13 +71,16 @@ const buildSnapshot = (rootDirectory: string): RootSnapshot => {
 	// could not answer (no repository, missing binary, overflowed buffer). Remember that per
 	// root, or every later pass repeats the same failure.
 	if (result.error || result.status !== 0) {
-		return { notIgnoredPaths: new Set<string>(), gitInvocationFailed: true };
+		return { notIgnoredPaths: new Set<string>(), ignoreCase: false, gitInvocationFailed: true };
 	}
 
+	const ignoreCase = readIgnoreCase(rootDirectory);
 	// The listing also carries tracked symlinks and submodule gitlink entries. Callers only
 	// ask about regular files, so their presence cannot change an answer.
+	const entries = result.stdout.split("\0").filter((entry) => entry.length > 0);
 	return {
-		notIgnoredPaths: new Set(result.stdout.split("\0").filter((entry) => entry.length > 0)),
+		notIgnoredPaths: new Set(ignoreCase ? entries.map(foldAsciiCase) : entries),
+		ignoreCase,
 		gitInvocationFailed: false,
 	};
 };
@@ -77,7 +106,8 @@ export const getIgnoredPaths = (rootDirectory: string, files: string[]): Set<str
 
 	const ignoredPaths = new Set<string>();
 	for (const file of files) {
-		if (!snapshot.notIgnoredPaths.has(file)) ignoredPaths.add(file);
+		const lookupKey = snapshot.ignoreCase ? foldAsciiCase(file) : file;
+		if (!snapshot.notIgnoredPaths.has(lookupKey)) ignoredPaths.add(file);
 	}
 	return ignoredPaths;
 };

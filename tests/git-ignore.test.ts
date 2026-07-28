@@ -117,3 +117,57 @@ describe("getIgnoredPaths against a real repository", () => {
 		}
 	});
 });
+
+describe("getIgnoredPaths honors core.ignorecase", () => {
+	let root: string;
+
+	beforeEach(() => {
+		root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "aislop-git-ignorecase-")));
+		git(root, "init");
+		resetGitIgnoreCacheForTests();
+	});
+
+	afterEach(() => {
+		resetGitIgnoreCacheForTests();
+		fs.rmSync(root, { recursive: true, force: true });
+	});
+
+	// Windows and macOS default core.ignorecase to true because their filesystems are
+	// case-insensitive. A tracked file that later undergoes an in-place case-only rename
+	// on such a filesystem keeps its old casing in the index (git treats the rename as a
+	// no-op), so a real filesystem walker hands the snapshot a candidate whose case
+	// differs from the index entry. check-ignore honors core.ignorecase in that lookup,
+	// and the snapshot's Set membership test must too.
+	it("folds ASCII case when core.ignorecase is true", () => {
+		git(root, "config", "core.ignorecase", "true");
+		write(root, "Tracked.ts", "export const tracked = true;\n");
+		git(root, "add", "Tracked.ts");
+		resetGitIgnoreCacheForTests();
+
+		expect(getIgnoredPaths(root, ["tracked.ts"])).toEqual(new Set<string>());
+	});
+
+	// Sibling of the test above with core.ignorecase explicitly false, locking that
+	// folding only happens when git itself would fold.
+	it("stays case-sensitive when core.ignorecase is false", () => {
+		git(root, "config", "core.ignorecase", "false");
+		write(root, "Tracked.ts", "export const tracked = true;\n");
+		git(root, "add", "Tracked.ts");
+		resetGitIgnoreCacheForTests();
+
+		expect(getIgnoredPaths(root, ["tracked.ts"])).toEqual(new Set(["tracked.ts"]));
+	});
+
+	// git's own case fold (wildmatch's WM_CASEFOLD, the index name-hash) is byte-wise
+	// ASCII only, so a differently-cased non-ASCII byte must still read as a distinct,
+	// missing path even under core.ignorecase=true. This is what rules out
+	// String.prototype.toLowerCase, which would fold U+00DC to U+00FC and hide the gap.
+	it("does not fold non-ASCII case even when core.ignorecase is true", () => {
+		git(root, "config", "core.ignorecase", "true");
+		write(root, "Übung.ts", "export const uebung = true;\n");
+		git(root, "add", "Übung.ts");
+		resetGitIgnoreCacheForTests();
+
+		expect(getIgnoredPaths(root, ["übung.ts"])).toEqual(new Set(["übung.ts"]));
+	});
+});

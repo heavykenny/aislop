@@ -15,15 +15,22 @@ const NOT_IGNORED_ARGUMENTS = ["ls-files", "--cached", "--others", "--exclude-st
 const commandArgumentsOf = (callIndex: number): string[] =>
 	spawnSync.mock.calls[callIndex][1] as string[];
 
-// Stand in for `git ls-files --cached --others --exclude-standard -z`: the NUL-delimited
-// not-ignored universe for the root.
+// Stand in for `git ls-files --cached --others --exclude-standard -z` (the NUL-delimited
+// not-ignored universe for the root) and, since a successful listing also triggers a
+// core.ignorecase read, for an unconfigured `git config --type=bool core.ignorecase`
+// (exit 1, matching a real repo where the key was never set).
 const gitEnumerates = (notIgnoredPaths: string[]): void => {
-	spawnSync.mockImplementation(() => ({
-		status: 0,
-		stdout: notIgnoredPaths.map((entry) => `${entry}\0`).join(""),
-		stderr: "",
-		error: undefined,
-	}));
+	spawnSync.mockImplementation((_command: string, commandArguments: string[]) => {
+		if (commandArguments[0] === "config") {
+			return { status: 1, stdout: "", stderr: "", error: undefined };
+		}
+		return {
+			status: 0,
+			stdout: notIgnoredPaths.map((entry) => `${entry}\0`).join(""),
+			stderr: "",
+			error: undefined,
+		};
+	});
 };
 
 const gitFails = (): void => {
@@ -46,7 +53,9 @@ describe("getIgnoredPaths snapshots", () => {
 		const files = ["source/main.ts", "build/output.js"];
 
 		expect(getIgnoredPaths("/repo", files)).toEqual(new Set(["build/output.js"]));
-		expect(spawnSync).toHaveBeenCalledTimes(1);
+		// One spawn for the ls-files snapshot, one for the core.ignorecase read that
+		// follows a successful listing.
+		expect(spawnSync).toHaveBeenCalledTimes(2);
 		expect(commandArgumentsOf(0)).toEqual(NOT_IGNORED_ARGUMENTS);
 		expect(spawnSync.mock.calls[0][0]).toBe("git");
 	});
@@ -67,7 +76,7 @@ describe("getIgnoredPaths snapshots", () => {
 		expect(getIgnoredPaths(root, ["source/main.ts", "build/output.js"])).toEqual(
 			new Set(["build/output.js"]),
 		);
-		expect(spawnSync).toHaveBeenCalledTimes(1);
+		expect(spawnSync).toHaveBeenCalledTimes(2);
 
 		expect(
 			getIgnoredPaths(root, [
@@ -77,7 +86,7 @@ describe("getIgnoredPaths snapshots", () => {
 				"source/helper.ts",
 			]),
 		).toEqual(new Set(["build/output.js", "vendor/library.ts"]));
-		expect(spawnSync).toHaveBeenCalledTimes(1);
+		expect(spawnSync).toHaveBeenCalledTimes(2);
 	});
 
 	// --cached puts tracked files in the listing whether or not a pattern matches them,
@@ -126,7 +135,8 @@ describe("getIgnoredPaths snapshots", () => {
 		expect(getIgnoredPaths("/second", ["build/output.js"])).toEqual(new Set<string>());
 		expect(getIgnoredPaths("/first", ["build/output.js"])).toEqual(new Set(["build/output.js"]));
 
-		expect(spawnSync).toHaveBeenCalledTimes(2);
+		// Two successful snapshot builds (one per root), two spawns each.
+		expect(spawnSync).toHaveBeenCalledTimes(4);
 	});
 
 	it("treats an unresolved root as the resolved one", () => {
@@ -137,7 +147,7 @@ describe("getIgnoredPaths snapshots", () => {
 		expect(getIgnoredPaths(path.join(root, "nested", ".."), ["build/output.js"])).toEqual(
 			new Set(["build/output.js"]),
 		);
-		expect(spawnSync).toHaveBeenCalledTimes(1);
+		expect(spawnSync).toHaveBeenCalledTimes(2);
 	});
 
 	it("shares the snapshot with dropGitIgnoredPaths", () => {
@@ -153,7 +163,7 @@ describe("getIgnoredPaths snapshots", () => {
 				path.join(root, "build", "output.js"),
 			]),
 		).toEqual([path.join(root, "source", "main.ts")]);
-		expect(spawnSync).toHaveBeenCalledTimes(1);
+		expect(spawnSync).toHaveBeenCalledTimes(2);
 	});
 
 	it("re-queries git after the cache is reset", () => {
@@ -163,7 +173,8 @@ describe("getIgnoredPaths snapshots", () => {
 		expect(getIgnoredPaths(root, ["build/output.js"])).toEqual(new Set(["build/output.js"]));
 		resetGitIgnoreCacheForTests();
 		expect(getIgnoredPaths(root, ["build/output.js"])).toEqual(new Set(["build/output.js"]));
-		expect(spawnSync).toHaveBeenCalledTimes(2);
+		// Two successful snapshot builds (before and after the reset), two spawns each.
+		expect(spawnSync).toHaveBeenCalledTimes(4);
 	});
 
 	it("re-queries a failed root after the cache is reset", () => {
@@ -174,7 +185,9 @@ describe("getIgnoredPaths snapshots", () => {
 		resetGitIgnoreCacheForTests();
 		gitEnumerates(["build/output.js"]);
 		expect(getIgnoredPaths(root, ["build/output.js"])).toEqual(new Set<string>());
-		expect(spawnSync).toHaveBeenCalledTimes(2);
+		// One spawn for the failed build (no core.ignorecase read on failure), two for
+		// the successful build after the reset.
+		expect(spawnSync).toHaveBeenCalledTimes(3);
 	});
 
 	it("never spawns git for an empty request", () => {
