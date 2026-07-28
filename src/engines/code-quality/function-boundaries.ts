@@ -1,3 +1,5 @@
+import { findInitializerListBodyStart } from "./initializer-list.js";
+
 const PYTHON_CONTROL_FLOW_RE = /^\s*(?:if|for|while|with|try|except|else|elif|finally|def|class)\b/;
 
 const ARROW_BLOCK_RE = /=>\s*\{/;
@@ -24,10 +26,16 @@ const findBraceFunctionEnd = (
 	let functionStartDepth = 0;
 	const braceStack: boolean[] = [];
 
-	for (let j = startIndex; j < lines.length; j++) {
+	// A C++ member-initializer list sits between the parameter list and the body,
+	// and its brace initializers (`value_{0}`) open and close before the body
+	// does. Start the scan at the brace that actually opens the body so those are
+	// never mistaken for it. Null means "no initializer list": scan from the top.
+	const bodyStart = findInitializerListBodyStart(lines, startIndex);
+
+	for (let j = bodyStart?.lineIndex ?? startIndex; j < lines.length; j++) {
 		const l = lines[j];
 
-		for (let ci = 0; ci < l.length; ci++) {
+		for (let ci = j === bodyStart?.lineIndex ? bodyStart.columnIndex : 0; ci < l.length; ci++) {
 			const ch = l[ci];
 			if (ch === ";" && !started) {
 				// A `;` reached before the body's opening `{` means this signature is

@@ -1117,3 +1117,192 @@ describe("analyzeFunctions — C#/C++ constructor & multi-line signature detecti
 		expect(analyzeFunctions("Widget(a) {\n  init();\n}", ".c")).toHaveLength(0);
 	});
 });
+
+// A C++ member-initializer list can carry brace initialization (`value_{0}`),
+// whose braces open and close before the real constructor body starts. Taking
+// the first depth-1 brace as the body would end the function on the initializer
+// line and hide the whole body from the length and nesting checks.
+describe("analyzeFunctions: C++ member-initializer lists", () => {
+	it("spans the real body of an out-of-line constructor with brace initializers", () => {
+		const src = [
+			"Widget::Widget()",
+			"    : value_{0},",
+			'      name_{"x"} {',
+			"  stepOne();",
+			"  if (value_) {",
+			"    stepTwo();",
+			"  }",
+			"  stepThree();",
+			"}",
+		].join("\n");
+		const ctor = analyzeFunctions(src, ".cpp").find((f) => f.name === "Widget::Widget");
+		expect(ctor).toBeDefined();
+		expect(ctor?.lineCount).toBe(9);
+		expect(ctor?.maxNesting).toBe(1);
+	});
+
+	it("spans the real body of a bare in-class constructor with brace initializers", () => {
+		const src = [
+			"class Widget {",
+			"  Widget(int a)",
+			"      : value_{a}",
+			"  {",
+			"    stepOne();",
+			"    stepTwo();",
+			"  }",
+			"};",
+		].join("\n");
+		const ctor = analyzeFunctions(src, ".cpp").find((f) => f.name === "Widget");
+		expect(ctor).toBeDefined();
+		expect(ctor?.lineCount).toBe(6);
+	});
+
+	it("handles paren, brace, templated, and nested-brace initializers together", () => {
+		const src = [
+			"Widget::Widget(int a)",
+			"    : Base<int, float>{a},",
+			"      other_(a, a),",
+			"      matrix_{{1, 2}, {3, 4}},",
+			"      handler_([]{ return 1; }) {",
+			"  stepOne();",
+			"  stepTwo();",
+			"}",
+		].join("\n");
+		const ctor = analyzeFunctions(src, ".cpp").find((f) => f.name === "Widget::Widget");
+		expect(ctor?.lineCount).toBe(8);
+	});
+
+	it("reports a long constructor body hidden behind an initializer list", async () => {
+		const body = Array.from({ length: 30 }, (_, index) => `  step${index}();`).join("\n");
+		const src = `Widget::Widget()\n    : value_{0},\n      other_{1}\n{\n${body}\n}\n`;
+		const filePath = writeFile("Widget.cpp", src);
+		const diagnostics = await checkComplexity(makeContext([filePath], { maxFunctionLoc: 10 }));
+		const tooLong = diagnostics.filter((d) => d.rule === "complexity/function-too-long");
+		expect(tooLong.find((d) => d.detail?.includes("Widget::Widget"))).toBeDefined();
+	});
+
+	it("leaves a constructor with no initializer list unchanged", () => {
+		const src = ["Widget::Widget()", "{", "  stepOne();", "  stepTwo();", "}"].join("\n");
+		const ctor = analyzeFunctions(src, ".cpp").find((f) => f.name === "Widget::Widget");
+		expect(ctor?.lineCount).toBe(5);
+	});
+
+	it("leaves a C# base-constructor initializer unchanged", () => {
+		const src = [
+			"class C {",
+			"  public C(int a)",
+			"    : base(a)",
+			"  {",
+			"    stepOne();",
+			"    stepTwo();",
+			"  }",
+			"}",
+		].join("\n");
+		const ctor = analyzeFunctions(src, ".cs").find((f) => f.name === "C");
+		expect(ctor?.lineCount).toBe(6);
+	});
+
+	it("handles a ternary and a qualifier around the initializer list", () => {
+		const src = [
+			"Widget::Widget(int a) noexcept",
+			"    : value_{a > 0 ? 1 : 2},",
+			"      flag_(a ? true : false) {",
+			"  stepOne();",
+			"}",
+		].join("\n");
+		const ctor = analyzeFunctions(src, ".cpp").find((f) => f.name === "Widget::Widget");
+		expect(ctor?.lineCount).toBe(5);
+	});
+
+	it("still skips a defaulted constructor and a prototype with default arguments", () => {
+		expect(analyzeFunctions("Widget::Widget() = default;\n", ".cpp")).toHaveLength(0);
+		expect(analyzeFunctions("class C {\n  void f(int a = 0);\n};", ".hpp")).toHaveLength(0);
+	});
+
+	it("leaves a TypeScript return-type annotation unchanged", () => {
+		const objectReturn = ["function shape(a) : { x: number } {", "  return { x: a };", "}"].join(
+			"\n",
+		);
+		const shape = analyzeFunctions(objectReturn, ".ts").find((f) => f.name === "shape");
+		expect(shape?.lineCount).toBe(3);
+
+		const genericReturn = ["function load(a): Promise<void> {", "  return go(a);", "}"].join("\n");
+		const load = analyzeFunctions(genericReturn, ".ts").find((f) => f.name === "load");
+		expect(load?.lineCount).toBe(3);
+	});
+
+	it("spans the body of an in-class constructor declared in a header", () => {
+		const src = [
+			"class Widget {",
+			" public:",
+			"  Widget(int a)",
+			"      : value_{a},",
+			"        other_{0}",
+			"  {",
+			"    stepOne();",
+			"    stepTwo();",
+			"  }",
+			"};",
+		].join("\n");
+		const ctor = analyzeFunctions(src, ".hpp").find((f) => f.name === "Widget");
+		expect(ctor?.lineCount).toBe(7);
+	});
+
+	it("spans the body past a comment or a brace-bearing string in the list", () => {
+		const src = [
+			"Widget::Widget()",
+			"    : value_{0},  // seeded",
+			'      /* wide */ name_{"}{"} {',
+			"  stepOne();",
+			"  stepTwo();",
+			"}",
+		].join("\n");
+		const ctor = analyzeFunctions(src, ".cpp").find((f) => f.name === "Widget::Widget");
+		expect(ctor?.lineCount).toBe(6);
+	});
+
+	it("spans the body past an initializer holding a multi-line lambda", () => {
+		const src = [
+			"Widget::Widget()",
+			"    : handler_([] {",
+			"        stepOne();",
+			"        return 1;",
+			"      }),",
+			"      value_{0} {",
+			"  stepTwo();",
+			"}",
+		].join("\n");
+		const ctor = analyzeFunctions(src, ".cpp").find((f) => f.name === "Widget::Widget");
+		expect(ctor?.lineCount).toBe(8);
+	});
+
+	it("spans the body of a constructor with a long member list", () => {
+		const members = Array.from(
+			{ length: 60 },
+			(_, index) => `${index === 0 ? "    : " : "      "}member${index}_{${index}},`,
+		);
+		const src = ["Widget::Widget()", ...members, "      last_{1} {", "  stepOne();", "}"].join(
+			"\n",
+		);
+		const ctor = analyzeFunctions(src, ".cpp").find((f) => f.name === "Widget::Widget");
+		expect(ctor?.lineCount).toBe(64);
+	});
+
+	// A function-try-block puts `try` between the last initializer and the body,
+	// so the body brace is one token further along than the usual case.
+	it("spans the body of a function-try-block constructor", () => {
+		const src = [
+			"Widget::Widget()",
+			"    : value_{0},",
+			"      other_{1}",
+			"try {",
+			"  stepOne();",
+			"  stepTwo();",
+			"}",
+			"catch (...) {",
+			"}",
+		].join("\n");
+		const ctor = analyzeFunctions(src, ".cpp").find((f) => f.name === "Widget::Widget");
+		expect(ctor?.lineCount).toBe(7);
+	});
+});
