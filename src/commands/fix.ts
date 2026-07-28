@@ -51,6 +51,9 @@ const createEngineContext = (
 	rootDirectory,
 	languages: projectInfo.languages,
 	frameworks: projectInfo.frameworks,
+	// Fixers rewrite files, so the exclude list has to reach them: without it a
+	// whole-project tool such as dotnet format would reformat excluded code.
+	excludePatterns: [...config.exclude, ...readAislopIgnorePatterns(rootDirectory)],
 	installedTools: options.safe
 		? { ...projectInfo.installedTools, rubocop: false, "php-cs-fixer": false }
 		: projectInfo.installedTools,
@@ -194,7 +197,7 @@ const runFixBody = async (
 			rootDirectory: resolvedDir,
 			languages: projectInfo.languages,
 			frameworks: projectInfo.frameworks,
-			excludePatterns: [...config.exclude, ...readAislopIgnorePatterns(resolvedDir)],
+			excludePatterns: context.excludePatterns,
 			installedTools: context.installedTools,
 			config: engineConfig,
 		},
