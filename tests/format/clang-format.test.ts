@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_CONFIG } from "../../src/config/defaults.js";
 import {
 	chunkFilePaths,
@@ -166,9 +166,22 @@ const violationReport = (files: string[]): string =>
 		.join("\n");
 
 describe("runClangFormat - pooled chunk execution", () => {
+	// The pooled tests mock runSubprocess entirely, so the 450-file source
+	// tree is read-only and can be written once per describe. Rewriting it
+	// per test blew the 10s hook timeout on loaded Windows CI runners.
+	let pooledSourceDir: string;
+
+	beforeAll(() => {
+		pooledSourceDir = fs.mkdtempSync(path.join(os.tmpdir(), "aislop-clang-format-pool-"));
+		writeSources(pooledSourceDir);
+	}, 120_000);
+
+	afterAll(() => {
+		fs.rmSync(pooledSourceDir, { recursive: true, force: true });
+	});
+
 	beforeEach(() => {
 		runSubprocess.mockReset();
-		writeSources(tmpDir);
 	});
 
 	it("caps concurrent clang-format invocations at the pool width", async () => {
@@ -182,7 +195,7 @@ describe("runClangFormat - pooled chunk execution", () => {
 			return { stdout: "", stderr: "", exitCode: 0 };
 		});
 
-		await runClangFormat(makeContext(tmpDir));
+		await runClangFormat(makeContext(pooledSourceDir));
 
 		expect(runSubprocess).toHaveBeenCalledTimes(CHUNK_COUNT);
 		expect(peakInFlight).toBe(Math.min(POOL_WIDTH, CHUNK_COUNT));
@@ -198,7 +211,7 @@ describe("runClangFormat - pooled chunk execution", () => {
 				await sleep(delay);
 				return { stdout: "", stderr: violationReport(files), exitCode: 1 };
 			});
-			return runClangFormat(makeContext(tmpDir));
+			return runClangFormat(makeContext(pooledSourceDir));
 		};
 
 		const firstChunkLast = await scanWithDelays((callIndex) => (CHUNK_COUNT - callIndex) * 15);
@@ -216,9 +229,19 @@ describe("runClangFormat - pooled chunk execution", () => {
 });
 
 describe("fixClangFormat - pooled chunk execution", () => {
+	let pooledSourceDir: string;
+
+	beforeAll(() => {
+		pooledSourceDir = fs.mkdtempSync(path.join(os.tmpdir(), "aislop-clang-format-fixpool-"));
+		writeSources(pooledSourceDir);
+	}, 120_000);
+
+	afterAll(() => {
+		fs.rmSync(pooledSourceDir, { recursive: true, force: true });
+	});
+
 	beforeEach(() => {
 		runSubprocess.mockReset();
-		writeSources(tmpDir);
 	});
 
 	it("rethrows the lowest-index chunk failure after every in-flight chunk has finished", async () => {
@@ -235,7 +258,7 @@ describe("fixClangFormat - pooled chunk execution", () => {
 			return { stdout: "", stderr: `chunk ${index} exploded`, exitCode: 1 };
 		});
 
-		await expect(fixClangFormat(tmpDir)).rejects.toThrow("chunk 1 exploded");
+		await expect(fixClangFormat(pooledSourceDir)).rejects.toThrow("chunk 1 exploded");
 
 		expect(runSubprocess).toHaveBeenCalledTimes(CHUNK_COUNT);
 		expect(completedCalls.sort()).toEqual([0, 1, 2]);
