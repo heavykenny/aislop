@@ -205,7 +205,13 @@ describe("runSubprocess output capture", () => {
 			expect(result.stdout.length).toBe(1048576);
 
 			const markerTimestamp = Number(readFileSync(markerFile, "utf-8"));
-			expect(markerTimestamp).toBeLessThan(spinEnd - 1500);
+			// A pipe-blocked child cannot write the marker until the parent
+			// drains after the spin, so any margin before spinEnd proves the
+			// child finished while the parent was still starved. Keep the
+			// margin small: the old 1500ms version budgeted only 500ms for
+			// child spawn plus write, which loaded Windows CI runners
+			// repeatedly overshot by tens of milliseconds.
+			expect(markerTimestamp).toBeLessThan(spinEnd - 250);
 		} finally {
 			rmSync(markerFile, { force: true });
 		}
