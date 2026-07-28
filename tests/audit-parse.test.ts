@@ -1,3 +1,4 @@
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { parseBunAudit, parseDotnetAudit, parseJsAudit } from "../src/engines/security/audit.js";
 
@@ -95,12 +96,17 @@ describe("parseJsAudit — modern vulnerabilities", () => {
 	});
 });
 
-describe("parseDotnetAudit — dotnet list package --vulnerable", () => {
-	const report = (frameworks: unknown): string =>
+describe("parseDotnetAudit - dotnet list package --vulnerable", () => {
+	// Built from the platform's own separators so the fixture is a real absolute
+	// path on Windows as well as POSIX.
+	const rootDirectory = path.resolve("/repo");
+	const projectPath = (...segments: string[]): string => path.join(rootDirectory, ...segments);
+
+	const report = (frameworks: unknown, projectFile = projectPath("src", "App", "App.csproj")) =>
 		JSON.stringify({
 			version: 1,
 			parameters: "--vulnerable --include-transitive",
-			projects: [{ path: "/repo/src/App/App.csproj", frameworks }],
+			projects: [{ path: projectFile, frameworks }],
 		});
 
 	it("reports a vulnerable top-level package with severity and advisory", () => {
@@ -119,16 +125,68 @@ describe("parseDotnetAudit — dotnet list package --vulnerable", () => {
 					],
 				},
 			]),
+			rootDirectory,
 		);
 
 		expect(diagnostics).toHaveLength(1);
 		expect(diagnostics[0].rule).toBe("security/vulnerable-dependency");
 		expect(diagnostics[0].severity).toBe("error");
-		expect(diagnostics[0].filePath).toBe("App.csproj");
+		expect(diagnostics[0].filePath).toBe("src/App/App.csproj");
 		expect(diagnostics[0].message).toContain("Newtonsoft.Json@11.0.1");
 		expect(diagnostics[0].message).toContain("high");
 		expect(diagnostics[0].help).toContain("GHSA-xxxx");
 		expect(diagnostics[0].detail).toBe("dotnet");
+	});
+
+	it("keeps projects that share a basename apart", () => {
+		const vulnerablePackage = {
+			id: "Newtonsoft.Json",
+			resolvedVersion: "11.0.1",
+			vulnerabilities: [{ severity: "High", advisoryurl: "https://x" }],
+		};
+		const frameworks = [{ framework: "net8.0", topLevelPackages: [vulnerablePackage] }];
+		const diagnostics = parseDotnetAudit(
+			JSON.stringify({
+				version: 1,
+				projects: [
+					{ path: projectPath("src", "App", "App.csproj"), frameworks },
+					{ path: projectPath("tools", "App", "App.csproj"), frameworks },
+				],
+			}),
+			rootDirectory,
+		);
+
+		expect(diagnostics.map((diagnostic) => diagnostic.filePath)).toEqual([
+			"src/App/App.csproj",
+			"tools/App/App.csproj",
+		]);
+	});
+
+	it("falls back to a wildcard project name when the report omits the path", () => {
+		const diagnostics = parseDotnetAudit(
+			JSON.stringify({
+				version: 1,
+				projects: [
+					{
+						frameworks: [
+							{
+								framework: "net8.0",
+								topLevelPackages: [
+									{
+										id: "Newtonsoft.Json",
+										resolvedVersion: "11.0.1",
+										vulnerabilities: [{ severity: "High", advisoryurl: "" }],
+									},
+								],
+							},
+						],
+					},
+				],
+			}),
+			rootDirectory,
+		);
+
+		expect(diagnostics[0].filePath).toBe("*.csproj");
 	});
 
 	it("marks transitive findings and downgrades moderate to a warning", () => {
@@ -145,6 +203,7 @@ describe("parseDotnetAudit — dotnet list package --vulnerable", () => {
 					],
 				},
 			]),
+			rootDirectory,
 		);
 
 		expect(diagnostics).toHaveLength(1);
@@ -153,25 +212,64 @@ describe("parseDotnetAudit — dotnet list package --vulnerable", () => {
 	});
 
 	it("dedupes a package that appears under multiple target frameworks", () => {
-		const vulnerablePkg = {
+		const vulnerablePackage = {
 			id: "Newtonsoft.Json",
 			resolvedVersion: "11.0.1",
 			vulnerabilities: [{ severity: "Critical", advisoryurl: "https://x" }],
 		};
 		const diagnostics = parseDotnetAudit(
 			report([
-				{ framework: "net8.0", topLevelPackages: [vulnerablePkg] },
-				{ framework: "net10.0", topLevelPackages: [vulnerablePkg] },
+				{ framework: "net8.0", topLevelPackages: [vulnerablePackage] },
+				{ framework: "net10.0", topLevelPackages: [vulnerablePackage] },
 			]),
+			rootDirectory,
 		);
 
 		expect(diagnostics).toHaveLength(1);
+		expect(diagnostics[0].message).not.toContain("advisories");
+	});
+
+	it("keeps the worst severity across target frameworks, not the first one listed", () => {
+		const diagnostics = parseDotnetAudit(
+			report([
+				{
+					framework: "net8.0",
+					topLevelPackages: [
+						{
+							id: "System.Text.Json",
+							resolvedVersion: "6.0.0",
+							vulnerabilities: [{ severity: "Moderate", advisoryurl: "https://advisory/moderate" }],
+						},
+					],
+				},
+				{
+					framework: "net10.0",
+					topLevelPackages: [
+						{
+							id: "System.Text.Json",
+							resolvedVersion: "8.0.1",
+							vulnerabilities: [{ severity: "Critical", advisoryurl: "https://advisory/critical" }],
+						},
+					],
+				},
+			]),
+			rootDirectory,
+		);
+
+		expect(diagnostics).toHaveLength(1);
+		expect(diagnostics[0].severity).toBe("error");
+		expect(diagnostics[0].message).toContain("System.Text.Json@8.0.1");
+		expect(diagnostics[0].message).toContain("critical");
+		expect(diagnostics[0].message).toContain("(2 advisories)");
+		expect(diagnostics[0].help).toContain("https://advisory/critical");
 	});
 
 	it("returns nothing for a clean report or empty output", () => {
-		expect(parseDotnetAudit(report([{ framework: "net8.0", topLevelPackages: [] }]))).toEqual([]);
-		expect(parseDotnetAudit("")).toEqual([]);
-		expect(parseDotnetAudit("not json")).toEqual([]);
+		expect(
+			parseDotnetAudit(report([{ framework: "net8.0", topLevelPackages: [] }]), rootDirectory),
+		).toEqual([]);
+		expect(parseDotnetAudit("", rootDirectory)).toEqual([]);
+		expect(parseDotnetAudit("not json", rootDirectory)).toEqual([]);
 	});
 });
 
