@@ -9,7 +9,11 @@ const AUTHORITATIVE_RULES: Record<string, ReadonlySet<string>> = {
 	"ai-slop/csharp-async-void": new Set(["dotnet/AsyncFixer03"]),
 	// AsyncFixer02: blocking/synchronous calls inside an async method.
 	// MA0042/MA0045: Meziantou rules for blocking calls in (or convertible to) an async method.
-	"ai-slop/csharp-sync-over-async": new Set(["dotnet/AsyncFixer02", "dotnet/MA0042", "dotnet/MA0045"]),
+	"ai-slop/csharp-sync-over-async": new Set([
+		"dotnet/AsyncFixer02",
+		"dotnet/MA0042",
+		"dotnet/MA0045",
+	]),
 };
 
 // When the dotnet lint engine reports an accurate async diagnostic at a given
@@ -36,7 +40,9 @@ export const dedupeCSharpAsync = (results: EngineResult[]): EngineResult[] => {
 			diagnostics: result.diagnostics.filter((diagnostic) => {
 				const authoritativeRules = AUTHORITATIVE_RULES[diagnostic.rule];
 				if (!authoritativeRules) return true;
-				const rulesAtLocation = dotnetRulesByLocation.get(`${diagnostic.filePath}:${diagnostic.line}`);
+				const rulesAtLocation = dotnetRulesByLocation.get(
+					`${diagnostic.filePath}:${diagnostic.line}`,
+				);
 				if (!rulesAtLocation) return true;
 				for (const rule of rulesAtLocation) {
 					if (authoritativeRules.has(rule)) return false;

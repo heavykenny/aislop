@@ -2,7 +2,7 @@
 // in source-masker.ts use these to skip literal bodies without letting braces,
 // comment markers or keywords inside them leak into structural analysis.
 
-export interface LiteralSpan {
+interface LiteralSpan {
 	// First index of the literal body, with the opening delimiter excluded.
 	bodyStart: number;
 	// Index just past the last body character.
