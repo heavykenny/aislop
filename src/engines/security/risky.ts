@@ -166,7 +166,7 @@ const RISKY_PATTERNS: RiskyPattern[] = [
 		pattern: /(?<![\w.>])\b(?:system|popen)\s*\(/g,
 		extensions: CPP_EXTS,
 		name: "shell-injection",
-		message: "Use of system()/popen() spawns a shell — a command-injection risk",
+		message: "Use of system()/popen() spawns a shell - a command-injection risk",
 		help: "Use posix_spawn/exec-family with an explicit argument vector, or a vetted process library",
 	},
 	{
@@ -174,7 +174,7 @@ const RISKY_PATTERNS: RiskyPattern[] = [
 		pattern: /(?<![\w.>])\b(?:gets|strcpy|strcat|sprintf)\s*\(/g,
 		extensions: CPP_EXTS,
 		name: "unsafe-c-call",
-		message: "Memory-unsafe C string function — buffer overflow risk",
+		message: "Memory-unsafe C string function - buffer overflow risk",
 		help: "Use bounded variants (snprintf, strncpy/strncat, fgets) or std::string / std::format",
 	},
 ];
