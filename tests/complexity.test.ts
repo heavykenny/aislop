@@ -780,7 +780,7 @@ describe("analyzeFunctions — brace masking regressions", () => {
 	});
 });
 
-describe("analyzeFunctions — C# constructor & multi-line signature detection", () => {
+describe("analyzeFunctions: C# constructor & multi-line signature detection", () => {
 	const names = (src: string, ext: string) => analyzeFunctions(src, ext).map((f) => f.name);
 
 	it("detects a C# constructor (no return type)", () => {

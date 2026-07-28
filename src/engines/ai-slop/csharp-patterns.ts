@@ -57,7 +57,7 @@ const inlineSummaryText = (line: string): string | null => {
 };
 
 // Redundant XML-doc lives on `///` lines, which scanLineMatches would skip as
-// comments — so it gets its own pass.
+// comments, so it gets its own pass.
 const flagRedundantDoc = (lines: string[], relPath: string, out: Diagnostic[]): void => {
 	for (let i = 0; i < lines.length; i++) {
 		const summary = inlineSummaryText(lines[i]);
@@ -70,7 +70,7 @@ const flagRedundantDoc = (lines: string[], relPath: string, out: Diagnostic[]): 
 			"ai-slop/csharp-redundant-doc-comment",
 			i,
 			"XML-doc summary restates the member name without adding information.",
-			'Delete the doc comment, or replace boilerplate ("Gets or sets the X") with the *why* — constraints, units, invariants a reader can\'t infer from the signature.',
+			'Delete the doc comment, or replace boilerplate ("Gets or sets the X") with the *why*: constraints, units, invariants a reader can\'t infer from the signature.',
 		);
 	}
 };

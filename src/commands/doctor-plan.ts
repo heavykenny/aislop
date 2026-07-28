@@ -105,7 +105,7 @@ const spec = (
 
 const FORMAT_SPECS: LangToolSpec[] = [
 	spec("python", "ruff", "ruff", "Install: pipx install ruff"),
-	spec("go", "gofmt", "gofmt", "Install: via go toolchain — https://go.dev/dl/"),
+	spec("go", "gofmt", "gofmt", "Install: via go toolchain: https://go.dev/dl/"),
 	spec("rust", "cargo", "cargo fmt", "Install: rustup component add rustfmt"),
 	spec("ruby", "rubocop", "rubocop", "Install: gem install rubocop"),
 	spec(
@@ -341,7 +341,7 @@ export const languageLabelFor = (info: ProjectInfo): string => {
 export const buildRows = (ctx: PlanContext): DoctorEngineRow[] => {
 	const rows: DoctorEngineRow[] = [];
 	for (const engine of ENGINE_ORDER) {
-		// Respect the user's engine config — if they disabled it, skip entirely
+		// Respect the user's engine config - if they disabled it, skip entirely
 		// except for architecture, which we always show (so users know it's available).
 		if (engine !== "architecture" && ctx.config.engines[engine] === false) continue;
 

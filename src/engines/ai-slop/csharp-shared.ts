@@ -8,7 +8,7 @@ export const LINE_COMMENT_RE = /^\s*\/\//;
 // breaks the match), so log-then-rethrow and wrap-and-rethrow are not flagged.
 export const CATCH_ONLY_THROW_RE = /\bcatch\b\s*(?:\([^)]*\))?\s*\{\s*throw\s*;\s*\}/;
 
-// Shared shape for every C# finding — keeps each rule to its detection logic.
+// Shared shape for every C# finding - keeps each rule to its detection logic.
 export const pushFinding = (
 	out: Diagnostic[],
 	relPath: string,

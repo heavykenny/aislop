@@ -1,8 +1,8 @@
-# .aislop/config.yml — C# / .NET project
+# .aislop/config.yml: C# / .NET project
 #
 # C# support has two layers:
 #   1. Build-free AI-slop rules (ai-slop/csharp-*) and the language-agnostic
-#      comment + swallowed-exception checks — these always run, no SDK needed.
+#      comment + swallowed-exception checks (these always run, no SDK needed).
 #   2. An optional hybrid lint pass (dotnet/* and jb/* rules) combining jb inspectcode
 #      and roslynator. Each tool runs only when installed and skips silently otherwise,
 #      so this config is safe on machines without the toolchain. Both are independently

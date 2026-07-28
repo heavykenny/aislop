@@ -133,7 +133,7 @@ const findSolutionOrProjects = (
 	return selectRestoredProjects(findCsprojFiles(root, excludePatterns), root);
 };
 
-// Targets for the Roslynator lint pass. Prefer a classic .sln — roslynator loads
+// Targets for the Roslynator lint pass. Prefer a classic .sln: roslynator loads
 // it natively in a single pass with full project-reference context. Otherwise fall
 // back to the restored .csproj files in the tree: a lone .slnx is not a reliable
 // roslynator target (MSBuild's solution parser fails to load .slnx on some SDKs,
