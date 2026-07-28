@@ -1,5 +1,10 @@
 import path from "node:path";
 import micromatch from "micromatch";
+import {
+	MAX_GLOB_PATTERN_LENGTH,
+	normalizeExcludePatterns,
+	supportedGlobPatterns,
+} from "./exclude.js";
 import { isGeneratedArtifactFile } from "./generated-files.js";
 import { getIgnoredPaths } from "./git-ignore.js";
 import { enumerateProjectFiles, enumerateProjectFilesFromDisk } from "./project-file-list.js";
@@ -19,37 +24,17 @@ const GENERATED_DECLARATION_DIRECTORIES = new Set(["generated", "__generated__",
 const DECLARATION_EXCLUDED_DIRECTORIES = EXCLUDED_SOURCE_DIRECTORIES.filter(
 	(directory) => !GENERATED_DECLARATION_DIRECTORIES.has(directory),
 );
-const MAX_GLOB_PATTERN_LENGTH = 256;
 const DEPENDENCY_AUDIT_INPUT_FILE_RE =
 	/(?:^|\/)(?:package\.json|package-lock\.json|pnpm-lock\.yaml|yarn\.lock|bun\.lockb?|requirements(?:\.[\w-]+)?\.txt|pyproject\.toml|Pipfile|Pipfile\.lock|poetry\.lock|go\.mod|go\.sum|Cargo\.toml|Cargo\.lock|[\w.-]+\.csproj|packages\.lock\.json|Directory\.Packages\.props)$/i;
 
 export const isDependencyAuditInputFile = (filePath: string): boolean =>
 	DEPENDENCY_AUDIT_INPUT_FILE_RE.test(filePath);
 
-const supportedGlobPatterns = (patterns: string[]): string[] =>
-	patterns.filter((pattern) => pattern.length <= MAX_GLOB_PATTERN_LENGTH);
-
 export const listProjectFiles = (rootDirectory: string): string[] =>
 	enumerateProjectFiles(rootDirectory, WALK_PRUNE_DIRECTORIES);
 
 export const listProjectFilesFromDisk = (rootDirectory: string): string[] =>
 	enumerateProjectFilesFromDisk(rootDirectory, WALK_PRUNE_DIRECTORIES);
-
-const normalizeExcludePatterns = (patterns: string[]): string[] =>
-	patterns.flatMap((pattern) => {
-		const trimmed = pattern.trim();
-		const withoutProjectPrefix = trimmed.startsWith("./") ? trimmed.slice(2) : trimmed;
-		let end = withoutProjectPrefix.length;
-		while (end > 0 && withoutProjectPrefix[end - 1] === "/") end -= 1;
-		const normalized = withoutProjectPrefix.slice(0, end);
-		if (normalized.length === 0) return [];
-		if (normalized.length > MAX_GLOB_PATTERN_LENGTH) return [];
-		if (micromatch.scan(normalized).isGlob) return [normalized];
-		if (normalized.startsWith(".") && !normalized.includes("/")) {
-			return supportedGlobPatterns([`**/${normalized}`, `**/${normalized}/**`]);
-		}
-		return supportedGlobPatterns([normalized, `${normalized}/**`]);
-	});
 
 const normalizeIncludePatterns = (patterns: string[]): string[] =>
 	patterns.flatMap((pattern) => {

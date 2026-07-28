@@ -1,5 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
+import micromatch from "micromatch";
+import { normalizeExcludePatterns } from "../../utils/exclude.js";
 import { toPosix } from "../../utils/paths.js";
 import { runSubprocess } from "../../utils/subprocess.js";
 import { findDotnetTargets } from "../dotnet-targets.js";
@@ -68,15 +70,69 @@ export const parseDotnetFormatReport = (json: string, rootDirectory: string): Di
 
 const reportPathFor = (rootDirectory: string): string => path.join(rootDirectory, REPORT_FILENAME);
 
+// Syntax micromatch accepts that Microsoft.Extensions.FileSystemGlobbing does
+// not: character classes, extglobs, negation, and escapes have no equivalent,
+// and a leading "-" would be parsed as another option rather than a path.
+// Brace lists are expanded before this test rather than rejected by it.
+const UNSUPPORTED_GLOB_SYNTAX = /[?[\]{}!|()\\]/;
+
+const isDotnetFormatPath = (pattern: string): boolean =>
+	!pattern.startsWith("-") && !UNSUPPORTED_GLOB_SYNTAX.test(pattern);
+
+export interface DotnetFormatExcludeScope {
+	/** Patterns to hand to `dotnet format --exclude`. */
+	excludeArguments: string[];
+	/** Patterns dotnet format has no way to express. */
+	unsupportedPatterns: string[];
+}
+
+// `dotnet format --exclude` takes relative file or folder paths matched with
+// Microsoft.Extensions.FileSystemGlobbing against the process working directory.
+// We always run it in the scan root, so aislop's root-relative exclude globs
+// line up verbatim, and the shared normalization keeps a bare directory entry
+// meaning the same thing here as it does to the file-scanning engines. The
+// matcher understands literal segments, `*` and `**` and nothing else, so
+// anything richer is reported back for the caller to act on: a fixer that
+// silently dropped an unmatchable pattern would rewrite excluded code.
+export const buildDotnetFormatExcludeScope = (
+	excludePatterns: string[] | undefined,
+): DotnetFormatExcludeScope => {
+	const scope: DotnetFormatExcludeScope = { excludeArguments: [], unsupportedPatterns: [] };
+	for (const pattern of normalizeExcludePatterns(excludePatterns ?? [])) {
+		const expanded = micromatch.braces(pattern, { expand: true });
+		if (expanded.every(isDotnetFormatPath)) {
+			scope.excludeArguments.push(...expanded);
+		} else {
+			scope.unsupportedPatterns.push(pattern);
+		}
+	}
+	return scope;
+};
+
+const excludeOption = (scope: DotnetFormatExcludeScope): string[] =>
+	scope.excludeArguments.length > 0 ? ["--exclude", ...scope.excludeArguments] : [];
+
 // Run `dotnet format whitespace --verify-no-changes` for one target, returning the
 // per-file diagnostics. Failures are swallowed to [] so one unloadable project
-// can't sink the whole format pass (mirrors the roslynator lint path).
+// can't sink the whole format pass (mirrors the roslynator lint path). Scoping
+// the check to the same excludes the fixer honors keeps a step's before/after
+// counts consistent; a pattern dotnet format cannot express is left to
+// filterExcludedDiagnostics, which reads nothing but the reported paths.
 const checkTarget = async (context: EngineContext, target: string): Promise<Diagnostic[]> => {
 	const reportPath = reportPathFor(context.rootDirectory);
+	const scope = buildDotnetFormatExcludeScope(context.excludePatterns);
 	try {
 		await runSubprocess(
 			"dotnet",
-			["format", "whitespace", target, "--verify-no-changes", "--report", reportPath],
+			[
+				"format",
+				"whitespace",
+				target,
+				...excludeOption(scope),
+				"--verify-no-changes",
+				"--report",
+				reportPath,
+			],
 			{ cwd: context.rootDirectory, timeout: 180000 },
 		);
 		let json: string;
@@ -111,13 +167,29 @@ export const runDotnetFormat = async (context: EngineContext): Promise<Diagnosti
 	return diagnostics;
 };
 
-export const fixDotnetFormat = async (rootDirectory: string): Promise<void> => {
-	const { targets } = findDotnetTargets({ rootDirectory });
+// Unlike the check pass, this one rewrites files, so it takes the exclude list
+// rather than the bare root: excluded projects are dropped from the targets and
+// the surviving solution or project pass is scoped with `--exclude`. A pattern
+// dotnet format cannot express aborts the run - `aislop fix` must never reformat
+// vendored or explicitly excluded code. `runFormattingStep` screens for that
+// case first so the user sees the reason instead of a failed step.
+export const fixDotnetFormat = async (
+	context: Pick<EngineContext, "rootDirectory" | "excludePatterns">,
+): Promise<void> => {
+	const { rootDirectory } = context;
+	const scope = buildDotnetFormatExcludeScope(context.excludePatterns);
+	if (scope.unsupportedPatterns.length > 0) {
+		throw new Error(
+			`dotnet format cannot be scoped to the configured exclude patterns: ${scope.unsupportedPatterns.join(", ")}`,
+		);
+	}
+	const { targets } = findDotnetTargets(context);
 	for (const target of targets) {
-		const result = await runSubprocess("dotnet", ["format", "whitespace", target], {
-			cwd: rootDirectory,
-			timeout: 180000,
-		});
+		const result = await runSubprocess(
+			"dotnet",
+			["format", "whitespace", target, ...excludeOption(scope)],
+			{ cwd: rootDirectory, timeout: 180000 },
+		);
 		if (result.exitCode !== 0) {
 			throw new Error(
 				result.stderr || result.stdout || `dotnet format exited with code ${result.exitCode}`,

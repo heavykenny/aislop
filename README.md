@@ -6,7 +6,7 @@
 
 The patterns Claude Code, Cursor, Codex, and OpenCode leave behind: narrative comments above self-explanatory code, swallowed exceptions, hidden fallbacks, `as any` casts, hallucinated imports, duplicated helpers, dead code, todo stubs, oversized functions. Tests pass. Lint passes. The code rots anyway.
 
-aislop catches them. 50+ rules across 10 language targets (TypeScript, JavaScript, Expo / React Native, Python, Go, Rust, Ruby, PHP, C#, C/C++). Scores every change 0–100. Sub-second. Deterministic — no LLM in the runtime path, same code in, same score out. MIT-licensed, free CLI.
+aislop catches them. 50+ rules across 10 language targets (TypeScript, JavaScript, Expo / React Native, Python, Go, Rust, Ruby, PHP, C#, C/C++). Scores every change 0–100. Sub-second. Deterministic: no LLM in the runtime path, same code in, same score out. MIT-licensed, free CLI.
 
 ## Quick start
 

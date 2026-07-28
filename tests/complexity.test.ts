@@ -835,7 +835,7 @@ describe("analyzeFunctions — brace masking regressions", () => {
 
 // C++ false-positive regression: a function-call expression on a `return` statement
 // must NOT be mistaken for a function definition.
-describe("checkComplexity — C++ function-call false positive regression", () => {
+describe("checkComplexity: C++ function-call false positive regression", () => {
 	// Mirrors a real Win32 source layout:
 	//   namespace { ... short wrapper ... }
 	//   extern "C" { ... long real code ... }
@@ -914,7 +914,7 @@ describe("checkComplexity — C++ function-call false positive regression", () =
 // Header coverage: inline / class-member function bodies in C++ headers must be
 // nesting-checked, while declaration prototypes in the same headers must not be
 // mistaken for definitions (they carry no body).
-describe("checkComplexity — C++ header nesting coverage", () => {
+describe("checkComplexity: C++ header nesting coverage", () => {
 	const DEEP_INLINE_BODY = [
 		"    if (a) {",
 		"        if (b) {",
@@ -973,7 +973,7 @@ describe("checkComplexity — C++ header nesting coverage", () => {
 // C#/C++ function detection: constructors, multi-modifier/complex-return methods,
 // out-of-line (scoped) definitions, and multi-line signatures - plus adversarial
 // cases (calls, control flow, prototypes) that must NOT be counted as functions.
-describe("analyzeFunctions — C#/C++ constructor & multi-line signature detection", () => {
+describe("analyzeFunctions: C#/C++ constructor & multi-line signature detection", () => {
 	const names = (src: string, ext: string) => analyzeFunctions(src, ext).map((f) => f.name);
 
 	it("detects a C# constructor (no return type)", () => {

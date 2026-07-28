@@ -10,7 +10,8 @@
   },
   "files": [
     "dist",
-    "scripts"
+    "scripts",
+    "tools/jb"
   ],
   "exports": {
     ".": {

@@ -123,7 +123,7 @@ const RISKY_PATTERNS: RiskyPattern[] = [
 		pattern: new RegExp(`\\b${CS_SQL_SINK}\\b\\s*[(=]\\s*${CS_INTERP}`, "g"),
 		extensions: [".cs"],
 		name: "sql-injection",
-		message: "Possible SQL injection — interpolated string in query",
+		message: "Possible SQL injection: interpolated string in query",
 		help: "Use parameterized queries (SqlParameter) or EF Core FromSqlInterpolated/ExecuteSqlInterpolated",
 	},
 	{
@@ -131,7 +131,7 @@ const RISKY_PATTERNS: RiskyPattern[] = [
 		pattern: new RegExp(`\\b${CS_SQL_SINK}\\b\\s*[(=]\\s*${CS_CONCAT}`, "g"),
 		extensions: [".cs"],
 		name: "sql-injection",
-		message: "Possible SQL injection — string concatenation in query",
+		message: "Possible SQL injection: string concatenation in query",
 		help: "Use parameterized queries (SqlParameter) instead of string concatenation",
 	},
 	{
@@ -139,7 +139,7 @@ const RISKY_PATTERNS: RiskyPattern[] = [
 		pattern: new RegExp(`${CS_CMD_SINK}\\s*${CS_INTERP}`, "g"),
 		extensions: [".cs"],
 		name: "shell-injection",
-		message: "Possible command injection — interpolated string in process invocation",
+		message: "Possible command injection: interpolated string in process invocation",
 		help: "Pass arguments as a ProcessStartInfo.ArgumentList collection, not an interpolated command string",
 	},
 	{
@@ -147,7 +147,7 @@ const RISKY_PATTERNS: RiskyPattern[] = [
 		pattern: new RegExp(`${CS_CMD_SINK}\\s*${CS_CONCAT}`, "g"),
 		extensions: [".cs"],
 		name: "shell-injection",
-		message: "Possible command injection — string concatenation in process invocation",
+		message: "Possible command injection: string concatenation in process invocation",
 		help: "Pass arguments as a ProcessStartInfo.ArgumentList collection, not a concatenated command string",
 	},
 	{

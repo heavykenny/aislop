@@ -3,23 +3,37 @@ import micromatch from "micromatch";
 import type { Diagnostic } from "../engines/types.js";
 import { toPosix } from "./paths.js";
 
-// Expand user-facing exclude entries into micromatch globs. A bare directory
-// ("external/VendorLib") becomes "external/VendorLib/**"; a bare extension
-// (".cs") becomes "**/*.cs"; anything already glob- or path-shaped is kept verbatim.
+// micromatch compiles every pattern it is handed, so an unbounded user entry is
+// wasted work; oversized entries are dropped instead of expanded.
+export const MAX_GLOB_PATTERN_LENGTH = 256;
+
+export const supportedGlobPatterns = (patterns: string[]): string[] =>
+	patterns.filter((pattern) => pattern.length <= MAX_GLOB_PATTERN_LENGTH);
+
+// Expand user-facing exclude entries into micromatch globs. A bare path
+// ("external/VendorLib", ".claude") matches both the entry itself and everything
+// under it; anything already glob-shaped ("**/*.generated.cs") is kept verbatim.
+// A leading "./" and trailing slashes are cosmetic and stripped first.
 // This is the single normalization the file-scanning path and the diagnostic
 // post-filter share, so both honor the exclude list identically.
-export const normalizeExcludePatterns = (patterns: string[]): string[] => {
-	return patterns.flatMap((pattern) => {
-		const p = pattern.trim();
-		if (p.startsWith(".")) {
-			return [`**/*${p}`];
+export const normalizeExcludePatterns = (patterns: string[]): string[] =>
+	patterns.flatMap((pattern) => {
+		const trimmed = pattern.trim();
+		const withoutProjectPrefix = trimmed.startsWith("./") ? trimmed.slice(2) : trimmed;
+		let end = withoutProjectPrefix.length;
+		while (end > 0 && withoutProjectPrefix[end - 1] === "/") end -= 1;
+		const normalized = withoutProjectPrefix.slice(0, end);
+		if (normalized.length === 0) return [];
+		if (normalized.length > MAX_GLOB_PATTERN_LENGTH) return [];
+		if (micromatch.scan(normalized).isGlob) return [normalized];
+		// A bare dot-prefixed name (".claude") is a dotfile or dot-directory
+		// anywhere in the tree, not an extension. Excluding by extension needs an
+		// unambiguous glob ("**/*.cs"), which the branch above passes through.
+		if (normalized.startsWith(".") && !normalized.includes("/")) {
+			return supportedGlobPatterns([`**/${normalized}`, `**/${normalized}/**`]);
 		}
-		if (!p.includes("*") && !p.includes(".")) {
-			return [`${p}/**`];
-		}
-		return [p];
+		return supportedGlobPatterns([normalized, `${normalized}/**`]);
 	});
-};
 
 export const isPathExcluded = (relativePath: string, normalizedPatterns: string[]): boolean => {
 	if (normalizedPatterns.length === 0) return false;

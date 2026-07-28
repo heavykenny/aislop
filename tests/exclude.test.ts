@@ -20,16 +20,33 @@ const diagnostic = (filePath: string): Diagnostic => ({
 });
 
 describe("normalizeExcludePatterns", () => {
-	it("expands a bare directory into a recursive glob", () => {
-		expect(normalizeExcludePatterns(["external/VendorLib"])).toEqual(["external/VendorLib/**"]);
+	it("expands a bare directory into the path and its descendants", () => {
+		expect(normalizeExcludePatterns(["external/VendorLib"])).toEqual([
+			"external/VendorLib",
+			"external/VendorLib/**",
+		]);
 	});
 
-	it("expands a bare extension into an anywhere glob", () => {
-		expect(normalizeExcludePatterns([".cs"])).toEqual(["**/*.cs"]);
+	it("expands a bare dot-prefixed entry into the path and its descendants", () => {
+		expect(normalizeExcludePatterns([".claude"])).toEqual(["**/.claude", "**/.claude/**"]);
+	});
+
+	it("ignores a trailing slash and a leading project prefix", () => {
+		expect(normalizeExcludePatterns([".claude/"])).toEqual(["**/.claude", "**/.claude/**"]);
+		expect(normalizeExcludePatterns(["./external/VendorLib/"])).toEqual([
+			"external/VendorLib",
+			"external/VendorLib/**",
+		]);
 	});
 
 	it("keeps an explicit glob unchanged", () => {
 		expect(normalizeExcludePatterns(["external/VendorLib/**"])).toEqual(["external/VendorLib/**"]);
+		expect(normalizeExcludePatterns(["**/*.generated.cs"])).toEqual(["**/*.generated.cs"]);
+	});
+
+	it("drops empty and oversized entries", () => {
+		expect(normalizeExcludePatterns(["  ", "/"])).toEqual([]);
+		expect(normalizeExcludePatterns(["a".repeat(257)])).toEqual([]);
 	});
 });
 
@@ -52,6 +69,25 @@ describe("isPathExcluded", () => {
 
 	it("returns false when there are no patterns", () => {
 		expect(isPathExcluded("anything.cs", [])).toBe(false);
+	});
+
+	it("matches nested files under a bare dot-prefixed entry", () => {
+		const bare = normalizeExcludePatterns([".claude"]);
+		expect(isPathExcluded(".claude/spikes/App.cs", bare)).toBe(true);
+		expect(isPathExcluded("nested/.claude/spikes/App.cs", bare)).toBe(true);
+		expect(isPathExcluded("GitWizard/GitWizardReport.cs", bare)).toBe(false);
+	});
+
+	it("matches nested files under a bare directory entry", () => {
+		const bare = normalizeExcludePatterns(["external/VendorLib"]);
+		expect(isPathExcluded("external/VendorLib/VendorLib/JournalBrokerHost.cs", bare)).toBe(true);
+		expect(isPathExcluded("external/VendorLibExtras/Host.cs", bare)).toBe(false);
+	});
+
+	it("matches an extension glob without treating it as a directory", () => {
+		const glob = normalizeExcludePatterns(["**/*.generated.cs"]);
+		expect(isPathExcluded("src/Model.generated.cs", glob)).toBe(true);
+		expect(isPathExcluded("src/Model.cs", glob)).toBe(false);
 	});
 });
 
@@ -84,6 +120,15 @@ describe("filterExcludedDiagnostics", () => {
 			["external/VendorLib/**"],
 		);
 		expect(kept).toHaveLength(0);
+	});
+
+	it("drops diagnostics under a bare dot-prefixed exclude entry", () => {
+		const diagnostics = [
+			diagnostic(".claude/spikes/App.cs"),
+			diagnostic("GitWizard/GitWizardReport.cs"),
+		];
+		const kept = filterExcludedDiagnostics(diagnostics, root, [".claude"]);
+		expect(kept.map((d) => d.filePath)).toEqual(["GitWizard/GitWizardReport.cs"]);
 	});
 
 	it("is a no-op when no exclude patterns are configured", () => {

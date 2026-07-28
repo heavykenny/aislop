@@ -88,4 +88,118 @@ describe("dedupeCSharpAsync", () => {
 		const out = dedupeCSharpAsync(results);
 		expect(out.find((r) => r.engine === "ai-slop")?.diagnostics).toHaveLength(1);
 	});
+
+	it("keeps the async-void finding when the coincidental overlap is an unrelated dotnet rule (IDISP001)", () => {
+		const results: EngineResult[] = [
+			{
+				engine: "ai-slop",
+				diagnostics: [mk("ai-slop", "ai-slop/csharp-async-void", "A.cs", 10)],
+				elapsed: 0,
+				skipped: false,
+			},
+			{
+				engine: "lint",
+				diagnostics: [mk("lint", "dotnet/IDISP001", "A.cs", 10)],
+				elapsed: 0,
+				skipped: false,
+			},
+		];
+		const out = dedupeCSharpAsync(results);
+		expect(out.find((r) => r.engine === "ai-slop")?.diagnostics).toHaveLength(1);
+	});
+
+	it("keeps the async-void finding when the coincidental overlap is an unrelated dotnet rule (CS0219)", () => {
+		const results: EngineResult[] = [
+			{
+				engine: "ai-slop",
+				diagnostics: [mk("ai-slop", "ai-slop/csharp-async-void", "A.cs", 10)],
+				elapsed: 0,
+				skipped: false,
+			},
+			{
+				engine: "lint",
+				diagnostics: [mk("lint", "dotnet/CS0219", "A.cs", 10)],
+				elapsed: 0,
+				skipped: false,
+			},
+		];
+		const out = dedupeCSharpAsync(results);
+		expect(out.find((r) => r.engine === "ai-slop")?.diagnostics).toHaveLength(1);
+	});
+
+	it("keeps the async-void finding when the overlapping dotnet rule is the sync-over-async analyzer, not the async-void one", () => {
+		const results: EngineResult[] = [
+			{
+				engine: "ai-slop",
+				diagnostics: [mk("ai-slop", "ai-slop/csharp-async-void", "A.cs", 10)],
+				elapsed: 0,
+				skipped: false,
+			},
+			{
+				engine: "lint",
+				diagnostics: [mk("lint", "dotnet/MA0042", "A.cs", 10)],
+				elapsed: 0,
+				skipped: false,
+			},
+		];
+		const out = dedupeCSharpAsync(results);
+		expect(out.find((r) => r.engine === "ai-slop")?.diagnostics).toHaveLength(1);
+	});
+
+	it("keeps the sync-over-async finding when the overlapping dotnet rule is the async-void analyzer, not a sync-over-async one", () => {
+		const results: EngineResult[] = [
+			{
+				engine: "ai-slop",
+				diagnostics: [mk("ai-slop", "ai-slop/csharp-sync-over-async", "A.cs", 10)],
+				elapsed: 0,
+				skipped: false,
+			},
+			{
+				engine: "lint",
+				diagnostics: [mk("lint", "dotnet/AsyncFixer03", "A.cs", 10)],
+				elapsed: 0,
+				skipped: false,
+			},
+		];
+		const out = dedupeCSharpAsync(results);
+		expect(out.find((r) => r.engine === "ai-slop")?.diagnostics).toHaveLength(1);
+	});
+
+	it("drops the sync-over-async finding when the overlapping dotnet rule is AsyncFixer02", () => {
+		const results: EngineResult[] = [
+			{
+				engine: "ai-slop",
+				diagnostics: [mk("ai-slop", "ai-slop/csharp-sync-over-async", "A.cs", 10)],
+				elapsed: 0,
+				skipped: false,
+			},
+			{
+				engine: "lint",
+				diagnostics: [mk("lint", "dotnet/AsyncFixer02", "A.cs", 10)],
+				elapsed: 0,
+				skipped: false,
+			},
+		];
+		const out = dedupeCSharpAsync(results);
+		expect(out.find((r) => r.engine === "ai-slop")?.diagnostics).toHaveLength(0);
+	});
+
+	it("drops the sync-over-async finding when the overlapping dotnet rule is MA0045", () => {
+		const results: EngineResult[] = [
+			{
+				engine: "ai-slop",
+				diagnostics: [mk("ai-slop", "ai-slop/csharp-sync-over-async", "A.cs", 10)],
+				elapsed: 0,
+				skipped: false,
+			},
+			{
+				engine: "lint",
+				diagnostics: [mk("lint", "dotnet/MA0045", "A.cs", 10)],
+				elapsed: 0,
+				skipped: false,
+			},
+		];
+		const out = dedupeCSharpAsync(results);
+		expect(out.find((r) => r.engine === "ai-slop")?.diagnostics).toHaveLength(0);
+	});
 });

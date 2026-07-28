@@ -1,12 +1,18 @@
-type LangFamily = "js" | "py" | "rb" | "php" | "c" | "cstyle" | "none";
+import { consumeQuotedString, csharpStringAt } from "./string-literals.js";
+
+type LangFamily = "js" | "py" | "rb" | "php" | "csharp" | "cstyle" | "none";
 
 const JS_EXTS = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"]);
 const PY_EXTS = new Set([".py"]);
 const RB_EXTS = new Set([".rb"]);
 const PHP_EXTS = new Set([".php"]);
-// C-family: C#, C, and C++ (including headers). They share C-style `"..."` /
-// `'...'` literals and `//` + `/* */` comments, so maskSimple handles them.
-const C_EXTS = new Set([".cs", ".c", ".cc", ".cpp", ".cxx", ".h", ".hh", ".hpp", ".hxx"]);
+// C# needs its own scanner: verbatim and raw string literals delimit their
+// bodies differently from the generic quoted-string form, and getting the end
+// of one wrong leaves its contents visible as code.
+const CSHARP_EXTS = new Set([".cs"]);
+// C and C++ (including headers) share C-style string and character literals
+// and `//` + `/* */` comments, so the cstyle masker handles them.
+const CPP_EXTS = new Set([".c", ".cc", ".cpp", ".cxx", ".h", ".hh", ".hpp", ".hxx"]);
 const C_STYLE_COMMENT_EXTS = new Set([".go"]);
 
 const familyForExt = (ext: string): LangFamily => {
@@ -14,7 +20,8 @@ const familyForExt = (ext: string): LangFamily => {
 	if (PY_EXTS.has(ext)) return "py";
 	if (RB_EXTS.has(ext)) return "rb";
 	if (PHP_EXTS.has(ext)) return "php";
-	if (C_EXTS.has(ext)) return "c";
+	if (CSHARP_EXTS.has(ext)) return "csharp";
+	if (CPP_EXTS.has(ext)) return "cstyle";
 	if (C_STYLE_COMMENT_EXTS.has(ext)) return "cstyle";
 	return "none";
 };
@@ -23,6 +30,7 @@ export const maskStringsAndComments = (content: string, ext: string): string => 
 	const family = familyForExt(ext);
 	if (family === "none") return content;
 	if (family === "js") return maskJs(content, true);
+	if (family === "csharp") return maskCSharp(content, true);
 	if (family === "cstyle") return maskCStyle(content, true);
 	return maskSimple(content, family, true);
 };
@@ -32,6 +40,7 @@ export const maskComments = (content: string, ext: string): string => {
 	const family = familyForExt(ext);
 	if (family === "none") return content;
 	if (family === "js") return maskJs(content, false);
+	if (family === "csharp") return maskCSharp(content, false);
 	if (family === "cstyle") return maskCStyle(content, false);
 	return maskSimple(content, family, false);
 };
@@ -207,6 +216,61 @@ const maskJs = (content: string, maskStrings: boolean): string => {
 	return out.join("");
 };
 
+const maskCSharp = (content: string, maskStrings: boolean): string => {
+	const out = content.split("");
+	const len = content.length;
+	let i = 0;
+
+	const mask = (start: number, end: number) => {
+		for (let k = start; k < end; k++) {
+			if (out[k] !== "\n") out[k] = " ";
+		}
+	};
+
+	while (i < len) {
+		const c = content[i];
+		const next = content[i + 1];
+
+		// A quote can open a plain, verbatim or raw literal, and the `$`/`@`
+		// prefixes decide which, so let the C# scanner classify the delimiter.
+		if (c === '"' || c === "$" || c === "@") {
+			const span = csharpStringAt(content, i);
+			if (span) {
+				if (maskStrings) mask(span.bodyStart, span.bodyEnd);
+				i = span.resumeAt;
+				continue;
+			}
+		}
+
+		if (c === "'") {
+			const start = i;
+			i = consumeQuotedString(content, i, "'");
+			if (maskStrings) mask(start + 1, i - 1);
+			continue;
+		}
+
+		if (c === "/" && next === "/") {
+			const start = i;
+			while (i < len && content[i] !== "\n") i++;
+			mask(start, i);
+			continue;
+		}
+
+		if (c === "/" && next === "*") {
+			const start = i;
+			i += 2;
+			while (i < len - 1 && !(content[i] === "*" && content[i + 1] === "/")) i++;
+			if (i < len - 1) i += 2;
+			mask(start, i);
+			continue;
+		}
+
+		i++;
+	}
+
+	return out.join("");
+};
+
 const maskCStyle = (content: string, maskStrings: boolean): string => {
 	const out = content.split("");
 	const len = content.length;
@@ -257,24 +321,6 @@ const maskCStyle = (content: string, maskStrings: boolean): string => {
 	}
 
 	return out.join("");
-};
-
-// Consume a quoted string starting at the opening quote. Returns the index
-// just past the closing quote (or end-of-content if unterminated).
-const consumeQuotedString = (content: string, start: number, quote: string): number => {
-	const len = content.length;
-	let i = start + 1;
-	while (i < len) {
-		const c = content[i];
-		if (c === "\\" && i + 1 < len) {
-			i += 2;
-			continue;
-		}
-		if (c === quote) return i + 1;
-		if (c === "\n") return i; // unterminated — bail
-		i++;
-	}
-	return i;
 };
 
 interface TemplateScan {
@@ -342,14 +388,14 @@ const maskSimple = (content: string, family: LangFamily, maskStrings: boolean): 
 			continue;
 		}
 
-		if ((family === "php" || family === "c") && c === "/" && next === "/") {
+		if (family === "php" && c === "/" && next === "/") {
 			const strStart = i;
 			while (i < len && content[i] !== "\n") i++;
 			mask(strStart, i);
 			continue;
 		}
 
-		if ((family === "php" || family === "c") && c === "/" && next === "*") {
+		if (family === "php" && c === "/" && next === "*") {
 			const strStart = i;
 			i += 2;
 			while (i < len - 1 && !(content[i] === "*" && content[i + 1] === "/")) i++;

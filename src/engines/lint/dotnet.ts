@@ -97,7 +97,7 @@ const analyzeTarget = async (
 			analyzeArgs.push("--analyzer-assemblies", ...analyzerAssemblies);
 		}
 		// Parse whatever output is produced: roslynator's exit code varies with the
-		// highest diagnostic severity, so the written XML — not the code — is the signal.
+		// highest diagnostic severity, so the written XML (not the code) is the signal.
 		await runSubprocess(roslynator, analyzeArgs, {
 			cwd: context.rootDirectory,
 			timeout: 180000,

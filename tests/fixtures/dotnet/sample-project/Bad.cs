@@ -4,7 +4,7 @@ namespace Sample;
 
 public class Bad
 {
-	// async void that isn't an event handler — exceptions escape, can't be awaited.
+	// async void that isn't an event handler: exceptions escape, can't be awaited.
 	public async void Foo()
 	{
 		await Task.Delay(1);
