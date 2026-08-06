@@ -157,4 +157,29 @@ describe("planFormat/planLint cpp tools", () => {
 		expect(none.status).toBe("missing");
 		expect(none.tool).toContain("cppcheck not found");
 	});
+
+	it("falls through a gated C# tool to available C++ tools", () => {
+		const languages = ["csharp", "cpp"] as const;
+		expect(
+			planFormatForTest({
+				languages: [...languages],
+				installedTools: { dotnet: true, "clang-format": true },
+			}),
+		).toMatchObject({ tool: "clang-format (system)", status: "ok" });
+		expect(
+			planLintForTest({
+				languages: [...languages],
+				installedTools: { jb: true, cppcheck: true },
+			}),
+		).toMatchObject({ tool: "cppcheck (system)", status: "ok" });
+	});
+
+	it("keeps the C# trust gate visible when no fallback tool is available", () => {
+		expect(
+			planFormatForTest({
+				languages: ["csharp", "cpp"],
+				installedTools: { dotnet: true, "clang-format": false },
+			}),
+		).toMatchObject({ tool: "project-backed C# tools", status: "skipped" });
+	});
 });
