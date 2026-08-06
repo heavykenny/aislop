@@ -38,13 +38,16 @@ export const runPipAudit = async (rootDir: string, timeout: number): Promise<Dia
 				const vulnerabilities = dependency.vulns;
 				return Array.isArray(vulnerabilities) && vulnerabilities.length > 0;
 			})
-			.map((dependency) => {
-				const name = readString(dependency, "name") ?? "unknown";
-				return dependencyDiagnostic(
-					"requirements.txt",
-					`Vulnerable Python dependency: ${name}`,
-					withFixHint(`Upgrade ${name} to fix known vulnerabilities`),
-				);
+			.flatMap((dependency): Diagnostic[] => {
+				const name = readString(dependency, "name");
+				if (!name) return [];
+				return [
+					dependencyDiagnostic(
+						"requirements.txt",
+						`Vulnerable Python dependency: ${name}`,
+						withFixHint(`Upgrade ${name} to fix known vulnerabilities`),
+					),
+				];
 			});
 	} catch {
 		return [];
@@ -54,12 +57,14 @@ export const runPipAudit = async (rootDir: string, timeout: number): Promise<Dia
 const toGovulnDiagnostic = (entry: Record<string, unknown>): Diagnostic | null => {
 	const vulnerability = entry.vulnerability;
 	if (!isRecord(vulnerability)) return null;
+	const id = readString(vulnerability, "id");
+	if (!id) return null;
 	return {
 		filePath: "go.mod",
 		engine: "security",
 		rule: "security/vulnerable-dependency",
 		severity: "error",
-		message: `Go vulnerability: ${readString(vulnerability, "id") ?? "unknown"}`,
+		message: `Go vulnerability: ${id}`,
 		help: withFixHint(readString(vulnerability, "details") ?? ""),
 		line: 0,
 		column: 0,
@@ -109,14 +114,21 @@ export const runCargoAudit = async (rootDir: string, timeout: number): Promise<D
 		if (!result.stdout) return [];
 		const parsed: unknown = JSON.parse(result.stdout);
 		if (!isRecord(parsed) || !isRecord(parsed.vulnerabilities)) return [];
-		return readRecordArray(parsed.vulnerabilities, "list").map((vulnerability) => {
-			const advisory = isRecord(vulnerability.advisory) ? vulnerability.advisory : {};
-			return dependencyDiagnostic(
-				"Cargo.toml",
-				`Rust vulnerability: ${readString(advisory, "id") ?? "unknown"}`,
-				withFixHint(readString(advisory, "title") ?? ""),
-			);
-		});
+		return readRecordArray(parsed.vulnerabilities, "list").flatMap(
+			(vulnerability): Diagnostic[] => {
+				const advisory = vulnerability.advisory;
+				if (!isRecord(advisory)) return [];
+				const id = readString(advisory, "id");
+				if (!id) return [];
+				return [
+					dependencyDiagnostic(
+						"Cargo.toml",
+						`Rust vulnerability: ${id}`,
+						withFixHint(readString(advisory, "title") ?? ""),
+					),
+				];
+			},
+		);
 	} catch {
 		return [];
 	}

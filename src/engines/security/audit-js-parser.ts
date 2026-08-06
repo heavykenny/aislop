@@ -138,8 +138,7 @@ const parseLegacyAdvisories = (
 // An object in `via` means this package is the CVE source; a string means it is
 // only affected through another, so reporting it would duplicate the root cause.
 const carriesAdvisory = (vulnerability: Record<string, unknown>): boolean =>
-	Array.isArray(vulnerability.via) &&
-	vulnerability.via.some((entry) => entry !== null && typeof entry === "object");
+	Array.isArray(vulnerability.via) && vulnerability.via.some(isRecord);
 
 const parseModernVulnerabilities = (
 	vulnerabilities: Record<string, unknown>,

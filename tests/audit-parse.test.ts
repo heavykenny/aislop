@@ -102,6 +102,20 @@ describe("parseJsAudit — modern vulnerabilities", () => {
 		).toEqual([]);
 		expect(parseJsAudit(JSON.stringify({ error: "not an object" }), "npm audit")).toEqual([]);
 	});
+
+	it("does not treat arrays in via as advisory objects", () => {
+		const diagnostics = parseJsAudit(
+			JSON.stringify({
+				vulnerabilities: {
+					malformed: { severity: "high", via: [[]], fixAvailable: false },
+					transitive: { severity: "low", via: ["malformed"], fixAvailable: false },
+				},
+			}),
+			"npm audit",
+		);
+
+		expect(diagnostics).toHaveLength(2);
+	});
 });
 
 describe("parseDotnetAudit - dotnet list package --vulnerable", () => {
