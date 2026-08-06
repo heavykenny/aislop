@@ -87,7 +87,11 @@ export const runDependencyAudit = async (context: EngineContext): Promise<Diagno
 	// dotnet list package --vulnerable (NuGet). Keyed to the manifest-aware
 	// audit languages like the other ecosystems: a .csproj is what the audit
 	// needs, even when no .cs file is in the scan scope.
-	if (auditLanguages.includes("csharp") && context.installedTools.dotnet) {
+	if (
+		auditLanguages.includes("csharp") &&
+		context.installedTools.dotnet &&
+		context.config.lint.csharp?.projectEvaluation === true
+	) {
 		promises.push(runDotnetAudit(context.rootDirectory, timeout));
 	}
 

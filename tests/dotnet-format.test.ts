@@ -282,7 +282,9 @@ describe("runFormattingStep C# exclude gate", () => {
 				frameworks: [],
 				excludePatterns,
 				installedTools: { dotnet: true },
-				config: {} as PipelineDeps["context"]["config"],
+				config: {
+					lint: { csharp: { projectEvaluation: true } },
+				} as PipelineDeps["context"]["config"],
 			},
 			config: { engines: { format: true } } as unknown as AislopConfig,
 			resolvedDir: path.join(path.sep, "repo"),

@@ -268,7 +268,11 @@ export const runFormattingStep = async (deps: PipelineDeps): Promise<void> => {
 // formatter cascade stays under the function-length budget.
 const runNativeFormattingSteps = async (deps: PipelineDeps): Promise<void> => {
 	if (deps.projectInfo.languages.includes("csharp") && deps.projectInfo.installedTools.dotnet) {
-		if (!skipUnscopableCsharpFormatter(deps)) {
+		if (deps.context.config.lint?.csharp?.projectEvaluation !== true) {
+			log.warn(
+				"Skipping C# formatting: set lint.csharp.projectEvaluation: true only for repositories you trust.",
+			);
+		} else if (!skipUnscopableCsharpFormatter(deps)) {
 			await deps.runStep(
 				"Formatting (csharp)",
 				() => runDotnetFormat(deps.context),

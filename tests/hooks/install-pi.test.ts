@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	installPi,
 	PI_EXTENSION_SOURCE,
@@ -27,6 +27,37 @@ describe("PI_EXTENSION_SOURCE", () => {
 		expect(PI_EXTENSION_SOURCE).toContain('pi.on("tool_result"');
 		expect(PI_EXTENSION_SOURCE).toContain('["hook", "pi"]');
 		expect(PI_EXTENSION_SOURCE).toContain("AISLOP_BIN");
+	});
+
+	it("clears its timeout when the child cannot spawn", async () => {
+		type HookCallback = (
+			event: { toolName: string; isError: boolean; input: { path: string }; content: [] },
+			context: { cwd: string; signal: AbortSignal },
+		) => Promise<unknown>;
+		let callback: HookCallback | undefined;
+		const moduleUrl = `data:text/javascript;base64,${Buffer.from(PI_EXTENSION_SOURCE).toString("base64")}`;
+		const extensionModule = (await import(moduleUrl)) as {
+			default: (pi: { on: (event: string, handler: HookCallback) => void }) => void;
+		};
+		extensionModule.default({
+			on: (_event, handler) => {
+				callback = handler;
+			},
+		});
+		if (!callback) throw new Error("Pi extension did not register its hook");
+
+		vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+		vi.stubEnv("AISLOP_BIN", path.join(cwd, "missing-aislop"));
+		try {
+			await callback(
+				{ toolName: "edit", isError: false, input: { path: "src/app.ts" }, content: [] },
+				{ cwd, signal: new AbortController().signal },
+			);
+			expect(vi.getTimerCount()).toBe(0);
+		} finally {
+			vi.useRealTimers();
+			vi.unstubAllEnvs();
+		}
 	});
 });
 

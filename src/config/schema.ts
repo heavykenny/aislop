@@ -26,6 +26,7 @@ const QualitySchema = z.object({
 });
 
 const CsharpLintSchema = z.object({
+	projectEvaluation: z.boolean().default(false),
 	jb: z.boolean().default(true),
 	roslynator: z.boolean().default(true),
 	jbSeverityFloor: z.enum(["ERROR", "WARNING", "SUGGESTION", "HINT"]).default("WARNING"),
@@ -51,6 +52,7 @@ const LintConfigSchema = z.object({
 	 */
 	expoDoctor: z.boolean().default(false),
 	csharp: CsharpLintSchema.default(() => ({
+		projectEvaluation: false,
 		jb: true,
 		roslynator: true,
 		jbSeverityFloor: "WARNING" as const,
@@ -119,6 +121,7 @@ const AislopConfigSchema = z.object({
 		typecheck: false,
 		expoDoctor: false,
 		csharp: {
+			projectEvaluation: false,
 			jb: true,
 			roslynator: true,
 			jbSeverityFloor: "WARNING" as const,

@@ -94,6 +94,7 @@ Both passes are independently togglable via the `lint.csharp` config block:
 ```yaml
 lint:
   csharp:
+    projectEvaluation: false              # opt in only for repositories you trust
     jb: true                              # run jb inspectcode if installed
     roslynator: true                      # run roslynator if installed
     jbSeverityFloor: WARNING              # ERROR | WARNING | SUGGESTION | HINT
@@ -103,6 +104,7 @@ lint:
 
 | Field | Default | Description |
 |---|---|---|
+| `projectEvaluation` | `false` | Allow MSBuild-backed lint, format, and NuGet audit passes. These may evaluate repository-controlled project files; enable only for repositories you trust. |
 | `jb` | `true` | Run jb inspectcode when installed |
 | `roslynator` | `true` | Run roslynator when installed |
 | `jbSeverityFloor` | `WARNING` | Drop jb findings below this severity |

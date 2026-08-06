@@ -128,6 +128,7 @@ const checkTarget = async (context: EngineContext, target: string): Promise<Diag
 				"format",
 				"whitespace",
 				target,
+				"--no-restore",
 				...excludeOption(scope),
 				"--verify-no-changes",
 				"--report",
@@ -187,7 +188,7 @@ export const fixDotnetFormat = async (
 	for (const target of targets) {
 		const result = await runSubprocess(
 			"dotnet",
-			["format", "whitespace", target, ...excludeOption(scope)],
+			["format", "whitespace", target, "--no-restore", ...excludeOption(scope)],
 			{ cwd: rootDirectory, timeout: 180000 },
 		);
 		if (result.exitCode !== 0) {

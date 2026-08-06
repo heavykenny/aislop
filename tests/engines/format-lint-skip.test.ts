@@ -44,10 +44,23 @@ describe("format/lint engines skip honestly when no runner applies", () => {
 		expect(result.skipped).toBe(false);
 	});
 
-	it("format does NOT skip for a C# repo when dotnet is installed", async () => {
-		// Empty temp dir has no targets, so dotnet format finds nothing - but the
-		// engine still RAN it, so this is a real "done", not a laundered false green.
+	it("format skips project-backed C# tooling unless project evaluation is trusted", async () => {
 		const result = await formatEngine.run(ctx(["csharp"], { dotnet: true }));
+		expect(result.skipped).toBe(true);
+	});
+
+	it("format runs project-backed C# tooling after explicit opt-in", async () => {
+		const context = ctx(["csharp"], { dotnet: true });
+		const result = await formatEngine.run({
+			...context,
+			config: {
+				...context.config,
+				lint: {
+					...context.config.lint,
+					csharp: { ...context.config.lint.csharp, projectEvaluation: true },
+				},
+			},
+		});
 		expect(result.skipped).toBe(false);
 	});
 });

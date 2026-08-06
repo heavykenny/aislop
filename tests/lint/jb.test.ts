@@ -156,11 +156,11 @@ describe("resolveCsharpLintConfig", () => {
 	it("falls back to safe defaults when config.lint.csharp is absent", () => {
 		const cfg = resolveCsharpLintConfig(ctx("/x"));
 		expect(cfg).toEqual({
+			projectEvaluation: false,
 			jb: true,
 			roslynator: true,
 			jbSeverityFloor: "WARNING",
 			jbExcludeTypes: ["InconsistentNaming"],
-			jbProjects: undefined,
 		});
 	});
 });

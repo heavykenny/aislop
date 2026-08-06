@@ -19,6 +19,7 @@ const NOT_IGNORED_ARGUMENTS = ["ls-files", "--cached", "--others", "--exclude-st
 // name lookup. A missing key (never configured) and a non-zero exit both mean "not set",
 // which reads the same as false: fold nothing.
 const IGNORE_CASE_ARGUMENTS = ["config", "--type=bool", "core.ignorecase"];
+const CHECK_IGNORE_ARGUMENTS = ["check-ignore", "--stdin", "-z"];
 
 const toProjectPath = (rootDirectory: string, filePath: string): string => {
 	const absolutePath = path.isAbsolute(filePath) ? filePath : path.resolve(rootDirectory, filePath);
@@ -80,7 +81,7 @@ const buildSnapshot = (rootDirectory: string): RootSnapshot => {
 	// entry with no trailing slash, and an untracked nested repository (a directory
 	// holding its own .git), listed as the directory itself with a trailing slash. Strip
 	// that slash so both shapes normalize to the same plain path an ancestor-prefix
-	// lookup can match; see isBeneathEmbeddedRepository below.
+	// lookup can match; see embeddedRepositoryAncestor below.
 	const entries = result.stdout
 		.split("\0")
 		.filter((entry) => entry.length > 0)
@@ -106,18 +107,27 @@ const getRootSnapshot = (rootDirectory: string): RootSnapshot => {
 // of notIgnoredPaths, however the file walker that produces candidates does recurse into
 // it on disk. Without this, every such path would read as ignored on a plain miss. Walk
 // candidate's ancestor directories outward; the first one present in the snapshot is that
-// boundary, and a path beneath it matches no ignore pattern (verified against a real
-// tracked submodule and a real untracked nested repository; see tests/git-ignore.test.ts).
-// O(path depth) per miss.
-const isBeneathEmbeddedRepository = (snapshot: RootSnapshot, file: string): boolean => {
+// boundary. The caller then asks git about outer ignore rules in one batch per boundary.
+const embeddedRepositoryAncestor = (snapshot: RootSnapshot, file: string): string | null => {
 	let ancestor = file;
 	for (;;) {
 		const slashIndex = ancestor.lastIndexOf("/");
-		if (slashIndex === -1) return false;
+		if (slashIndex === -1) return null;
 		ancestor = ancestor.slice(0, slashIndex);
 		const key = snapshot.ignoreCase ? foldAsciiCase(ancestor) : ancestor;
-		if (snapshot.notIgnoredPaths.has(key)) return true;
+		if (snapshot.notIgnoredPaths.has(key)) return ancestor;
 	}
+};
+
+const ignoredInsideEmbeddedRepository = (rootDirectory: string, files: string[]): string[] => {
+	const result = spawnSync("git", CHECK_IGNORE_ARGUMENTS, {
+		cwd: rootDirectory,
+		encoding: "utf-8",
+		input: `${files.join("\0")}\0`,
+		maxBuffer: MAX_BUFFER,
+	});
+	if (result.error || (result.status !== 0 && result.status !== 1)) return [];
+	return result.stdout.split("\0").filter((file) => file.length > 0);
 };
 
 // The subset of `files` (relative to rootDirectory) that git would ignore. Returns an
@@ -131,11 +141,23 @@ export const getIgnoredPaths = (rootDirectory: string, files: string[]): Set<str
 	if (snapshot.gitInvocationFailed) return new Set<string>();
 
 	const ignoredPaths = new Set<string>();
+	const embeddedCandidates = new Map<string, string[]>();
 	for (const file of files) {
 		const lookupKey = snapshot.ignoreCase ? foldAsciiCase(file) : file;
 		if (snapshot.notIgnoredPaths.has(lookupKey)) continue;
-		if (isBeneathEmbeddedRepository(snapshot, file)) continue;
-		ignoredPaths.add(file);
+		const ancestor = embeddedRepositoryAncestor(snapshot, file);
+		if (!ancestor) {
+			ignoredPaths.add(file);
+			continue;
+		}
+		const candidates = embeddedCandidates.get(ancestor) ?? [];
+		candidates.push(file);
+		embeddedCandidates.set(ancestor, candidates);
+	}
+	for (const candidates of embeddedCandidates.values()) {
+		for (const file of ignoredInsideEmbeddedRepository(rootDirectory, candidates)) {
+			ignoredPaths.add(file);
+		}
 	}
 	return ignoredPaths;
 };

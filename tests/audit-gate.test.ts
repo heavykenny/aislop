@@ -61,7 +61,10 @@ describe("runDependencyAudit: Python dependency-manifest gate", () => {
 			languages: [],
 			dependencyAuditLanguages: ["csharp"],
 			installedTools: { dotnet: true },
-			config: { security: { auditTimeout: 1000 } },
+			config: {
+				security: { auditTimeout: 1000 },
+				lint: { csharp: { projectEvaluation: true } },
+			},
 		} as unknown as EngineContext;
 
 		await runDependencyAudit(context);
@@ -71,5 +74,22 @@ describe("runDependencyAudit: Python dependency-manifest gate", () => {
 			expect.arrayContaining(["list"]),
 			expect.anything(),
 		);
+	});
+
+	it("does not evaluate dotnet project files without explicit trust", async () => {
+		fs.writeFileSync(path.join(dir, "App.csproj"), "<Project></Project>\n");
+		const context = {
+			rootDirectory: dir,
+			languages: ["csharp"],
+			installedTools: { dotnet: true },
+			config: {
+				security: { auditTimeout: 1000 },
+				lint: { csharp: { projectEvaluation: false } },
+			},
+		} as unknown as EngineContext;
+
+		await runDependencyAudit(context);
+
+		expect(runSubprocess).not.toHaveBeenCalled();
 	});
 });

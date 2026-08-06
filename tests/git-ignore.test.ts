@@ -281,23 +281,14 @@ describe("getIgnoredPaths across an embedded repository boundary", () => {
 		expect(getIgnoredPaths(root, files)).toEqual(checkIgnore(root, files));
 	});
 
-	// Accepted approximation, not a bug (documented in git-ignore.ts): check-ignore
-	// applies the outer .gitignore through a nested-repo boundary, but the ancestor rule
-	// here stops as soon as it finds the boundary, so an outer pattern that would match
-	// inside the embedded repo is no longer honored there. Other discovery layers filter
-	// excluded directories (node_modules among them) independently of this module.
-	it("no longer honors an outer pattern that would match inside a nested repository", () => {
+	it("honors outer ignore patterns inside an untracked nested repository", () => {
 		write(root, ".gitignore", "*.log\nnode_modules/\n");
 		write(root, "nested-repo/node_modules/x.ts", "export const dep = true;\n");
 		git(path.join(root, "nested-repo"), "init");
 		resetGitIgnoreCacheForTests();
 
 		const files = ["nested-repo/node_modules/x.ts"];
-		// Ground truth: check-ignore matches the outer node_modules/ pattern right
-		// through the nested-repo boundary.
 		expect(checkIgnore(root, files)).toEqual(new Set(files));
-		// The ancestor rule keeps it instead, once nested-repo is recognized as a
-		// boundary in the snapshot.
-		expect(getIgnoredPaths(root, files)).toEqual(new Set<string>());
+		expect(getIgnoredPaths(root, files)).toEqual(checkIgnore(root, files));
 	});
 });

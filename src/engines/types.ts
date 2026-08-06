@@ -66,6 +66,7 @@ export interface EngineConfig {
 		typecheck: boolean;
 		expoDoctor: boolean;
 		csharp?: {
+			projectEvaluation?: boolean;
 			jb: boolean;
 			roslynator: boolean;
 			jbSeverityFloor: "ERROR" | "WARNING" | "SUGGESTION" | "HINT";

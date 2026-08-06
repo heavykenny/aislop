@@ -39,7 +39,11 @@ export const formatEngine: Engine = {
 			promises.push(runGenericFormatter(context, "php"));
 		}
 
-		if (languages.includes("csharp") && installedTools.dotnet) {
+		if (
+			languages.includes("csharp") &&
+			installedTools.dotnet &&
+			context.config.lint.csharp?.projectEvaluation === true
+		) {
 			promises.push(runDotnetFormat(context));
 		}
 

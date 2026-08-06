@@ -33,25 +33,29 @@ const runHook = (bin, args, input, signal) =>
 		const child = spawn(bin, args, { stdio: ["pipe", "pipe", "ignore"] });
 		const chunks = [];
 		let settled = false;
-		const finish = (value) => {
-			if (settled) return;
-			settled = true;
-			resolve(value);
-		};
+		let timer;
 		const onAbort = () => {
 			child.kill();
 			finish(null);
 		};
+		const cleanup = () => {
+			if (timer !== undefined) clearTimeout(timer);
+			signal?.removeEventListener("abort", onAbort);
+		};
+		const finish = (value) => {
+			if (settled) return;
+			settled = true;
+			cleanup();
+			resolve(value);
+		};
 		signal?.addEventListener("abort", onAbort, { once: true });
-		const timer = setTimeout(() => {
+		timer = setTimeout(() => {
 			child.kill();
 			finish(null);
 		}, 15000);
 		child.stdout.on("data", (c) => chunks.push(c));
 		child.on("error", () => finish(null));
 		child.on("close", (code) => {
-			clearTimeout(timer);
-			signal?.removeEventListener("abort", onAbort);
 			finish(code === 0 && chunks.length > 0 ? Buffer.concat(chunks).toString("utf-8") : null);
 		});
 		child.stdin.end(input);

@@ -17,7 +17,16 @@ const csharpContext = (
 	config: {
 		quality: { maxFunctionLoc: 80, maxFileLoc: 400, maxNesting: 5, maxParams: 6 },
 		security: { audit: false, auditTimeout: 0 },
-		lint: { typecheck: false },
+		lint: {
+			typecheck: false,
+			csharp: {
+				projectEvaluation: true,
+				jb: true,
+				roslynator: true,
+				jbSeverityFloor: "WARNING",
+				jbExcludeTypes: [],
+			},
+		},
 	},
 });
 

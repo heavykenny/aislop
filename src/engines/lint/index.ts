@@ -101,7 +101,8 @@ export const lintEngine: Engine = {
 
 		const cpp = resolveCppLintConfig(context);
 		const csharp = resolveCsharpLintConfig(context);
-		const wantJbCsharp = languages.includes("csharp") && csharp.jb && installedTools.jb;
+		const wantJbCsharp =
+			languages.includes("csharp") && csharp.projectEvaluation && csharp.jb && installedTools.jb;
 		const wantJbCpp = languages.includes("cpp") && cpp.jb && installedTools.jb;
 		const jbPromise: Promise<Diagnostic[]> =
 			wantJbCsharp || wantJbCpp
@@ -120,7 +121,9 @@ export const lintEngine: Engine = {
 
 		if (languages.includes("csharp")) {
 			const csharpPasses: Promise<Diagnostic[]>[] = [];
-			if (csharp.roslynator && installedTools.roslynator) csharpPasses.push(runDotnetLint(context));
+			if (csharp.projectEvaluation && csharp.roslynator && installedTools.roslynator) {
+				csharpPasses.push(runDotnetLint(context));
+			}
 			if (wantJbCsharp)
 				csharpPasses.push(jbPromise.then((d) => d.filter((x) => x.category === "C# Lint")));
 			if (csharpPasses.length > 0)

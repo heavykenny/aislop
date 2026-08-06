@@ -22,6 +22,7 @@ export const DEFAULT_CONFIG: AislopConfig = {
 		typecheck: false,
 		expoDoctor: false,
 		csharp: {
+			projectEvaluation: false,
 			jb: true,
 			roslynator: true,
 			jbSeverityFloor: "WARNING",

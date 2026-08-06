@@ -99,11 +99,19 @@ describe("parseConfig", () => {
 
 	it("defaults csharp lint to jb+roslynator both on, WARNING floor, InconsistentNaming excluded", () => {
 		const cfg = parseConfig({});
+		expect(cfg.lint.csharp.projectEvaluation).toBe(false);
 		expect(cfg.lint.csharp.jb).toBe(true);
 		expect(cfg.lint.csharp.roslynator).toBe(true);
 		expect(cfg.lint.csharp.jbSeverityFloor).toBe("WARNING");
 		expect(cfg.lint.csharp.jbExcludeTypes).toEqual(["InconsistentNaming"]);
 		expect(cfg.lint.csharp.jbProjects).toBeUndefined();
+	});
+
+	it("requires explicit opt-in before evaluating C# project files", () => {
+		expect(
+			parseConfig({ lint: { csharp: { projectEvaluation: true } } }).lint.csharp
+				.projectEvaluation,
+		).toBe(true);
 	});
 
 	it("lets csharp lint be overridden (roslynator off, floor lowered)", () => {

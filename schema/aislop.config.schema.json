@@ -79,6 +79,7 @@
 				"typecheck": false,
 				"expoDoctor": false,
 				"csharp": {
+					"projectEvaluation": false,
 					"jb": true,
 					"roslynator": true,
 					"jbSeverityFloor": "WARNING",
@@ -107,6 +108,7 @@
 				},
 				"csharp": {
 					"default": {
+						"projectEvaluation": false,
 						"jb": true,
 						"roslynator": true,
 						"jbSeverityFloor": "WARNING",
@@ -116,6 +118,10 @@
 					},
 					"type": "object",
 					"properties": {
+						"projectEvaluation": {
+							"default": false,
+							"type": "boolean"
+						},
 						"jb": {
 							"default": true,
 							"type": "boolean"

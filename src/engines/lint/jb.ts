@@ -95,6 +95,7 @@ export const parseJbXml = (
 };
 
 interface CsharpLintConfig {
+	projectEvaluation: boolean;
 	jb: boolean;
 	roslynator: boolean;
 	jbSeverityFloor: JbSeverity;
@@ -103,6 +104,7 @@ interface CsharpLintConfig {
 }
 
 const CSHARP_LINT_DEFAULTS: CsharpLintConfig = {
+	projectEvaluation: false,
 	jb: true,
 	roslynator: true,
 	jbSeverityFloor: "WARNING",
@@ -113,6 +115,7 @@ export const resolveCsharpLintConfig = (context: EngineContext): CsharpLintConfi
 	const raw = context.config.lint.csharp;
 	if (!raw) return { ...CSHARP_LINT_DEFAULTS };
 	return {
+		projectEvaluation: raw.projectEvaluation === true,
 		jb: raw.jb,
 		roslynator: raw.roslynator,
 		jbSeverityFloor: raw.jbSeverityFloor,

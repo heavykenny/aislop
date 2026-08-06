@@ -76,9 +76,6 @@ export const parseRoslynatorXml = (xml: string, rootDirectory: string): Diagnost
 		}));
 };
 
-// Restore + roslynator-analyze a single .sln/.csproj target, returning the
-// relevant diagnostics. Failures are swallowed to [] so one unloadable project
-// can't sink the whole lint pass.
 const analyzeTarget = async (
 	context: EngineContext,
 	roslynator: string,
@@ -87,11 +84,6 @@ const analyzeTarget = async (
 ): Promise<Diagnostic[]> => {
 	const outputPath = path.join(context.rootDirectory, ".aislop-roslynator.xml");
 	try {
-		// Best-effort restore; ignore failure (analyze surfaces nothing if it can't load).
-		await runSubprocess("dotnet", ["restore", target], {
-			cwd: context.rootDirectory,
-			timeout: 120000,
-		});
 		const analyzeArgs = ["analyze", target, "--output", outputPath];
 		if (analyzerAssemblies.length > 0) {
 			analyzeArgs.push("--analyzer-assemblies", ...analyzerAssemblies);

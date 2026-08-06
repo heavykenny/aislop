@@ -284,7 +284,15 @@ export const runDotnetAudit = async (rootDir: string, timeout: number): Promise<
 	try {
 		const result = await runSubprocess(
 			"dotnet",
-			["list", "package", "--vulnerable", "--include-transitive", "--format", "json"],
+			[
+				"list",
+				"package",
+				"--no-restore",
+				"--vulnerable",
+				"--include-transitive",
+				"--format",
+				"json",
+			],
 			{ cwd: rootDir, timeout },
 		);
 		return parseDotnetAudit(result.stdout, rootDir);
