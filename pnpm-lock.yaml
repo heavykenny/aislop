@@ -44,10 +44,10 @@ importers:
         version: 1.20.0
       ink:
         specifier: ^7.1.1
-        version: 7.1.1(@types/react@19.2.17)(react@19.2.7)
+        version: 7.1.1(@types/react@19.2.17)(react@19.2.8)
       ink-select-input:
         specifier: ^6.2.0
-        version: 6.2.0(ink@7.1.1(@types/react@19.2.17)(react@19.2.7))(react@19.2.7)
+        version: 6.2.0(ink@7.1.1(@types/react@19.2.17)(react@19.2.8))(react@19.2.8)
       knip:
         specifier: ^5.85.0
         version: 5.88.1(@types/node@26.1.2)(typescript@6.0.3)
@@ -61,8 +61,8 @@ importers:
         specifier: ^1.1.1
         version: 1.1.1
       react:
-        specifier: ^19.2.7
-        version: 19.2.7
+        specifier: ^19.2.8
+        version: 19.2.8
       smol-toml:
         specifier: ^1.7.1
         version: 1.7.1
@@ -1756,8 +1756,8 @@ packages:
     peerDependencies:
       react: ^19.2.0
 
-  react@19.2.7:
-    resolution: {integrity: sha512-HNe9WslTbXmFK8o8cmwgAeJFSBvt1bPdHCVKtaaV+WlAN36mpT4hcRpwbf3fY56ar2oIXzsBpOAiIRHAdY0OlQ==}
+  react@19.2.8:
+    resolution: {integrity: sha512-PWaYA1L/q9u2u7xYQi+Y3L3Yfnie7XyLeaJICV1MGD6LprsBxcAqGjYyr0eY3p+QdsA+x/Irkt4Qif8D63+Sbw==}
     engines: {node: '>=0.10.0'}
 
   require-from-string@2.0.2:
@@ -3223,18 +3223,18 @@ snapshots:
 
   inherits@2.0.4: {}
 
-  ink-select-input@6.2.0(ink@7.1.1(@types/react@19.2.17)(react@19.2.7))(react@19.2.7):
+  ink-select-input@6.2.0(ink@7.1.1(@types/react@19.2.17)(react@19.2.8))(react@19.2.8):
     dependencies:
       figures: 6.1.0
-      ink: 7.1.1(@types/react@19.2.17)(react@19.2.7)
-      react: 19.2.7
+      ink: 7.1.1(@types/react@19.2.17)(react@19.2.8)
+      react: 19.2.8
       to-rotated: 1.0.0
 
   ink-testing-library@4.0.0(@types/react@19.2.17):
     optionalDependencies:
       '@types/react': 19.2.17
 
-  ink@7.1.1(@types/react@19.2.17)(react@19.2.7):
+  ink@7.1.1(@types/react@19.2.17)(react@19.2.8):
     dependencies:
       '@alcalzone/ansi-tokenize': 0.3.0
       ansi-escapes: 7.3.0
@@ -3249,8 +3249,8 @@ snapshots:
       indent-string: 5.0.0
       is-in-ci: 2.0.0
       patch-console: 2.0.0
-      react: 19.2.7
-      react-reconciler: 0.33.0(react@19.2.7)
+      react: 19.2.8
+      react-reconciler: 0.33.0(react@19.2.8)
       scheduler: 0.27.0
       signal-exit: 3.0.7
       slice-ansi: 9.0.0
@@ -3518,12 +3518,12 @@ snapshots:
       iconv-lite: 0.7.2
       unpipe: 1.0.0
 
-  react-reconciler@0.33.0(react@19.2.7):
+  react-reconciler@0.33.0(react@19.2.8):
     dependencies:
-      react: 19.2.7
+      react: 19.2.8
       scheduler: 0.27.0
 
-  react@19.2.7: {}
+  react@19.2.8: {}
 
   require-from-string@2.0.2: {}
 
