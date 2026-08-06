@@ -1,7 +1,7 @@
 // aislop-ignore-file duplicate-block
 import pc from "picocolors";
 
-export type ColorMode = "truecolor" | "256" | "none" | "auto";
+type ColorMode = "truecolor" | "256" | "none" | "auto";
 
 interface ThemeOptions {
 	color?: ColorMode;

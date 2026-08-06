@@ -88,7 +88,11 @@ const collectNestedScopes = (rootDir: string): PythonDependencyScope[] => {
 
 		for (const entry of entries) {
 			if (!entry.isDirectory()) continue;
-			if (entry.name.startsWith(".") || SKIP_MANIFEST_DIRS.has(entry.name)) continue;
+			// Dot-directories are not blanket-skipped here: CI tooling commonly lives
+			// under .ci, .github, .circleci, etc. with its own requirements.txt, and
+			// files under it need that scope. Known noise directories (.git, .venv,
+			// caches, ...) are excluded explicitly via SKIP_MANIFEST_DIRS instead.
+			if (SKIP_MANIFEST_DIRS.has(entry.name)) continue;
 			walk(path.join(dir, entry.name), depth + 1);
 		}
 	};
@@ -186,6 +190,16 @@ const findUvWorkspace = (startDir: string): UvWorkspaceInfo | null => {
 	return null;
 };
 
+// A scope rooted under a dot-directory (.ci, .github, etc.) is walked so
+// files within that subtree get its manifest, but its deps must not leak
+// into the flat aggregate below: pythonDepsForFile falls back to that
+// aggregate for any file whose own scope comes up empty, and a dot-directory
+// commonly holds CI-only tooling deps that do not apply outside it.
+const isUnderDotDirectory = (rootDir: string, scopeDir: string): boolean => {
+	const relative = path.relative(rootDir, scopeDir);
+	return relative.split(path.sep).some((segment) => segment.startsWith("."));
+};
+
 export const collectPythonDeps = (
 	rootDir: string,
 ): {
@@ -215,6 +229,7 @@ export const collectPythonDeps = (
 	}
 	const pyDeps = new Set<string>();
 	for (const scope of scopes) {
+		if (isUnderDotDirectory(rootDir, scope.directory)) continue;
 		for (const dep of scope.pyDeps) pyDeps.add(dep);
 	}
 	return {

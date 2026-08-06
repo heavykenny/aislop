@@ -46,6 +46,22 @@ const SWALLOWED_EXCEPTION_PATTERNS: Array<{
 		languages: [".java"],
 		message: "Empty catch block swallows errors silently",
 	},
+	// C#: truly-empty catch block (no statements). A catch whose body is only a
+	// comment - line (`// ...`) OR block (`/* ... */`) - is treated as a documented
+	// intentional catch and passes, so the two comment syntaxes behave the same.
+	{
+		pattern: /catch\s*(?:\([^)]*\))?\s*\{\s*\}/,
+		languages: [".cs"],
+		message: "Empty catch block swallows errors silently",
+	},
+	// C/C++: empty catch block. A body that is only a comment - line or block -
+	// is treated as a documented intentional catch and passes (matches the C#
+	// behavior: neither comment syntax satisfies the whitespace-only body).
+	{
+		pattern: /catch\s*\([^)]*\)\s*\{\s*\}/,
+		languages: [".cpp", ".cc", ".cxx", ".c", ".h", ".hh", ".hpp", ".hxx"],
+		message: "Empty catch block swallows errors silently",
+	},
 ];
 
 // Conventional names that document an intentionally-ignored exception.

@@ -72,6 +72,15 @@ describe("checkComplexity — file too large", () => {
 		expect(fileDiags[0].message).toContain("10");
 	});
 
+	it("points C# files at partial classes in the file-too-large help", async () => {
+		const content = makeLines(15, "// filler");
+		const filePath = writeFile("Big.cs", content);
+		const diagnostics = await checkComplexity(makeContext([filePath], { maxFileLoc: 10 }));
+		const fileDiags = diagnostics.filter((d) => d.rule === "complexity/file-too-large");
+		expect(fileDiags).toHaveLength(1);
+		expect(fileDiags[0].help).toContain("partial class");
+	});
+
 	it("includes the file path in the diagnostic", async () => {
 		const content = makeLines(15, "const x = 1;");
 		const filePath = writeFile("subdir/big.ts", content);
@@ -122,6 +131,42 @@ describe("checkComplexity — file too large", () => {
 			.map((d) => d.filePath);
 		expect(fileDiags).toHaveLength(1);
 		expect(fileDiags[0]).toContain("logic.ts");
+	});
+
+	it("gives C/C++ files a 2.5x file budget (same as Rust)", async () => {
+		// maxFileLoc = 10 → C++ budget 25, trigger at ceil(25 * 1.1) = 28.
+		const within = writeFile("ok.cpp", makeLines(28, "int x = 1;"));
+		const over = writeFile("big.cpp", makeLines(29, "int x = 1;"));
+		const diagnostics = await checkComplexity(makeContext([within, over], { maxFileLoc: 10 }));
+		const fileDiags = diagnostics.filter((d) => d.rule === "complexity/file-too-large");
+		expect(fileDiags).toHaveLength(1);
+		expect(fileDiags[0].filePath).toContain("big.cpp");
+		expect(fileDiags[0].message).toContain("max: 25");
+	});
+
+	it("points oversized C++ files at the component-as-translation-unit pattern", async () => {
+		const filePath = writeFile("mft.cpp", makeLines(30, "int x = 1;"));
+		const diagnostics = await checkComplexity(makeContext([filePath], { maxFileLoc: 10 }));
+		const fileDiags = diagnostics.filter((d) => d.rule === "complexity/file-too-large");
+		expect(fileDiags).toHaveLength(1);
+		expect(fileDiags[0].help).toContain("component-as-translation-unit pattern");
+		expect(fileDiags[0].help).toContain("docs/cpp-component-pattern.md");
+	});
+
+	it("applies the C++ component hint to ambiguous .h headers in a C++ tree", async () => {
+		const header = writeFile("mft.h", makeLines(30, "int x = 1;"));
+		const diagnostics = await checkComplexity(makeContext([header], { maxFileLoc: 10 }));
+		const fileDiags = diagnostics.filter((d) => d.rule === "complexity/file-too-large");
+		expect(fileDiags).toHaveLength(1);
+		expect(fileDiags[0].help).toContain("component-as-translation-unit pattern");
+	});
+
+	it("keeps the generic split hint for non-C++ files", async () => {
+		const filePath = writeFile("logic.ts", makeLines(15, "const x = 1;"));
+		const diagnostics = await checkComplexity(makeContext([filePath], { maxFileLoc: 10 }));
+		const fileDiags = diagnostics.filter((d) => d.rule === "complexity/file-too-large");
+		expect(fileDiags).toHaveLength(1);
+		expect(fileDiags[0].help).toBe("Consider splitting this file into smaller modules");
 	});
 });
 
@@ -332,6 +377,120 @@ describe("checkComplexity — too many parameters", () => {
 		const paramDiags = diagnostics.filter((d) => d.rule === "complexity/too-many-params");
 		expect(paramDiags.length).toBeGreaterThanOrEqual(1);
 		expect(paramDiags[0].detail).toContain("f");
+	});
+
+	it("does not count commas inside C# generic type arguments as parameter separators", async () => {
+		// Five real parameters whose types each carry an internal comma; a naive
+		// split(",") misreports this as nine and fires a false positive.
+		const content =
+			"class C {\n" +
+			"    public C(\n" +
+			"        IReadOnlyList<Record> records,\n" +
+			"        IReadOnlyDictionary<string, Cursor> armed,\n" +
+			"        IReadOnlyDictionary<string, Cursor> advanced,\n" +
+			"        IReadOnlyDictionary<string, Entry[]> catchUp,\n" +
+			"        IReadOnlyDictionary<string, string> errors)\n" +
+			"    {\n" +
+			"        _r = records;\n" +
+			"    }\n" +
+			"}\n";
+		const filePath = writeFile("Generics.cs", content);
+		const diagnostics = await checkComplexity(makeContext([filePath], { maxParams: 6 }));
+		const paramDiags = diagnostics.filter((d) => d.rule === "complexity/too-many-params");
+		expect(paramDiags).toHaveLength(0);
+	});
+
+	it("does not count commas inside C# Func and tuple parameter types", async () => {
+		// Four real Func-typed parameters loaded with generic and tuple commas.
+		const content =
+			"class Host {\n" +
+			"    public Host(\n" +
+			"        Func<string, Cursor> queryCursor,\n" +
+			"        Func<string, Record[]> scanDrive,\n" +
+			"        Func<string, Cursor, (Entry[], Cursor)> readJournal,\n" +
+			"        Func<string, Cursor, CancellationToken, IAsyncEnumerable<(Entry[], Cursor)>>? watch = null)\n" +
+			"    {\n" +
+			"        _q = queryCursor;\n" +
+			"    }\n" +
+			"}\n";
+		const filePath = writeFile("Funcs.cs", content);
+		const diagnostics = await checkComplexity(makeContext([filePath], { maxParams: 6 }));
+		const paramDiags = diagnostics.filter((d) => d.rule === "complexity/too-many-params");
+		expect(paramDiags).toHaveLength(0);
+	});
+
+	it("still counts genuine top-level params past the limit despite generic types", async () => {
+		// Eight real parameters, one of which carries an internal generic comma:
+		// the count must be eight (not nine), and the finding must still fire.
+		const content =
+			"void ParseAllChunks(\n" +
+			"    ReadChunkFn readChunk, void* readContext, std::array<uint8_t*, 2>& buf,\n" +
+			"    unsigned numThreads, const FilterSpec& filter, PathLookup* lookup,\n" +
+			"    uint64_t totalRecords, ParseState& state) {\n" +
+			"    return;\n" +
+			"}\n";
+		const filePath = writeFile("chunks.cpp", content);
+		const diagnostics = await checkComplexity(makeContext([filePath], { maxParams: 6 }));
+		const paramDiags = diagnostics.filter((d) => d.rule === "complexity/too-many-params");
+		expect(paramDiags).toHaveLength(1);
+		expect(paramDiags[0].detail).toContain("8 params");
+	});
+
+	it("counts a positional record's component list toward too-many-params like any parameter list", async () => {
+		// A 9-component `readonly record struct` is still a call-site parameter
+		// list - construction with 9 positionals is a real complexity signal, so
+		// the record form gets no exemption from the rule.
+		const content =
+			"public readonly record struct BrokerFrame(\n" +
+			"    BrokerFrameKind Kind,\n" +
+			"    string? Drive,\n" +
+			"    Cursor Cursor,\n" +
+			"    Entry[] Entries,\n" +
+			"    string? MmfName,\n" +
+			"    long RecordCount,\n" +
+			"    long ByteLength,\n" +
+			"    string? Message,\n" +
+			"    string? DrivesSpec)\n" +
+			"{\n" +
+			'    public string RequireDrive() => Drive ?? throw new InvalidDataException("x");\n' +
+			"}\n";
+		const filePath = writeFile("BrokerFrame.cs", content);
+		const diagnostics = await checkComplexity(makeContext([filePath], { maxParams: 6 }));
+		const paramDiags = diagnostics.filter((d) => d.rule === "complexity/too-many-params");
+		expect(paramDiags).toHaveLength(1);
+		expect(paramDiags[0].detail).toContain("9 params");
+	});
+
+	it("counts a positional record class primary constructor toward too-many-params as well", async () => {
+		// A bare `;`-terminated record declaration has no body, so the brace-based
+		// function-boundary detection treats it like a prototype and skips it
+		// (same as a C++ declaration) - give it a body so the counting logic is
+		// actually exercised.
+		const content =
+			"public record class Big(int A, int B, int C, int D, int E, int F, int G) { }\n";
+		const filePath = writeFile("Big.cs", content);
+		const diagnostics = await checkComplexity(makeContext([filePath], { maxParams: 6 }));
+		const paramDiags = diagnostics.filter((d) => d.rule === "complexity/too-many-params");
+		expect(paramDiags).toHaveLength(1);
+		expect(paramDiags[0].detail).toContain("7 params");
+	});
+
+	it("still flags a plain constructor with too many params inside a struct", async () => {
+		// A hand-written constructor is a method param list, not a record component
+		// list - the same counted-not-exempt policy applies to it too.
+		const content =
+			"public readonly struct UsnJournalEntry {\n" +
+			"    internal UsnJournalEntry(ulong recordNumber, ulong parentRecordNumber,\n" +
+			"        long usn, long fileTimeTimestamp, uint reason, uint fileAttributes, string fileName)\n" +
+			"    {\n" +
+			"        RecordNumber = recordNumber;\n" +
+			"    }\n" +
+			"}\n";
+		const filePath = writeFile("UsnJournalEntry.cs", content);
+		const diagnostics = await checkComplexity(makeContext([filePath], { maxParams: 6 }));
+		const paramDiags = diagnostics.filter((d) => d.rule === "complexity/too-many-params");
+		expect(paramDiags).toHaveLength(1);
+		expect(paramDiags[0].detail).toContain("UsnJournalEntry · 7 params");
 	});
 });
 
@@ -671,5 +830,479 @@ describe("analyzeFunctions — brace masking regressions", () => {
 		const fn = analyzeFunctions(content, ".ts").find((f) => f.name === "collectClassDefinitions");
 		expect(fn).toBeDefined();
 		expect(fn?.lineCount).toBeLessThanOrEqual(30);
+	});
+});
+
+// C++ false-positive regression: a function-call expression on a `return` statement
+// must NOT be mistaken for a function definition.
+describe("checkComplexity: C++ function-call false positive regression", () => {
+	// Mirrors a real Win32 source layout:
+	//   namespace { ... short wrapper ... }
+	//   extern "C" { ... long real code ... }
+	// The bug: `return GetOverlappedResult(...)` on the last line of the short wrapper
+	// was matched as a function definition header, then brace-scanning from that point
+	// consumed the `extern "C" {` block, reporting a ~300-line phantom function.
+	const CPP_NAMESPACE_EXTERN_FIXTURE = [
+		"#include <windows.h>",
+		"",
+		"namespace {",
+		"",
+		"BOOL UsnGetOverlappedResult(HANDLE handle, LPOVERLAPPED overlapped, LPDWORD bytesReturned, BOOL wait) {",
+		"    if (ShouldAbort()) {",
+		"        SetLastError(ERROR_OPERATION_ABORTED);",
+		"        return FALSE;",
+		"    }",
+		"    return GetOverlappedResult(handle, overlapped, bytesReturned, wait);",
+		"}",
+		"",
+		"}  // namespace",
+		"",
+		'extern "C" {',
+		...Array(60).fill("    int realWork = doStuff();"),
+		"}",
+	].join("\n");
+
+	it("does NOT report function-too-long for a 6-line C++ wrapper whose last line is a function call", async () => {
+		const filePath = writeFile("usn_journal.cpp", CPP_NAMESPACE_EXTERN_FIXTURE);
+		const diagnostics = await checkComplexity(makeContext([filePath], { maxFunctionLoc: 80 }));
+		const fnDiags = diagnostics.filter((d) => d.rule === "complexity/function-too-long");
+		// GetOverlappedResult is a CALL, not a definition - must not appear in findings
+		const phantom = fnDiags.find((d) => d.detail?.includes("GetOverlappedResult"));
+		expect(phantom).toBeUndefined();
+	});
+
+	it("does NOT report deep-nesting for the same phantom function", async () => {
+		const filePath = writeFile("usn_journal.cpp", CPP_NAMESPACE_EXTERN_FIXTURE);
+		const diagnostics = await checkComplexity(makeContext([filePath], { maxFunctionLoc: 80 }));
+		const nestDiags = diagnostics.filter((d) => d.rule === "complexity/deep-nesting");
+		const phantom = nestDiags.find((d) => d.detail?.includes("GetOverlappedResult"));
+		expect(phantom).toBeUndefined();
+	});
+
+	it("still detects a genuinely long C++ function in the same namespace/extern-C pattern", async () => {
+		const longBody = Array(100).fill("    doWork();").join("\n");
+		const content = [
+			"namespace {",
+			`BOOL TrulyLongFunction(HANDLE h, LPOVERLAPPED o) {\n${longBody}\n    return TRUE;\n}`,
+			"}",
+		].join("\n");
+		const filePath = writeFile("long_real.cpp", content);
+		const diagnostics = await checkComplexity(makeContext([filePath], { maxFunctionLoc: 80 }));
+		const fnDiags = diagnostics.filter((d) => d.rule === "complexity/function-too-long");
+		expect(fnDiags.length).toBeGreaterThanOrEqual(1);
+		expect(fnDiags[0].detail).toContain("TrulyLongFunction");
+	});
+
+	it("does NOT flag a bare return-call statement in a .cpp file as a function definition", async () => {
+		// Minimal repro: a single return statement whose callee name matches the
+		// C++ function-definition pattern regex.
+		const content = [
+			"namespace {",
+			"BOOL Wrapper(HANDLE h) {",
+			"    return SomeApiCall(h, nullptr, 0);",
+			"}",
+			"}",
+		].join("\n");
+		const filePath = writeFile("wrapper.cpp", content);
+		const diagnostics = await checkComplexity(makeContext([filePath], { maxFunctionLoc: 80 }));
+		const fnDiags = diagnostics.filter((d) => d.rule === "complexity/function-too-long");
+		const phantom = fnDiags.find((d) => d.detail?.includes("SomeApiCall"));
+		expect(phantom).toBeUndefined();
+	});
+});
+
+// Header coverage: inline / class-member function bodies in C++ headers must be
+// nesting-checked, while declaration prototypes in the same headers must not be
+// mistaken for definitions (they carry no body).
+describe("checkComplexity: C++ header nesting coverage", () => {
+	const DEEP_INLINE_BODY = [
+		"    if (a) {",
+		"        if (b) {",
+		"            if (c) {",
+		"                if (d) {",
+		"                    doWork();",
+		"                }",
+		"            }",
+		"        }",
+		"    }",
+	].join("\n");
+
+	for (const ext of [".hpp", ".h", ".hh", ".hxx", ".cc", ".cxx"]) {
+		it(`detects deep nesting in an inline function body in a ${ext} file`, async () => {
+			const content = [
+				"struct Widget {",
+				`    void render() {\n${DEEP_INLINE_BODY}\n    }`,
+				"};",
+			].join("\n");
+			const filePath = writeFile(`widget${ext}`, content);
+			const diagnostics = await checkComplexity(makeContext([filePath], { maxNesting: 2 }));
+			const nestDiags = diagnostics.filter((d) => d.rule === "complexity/deep-nesting");
+			const hit = nestDiags.find((d) => d.detail?.includes("render"));
+			expect(hit).toBeDefined();
+		});
+	}
+
+	it("does NOT treat a declaration prototype in a header as a function definition", async () => {
+		// The prototype's `;` arrives before any `{`, and the deeply-nested inline
+		// definition that follows would be mis-attributed to it without the guard.
+		const content = [
+			"struct Widget {",
+			"    void declaredOnly(int x);",
+			`    void inlineDefined() {\n${DEEP_INLINE_BODY}\n    }`,
+			"};",
+		].join("\n");
+		const filePath = writeFile("widget.hpp", content);
+		const diagnostics = await checkComplexity(makeContext([filePath], { maxNesting: 2 }));
+		const nestDiags = diagnostics.filter((d) => d.rule === "complexity/deep-nesting");
+		expect(nestDiags.find((d) => d.detail?.includes("declaredOnly"))).toBeUndefined();
+		expect(nestDiags.find((d) => d.detail?.includes("inlineDefined"))).toBeDefined();
+	});
+
+	it("does NOT flag a typedef'd function pointer in a header as a definition", async () => {
+		const content = [
+			"typedef void (*Callback)(int code);",
+			"typedef int (*Reducer)(int a, int b);",
+		].join("\n");
+		const filePath = writeFile("callbacks.h", content);
+		const diagnostics = await checkComplexity(makeContext([filePath], { maxNesting: 2 }));
+		const nestDiags = diagnostics.filter((d) => d.rule === "complexity/deep-nesting");
+		expect(nestDiags).toHaveLength(0);
+	});
+});
+
+// C#/C++ function detection: constructors, multi-modifier/complex-return methods,
+// out-of-line (scoped) definitions, and multi-line signatures - plus adversarial
+// cases (calls, control flow, prototypes) that must NOT be counted as functions.
+describe("analyzeFunctions: C#/C++ constructor & multi-line signature detection", () => {
+	const names = (src: string, ext: string) => analyzeFunctions(src, ext).map((f) => f.name);
+
+	it("detects a C# constructor (no return type)", () => {
+		const src = "class C {\n  public C(int a, int b) {\n    if (a) { work(); }\n  }\n}";
+		const fns = analyzeFunctions(src, ".cs");
+		const ctor = fns.find((f) => f.name === "C");
+		expect(ctor).toBeDefined();
+		expect(ctor?.paramCount).toBe(2);
+	});
+
+	it("detects a C# method with multiple modifiers and a generic return type", () => {
+		const src =
+			"class C {\n  public async Task<int> DoAsync(int a) {\n    if (a) { return a; }\n    return 0;\n  }\n}";
+		expect(names(src, ".cs")).toContain("DoAsync");
+	});
+
+	// Regression: a statement-position multi-line awaited call
+	// (`await WriteFrameAsync(...)` with a `.ConfigureAwait(false);` continuation)
+	// was once shape-matched as a function definition, and brace-scanning from it
+	// swallowed the rest of the enclosing method - misreporting the real method as
+	// too long. The call must not register as a function, and the enclosing
+	// method's length must stay correct.
+	it("does not treat a multi-line awaited call as a C# function definition", () => {
+		const src = [
+			"class C",
+			"{",
+			"    public async Task StopAsync()",
+			"    {",
+			"        try",
+			"        {",
+			"            await WriteFrameAsync(BrokerProtocol.WriteEndWatch, CancellationToken.None)",
+			"                .ConfigureAwait(false);",
+			"        }",
+			"        catch (Exception exception) when (exception is not OperationCanceledException)",
+			"        {",
+			"            _ = exception;",
+			"        }",
+			"    }",
+			"",
+			"    public int After()",
+			"    {",
+			"        return 1;",
+			"    }",
+			"}",
+		].join("\n");
+		const fns = analyzeFunctions(src, ".cs");
+		expect(fns.map((f) => f.name)).toEqual(["StopAsync", "After"]);
+		const stop = fns.find((f) => f.name === "StopAsync");
+		expect(stop?.lineCount).toBe(12);
+	});
+
+	it("detects a C# method with a multi-line (wrapped) signature", () => {
+		const src = "class C {\n  public int Foo(\n    int a,\n    int b) {\n    return a;\n  }\n}";
+		const foo = analyzeFunctions(src, ".cs").find((f) => f.name === "Foo");
+		expect(foo).toBeDefined();
+		expect(foo?.paramCount).toBe(2);
+	});
+
+	it("counts deep nesting inside a C# method (regression: .cs must be detected)", async () => {
+		const body = ["if (a) {", "if (b) {", "if (c) {", "work();", "}", "}", "}"]
+			.map((l) => `      ${l}`)
+			.join("\n");
+		const src = `class C {\n  public void Deep(int a, int b, int c) {\n${body}\n  }\n}`;
+		const filePath = writeFile("Deep.cs", src);
+		const diagnostics = await checkComplexity(makeContext([filePath], { maxNesting: 2 }));
+		const nest = diagnostics.filter((d) => d.rule === "complexity/deep-nesting");
+		expect(nest.find((d) => d.detail?.includes("Deep"))).toBeDefined();
+	});
+
+	it("detects a C# too-many-params method", async () => {
+		const src =
+			"class C {\n  public void Many(int a, int b, int c, int d, int e, int f, int g) {\n    work();\n  }\n}";
+		const filePath = writeFile("Many.cs", src);
+		const diagnostics = await checkComplexity(makeContext([filePath], { maxParams: 6 }));
+		const params = diagnostics.filter((d) => d.rule === "complexity/too-many-params");
+		expect(params.find((d) => d.detail?.includes("Many"))).toBeDefined();
+	});
+
+	it("detects C++ out-of-line scoped method, constructor, and destructor", () => {
+		expect(names("void Widget::doThing(int a) {\n  work();\n}", ".cpp")).toContain(
+			"Widget::doThing",
+		);
+		expect(names("Widget::Widget(int a) {\n  init();\n}", ".cpp")).toContain("Widget::Widget");
+		expect(names("Widget::~Widget() {\n  cleanup();\n}", ".cpp")).toContain("Widget::~Widget");
+	});
+
+	it("detects a C++ method with a multi-line (wrapped) signature", () => {
+		const src =
+			"int compute(\n    int a,\n    int b) {\n  if (a) { if (b) { return a; } }\n  return 0;\n}";
+		const compute = analyzeFunctions(src, ".cpp").find((f) => f.name === "compute");
+		expect(compute).toBeDefined();
+		expect(compute?.maxNesting).toBe(2);
+		expect(compute?.paramCount).toBe(2);
+	});
+
+	it("does NOT count C# method calls or control-flow as functions", () => {
+		const src =
+			"class C {\n  void M() {\n    Console.WriteLine(x);\n    DoThing(a, b);\n    if (a) { }\n    foreach (var x in y) { }\n  }\n}";
+		expect(names(src, ".cs")).toEqual(["M"]);
+	});
+
+	it("does NOT count a C# field initializer or property as a function", () => {
+		const src =
+			"class C {\n  public static readonly int[] V = Build(x);\n  public int Count { get; set; }\n}";
+		expect(analyzeFunctions(src, ".cs")).toHaveLength(0);
+	});
+
+	it("does NOT count a C++ static-call statement as a function", () => {
+		const src = "void M() {\n  Foo::Bar(a, b, c, d, e, f, g);\n}";
+		expect(names(src, ".cpp")).toEqual(["M"]);
+	});
+
+	it("does NOT count a C++ prototype in a header as a function", () => {
+		expect(analyzeFunctions("class C {\n  void declaredOnly(int x);\n};", ".hpp")).toHaveLength(0);
+	});
+
+	it("detects bare in-class C++ constructors and destructors", () => {
+		expect(names("class C {\n  Widget(int a) {\n    init();\n  }\n};", ".cpp")).toContain("Widget");
+		expect(names("class C {\n  ~Widget() {\n    cleanup();\n  }\n};", ".cpp")).toContain("~Widget");
+		expect(names("class C {\n  Widget(int a) : x_(a) {\n    init();\n  }\n};", ".cpp")).toContain(
+			"Widget",
+		);
+	});
+
+	it("counts nesting inside a bare in-class C++ constructor", () => {
+		const src = "class C {\n  Widget(int a) {\n    if (a) { if (a) { if (a) { go(); } } }\n  }\n};";
+		const ctor = analyzeFunctions(src, ".cpp").find((f) => f.name === "Widget");
+		expect(ctor?.maxNesting).toBe(3);
+	});
+
+	it("does NOT mistake C++ control-flow or calls for bare constructors", () => {
+		expect(names("void M() {\n  if (a) { }\n  while (b) { }\n  switch (c) { }\n}", ".cpp")).toEqual(
+			["M"],
+		);
+		expect(names("void M() {\n  doThing(a, b);\n  int y = foo(a) + bar(b);\n}", ".cpp")).toEqual([
+			"M",
+		]);
+	});
+
+	it("does NOT apply bare-constructor detection to C (.c) files", () => {
+		expect(analyzeFunctions("Widget(a) {\n  init();\n}", ".c")).toHaveLength(0);
+	});
+});
+
+// A C++ member-initializer list can carry brace initialization (`value_{0}`),
+// whose braces open and close before the real constructor body starts. Taking
+// the first depth-1 brace as the body would end the function on the initializer
+// line and hide the whole body from the length and nesting checks.
+describe("analyzeFunctions: C++ member-initializer lists", () => {
+	it("spans the real body of an out-of-line constructor with brace initializers", () => {
+		const src = [
+			"Widget::Widget()",
+			"    : value_{0},",
+			'      name_{"x"} {',
+			"  stepOne();",
+			"  if (value_) {",
+			"    stepTwo();",
+			"  }",
+			"  stepThree();",
+			"}",
+		].join("\n");
+		const ctor = analyzeFunctions(src, ".cpp").find((f) => f.name === "Widget::Widget");
+		expect(ctor).toBeDefined();
+		expect(ctor?.lineCount).toBe(9);
+		expect(ctor?.maxNesting).toBe(1);
+	});
+
+	it("spans the real body of a bare in-class constructor with brace initializers", () => {
+		const src = [
+			"class Widget {",
+			"  Widget(int a)",
+			"      : value_{a}",
+			"  {",
+			"    stepOne();",
+			"    stepTwo();",
+			"  }",
+			"};",
+		].join("\n");
+		const ctor = analyzeFunctions(src, ".cpp").find((f) => f.name === "Widget");
+		expect(ctor).toBeDefined();
+		expect(ctor?.lineCount).toBe(6);
+	});
+
+	it("handles paren, brace, templated, and nested-brace initializers together", () => {
+		const src = [
+			"Widget::Widget(int a)",
+			"    : Base<int, float>{a},",
+			"      other_(a, a),",
+			"      matrix_{{1, 2}, {3, 4}},",
+			"      handler_([]{ return 1; }) {",
+			"  stepOne();",
+			"  stepTwo();",
+			"}",
+		].join("\n");
+		const ctor = analyzeFunctions(src, ".cpp").find((f) => f.name === "Widget::Widget");
+		expect(ctor?.lineCount).toBe(8);
+	});
+
+	it("reports a long constructor body hidden behind an initializer list", async () => {
+		const body = Array.from({ length: 30 }, (_, index) => `  step${index}();`).join("\n");
+		const src = `Widget::Widget()\n    : value_{0},\n      other_{1}\n{\n${body}\n}\n`;
+		const filePath = writeFile("Widget.cpp", src);
+		const diagnostics = await checkComplexity(makeContext([filePath], { maxFunctionLoc: 10 }));
+		const tooLong = diagnostics.filter((d) => d.rule === "complexity/function-too-long");
+		expect(tooLong.find((d) => d.detail?.includes("Widget::Widget"))).toBeDefined();
+	});
+
+	it("leaves a constructor with no initializer list unchanged", () => {
+		const src = ["Widget::Widget()", "{", "  stepOne();", "  stepTwo();", "}"].join("\n");
+		const ctor = analyzeFunctions(src, ".cpp").find((f) => f.name === "Widget::Widget");
+		expect(ctor?.lineCount).toBe(5);
+	});
+
+	it("leaves a C# base-constructor initializer unchanged", () => {
+		const src = [
+			"class C {",
+			"  public C(int a)",
+			"    : base(a)",
+			"  {",
+			"    stepOne();",
+			"    stepTwo();",
+			"  }",
+			"}",
+		].join("\n");
+		const ctor = analyzeFunctions(src, ".cs").find((f) => f.name === "C");
+		expect(ctor?.lineCount).toBe(6);
+	});
+
+	it("handles a ternary and a qualifier around the initializer list", () => {
+		const src = [
+			"Widget::Widget(int a) noexcept",
+			"    : value_{a > 0 ? 1 : 2},",
+			"      flag_(a ? true : false) {",
+			"  stepOne();",
+			"}",
+		].join("\n");
+		const ctor = analyzeFunctions(src, ".cpp").find((f) => f.name === "Widget::Widget");
+		expect(ctor?.lineCount).toBe(5);
+	});
+
+	it("still skips a defaulted constructor and a prototype with default arguments", () => {
+		expect(analyzeFunctions("Widget::Widget() = default;\n", ".cpp")).toHaveLength(0);
+		expect(analyzeFunctions("class C {\n  void f(int a = 0);\n};", ".hpp")).toHaveLength(0);
+	});
+
+	it("leaves a TypeScript return-type annotation unchanged", () => {
+		const objectReturn = ["function shape(a) : { x: number } {", "  return { x: a };", "}"].join(
+			"\n",
+		);
+		const shape = analyzeFunctions(objectReturn, ".ts").find((f) => f.name === "shape");
+		expect(shape?.lineCount).toBe(3);
+
+		const genericReturn = ["function load(a): Promise<void> {", "  return go(a);", "}"].join("\n");
+		const load = analyzeFunctions(genericReturn, ".ts").find((f) => f.name === "load");
+		expect(load?.lineCount).toBe(3);
+	});
+
+	it("spans the body of an in-class constructor declared in a header", () => {
+		const src = [
+			"class Widget {",
+			" public:",
+			"  Widget(int a)",
+			"      : value_{a},",
+			"        other_{0}",
+			"  {",
+			"    stepOne();",
+			"    stepTwo();",
+			"  }",
+			"};",
+		].join("\n");
+		const ctor = analyzeFunctions(src, ".hpp").find((f) => f.name === "Widget");
+		expect(ctor?.lineCount).toBe(7);
+	});
+
+	it("spans the body past a comment or a brace-bearing string in the list", () => {
+		const src = [
+			"Widget::Widget()",
+			"    : value_{0},  // seeded",
+			'      /* wide */ name_{"}{"} {',
+			"  stepOne();",
+			"  stepTwo();",
+			"}",
+		].join("\n");
+		const ctor = analyzeFunctions(src, ".cpp").find((f) => f.name === "Widget::Widget");
+		expect(ctor?.lineCount).toBe(6);
+	});
+
+	it("spans the body past an initializer holding a multi-line lambda", () => {
+		const src = [
+			"Widget::Widget()",
+			"    : handler_([] {",
+			"        stepOne();",
+			"        return 1;",
+			"      }),",
+			"      value_{0} {",
+			"  stepTwo();",
+			"}",
+		].join("\n");
+		const ctor = analyzeFunctions(src, ".cpp").find((f) => f.name === "Widget::Widget");
+		expect(ctor?.lineCount).toBe(8);
+	});
+
+	it("spans the body of a constructor with a long member list", () => {
+		const members = Array.from(
+			{ length: 60 },
+			(_, index) => `${index === 0 ? "    : " : "      "}member${index}_{${index}},`,
+		);
+		const src = ["Widget::Widget()", ...members, "      last_{1} {", "  stepOne();", "}"].join(
+			"\n",
+		);
+		const ctor = analyzeFunctions(src, ".cpp").find((f) => f.name === "Widget::Widget");
+		expect(ctor?.lineCount).toBe(64);
+	});
+
+	// A function-try-block puts `try` between the last initializer and the body,
+	// so the body brace is one token further along than the usual case.
+	it("spans the body of a function-try-block constructor", () => {
+		const src = [
+			"Widget::Widget()",
+			"    : value_{0},",
+			"      other_{1}",
+			"try {",
+			"  stepOne();",
+			"  stepTwo();",
+			"}",
+			"catch (...) {",
+			"}",
+		].join("\n");
+		const ctor = analyzeFunctions(src, ".cpp").find((f) => f.name === "Widget::Widget");
+		expect(ctor?.lineCount).toBe(7);
 	});
 });

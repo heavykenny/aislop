@@ -143,6 +143,9 @@ This applies to regex patterns, string literals, and diagnostic messages in all 
 ## Important constraints
 
 - `complexity.ts` must stay <= 400 lines (it checks itself for file-too-large)
-- The `files` field in `package.json` controls what ships to npm. Only `dist` and `scripts`
+- The `files` field in `package.json` controls what ships to npm: `dist`,
+  `scripts`, and `tools/jb` (the bundled JetBrains settings asset). A new
+  bundled asset outside `dist`/`scripts` needs its own entry here or it silently
+  ships as null from its resolver function.
 - PostHog telemetry key is a public client-side key (safe to hardcode)
 - Telemetry is opt-out and off in CI by default

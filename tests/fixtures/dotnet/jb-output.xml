@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Report ToolsVersion="2026.1">
+  <Information>
+    <Solution>App.sln</Solution>
+  </Information>
+  <IssueTypes>
+    <IssueType Id="RedundantUsingDirective" Category="Redundancies in Code" Description="Redundant using directive" Severity="WARNING" />
+    <IssueType Id="UnusedVariable" Category="Redundancies in Symbol Declarations" Description="Unused local variable" Severity="WARNING" />
+    <IssueType Id="InconsistentNaming" Category="Constraints Violations" Description="Inconsistent Naming" Severity="WARNING" />
+    <IssueType Id="ConvertToConstant.Local" Category="Common Practices" Description="Convert local to constant" Severity="SUGGESTION" />
+    <IssueType Id="RedundantToStringCall" Category="Redundancies in Code" Description="Redundant ToString call" Severity="HINT" />
+  </IssueTypes>
+  <Issues>
+    <Project Name="App">
+      <Issue TypeId="RedundantUsingDirective" File="src\App\Service.cs" Offset="0-15" Line="3" Message="Using directive is not required by the code and can be safely removed" />
+      <Issue TypeId="UnusedVariable" File="src\App\Service.cs" Offset="200-210" Line="12" Message="Local variable 'temp' is never used" />
+      <Issue TypeId="InconsistentNaming" File="src\App\Service.cs" Offset="300-310" Line="18" Message="Name 'myField' does not match rule 'Instance fields'" />
+      <Issue TypeId="ConvertToConstant.Local" File="src\App\Service.cs" Offset="400-410" Line="24" Message="Local variable can be converted to a constant" />
+      <Issue TypeId="RedundantToStringCall" File="src\App\Service.cs" Offset="500-510" Line="30" Message="Redundant 'ToString()' call" />
+    </Project>
+  </Issues>
+</Report>

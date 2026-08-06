@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Trimmed from a real `roslynator analyze` run (roslynator.dotnet.cli 0.12.0)
+  against tests/fixtures/dotnet/sample-project, with AsyncFixer + Meziantou.Analyzer
+  referenced. Schema (element/attribute names) is verbatim; absolute file paths were
+  rewritten to a neutral /repo/... form so the fixture carries no machine-specific path.
+  Includes a CA1822 (not in RELEVANT_IDS) to prove the parser's filter drops noise,
+  and Summary <Diagnostic> entries (no <FilePath>) to prove they are skipped.
+-->
+<Roslynator>
+  <CodeAnalysis>
+    <Summary>
+      <Diagnostic Id="AsyncFixer01" Title="Unnecessary async/await usage" Count="1">
+        <Description>Await is the last statement of the method so you can return Task and await in the caller method.</Description>
+        <HelpLink>https://github.com/semihokur/AsyncFixer</HelpLink>
+      </Diagnostic>
+      <Diagnostic Id="AsyncFixer03" Title="Fire-and-forget async-void methods or delegates" Count="1">
+        <HelpLink>https://github.com/semihokur/AsyncFixer</HelpLink>
+      </Diagnostic>
+      <Diagnostic Id="CA1822" Title="Mark members as static" Count="1">
+        <HelpLink>https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca1822</HelpLink>
+      </Diagnostic>
+    </Summary>
+    <Projects>
+      <Project Name="Sample" FilePath="/repo/Sample.csproj">
+        <Diagnostics>
+          <Diagnostic Id="AsyncFixer01">
+            <Severity>Warning</Severity>
+            <Message>Unnecessary async/await usage</Message>
+            <FilePath>/repo/Bad.cs</FilePath>
+            <Location Line="8" Character="2" />
+          </Diagnostic>
+          <Diagnostic Id="AsyncFixer03">
+            <Severity>Warning</Severity>
+            <Message>Fire-and-forget async-void methods or delegates</Message>
+            <FilePath>/repo/Bad.cs</FilePath>
+            <Location Line="8" Character="15" />
+          </Diagnostic>
+          <Diagnostic Id="CA1822">
+            <Severity>Info</Severity>
+            <Message>Mark members as static</Message>
+            <FilePath>/repo/Bad.cs</FilePath>
+            <Location Line="8" Character="20" />
+          </Diagnostic>
+        </Diagnostics>
+      </Project>
+    </Projects>
+  </CodeAnalysis>
+</Roslynator>
