@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -101,6 +101,40 @@ describe("cli ergonomics", () => {
 		expect(result.stdout.trim()).toBe(PKG_VERSION);
 		expect(result.stderr).not.toContain("unknown option");
 	});
+
+	it("returns non-zero for missing and non-directory fix targets", () => {
+		const tempRoot = mkdtempSync(path.join(tmpdir(), "aislop-fix-target-"));
+		const missingPath = path.join(tempRoot, "missing");
+		const filePath = path.join(tempRoot, "not-a-directory");
+
+		try {
+			writeFileSync(filePath, "");
+			const missing = runCli(["fix", missingPath]);
+			expect(missing.status).toBe(1);
+			expect(`${missing.stdout}${missing.stderr}`).toContain(
+				`Path does not exist: ${missingPath}`,
+			);
+
+			const file = runCli(["fix", filePath]);
+			expect(file.status).toBe(1);
+			expect(`${file.stdout}${file.stderr}`).toContain(`Not a directory: ${filePath}`);
+		} finally {
+			rmSync(tempRoot, { recursive: true, force: true });
+		}
+	});
+
+	it("keeps a zero exit code for valid fix targets", () => {
+		const projectDir = mkdtempSync(path.join(tmpdir(), "aislop-fix-project-"));
+
+		try {
+			const result = runCli(["fix", projectDir, "--safe"]);
+			expect(result.status).toBe(0);
+			expect(`${result.stdout}${result.stderr}`).not.toContain("Path does not exist");
+			expect(`${result.stdout}${result.stderr}`).not.toContain("Not a directory");
+		} finally {
+			rmSync(projectDir, { recursive: true, force: true });
+		}
+	}, 30_000);
 
 	it("lists all commands and major flags", () => {
 		const result = runCli(["commands"]);
