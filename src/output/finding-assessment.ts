@@ -1,13 +1,13 @@
 import type { Diagnostic } from "../engines/types.js";
 import { type RuleScoreImpact, scoreImpactForRule } from "../scoring/rule-impact.js";
 
-export type FindingKind =
+type FindingKind =
 	| "confirmed-defect"
 	| "conservative-security"
 	| "style-policy"
 	| "ai-slop-indicator";
 
-export type FindingConfidence = "high" | "medium" | "low";
+type FindingConfidence = "high" | "medium" | "low";
 
 export interface FindingAssessment {
 	kind: FindingKind;
@@ -36,7 +36,7 @@ export const isForceFixable = (diagnostic: Diagnostic): boolean => {
 	return false;
 };
 
-export interface FindingAssessmentRow {
+interface FindingAssessmentRow {
 	kind: FindingKind;
 	label: string;
 	count: number;

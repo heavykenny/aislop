@@ -1,7 +1,7 @@
 import { isAislopDirectiveLine } from "../../utils/suppress.js";
 import { MEANINGFUL_JSDOC_TAGS } from "./narrative-comments-patterns.js";
 
-export type BlockKind = "line" | "jsdoc";
+type BlockKind = "line" | "jsdoc";
 
 export interface CommentBlock {
 	kind: BlockKind;

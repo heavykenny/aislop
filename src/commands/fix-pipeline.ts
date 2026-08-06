@@ -43,7 +43,7 @@ import type { FixStepResult } from "./fix-steps.js";
 
 export type ProjectInfo = Awaited<ReturnType<typeof discoverProject>>;
 
-export type RunStepFn = (
+type RunStepFn = (
 	name: string,
 	detect: () => Promise<Diagnostic[]>,
 	applyFix: () => Promise<void>,

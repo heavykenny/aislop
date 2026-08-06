@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import { atomicWrite, readIfExists } from "../io/atomic-write.js";
 
-export type HookScope = "global" | "project";
+type HookScope = "global" | "project";
 
 export interface HookInstallOpts {
 	home: string;

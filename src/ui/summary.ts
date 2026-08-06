@@ -14,7 +14,7 @@ export interface NextStep {
 	detail?: string;
 }
 
-export interface BreakdownRow {
+interface BreakdownRow {
 	rule: string;
 	errors: number;
 	warnings: number;

@@ -6,7 +6,7 @@ export interface ActivityLine {
 	at: number;
 }
 
-export interface EditEntry {
+interface EditEntry {
 	file: string;
 	at: number;
 }
@@ -37,7 +37,7 @@ export interface PendingDecision {
 	resolve: (value: string) => void;
 }
 
-export interface SessionSummary {
+interface SessionSummary {
 	scoreStart: number | null;
 	score: number | null;
 	passes: number;
@@ -47,13 +47,7 @@ export interface SessionSummary {
 	sessionId: string | null;
 }
 
-export type SessionPhase =
-	| "starting"
-	| "running"
-	| "awaiting-decision"
-	| "publishing"
-	| "done"
-	| "error";
+type SessionPhase = "starting" | "running" | "awaiting-decision" | "publishing" | "done" | "error";
 
 export interface AgentSessionState {
 	provider: string;

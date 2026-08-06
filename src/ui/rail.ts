@@ -2,7 +2,7 @@ import { highlightAislop } from "./brand.js";
 import { symbols as defaultSymbols, type Symbols } from "./symbols.js";
 import { theme as defaultTheme, style, type Theme, type Token } from "./theme.js";
 
-export type RailStepStatus = "active" | "done" | "warn" | "failed" | "skipped";
+type RailStepStatus = "active" | "done" | "warn" | "failed" | "skipped";
 
 export interface RailStep {
 	status: RailStepStatus;
