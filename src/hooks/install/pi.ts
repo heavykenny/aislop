@@ -24,7 +24,38 @@ export const resolvePiPaths = (opts: HookInstallOpts): PiPaths => {
 // pi has no declarative command-hook, so the integration ships as an ESM extension.
 export const PI_EXTENSION_SOURCE = `// aislop — auto-generated pi extension. Do not edit by hand.
 // Reinstall with: aislop hook install --pi
-import { spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
+
+// Runs the CLI async so a slow scan never blocks pi's event loop, and forwards
+// ctx.signal so Esc actually kills the child instead of it running to completion.
+const runHook = (bin, args, input, signal) =>
+	new Promise((resolve) => {
+		const child = spawn(bin, args, { stdio: ["pipe", "pipe", "ignore"] });
+		const chunks = [];
+		let settled = false;
+		const finish = (value) => {
+			if (settled) return;
+			settled = true;
+			resolve(value);
+		};
+		const onAbort = () => {
+			child.kill();
+			finish(null);
+		};
+		signal?.addEventListener("abort", onAbort, { once: true });
+		const timer = setTimeout(() => {
+			child.kill();
+			finish(null);
+		}, 15000);
+		child.stdout.on("data", (c) => chunks.push(c));
+		child.on("error", () => finish(null));
+		child.on("close", (code) => {
+			clearTimeout(timer);
+			signal?.removeEventListener("abort", onAbort);
+			finish(code === 0 && chunks.length > 0 ? Buffer.concat(chunks).toString("utf-8") : null);
+		});
+		child.stdin.end(input);
+	});
 
 export default function (pi) {
 	pi.on("tool_result", async (event, ctx) => {
@@ -42,13 +73,9 @@ export default function (pi) {
 
 		let out;
 		try {
-			const res = spawnSync(bin, ["hook", "pi"], {
-				input: payload,
-				encoding: "utf-8",
-				timeout: 15000,
-			});
-			if (res.status !== 0 || !res.stdout) return;
-			out = JSON.parse(res.stdout);
+			const stdout = await runHook(bin, ["hook", "pi"], payload, ctx.signal);
+			if (!stdout) return;
+			out = JSON.parse(stdout);
 		} catch {
 			return;
 		}
