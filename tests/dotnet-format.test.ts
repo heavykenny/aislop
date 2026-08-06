@@ -4,7 +4,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PipelineDeps } from "../src/commands/fix-pipeline.js";
 import { runFormattingStep } from "../src/commands/fix-pipeline.js";
-import type { AislopConfig } from "../src/config/index.js";
+import { DEFAULT_CONFIG } from "../src/config/defaults.js";
 import {
 	buildDotnetFormatExcludeScope,
 	fixDotnetFormat,
@@ -274,7 +274,7 @@ describe("dotnet format exclude scoping", () => {
 describe("runFormattingStep C# exclude gate", () => {
 	const formattingDeps = (excludePatterns: string[]): { deps: PipelineDeps; steps: string[] } => {
 		const steps: string[] = [];
-		const deps = {
+		const deps: PipelineDeps = {
 			rail: { start: () => {}, setActiveLabel: () => {} },
 			context: {
 				rootDirectory: path.join(path.sep, "repo"),
@@ -283,15 +283,30 @@ describe("runFormattingStep C# exclude gate", () => {
 				excludePatterns,
 				installedTools: { dotnet: true },
 				config: {
-					lint: { csharp: { projectEvaluation: true } },
-				} as PipelineDeps["context"]["config"],
+					quality: DEFAULT_CONFIG.quality,
+					security: DEFAULT_CONFIG.security,
+					lint: {
+						...DEFAULT_CONFIG.lint,
+						csharp: { ...DEFAULT_CONFIG.lint.csharp, projectEvaluation: true },
+					},
+				},
 			},
-			config: { engines: { format: true } } as unknown as AislopConfig,
+			config: DEFAULT_CONFIG,
 			resolvedDir: path.join(path.sep, "repo"),
 			projectInfo: {
+				rootDirectory: path.join(path.sep, "repo"),
+				projectName: "fixture",
 				languages: ["csharp"],
+				frameworks: [],
+				sourceFileCount: 1,
+				coverage: {
+					dominantUnsupported: null,
+					scoreable: true,
+					supportedFiles: 1,
+					unsupportedFiles: 0,
+				},
 				installedTools: { dotnet: true },
-			} as PipelineDeps["projectInfo"],
+			},
 			force: false,
 			safe: false,
 			runStep: async (name: string) => {
@@ -306,7 +321,7 @@ describe("runFormattingStep C# exclude gate", () => {
 					elapsedMs: 0,
 				};
 			},
-		} as unknown as PipelineDeps;
+		};
 		return { deps, steps };
 	};
 

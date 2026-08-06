@@ -143,6 +143,15 @@ describe("findDotnetTargets", () => {
 		expect(projectsSkippedNotice(selection, tmpDir)).toHaveLength(0);
 	});
 
+	it("does not select a solution that could evaluate an excluded project", () => {
+		fs.writeFileSync(path.join(tmpDir, "App.sln"), "");
+		const kept = writeRestoredProject(path.join(tmpDir, "App"), "App.csproj");
+		writeRestoredProject(path.join(tmpDir, "external", "Vendor"), "Vendor.csproj");
+		const excluded = { ...context(tmpDir), excludePatterns: ["external/**"] };
+
+		expect(findDotnetTargets(excluded).targets).toEqual([kept]);
+	});
+
 	it("skips bin/obj/node_modules when enumerating", () => {
 		fs.mkdirSync(path.join(tmpDir, "obj"));
 		fs.writeFileSync(path.join(tmpDir, "obj", "Generated.csproj"), "");

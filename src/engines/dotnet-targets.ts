@@ -26,7 +26,7 @@ const dropExcludedProjects = (
 };
 
 // Recursively collect every .csproj under `root`, skipping the directories above.
-export const findCsprojFiles = (root: string, excludePatterns?: string[]): string[] => {
+const collectCsprojFiles = (root: string): string[] => {
 	const results: string[] = [];
 	const walk = (directory: string): void => {
 		let entries: fs.Dirent[];
@@ -45,6 +45,11 @@ export const findCsprojFiles = (root: string, excludePatterns?: string[]): strin
 		}
 	};
 	walk(root);
+	return results;
+};
+
+export const findCsprojFiles = (root: string, excludePatterns?: string[]): string[] => {
+	const results = collectCsprojFiles(root);
 	// Honor .gitignore: the raw walk would otherwise lint projects under ignored
 	// directories (spikes, scratch checkouts) that the git-aware file discovery skips.
 	return dropExcludedProjects(root, dropGitIgnoredPaths(root, results), excludePatterns);
@@ -104,10 +109,6 @@ const selectRestoredProjects = (
 	};
 };
 
-// Shared by both target finders below: prefer the first solution extension found
-// (in priority order) for full project-reference context; a solution is analyzed
-// unconditionally as one bounded pass. Fall back to the restore-evidence-gated,
-// capped per-.csproj selection when no solution file exists.
 const findSolutionOrProjects = (
 	root: string,
 	solutionExtensions: string[],
@@ -124,13 +125,19 @@ const findSolutionOrProjects = (
 		solution = entries.find((name) => name.endsWith(extension));
 		if (solution) break;
 	}
-	if (solution) {
+	const allProjects = collectCsprojFiles(root);
+	const visibleProjects = dropExcludedProjects(
+		root,
+		dropGitIgnoredPaths(root, allProjects),
+		excludePatterns,
+	);
+	if (solution && visibleProjects.length === allProjects.length) {
 		return {
 			...emptySelection(),
 			targets: dropGitIgnoredPaths(root, [path.join(root, solution)]),
 		};
 	}
-	return selectRestoredProjects(findCsprojFiles(root, excludePatterns), root);
+	return selectRestoredProjects(visibleProjects, root);
 };
 
 // Targets for the Roslynator lint pass. Prefer a classic .sln: roslynator loads

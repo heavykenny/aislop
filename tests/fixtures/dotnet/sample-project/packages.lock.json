@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "dependencies": {
+    "net8.0": {
+      "AsyncFixer": {
+        "type": "Direct",
+        "requested": "[2.1.0, )",
+        "resolved": "2.1.0",
+        "contentHash": "9exIvSbeCBqtmVeSC6hX9CD9UxtNaWWFbPPte+J3QqjYi2jOP2nt8keuehOrFBeTJXj2j/9PHx99tFltpWpV5Q=="
+      },
+      "Meziantou.Analyzer": {
+        "type": "Direct",
+        "requested": "[3.0.123, )",
+        "resolved": "3.0.123",
+        "contentHash": "NbIeci8/kG8/EWnK1Fs0Clt5BHNNGMGd48CScxGHkPkVX5D4DgSFbOFCELLdJaIvNkS7mkTCBHxqON8PqEZ+sQ=="
+      }
+    }
+  }
+}

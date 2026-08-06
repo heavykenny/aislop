@@ -13,14 +13,26 @@ vi.mock("../src/utils/subprocess.js", async (importOriginal) => {
 
 const { runDependencyAudit } = await import("../src/engines/security/audit.js");
 
-// Only the fields runDependencyAudit reads; cast keeps the fixture small.
+const auditContext = (
+	rootDirectory: string,
+	languages: EngineContext["languages"],
+	installedTools: EngineContext["installedTools"],
+	dependencyAuditLanguages?: EngineContext["dependencyAuditLanguages"],
+): EngineContext => ({
+	rootDirectory,
+	languages,
+	dependencyAuditLanguages,
+	frameworks: [],
+	installedTools,
+	config: {
+		quality: { maxFunctionLoc: 80, maxFileLoc: 400, maxNesting: 5, maxParams: 6 },
+		security: { audit: true, auditTimeout: 1000 },
+		lint: { typecheck: false, expoDoctor: false },
+	},
+});
+
 const pythonContext = (rootDirectory: string): EngineContext =>
-	({
-		rootDirectory,
-		languages: ["python"],
-		installedTools: { "pip-audit": true },
-		config: { security: { auditTimeout: 1000 } },
-	}) as unknown as EngineContext;
+	auditContext(rootDirectory, ["python"], { "pip-audit": true });
 
 describe("runDependencyAudit: Python dependency-manifest gate", () => {
 	let dir: string;
@@ -56,16 +68,14 @@ describe("runDependencyAudit: Python dependency-manifest gate", () => {
 		// file-derived scan languages (e.g. every .cs excluded) yet present in
 		// dependencyAuditLanguages from manifest-aware discovery.
 		fs.writeFileSync(path.join(dir, "App.csproj"), "<Project></Project>\n");
-		const context = {
-			rootDirectory: dir,
-			languages: [],
-			dependencyAuditLanguages: ["csharp"],
-			installedTools: { dotnet: true },
-			config: {
-				security: { auditTimeout: 1000 },
-				lint: { csharp: { projectEvaluation: true } },
-			},
-		} as unknown as EngineContext;
+		const context = auditContext(dir, [], { dotnet: true }, ["csharp"]);
+		context.config.lint.csharp = {
+			projectEvaluation: true,
+			jb: true,
+			roslynator: true,
+			jbSeverityFloor: "WARNING",
+			jbExcludeTypes: [],
+		};
 
 		await runDependencyAudit(context);
 
@@ -78,15 +88,14 @@ describe("runDependencyAudit: Python dependency-manifest gate", () => {
 
 	it("does not evaluate dotnet project files without explicit trust", async () => {
 		fs.writeFileSync(path.join(dir, "App.csproj"), "<Project></Project>\n");
-		const context = {
-			rootDirectory: dir,
-			languages: ["csharp"],
-			installedTools: { dotnet: true },
-			config: {
-				security: { auditTimeout: 1000 },
-				lint: { csharp: { projectEvaluation: false } },
-			},
-		} as unknown as EngineContext;
+		const context = auditContext(dir, ["csharp"], { dotnet: true });
+		context.config.lint.csharp = {
+			projectEvaluation: false,
+			jb: true,
+			roslynator: true,
+			jbSeverityFloor: "WARNING",
+			jbExcludeTypes: [],
+		};
 
 		await runDependencyAudit(context);
 

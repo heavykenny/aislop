@@ -118,6 +118,9 @@ jobs:
       - name: Install roslynator CLI
         run: dotnet tool install -g roslynator.dotnet.cli --version 0.12.0
 
+      - name: Restore trusted C# fixture
+        run: dotnet restore tests/fixtures/dotnet/sample-project/Sample.csproj --locked-mode
+
       - name: Build
         run: pnpm build
 
