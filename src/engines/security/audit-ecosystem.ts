@@ -34,10 +34,7 @@ export const runPipAudit = async (rootDir: string, timeout: number): Promise<Dia
 		const parsed: unknown = JSON.parse(result.stdout);
 		if (!isRecord(parsed)) return [];
 		return readRecordArray(parsed, "dependencies")
-			.filter((dependency) => {
-				const vulnerabilities = dependency.vulns;
-				return Array.isArray(vulnerabilities) && vulnerabilities.length > 0;
-			})
+			.filter((dependency) => readRecordArray(dependency, "vulns").length > 0)
 			.flatMap((dependency): Diagnostic[] => {
 				const name = readString(dependency, "name");
 				if (!name) return [];

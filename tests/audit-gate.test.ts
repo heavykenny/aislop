@@ -139,7 +139,13 @@ describe("external ecosystem audit payloads", () => {
 	it("ignores malformed top-level and nested values", async () => {
 		runSubprocess
 			.mockResolvedValueOnce({
-				stdout: JSON.stringify({ dependencies: [null, { name: 42, vulns: [{}] }] }),
+				stdout: JSON.stringify({
+					dependencies: [
+						null,
+						{ name: 42, vulns: [{}] },
+						{ name: "requests", vulns: [null, [], "invalid"] },
+					],
+				}),
 				stderr: "",
 				exitCode: 1,
 			})
