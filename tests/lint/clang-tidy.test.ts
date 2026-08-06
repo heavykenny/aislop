@@ -69,8 +69,15 @@ const makeContext = (rootDirectory: string, files: string[]): EngineContext =>
 	({
 		rootDirectory,
 		files,
-		config: { lint: {} },
-	}) as unknown as EngineContext;
+		languages: ["cpp"],
+		frameworks: [],
+		installedTools: { "clang-tidy": true },
+		config: {
+			quality: { maxFunctionLoc: 80, maxFileLoc: 400, maxNesting: 5, maxParams: 6 },
+			security: { audit: false, auditTimeout: 1000 },
+			lint: { typecheck: false, expoDoctor: false },
+		},
+	});
 
 describe("runClangTidy - chunked invocation", () => {
 	let dir: string;

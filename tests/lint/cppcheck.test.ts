@@ -120,8 +120,15 @@ const makeContext = (rootDirectory: string, files: string[]): EngineContext =>
 	({
 		rootDirectory,
 		files,
-		config: { lint: {} },
-	}) as unknown as EngineContext;
+		languages: ["cpp"],
+		frameworks: [],
+		installedTools: { cppcheck: true },
+		config: {
+			quality: { maxFunctionLoc: 80, maxFileLoc: 400, maxNesting: 5, maxParams: 6 },
+			security: { audit: false, auditTimeout: 1000 },
+			lint: { typecheck: false, expoDoctor: false },
+		},
+	});
 
 describe("runCppcheck - chunked invocation", () => {
 	let dir: string;
