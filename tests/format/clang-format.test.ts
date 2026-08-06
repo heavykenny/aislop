@@ -258,10 +258,28 @@ describe("fixClangFormat - pooled chunk execution", () => {
 			return { stdout: "", stderr: `chunk ${index} exploded`, exitCode: 1 };
 		});
 
-		await expect(fixClangFormat(pooledSourceDir)).rejects.toThrow("chunk 1 exploded");
+		await expect(fixClangFormat(makeContext(pooledSourceDir))).rejects.toThrow("chunk 1 exploded");
 
 		expect(runSubprocess).toHaveBeenCalledTimes(CHUNK_COUNT);
 		expect(completedCalls.sort()).toEqual([0, 1, 2]);
 		expect((runSubprocess.mock.calls[0][1] as string[]).slice(0, 2)).toEqual(["-i", "--"]);
+	});
+
+	it("does not rewrite sources excluded by the scan context", async () => {
+		const kept = path.join(pooledSourceDir, "src", "kept.cpp");
+		const excluded = path.join(pooledSourceDir, "vendor", "excluded.cpp");
+		fs.mkdirSync(path.dirname(kept), { recursive: true });
+		fs.mkdirSync(path.dirname(excluded), { recursive: true });
+		fs.writeFileSync(kept, "int kept;\n");
+		fs.writeFileSync(excluded, "int excluded;\n");
+		runSubprocess.mockResolvedValue({ stdout: "", stderr: "", exitCode: 0 });
+
+		await fixClangFormat(makeContext(pooledSourceDir, { excludePatterns: ["vendor/**"] }));
+
+		const files = runSubprocess.mock.calls.flatMap((call) =>
+			(call[1] as string[]).filter((argument) => argument.endsWith(".cpp")),
+		);
+		expect(files).toContain(kept);
+		expect(files).not.toContain(excluded);
 	});
 });

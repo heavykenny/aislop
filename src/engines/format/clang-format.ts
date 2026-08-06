@@ -4,7 +4,7 @@ import path from "node:path";
 import { mapWithConcurrencyLimit } from "../../utils/concurrency.js";
 import { relativePosix } from "../../utils/paths.js";
 import { chunkFilePaths, runSubprocess } from "../../utils/subprocess.js";
-import { findCppSources, findCppSourcesForRoot } from "../cpp-targets.js";
+import { findCppSources } from "../cpp-targets.js";
 import type { Diagnostic, EngineContext } from "../types.js";
 
 // Re-exported from utils/subprocess.js, which is the shared home for chunking
@@ -109,9 +109,10 @@ export const runClangFormat = async (context: EngineContext): Promise<Diagnostic
 		.map((filePath) => formattingDiagnostic(relativePosix(context.rootDirectory, filePath)));
 };
 
-export const fixClangFormat = async (rootDirectory: string): Promise<void> => {
+export const fixClangFormat = async (context: EngineContext): Promise<void> => {
+	const { rootDirectory } = context;
 	if (!hasClangFormatConfig(rootDirectory)) return;
-	const files = findCppSourcesForRoot(rootDirectory);
+	const files = findCppSources(context);
 	if (files.length === 0) return;
 	// Safe to run concurrently: chunks are disjoint file sets and `-i` rewrites
 	// each file in place, so no two invocations ever touch the same path. A

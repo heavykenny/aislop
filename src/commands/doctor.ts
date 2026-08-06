@@ -15,7 +15,7 @@ import { APP_VERSION } from "../version.js";
 import { buildRows, type DoctorEngineRow, languageLabelFor } from "./doctor-plan.js";
 
 export type { DoctorEngineRow } from "./doctor-plan.js";
-export { planFormatForTest, planLintForTest } from "./doctor-plan.js";
+export { planFormatForTest, planLintForTest, planSecurityForTest } from "./doctor-plan.js";
 
 interface BuildDoctorRenderInput {
 	projectName: string;

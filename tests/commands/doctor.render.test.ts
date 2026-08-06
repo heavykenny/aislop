@@ -4,6 +4,7 @@ import {
 	type DoctorEngineRow,
 	planFormatForTest,
 	planLintForTest,
+	planSecurityForTest,
 } from "../../src/commands/doctor.js";
 import { stripAnsi as strip } from "../helpers/ansi.js";
 
@@ -87,6 +88,7 @@ describe("planLint csharp linter selection", () => {
 		const decision = planLintForTest({
 			languages: ["csharp"],
 			installedTools: { jb: true, roslynator: false },
+			projectEvaluation: true,
 		});
 		expect(decision.tool).toBe("jb inspectcode (system)");
 		expect(decision.status).toBe("ok");
@@ -96,6 +98,7 @@ describe("planLint csharp linter selection", () => {
 		const decision = planLintForTest({
 			languages: ["csharp"],
 			installedTools: { jb: false, roslynator: true },
+			projectEvaluation: true,
 		});
 		expect(decision.tool).toBe("roslynator (system)");
 		expect(decision.status).toBe("ok");
@@ -105,10 +108,31 @@ describe("planLint csharp linter selection", () => {
 		const decision = planLintForTest({
 			languages: ["csharp"],
 			installedTools: { jb: false, roslynator: false },
+			projectEvaluation: true,
 		});
 		expect(decision.status).toBe("missing");
 		expect(decision.tool).toContain("not found");
 		expect(decision.remediation).toContain("JetBrains.ReSharper.GlobalTools");
+	});
+
+	it("reports the project-evaluation gate across C# engines", () => {
+		const overrides = {
+			languages: ["csharp"] as const,
+			installedTools: { dotnet: true, jb: true, roslynator: true },
+		};
+		const decisions = [
+			planFormatForTest({ ...overrides, languages: [...overrides.languages] }),
+			planLintForTest({ ...overrides, languages: [...overrides.languages] }),
+			planSecurityForTest({ ...overrides, languages: [...overrides.languages] }),
+		];
+
+		expect(decisions).toEqual(
+			Array.from({ length: 3 }, () => ({
+				tool: "project-backed C# tools",
+				status: "skipped",
+				skipReason: "set lint.csharp.projectEvaluation: true only for repositories you trust",
+			})),
+		);
 	});
 });
 

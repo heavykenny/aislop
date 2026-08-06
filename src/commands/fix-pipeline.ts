@@ -290,7 +290,7 @@ const runNativeFormattingSteps = async (deps: PipelineDeps): Promise<void> => {
 		await deps.runStep(
 			"Formatting (cpp)",
 			() => runClangFormat(deps.context),
-			() => fixClangFormat(deps.resolvedDir),
+			() => fixClangFormat(deps.context),
 		);
 	} else if (deps.projectInfo.languages.includes("cpp")) {
 		log.warn("C/C++ detected but clang-format is not installed; skipping C/C++ formatting fixes.");

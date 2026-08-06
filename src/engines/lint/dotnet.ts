@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { projectRelativePosix } from "../../utils/paths.js";
 import { runSubprocess } from "../../utils/subprocess.js";
@@ -82,7 +83,8 @@ const analyzeTarget = async (
 	analyzerAssemblies: string[],
 	target: string,
 ): Promise<Diagnostic[]> => {
-	const outputPath = path.join(context.rootDirectory, ".aislop-roslynator.xml");
+	const outputDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "aislop-roslynator-"));
+	const outputPath = path.join(outputDirectory, "report.xml");
 	try {
 		const analyzeArgs = ["analyze", target, "--output", outputPath];
 		if (analyzerAssemblies.length > 0) {
@@ -94,16 +96,12 @@ const analyzeTarget = async (
 			cwd: context.rootDirectory,
 			timeout: 180000,
 		});
-		let xml: string;
-		try {
-			xml = fs.readFileSync(outputPath, "utf-8");
-			fs.rmSync(outputPath, { force: true });
-		} catch {
-			return [];
-		}
+		const xml = fs.readFileSync(outputPath, "utf-8");
 		return parseRoslynatorXml(xml, context.rootDirectory);
 	} catch {
 		return [];
+	} finally {
+		fs.rmSync(outputDirectory, { recursive: true, force: true });
 	}
 };
 

@@ -6,7 +6,7 @@ import { loadArchitectureRules } from "../engines/architecture/rule-loader.js";
 import { resolveTrustedTscPath } from "../engines/lint/typecheck.js";
 import type { EngineName } from "../engines/types.js";
 import { getEngineLabel } from "../output/engine-info.js";
-import { type Language, type ProjectInfo } from "../utils/discover.js";
+import type { Language, ProjectInfo } from "../utils/discover.js";
 
 export interface DoctorEngineRow {
 	engine: string;
@@ -75,6 +75,11 @@ const systemToolDecision = (
 				remediation: spec.remediation,
 			};
 
+interface MatchedToolDecision {
+	language: Language;
+	decision: ToolDecision;
+}
+
 // Installed-first selection: among specs whose language is detected, prefer the
 // first whose tool is actually installed (this is how csharp reports jb over
 // roslynator, and how a mixed-language repo reports an installed linter rather
@@ -85,15 +90,38 @@ const firstMatching = (
 	langs: Language[],
 	installed: Record<string, boolean>,
 	specs: LangToolSpec[],
-): ToolDecision | null => {
+): MatchedToolDecision | null => {
 	let firstLanguageMatch: LangToolSpec | null = null;
 	for (const spec of specs) {
 		if (!langs.includes(spec.language)) continue;
 		if (firstLanguageMatch === null) firstLanguageMatch = spec;
-		if (installed[spec.binary]) return systemToolDecision(installed, spec);
+		if (installed[spec.binary]) {
+			return { language: spec.language, decision: systemToolDecision(installed, spec) };
+		}
 	}
-	if (firstLanguageMatch !== null) return systemToolDecision(installed, firstLanguageMatch);
+	if (firstLanguageMatch !== null) {
+		return {
+			language: firstLanguageMatch.language,
+			decision: systemToolDecision(installed, firstLanguageMatch),
+		};
+	}
 	return null;
+};
+
+const projectEvaluationGate = (): ToolDecision => ({
+	tool: "project-backed C# tools",
+	status: "skipped",
+	skipReason: "set lint.csharp.projectEvaluation: true only for repositories you trust",
+});
+
+const applyProjectEvaluationGate = (
+	ctx: PlanContext,
+	matched: MatchedToolDecision | null,
+): ToolDecision | null => {
+	if (matched?.language === "csharp" && ctx.config.lint.csharp?.projectEvaluation !== true) {
+		return projectEvaluationGate();
+	}
+	return matched?.decision ?? null;
 };
 
 const spec = (
@@ -163,7 +191,7 @@ const planFormat = (ctx: PlanContext): ToolDecision => {
 	const { languages, installedTools } = ctx.projectInfo;
 	if (hasJsLike(languages)) return { tool: "biome (bundled)", status: "ok" };
 	return (
-		firstMatching(languages, installedTools, FORMAT_SPECS) ?? {
+		applyProjectEvaluationGate(ctx, firstMatching(languages, installedTools, FORMAT_SPECS)) ?? {
 			tool: "no formatter",
 			status: "skipped",
 			skipReason: "no supported language",
@@ -191,7 +219,7 @@ const planLint = (ctx: PlanContext): ToolDecision => {
 	}
 	if (hasJsLike(languages)) return withTypecheckSuffix("oxlint (bundled)", ctx);
 	return (
-		firstMatching(languages, installedTools, LINT_SPECS) ?? {
+		applyProjectEvaluationGate(ctx, firstMatching(languages, installedTools, LINT_SPECS)) ?? {
 			tool: "no linter",
 			status: "skipped",
 			skipReason: "no supported language",
@@ -200,13 +228,16 @@ const planLint = (ctx: PlanContext): ToolDecision => {
 };
 
 // Minimal synthetic PlanContext for the *ForTest entry points below.
-const makeTestPlanContext = (overrides: {
+interface TestPlanOverrides {
 	languages: Language[];
 	installedTools: Record<string, boolean>;
-}): PlanContext => ({
-	rootDirectory: "",
+	projectEvaluation?: boolean;
+}
+
+const makeTestPlanContext = (overrides: TestPlanOverrides): PlanContext => ({
+	rootDirectory: path.join(path.sep, "aislop-doctor-test-nonexistent"),
 	projectInfo: {
-		rootDirectory: "",
+		rootDirectory: path.join(path.sep, "aislop-doctor-test-nonexistent"),
 		projectName: "test",
 		languages: overrides.languages,
 		frameworks: [],
@@ -219,20 +250,25 @@ const makeTestPlanContext = (overrides: {
 		},
 		installedTools: overrides.installedTools,
 	},
-	config: DEFAULT_CONFIG,
+	config: {
+		...DEFAULT_CONFIG,
+		lint: {
+			...DEFAULT_CONFIG.lint,
+			csharp: {
+				...DEFAULT_CONFIG.lint.csharp,
+				projectEvaluation: overrides.projectEvaluation ?? false,
+			},
+		},
+	},
 });
 
 /** Exported for unit tests only. Runs planFormat with a minimal synthetic context. */
-export const planFormatForTest = (overrides: {
-	languages: Language[];
-	installedTools: Record<string, boolean>;
-}): ToolDecision => planFormat(makeTestPlanContext(overrides));
+export const planFormatForTest = (overrides: TestPlanOverrides): ToolDecision =>
+	planFormat(makeTestPlanContext(overrides));
 
 /** Exported for unit tests only. Runs planLint with a minimal synthetic context. */
-export const planLintForTest = (overrides: {
-	languages: Language[];
-	installedTools: Record<string, boolean>;
-}): ToolDecision => planLint(makeTestPlanContext(overrides));
+export const planLintForTest = (overrides: TestPlanOverrides): ToolDecision =>
+	planLint(makeTestPlanContext(overrides));
 
 const planCodeQuality = (ctx: PlanContext): ToolDecision => {
 	if (hasJsLike(ctx.projectInfo.languages)) {
@@ -305,6 +341,13 @@ const planSecurity = (ctx: PlanContext): ToolDecision => {
 			? hasAnyLanguage(projectInfo.languages, spec.languages)
 			: false;
 		if (!filesMatch && !languageMatch) continue;
+		if (
+			languageMatch &&
+			spec.languages?.includes("csharp") &&
+			ctx.config.lint.csharp?.projectEvaluation !== true
+		) {
+			return projectEvaluationGate();
+		}
 		if (spec.bundled) return { tool: spec.bundled, status: "ok" };
 		if (spec.systemTool) {
 			const required = spec.systemTool.requiresBinaries ?? [spec.systemTool.binary];
@@ -320,6 +363,9 @@ const planSecurity = (ctx: PlanContext): ToolDecision => {
 	}
 	return { tool: "no auditor", status: "skipped", skipReason: "no lockfile" };
 };
+
+export const planSecurityForTest = (overrides: TestPlanOverrides): ToolDecision =>
+	planSecurity(makeTestPlanContext(overrides));
 
 const planArchitecture = (ctx: PlanContext): ToolDecision => {
 	if (!ctx.config.engines.architecture) {
