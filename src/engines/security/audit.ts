@@ -4,7 +4,9 @@ import path from "node:path";
 import { isDependencyAuditInputFile } from "../../utils/source-file-selection.js";
 import { runSubprocess } from "../../utils/subprocess.js";
 import type { Diagnostic, EngineContext } from "../types.js";
-import { runCargoAudit, runGovulncheck, runPipAudit } from "./audit-ecosystem.js";
+import { runCargoAudit, runDotnetAudit, runGovulncheck, runPipAudit } from "./audit-ecosystem.js";
+
+export { parseDotnetAudit } from "./audit-ecosystem.js";
 
 const toRelativePath = (rootDirectory: string, filePath: string): string => {
 	const absolute = path.isAbsolute(filePath) ? filePath : path.resolve(rootDirectory, filePath);
@@ -80,6 +82,13 @@ export const runDependencyAudit = async (context: EngineContext): Promise<Diagno
 	// cargo audit
 	if (auditLanguages.includes("rust")) {
 		promises.push(runCargoAudit(context.rootDirectory, timeout));
+	}
+
+	// dotnet list package --vulnerable (NuGet). Keyed to the manifest-aware
+	// audit languages like the other ecosystems: a .csproj is what the audit
+	// needs, even when no .cs file is in the scan scope.
+	if (auditLanguages.includes("csharp") && context.installedTools.dotnet) {
+		promises.push(runDotnetAudit(context.rootDirectory, timeout));
 	}
 
 	const results = await Promise.allSettled(promises);

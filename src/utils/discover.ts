@@ -14,7 +14,9 @@ export type Language =
 	| "rust"
 	| "java"
 	| "ruby"
-	| "php";
+	| "php"
+	| "csharp"
+	| "cpp";
 
 export type Framework =
 	| "nextjs"
@@ -76,6 +78,15 @@ const EXTENSION_LANGUAGES: Record<string, Language> = {
 	".rb": "ruby",
 	".java": "java",
 	".php": "php",
+	".c": "cpp",
+	".cc": "cpp",
+	".cpp": "cpp",
+	".cxx": "cpp",
+	".h": "cpp",
+	".hh": "cpp",
+	".hpp": "cpp",
+	".hxx": "cpp",
+	".cs": "csharp",
 };
 
 const FRAMEWORK_PACKAGES: Record<string, Framework> = {
@@ -174,6 +185,36 @@ const detectLanguages = (directory: string, sourceFiles: string[]): Language[] =
 		}
 	}
 
+	// C# project files have arbitrary basenames (*.csproj / *.sln / *.slnx) plus a
+	// fixed global.json, so scan the directory rather than keying off a fixed name.
+	const hasDotnetProject = (() => {
+		if (fs.existsSync(path.join(directory, "global.json"))) return true;
+		try {
+			return fs
+				.readdirSync(directory)
+				.some(
+					(name) => name.endsWith(".csproj") || name.endsWith(".sln") || name.endsWith(".slnx"),
+				);
+		} catch {
+			return false;
+		}
+	})();
+	if (hasDotnetProject) languages.add("csharp");
+
+	// C/C++ projects have no single manifest name; recognize the common build-system
+	// markers in addition to the extension-based detection above. compile_commands.json
+	// in particular tells the lint engine clang-tidy is runnable.
+	const hasCppProject = (() => {
+		if (fs.existsSync(path.join(directory, "CMakeLists.txt"))) return true;
+		if (fs.existsSync(path.join(directory, "compile_commands.json"))) return true;
+		try {
+			return fs.readdirSync(directory).some((name) => name.endsWith(".vcxproj"));
+		} catch {
+			return false;
+		}
+	})();
+	if (hasCppProject) languages.add("cpp");
+
 	return [...languages];
 };
 
@@ -220,7 +261,7 @@ const detectFrameworks = (directory: string): Framework[] => {
 	return [...frameworks];
 };
 
-const TOOLS_TO_CHECK = [
+export const TOOLS_TO_CHECK = [
 	"oxlint",
 	"biome",
 	"ruff",
@@ -237,6 +278,12 @@ const TOOLS_TO_CHECK = [
 	"rubocop",
 	"phpcs",
 	"php-cs-fixer",
+	"dotnet",
+	"roslynator",
+	"jb",
+	"cppcheck",
+	"clang-format",
+	"clang-tidy",
 ];
 
 const checkInstalledTools = async (): Promise<Record<string, boolean>> => {

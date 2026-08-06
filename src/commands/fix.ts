@@ -11,6 +11,7 @@ import { LiveRail } from "../ui/live-rail.js";
 import { log } from "../ui/logger.js";
 import { theme as defaultTheme, style } from "../ui/theme.js";
 import { discoverProject } from "../utils/discover.js";
+import { readAislopIgnorePatterns } from "../utils/source-files.js";
 import { APP_VERSION } from "../version.js";
 import { launchAgent, printPrompt } from "./fix-code.js";
 import {
@@ -50,6 +51,9 @@ const createEngineContext = (
 	rootDirectory,
 	languages: projectInfo.languages,
 	frameworks: projectInfo.frameworks,
+	// Fixers rewrite files, so the exclude list has to reach them: without it a
+	// whole-project tool such as dotnet format would reformat excluded code.
+	excludePatterns: [...config.exclude, ...readAislopIgnorePatterns(rootDirectory)],
 	installedTools: options.safe
 		? { ...projectInfo.installedTools, rubocop: false, "php-cs-fixer": false }
 		: projectInfo.installedTools,
@@ -193,6 +197,7 @@ const runFixBody = async (
 			rootDirectory: resolvedDir,
 			languages: projectInfo.languages,
 			frameworks: projectInfo.frameworks,
+			excludePatterns: context.excludePatterns,
 			installedTools: context.installedTools,
 			config: engineConfig,
 		},

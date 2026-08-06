@@ -1,7 +1,10 @@
 import { performance } from "node:perf_hooks";
+import { filterExcludedDiagnostics } from "../utils/exclude.js";
 import { aiSlopEngine } from "./ai-slop/index.js";
 import { architectureEngine } from "./architecture/index.js";
 import { codeQualityEngine } from "./code-quality/index.js";
+import { dedupeOverlappingComments } from "./comment-dedupe.js";
+import { dedupeCSharpAsync } from "./csharp-dedupe.js";
 import { formatEngine } from "./format/index.js";
 import { lintEngine } from "./lint/index.js";
 import { securityEngine } from "./security/index.js";
@@ -31,6 +34,15 @@ export const runEngines = async (
 
 			try {
 				const result = await engine.run(context);
+				// Honor the user exclude list uniformly: the build-backed C# engines
+				// scan whole projects/solutions and cannot filter their own
+				// output, so drop excluded-path diagnostics here before they are
+				// counted or reported.
+				result.diagnostics = filterExcludedDiagnostics(
+					result.diagnostics,
+					context.rootDirectory,
+					context.excludePatterns,
+				);
 				result.elapsed = performance.now() - start;
 				onComplete?.(result);
 				return result;
@@ -48,7 +60,7 @@ export const runEngines = async (
 		}),
 	);
 
-	return results.map((r, i) =>
+	const finalResults = results.map((r, i) =>
 		r.status === "fulfilled"
 			? r.value
 			: {
@@ -59,4 +71,6 @@ export const runEngines = async (
 					skipReason: r.reason instanceof Error ? r.reason.message : String(r.reason),
 				},
 	);
+
+	return dedupeOverlappingComments(dedupeCSharpAsync(finalResults));
 };

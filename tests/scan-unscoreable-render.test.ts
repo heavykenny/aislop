@@ -20,7 +20,7 @@ afterEach(() => {
 describe("unscoreable scan output", () => {
 	it("renders findings alongside the coverage notice when the score is withheld", () => {
 		for (let i = 0; i < 15; i++) {
-			fs.writeFileSync(path.join(tmpDir, `f${i}.c`), "int main(){return 0;}\n");
+			fs.writeFileSync(path.join(tmpDir, `f${i}.swift`), "func main() { print(0) }\n");
 		}
 		fs.writeFileSync(
 			path.join(tmpDir, "app.ts"),

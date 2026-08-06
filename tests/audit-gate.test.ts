@@ -50,4 +50,26 @@ describe("runDependencyAudit: Python dependency-manifest gate", () => {
 
 		expect(runSubprocess).toHaveBeenCalledWith("pip-audit", ["--format=json"], expect.anything());
 	});
+
+	it("keys the dotnet audit to manifest-aware audit languages, not scan-scope languages", async () => {
+		// A .csproj is what the NuGet audit needs; csharp may be absent from the
+		// file-derived scan languages (e.g. every .cs excluded) yet present in
+		// dependencyAuditLanguages from manifest-aware discovery.
+		fs.writeFileSync(path.join(dir, "App.csproj"), "<Project></Project>\n");
+		const context = {
+			rootDirectory: dir,
+			languages: [],
+			dependencyAuditLanguages: ["csharp"],
+			installedTools: { dotnet: true },
+			config: { security: { auditTimeout: 1000 } },
+		} as unknown as EngineContext;
+
+		await runDependencyAudit(context);
+
+		expect(runSubprocess).toHaveBeenCalledWith(
+			"dotnet",
+			expect.arrayContaining(["list"]),
+			expect.anything(),
+		);
+	});
 });

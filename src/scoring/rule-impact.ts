@@ -61,6 +61,7 @@ export const RULE_SCORE_IMPACTS: Record<string, RuleScoreImpact> = {
 	"rust-formatting": mechanical("Rust formatter output is mechanical cleanup.", 12),
 	"ruby-formatting": mechanical("Ruby formatter output is mechanical cleanup.", 12),
 	"php-formatting": mechanical("PHP formatter output is mechanical cleanup.", 12),
+	"csharp-formatting": mechanical("C# formatter output is mechanical cleanup.", 12),
 
 	"code-quality/duplicate-block": maintainability(
 		"Large copy-paste blocks are real maintenance debt, but repeated blocks are less severe than defects.",
@@ -197,6 +198,71 @@ export const RULE_SCORE_IMPACTS: Record<string, RuleScoreImpact> = {
 		"Literal-success assertions are high-confidence test gaps but do not break production directly.",
 	),
 
+	"ai-slop/csharp-not-implemented": standard(
+		"NotImplementedException stubs usually indicate unfinished behavior.",
+	),
+	"ai-slop/csharp-async-void": standard(
+		"async void can't be awaited and its exceptions crash the process.",
+	),
+	"ai-slop/csharp-sync-over-async": standard(
+		"Blocking on a Task with .Result/.Wait() risks deadlock and burns a thread.",
+	),
+	"ai-slop/csharp-suppressed-warning": maintainability(
+		"Unjustified warning suppression hides analyzer findings rather than fixing them.",
+	),
+	"ai-slop/csharp-empty-catch-rethrow": mechanical(
+		"catch (...) { throw; } is pure noise with no behavior change - mechanical cleanup.",
+	),
+	"ai-slop/csharp-null-forgiving": maintainability(
+		"The null-forgiving ! silences nullable safety without proving the value is non-null.",
+	),
+	"ai-slop/csharp-console-leftover": style(
+		"Leftover Console/Debug/Trace output is visible cleanup unless it leaks sensitive data.",
+	),
+	"ai-slop/csharp-redundant-doc-comment": style(
+		"XML-doc that restates the member name is a cleanup/style finding, not a defect.",
+	),
+	"ai-slop/csharp-broad-catch": standard(
+		"catch (Exception) buries specific failures, though it is sometimes intentional at boundaries.",
+	),
+	"ai-slop/csharp-linq-count": advisory(
+		"Comparing .Count() to 0/1 is a readability/perf idiom signal, often harmless.",
+	),
+	"ai-slop/csharp-index-loop": advisory(
+		"Index for-loops over .Length/.Count are style/readability signals, often not harmful.",
+	),
+	"ai-slop/csharp-if-ladder": maintainability(
+		"Repeated if/else-if ladders dispatching on one value create maintainability debt.",
+	),
+	"ai-slop/csharp-string-concat-in-loop": maintainability(
+		"Repeated string += in a loop is O(n^2) allocation churn; a StringBuilder is the fix.",
+	),
+
+	"ai-slop/cpp-not-implemented": standard(
+		"Stubs that throw or assert 'not implemented' usually indicate unfinished behavior.",
+	),
+	"ai-slop/cpp-using-namespace-std-in-header": maintainability(
+		"A using-directive at header scope leaks std names into every includer, a hygiene debt.",
+	),
+	"ai-slop/cpp-c-style-cast": style(
+		"A C-style cast in C++ is a cleanup/style finding; a named cast makes intent explicit.",
+	),
+	"ai-slop/cpp-manual-delete": maintainability(
+		"Manual delete is a memory-safety hazard; RAII/smart pointers own the resource instead.",
+	),
+	"ai-slop/cpp-iostream-leftover": style(
+		"Leftover std::cout/std::cerr in library code is visible cleanup unless it leaks data.",
+	),
+	"ai-slop/cpp-null-literal": style(
+		"NULL versus nullptr is a modernization/style finding; nullptr avoids integer-overload pitfalls.",
+	),
+	"ai-slop/cpp-define-constant": style(
+		"A macro constant instead of constexpr is a style/hygiene finding, not a behavior bug.",
+	),
+	"ai-slop/cpp-endl-in-stream": style(
+		"std::endl versus '\\n' is a minor performance/style finding from redundant flushes.",
+	),
+
 	"security/hardcoded-secret": strict("Secret-looking source literals are high-risk."),
 	"security/vulnerable-dependency": strict(
 		"Known vulnerabilities deserve full impact even when remediation varies.",
@@ -206,8 +272,20 @@ export const RULE_SCORE_IMPACTS: Record<string, RuleScoreImpact> = {
 	"security/dangerously-set-innerhtml": strict("React raw HTML escape hatches can become XSS."),
 	"security/sql-injection": strict("Interpolated SQL can become data exfiltration or mutation."),
 	"security/shell-injection": strict("Interpolated shell commands can become command execution."),
+	"security/unsafe-deserialization": strict(
+		"Deserializing untrusted data with a legacy .NET formatter can become remote code execution.",
+	),
+	"security/unsafe-c-call": strict(
+		"Unbounded C string and process calls can become buffer overflows or command execution.",
+	),
 	"security/dependency-audit-skipped": advisory(
 		"An unavailable audit is visibility loss, not evidence of a vulnerability.",
+	),
+	"dotnet/projects-skipped": advisory(
+		"Skipping unrestored C# projects is visibility loss, not evidence of a defect.",
+	),
+	"cppcheck/chunks-skipped": advisory(
+		"A skipped cppcheck chunk is visibility loss, not evidence that the skipped files have a defect.",
 	),
 
 	"eslint/no-undef": strict("Undefined identifiers are high-confidence runtime failures."),

@@ -3,7 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { discoverProject } from "../src/utils/discover.js";
+import { detectSourceLanguages, discoverProject } from "../src/utils/discover.js";
 
 // Helpers to create fake project directories
 const createFile = (dir: string, filename: string, content = "") => {
@@ -126,6 +126,60 @@ describe("discoverProject", () => {
 		createFile(tmpDir, "build.gradle", "plugins {}");
 		const info = await discoverProject(tmpDir);
 		expect(info.languages).toContain("java");
+	});
+
+	it("detects csharp from bare .cs source files with no manifest", async () => {
+		// The scan pipeline derives languages from enumerated source files via
+		// detectSourceLanguages, bypassing manifest detection - so .cs must be in
+		// the extension map or every csharp-gated engine silently skips in real
+		// scans even though discoverProject sees the .csproj.
+		createFile(tmpDir, "Program.cs", "class Program { static void Main() { } }");
+		const info = await discoverProject(tmpDir);
+		expect(info.languages).toContain("csharp");
+		expect(detectSourceLanguages([path.join(tmpDir, "Program.cs")])).toContain("csharp");
+	});
+
+	it("detects csharp from a .csproj file", async () => {
+		createFile(tmpDir, "App.csproj", "<Project></Project>");
+		const info = await discoverProject(tmpDir);
+		expect(info.languages).toContain("csharp");
+	});
+
+	it("detects csharp from a .sln file", async () => {
+		createFile(tmpDir, "App.sln", "Microsoft Visual Studio Solution File");
+		const info = await discoverProject(tmpDir);
+		expect(info.languages).toContain("csharp");
+	});
+
+	it("detects csharp from a .slnx file", async () => {
+		createFile(tmpDir, "App.slnx", "<Solution></Solution>");
+		const info = await discoverProject(tmpDir);
+		expect(info.languages).toContain("csharp");
+	});
+
+	it("detects csharp from a global.json file", async () => {
+		createFile(tmpDir, "global.json", '{ "sdk": { "version": "8.0.0" } }');
+		const info = await discoverProject(tmpDir);
+		expect(info.languages).toContain("csharp");
+	});
+
+	it("detects cpp from source files and CMakeLists, and scores them", async () => {
+		gitInit(tmpDir);
+		fs.mkdirSync(path.join(tmpDir, "src"), { recursive: true });
+		createFile(tmpDir, "CMakeLists.txt", "cmake_minimum_required(VERSION 3.20)\n");
+		createFile(
+			tmpDir,
+			"src/foo.cpp",
+			"#include <vector>\nint add(int a, int b) { return a + b; }\n",
+		);
+		createFile(tmpDir, "src/foo.h", "#pragma once\nint add(int, int);\n");
+		const info = await discoverProject(tmpDir);
+		expect(info.languages).toContain("cpp");
+		expect(info.coverage.scoreable).toBe(true);
+		expect(info.coverage.dominantUnsupported).toBe(null);
+		expect(info.installedTools).toHaveProperty("cppcheck");
+		expect(info.installedTools).toHaveProperty("clang-format");
+		expect(info.installedTools).toHaveProperty("clang-tidy");
 	});
 
 	it("detects multiple languages in the same project", async () => {

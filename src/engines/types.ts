@@ -42,6 +42,11 @@ export interface EngineContext {
 	files?: string[];
 	testFiles?: string[];
 	projectFiles?: string[];
+	// Raw user exclude entries (config `exclude` + `.aislopignore`). The
+	// file-scanning engines already start from the excluded file list; this lets
+	// the build-backed C# engines - which shell out to tools that scan whole
+	// projects - honor the same excludes via a shared diagnostic post-filter.
+	excludePatterns?: string[];
 	installedTools: Record<string, boolean>;
 	config: EngineConfig;
 }
@@ -60,6 +65,22 @@ export interface EngineConfig {
 	lint: {
 		typecheck: boolean;
 		expoDoctor: boolean;
+		csharp?: {
+			jb: boolean;
+			roslynator: boolean;
+			jbSeverityFloor: "ERROR" | "WARNING" | "SUGGESTION" | "HINT";
+			jbExcludeTypes: string[];
+			jbProjects?: string;
+		};
+		cpp?: {
+			cppcheck: boolean;
+			clangTidy: boolean;
+			cppcheckEnable: string;
+			jb: boolean;
+			jbProjects?: string;
+			jbSeverityFloor: "ERROR" | "WARNING" | "SUGGESTION" | "HINT";
+			jbExcludeTypes: string[];
+		};
 	};
 	allowProjectLocalTools?: boolean;
 	architectureRulesPath?: string;

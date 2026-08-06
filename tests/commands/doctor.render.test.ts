@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { buildDoctorRender, type DoctorEngineRow } from "../../src/commands/doctor.js";
+import {
+	buildDoctorRender,
+	type DoctorEngineRow,
+	planFormatForTest,
+	planLintForTest,
+} from "../../src/commands/doctor.js";
 import { stripAnsi as strip } from "../helpers/ansi.js";
 
 describe("doctor render", () => {
@@ -74,5 +79,58 @@ describe("doctor render", () => {
 			}),
 		);
 		expect(out).toMatch(/Scan\s+aislop scan/);
+	});
+});
+
+describe("planLint csharp linter selection", () => {
+	it("reports jb inspectcode when jb is installed", () => {
+		const decision = planLintForTest({
+			languages: ["csharp"],
+			installedTools: { jb: true, roslynator: false },
+		});
+		expect(decision.tool).toBe("jb inspectcode (system)");
+		expect(decision.status).toBe("ok");
+	});
+
+	it("reports roslynator when jb is absent but roslynator is installed", () => {
+		const decision = planLintForTest({
+			languages: ["csharp"],
+			installedTools: { jb: false, roslynator: true },
+		});
+		expect(decision.tool).toBe("roslynator (system)");
+		expect(decision.status).toBe("ok");
+	});
+
+	it("reports not-found with jb install hint when neither tool is installed", () => {
+		const decision = planLintForTest({
+			languages: ["csharp"],
+			installedTools: { jb: false, roslynator: false },
+		});
+		expect(decision.status).toBe("missing");
+		expect(decision.tool).toContain("not found");
+		expect(decision.remediation).toContain("JetBrains.ReSharper.GlobalTools");
+	});
+});
+
+describe("planFormat/planLint cpp tools", () => {
+	it("reports cpp tools: clang-format for format, cppcheck preferred for lint", () => {
+		const decisionFormat = planFormatForTest({
+			languages: ["cpp"],
+			installedTools: { "clang-format": true },
+		});
+		expect(decisionFormat).toMatchObject({ tool: "clang-format (system)", status: "ok" });
+
+		const decisionLint = planLintForTest({
+			languages: ["cpp"],
+			installedTools: { cppcheck: true, "clang-tidy": true },
+		});
+		expect(decisionLint).toMatchObject({ tool: "cppcheck (system)", status: "ok" });
+
+		const none = planLintForTest({
+			languages: ["cpp"],
+			installedTools: {},
+		});
+		expect(none.status).toBe("missing");
+		expect(none.tool).toContain("cppcheck not found");
 	});
 });

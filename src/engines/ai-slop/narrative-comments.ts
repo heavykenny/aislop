@@ -6,6 +6,8 @@ import type { Diagnostic, EngineContext } from "../types.js";
 import { type CommentBlock, collectBlocks, getCommentSyntax } from "./comment-blocks.js";
 import {
 	CROSS_REFERENCE_PHRASES,
+	CSHARP_DECL_START,
+	CSHARP_DECL_START_FALLBACK,
 	DECL_START,
 	DECORATIVE_SECTION_HEADER,
 	DECORATIVE_SEPARATOR,
@@ -43,6 +45,8 @@ const looksLikeDeclarationPreamble = (nextLine: string | null, ext: string): boo
 			return JAVA_DECL_START.test(nextLine) || JAVA_DECL_START_FALLBACK.test(nextLine);
 		case ".php":
 			return PHP_DECL_START.test(nextLine);
+		case ".cs":
+			return CSHARP_DECL_START.test(nextLine) || CSHARP_DECL_START_FALLBACK.test(nextLine);
 		case ".ts":
 		case ".tsx":
 		case ".js":

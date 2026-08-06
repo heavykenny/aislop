@@ -96,6 +96,46 @@ describe("parseConfig", () => {
 		expect(parseConfig({}).lint.expoDoctor).toBe(false);
 		expect(parseConfig({ lint: { expoDoctor: true } }).lint.expoDoctor).toBe(true);
 	});
+
+	it("defaults csharp lint to jb+roslynator both on, WARNING floor, InconsistentNaming excluded", () => {
+		const cfg = parseConfig({});
+		expect(cfg.lint.csharp.jb).toBe(true);
+		expect(cfg.lint.csharp.roslynator).toBe(true);
+		expect(cfg.lint.csharp.jbSeverityFloor).toBe("WARNING");
+		expect(cfg.lint.csharp.jbExcludeTypes).toEqual(["InconsistentNaming"]);
+		expect(cfg.lint.csharp.jbProjects).toBeUndefined();
+	});
+
+	it("lets csharp lint be overridden (roslynator off, floor lowered)", () => {
+		const cfg = parseConfig({
+			lint: { csharp: { roslynator: false, jbSeverityFloor: "SUGGESTION" } },
+		});
+		expect(cfg.lint.csharp.roslynator).toBe(false);
+		expect(cfg.lint.csharp.jb).toBe(true); // untouched default
+		expect(cfg.lint.csharp.jbSeverityFloor).toBe("SUGGESTION");
+	});
+
+	it("provides cpp lint defaults and honors overrides", () => {
+		expect(parseConfig({}).lint.cpp).toEqual({
+			cppcheck: true,
+			clangTidy: true,
+			cppcheckEnable: "warning,performance,portability",
+			jb: false,
+			jbSeverityFloor: "WARNING",
+			jbExcludeTypes: [],
+		});
+		const overridden = parseConfig({ lint: { cpp: { cppcheckEnable: "all" } } });
+		expect(overridden.lint.cpp.cppcheckEnable).toBe("all");
+		expect(overridden.lint.cpp.cppcheck).toBe(true); // other defaults preserved
+	});
+
+	it("defaults cpp jb to off, WARNING floor, empty excludes", () => {
+		const cfg = parseConfig({});
+		expect(cfg.lint.cpp.jb).toBe(false);
+		expect(cfg.lint.cpp.jbSeverityFloor).toBe("WARNING");
+		expect(cfg.lint.cpp.jbExcludeTypes).toEqual([]);
+		expect(cfg.lint.cpp.jbProjects).toBeUndefined();
+	});
 });
 
 // ─── DEFAULT_CONFIG ────────────────────────────────────────────────────────────

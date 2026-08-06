@@ -128,6 +128,9 @@ const runScanBody = async (
 		scopeLabel,
 		testFiles,
 	} = scanScope;
+	// Raw user excludes for the build-backed C# engines' diagnostic post-filter
+	// (same derivation as the caller's scan-scope request).
+	const excludePatterns = [...config.exclude, ...readAislopIgnorePatterns(resolvedDir)];
 	const scanCoverage = deriveScanCoverage(projectInfo.coverage, scoreFileCount);
 	const reportProjectInfo = {
 		...projectInfo,
@@ -169,6 +172,7 @@ const runScanBody = async (
 			dependencyAuditLanguages,
 			dependencyAuditScope,
 			files,
+			excludePatterns,
 			testFiles,
 			projectFiles,
 			installedTools: projectInfo.installedTools,
