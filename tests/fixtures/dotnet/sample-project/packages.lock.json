@@ -6,13 +6,13 @@
         "type": "Direct",
         "requested": "[2.1.0, )",
         "resolved": "2.1.0",
-        "contentHash": "9exIvSbeCBqtmVeSC6hX9CD9UxtNaWWFbPPte+J3QqjYi2jOP2nt8keuehOrFBeTJXj2j/9PHx99tFltpWpV5Q=="
+        "contentHash": "OOHNlH7GF39qk0Pv4cIQWA99hUh3nujDgGE2nADPpw88lD7s2qwlxEhuJIBfstC8ng3B1yY6SQy2JW/tddlMAQ=="
       },
       "Meziantou.Analyzer": {
         "type": "Direct",
         "requested": "[3.0.123, )",
         "resolved": "3.0.123",
-        "contentHash": "NbIeci8/kG8/EWnK1Fs0Clt5BHNNGMGd48CScxGHkPkVX5D4DgSFbOFCELLdJaIvNkS7mkTCBHxqON8PqEZ+sQ=="
+        "contentHash": "maXbWokGTRWiBGqxxN2J1vEVGHFc6yWSjbyc0KkrJ78PcjkeWm3Y4PrKUH0tMcknpJvQkM4twMKrgSYZmRNbcQ=="
       }
     }
   }
