@@ -1,4 +1,8 @@
-export const FIX_AGENT_FLAGS: { flag: string; name: string; help: string }[] = [
+export const FIX_AGENT_FLAGS: readonly Readonly<{
+	flag: string;
+	name: string;
+	help: string;
+}>[] = [
 	{ flag: "claude", name: "claude", help: "open Claude Code to fix remaining issues" },
 	{ flag: "codex", name: "codex", help: "open Codex to fix remaining issues" },
 	{ flag: "cursor", name: "cursor", help: "open Cursor and copy prompt to clipboard" },

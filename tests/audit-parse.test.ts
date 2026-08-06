@@ -94,6 +94,14 @@ describe("parseJsAudit — modern vulnerabilities", () => {
 		expect(diagnostics.map((d) => d.message).join(" ")).toContain("uuid");
 		expect(diagnostics.map((d) => d.message).join(" ")).toContain("lodash");
 	});
+
+	it("ignores malformed nested audit values", () => {
+		expect(parseJsAudit(JSON.stringify({ advisories: { bad: null } }), "npm audit")).toEqual([]);
+		expect(
+			parseJsAudit(JSON.stringify({ vulnerabilities: { bad: "not an object" } }), "npm audit"),
+		).toEqual([]);
+		expect(parseJsAudit(JSON.stringify({ error: "not an object" }), "npm audit")).toEqual([]);
+	});
 });
 
 describe("parseDotnetAudit - dotnet list package --vulnerable", () => {
@@ -271,6 +279,18 @@ describe("parseDotnetAudit - dotnet list package --vulnerable", () => {
 		expect(parseDotnetAudit("", rootDirectory)).toEqual([]);
 		expect(parseDotnetAudit("not json", rootDirectory)).toEqual([]);
 	});
+
+	it("ignores malformed report collections and package entries", () => {
+		expect(parseDotnetAudit(JSON.stringify({ projects: "invalid" }), rootDirectory)).toEqual([]);
+		expect(
+			parseDotnetAudit(
+				JSON.stringify({
+					projects: [{ frameworks: [{ topLevelPackages: [null, "invalid", { id: 42 }] }] }],
+				}),
+				rootDirectory,
+			),
+		).toEqual([]);
+	});
 });
 
 describe("parseBunAudit", () => {
@@ -304,5 +324,9 @@ describe("parseBunAudit", () => {
 		expect(diagnostics[0].message).toContain("lodash");
 		expect(diagnostics[0].message).toContain("high");
 		expect(diagnostics[0].detail).toBe("bun");
+	});
+
+	it("ignores malformed advisory entries", () => {
+		expect(parseBunAudit(JSON.stringify({ lodash: [null, "invalid", 1] }))).toEqual([]);
 	});
 });

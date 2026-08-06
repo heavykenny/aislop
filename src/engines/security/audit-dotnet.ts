@@ -2,6 +2,7 @@ import { projectRelativePosix } from "../../utils/paths.js";
 import { runSubprocess } from "../../utils/subprocess.js";
 import type { Diagnostic } from "../types.js";
 import { SEVERITY_RANK, toSeverity } from "./audit-shared.js";
+import { isRecord, readRecordArray, readString } from "./audit-value.js";
 
 // `dotnet list package --vulnerable --include-transitive --format json` emits the
 // schema projects -> frameworks -> {topLevelPackages, transitivePackages} -> packages,
@@ -13,23 +14,6 @@ interface DotnetVulnerability {
 	severity?: string;
 	advisoryurl?: string;
 }
-interface DotnetPackage {
-	id?: string;
-	resolvedVersion?: string;
-	vulnerabilities?: DotnetVulnerability[];
-}
-interface DotnetFramework {
-	topLevelPackages?: DotnetPackage[];
-	transitivePackages?: DotnetPackage[];
-}
-interface DotnetProject {
-	path?: string;
-	frameworks?: DotnetFramework[];
-}
-interface DotnetAuditReport {
-	projects?: DotnetProject[];
-}
-
 interface DotnetFinding {
 	projectFile: string;
 	packageId: string;
@@ -59,18 +43,25 @@ const dedupeVulnerabilities = (vulnerabilities: DotnetVulnerability[]): DotnetVu
 	});
 };
 
+const readVulnerabilities = (pkg: Record<string, unknown>): DotnetVulnerability[] =>
+	readRecordArray(pkg, "vulnerabilities").map((vulnerability) => ({
+		severity: readString(vulnerability, "severity"),
+		advisoryurl: readString(vulnerability, "advisoryurl"),
+	}));
+
 const toDotnetFinding = (
-	pkg: DotnetPackage,
+	pkg: Record<string, unknown>,
 	projectFile: string,
 	transitive: boolean,
 ): DotnetFinding | null => {
-	const vulnerabilities = dedupeVulnerabilities(pkg.vulnerabilities ?? []);
-	if (vulnerabilities.length === 0 || !pkg.id) return null;
+	const vulnerabilities = dedupeVulnerabilities(readVulnerabilities(pkg));
+	const packageId = readString(pkg, "id");
+	if (vulnerabilities.length === 0 || !packageId) return null;
 	return {
 		projectFile,
-		packageId: pkg.id,
+		packageId,
 		transitive,
-		resolvedVersion: pkg.resolvedVersion ?? "?",
+		resolvedVersion: readString(pkg, "resolvedVersion") ?? "?",
 		worstSeverity: worstSeverityOf(vulnerabilities),
 		vulnerabilities,
 	};
@@ -126,26 +117,32 @@ const toDotnetDiagnostic = (finding: DotnetFinding): Diagnostic => {
 
 export const parseDotnetAudit = (output: string, rootDirectory: string): Diagnostic[] => {
 	if (!output) return [];
-	let report: DotnetAuditReport;
+	let report: unknown;
 	try {
-		report = JSON.parse(output) as DotnetAuditReport;
+		report = JSON.parse(output);
 	} catch {
 		return [];
 	}
+	if (!isRecord(report)) return [];
 
 	const findings = new Map<string, DotnetFinding>();
-	for (const project of report.projects ?? []) {
+	for (const project of readRecordArray(report, "projects")) {
 		// Keep the whole root-relative path: reducing "src/App/App.csproj" to its
 		// basename points the diagnostic at a file that does not exist, hides the
 		// project from the exclude filter, and conflates projects that share a
 		// basename.
-		const projectFile = project.path
-			? projectRelativePosix(rootDirectory, project.path)
-			: "*.csproj";
-		for (const framework of project.frameworks ?? []) {
+		const projectPath = readString(project, "path");
+		const projectFile = projectPath ? projectRelativePosix(rootDirectory, projectPath) : "*.csproj";
+		for (const framework of readRecordArray(project, "frameworks")) {
 			const packages = [
-				...(framework.topLevelPackages ?? []).map((pkg) => ({ pkg, transitive: false })),
-				...(framework.transitivePackages ?? []).map((pkg) => ({ pkg, transitive: true })),
+				...readRecordArray(framework, "topLevelPackages").map((pkg) => ({
+					pkg,
+					transitive: false,
+				})),
+				...readRecordArray(framework, "transitivePackages").map((pkg) => ({
+					pkg,
+					transitive: true,
+				})),
 			];
 			for (const { pkg, transitive } of packages) {
 				const finding = toDotnetFinding(pkg, projectFile, transitive);

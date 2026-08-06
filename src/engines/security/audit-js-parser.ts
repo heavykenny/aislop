@@ -1,4 +1,5 @@
 import type { Diagnostic } from "../types.js";
+import { isRecord, readString } from "./audit-value.js";
 
 export type JsAuditSource = "npm audit" | "pnpm audit" | "bun audit";
 
@@ -87,19 +88,19 @@ const aggregateToDiagnostic = (agg: VulnAggregate, source: JsAuditSource): Diagn
 export const parseBunAudit = (output: string): Diagnostic[] => {
 	if (!output.trim()) return [];
 	try {
-		const parsed = JSON.parse(output) as Record<string, unknown>;
+		const parsed: unknown = JSON.parse(output);
+		if (!isRecord(parsed)) return [];
 		const bucket = new Map<string, VulnAggregate>();
 
 		for (const [packageName, advisories] of Object.entries(parsed)) {
 			if (!Array.isArray(advisories) || advisories.length === 0) continue;
 			for (const advisory of advisories) {
-				if (!advisory || typeof advisory !== "object") continue;
-				const record = advisory as Record<string, unknown>;
-				const severity = ((record.severity as string) ?? "moderate").toLowerCase();
+				if (!isRecord(advisory)) continue;
+				const severity = (readString(advisory, "severity") ?? "moderate").toLowerCase();
 				const recommendation =
-					(record.title as string) ??
-					(record.vulnerable_versions as string) ??
-					(record.url as string) ??
+					readString(advisory, "title") ??
+					readString(advisory, "vulnerable_versions") ??
+					readString(advisory, "url") ??
 					"";
 				upsertVuln(bucket, packageName, severity, recommendation);
 			}
@@ -112,19 +113,21 @@ export const parseBunAudit = (output: string): Diagnostic[] => {
 };
 
 const parseLegacyAdvisories = (
-	advisories: Record<string, Record<string, unknown>>,
+	advisories: Record<string, unknown>,
 	source: JsAuditSource,
 ): Diagnostic[] => {
 	const bucket = new Map<string, VulnAggregate>();
 
 	for (const [key, advisory] of Object.entries(advisories)) {
+		if (!isRecord(advisory)) continue;
 		const packageName =
-			(advisory.module_name as string) ??
-			(advisory.name as string) ??
-			(advisory.package as string) ??
+			readString(advisory, "module_name") ??
+			readString(advisory, "name") ??
+			readString(advisory, "package") ??
 			key;
-		const severity = ((advisory.severity as string) ?? "moderate").toLowerCase();
-		const recommendation = (advisory.recommendation as string) ?? (advisory.title as string) ?? "";
+		const severity = (readString(advisory, "severity") ?? "moderate").toLowerCase();
+		const recommendation =
+			readString(advisory, "recommendation") ?? readString(advisory, "title") ?? "";
 
 		upsertVuln(bucket, packageName, severity, recommendation);
 	}
@@ -139,15 +142,18 @@ const carriesAdvisory = (vulnerability: Record<string, unknown>): boolean =>
 	vulnerability.via.some((entry) => entry !== null && typeof entry === "object");
 
 const parseModernVulnerabilities = (
-	vulnerabilities: Record<string, Record<string, unknown>>,
+	vulnerabilities: Record<string, unknown>,
 	source: JsAuditSource,
 ): Diagnostic[] => {
 	const bucket = new Map<string, VulnAggregate>();
-	const hasRootCauses = Object.values(vulnerabilities).some(carriesAdvisory);
+	const records = Object.entries(vulnerabilities).filter(
+		(entry): entry is [string, Record<string, unknown>] => isRecord(entry[1]),
+	);
+	const hasRootCauses = records.some(([, vulnerability]) => carriesAdvisory(vulnerability));
 
-	for (const [packageName, vulnerability] of Object.entries(vulnerabilities)) {
+	for (const [packageName, vulnerability] of records) {
 		if (hasRootCauses && !carriesAdvisory(vulnerability)) continue;
-		const severity = ((vulnerability.severity as string) ?? "moderate").toLowerCase();
+		const severity = (readString(vulnerability, "severity") ?? "moderate").toLowerCase();
 		const fixAvailable = vulnerability.fixAvailable;
 		const isDirect = vulnerability.isDirect === true;
 
@@ -158,15 +164,11 @@ const parseModernVulnerabilities = (
 				: "transitive — needs override or parent upgrade";
 		} else if (!isDirect && fixAvailable === true) {
 			recommendation = "transitive — may need override or parent upgrade";
-		} else if (
-			fixAvailable &&
-			typeof fixAvailable === "object" &&
-			"name" in fixAvailable &&
-			"version" in fixAvailable
-		) {
-			const target = fixAvailable as { name?: string; version?: string };
-			if (target.name && target.version) {
-				recommendation = `upgrade to ${target.name}@${target.version}`;
+		} else if (isRecord(fixAvailable)) {
+			const name = readString(fixAvailable, "name");
+			const version = readString(fixAvailable, "version");
+			if (name && version) {
+				recommendation = `upgrade to ${name}@${version}`;
 			}
 		}
 
@@ -179,10 +181,14 @@ const parseModernVulnerabilities = (
 export const parseJsAudit = (output: string, source: JsAuditSource): Diagnostic[] => {
 	if (!output) return [];
 	try {
-		const parsed = JSON.parse(output) as Record<string, unknown>;
+		const parsed: unknown = JSON.parse(output);
+		if (!isRecord(parsed)) return [];
 
-		const error = parsed.error as { code?: string; summary?: string; detail?: string } | undefined;
-		if (error?.code === "ENOLOCK") {
+		const error = isRecord(parsed.error) ? parsed.error : undefined;
+		const errorCode = error ? readString(error, "code") : undefined;
+		const errorSummary = error ? readString(error, "summary") : undefined;
+		const errorDetail = error ? readString(error, "detail") : undefined;
+		if (errorCode === "ENOLOCK") {
 			return [
 				{
 					filePath: "package.json",
@@ -191,7 +197,7 @@ export const parseJsAudit = (output: string, source: JsAuditSource): Diagnostic[
 					severity: "info",
 					message: `Dependency audit skipped (${source}): lockfile is missing`,
 					help:
-						error.detail ??
+						errorDetail ??
 						"Generate a lockfile, then re-run `aislop scan` for dependency vulnerability checks.",
 					line: 0,
 					column: 0,
@@ -200,7 +206,7 @@ export const parseJsAudit = (output: string, source: JsAuditSource): Diagnostic[
 				},
 			];
 		}
-		if (error?.summary || error?.code) {
+		if (errorSummary || errorCode) {
 			return [
 				{
 					filePath: "package.json",
@@ -209,8 +215,8 @@ export const parseJsAudit = (output: string, source: JsAuditSource): Diagnostic[
 					severity: "info",
 					message: `Dependency audit did not complete (${source})`,
 					help:
-						error.detail ??
-						error.summary ??
+						errorDetail ??
+						errorSummary ??
 						"Re-run dependency audit directly to inspect the underlying error.",
 					line: 0,
 					column: 0,
@@ -221,16 +227,13 @@ export const parseJsAudit = (output: string, source: JsAuditSource): Diagnostic[
 		}
 
 		const advisories = parsed.advisories;
-		if (advisories && typeof advisories === "object") {
-			return parseLegacyAdvisories(advisories as Record<string, Record<string, unknown>>, source);
+		if (isRecord(advisories)) {
+			return parseLegacyAdvisories(advisories, source);
 		}
 
 		const vulnerabilities = parsed.vulnerabilities;
-		if (vulnerabilities && typeof vulnerabilities === "object") {
-			return parseModernVulnerabilities(
-				vulnerabilities as Record<string, Record<string, unknown>>,
-				source,
-			);
+		if (isRecord(vulnerabilities)) {
+			return parseModernVulnerabilities(vulnerabilities, source);
 		}
 
 		return [];
