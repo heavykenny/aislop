@@ -3,7 +3,7 @@ import path from "node:path";
 import { performance } from "node:perf_hooks";
 import { type AislopConfig, findConfigDir, RULES_FILE } from "../config/index.js";
 import { runEngines } from "../engines/orchestrator.js";
-import type { Diagnostic, EngineConfig, EngineContext, EngineResult } from "../engines/types.js";
+import type { Diagnostic, EngineConfig, EngineResult } from "../engines/types.js";
 import { calculateScore } from "../scoring/index.js";
 import { withCommandLifecycle } from "../telemetry/index.js";
 import { renderHeader } from "../ui/header.js";
@@ -11,12 +11,11 @@ import { LiveRail } from "../ui/live-rail.js";
 import { log } from "../ui/logger.js";
 import { theme as defaultTheme, style } from "../ui/theme.js";
 import { discoverProject } from "../utils/discover.js";
-import { readAislopIgnorePatterns } from "../utils/source-files.js";
 import { APP_VERSION } from "../version.js";
 import { launchAgent, printPrompt } from "./fix-code.js";
+import { createEngineContext } from "./fix-context.js";
 import {
 	type PipelineDeps,
-	type ProjectInfo,
 	runAiSlopSteps,
 	runDeclarationStep,
 	runDependencyStep,
@@ -41,24 +40,6 @@ interface FixOptions {
 	showHeader?: boolean;
 	printBrand?: boolean;
 }
-
-const createEngineContext = (
-	rootDirectory: string,
-	projectInfo: ProjectInfo,
-	config: AislopConfig,
-	options: { safe?: boolean } = {},
-): EngineContext => ({
-	rootDirectory,
-	languages: projectInfo.languages,
-	frameworks: projectInfo.frameworks,
-	// Fixers rewrite files, so the exclude list has to reach them: without it a
-	// whole-project tool such as dotnet format would reformat excluded code.
-	excludePatterns: [...config.exclude, ...readAislopIgnorePatterns(rootDirectory)],
-	installedTools: options.safe
-		? { ...projectInfo.installedTools, rubocop: false, "php-cs-fixer": false }
-		: projectInfo.installedTools,
-	config: { quality: config.quality, security: config.security, lint: config.lint },
-});
 
 export const buildPostFixVerificationEngines = (
 	engines: AislopConfig["engines"],

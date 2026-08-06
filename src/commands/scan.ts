@@ -1,4 +1,3 @@
-import fs from "node:fs";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
 import { type AislopConfig, findConfigDir, RULES_FILE } from "../config/index.js";
@@ -13,7 +12,6 @@ import { renderDisplayRows } from "../ui/display.js";
 import { renderHeader } from "../ui/header.js";
 import { log } from "../ui/logger.js";
 import { detectSourceLanguages, discoverProject, type Language } from "../utils/discover.js";
-import { baseRefExists } from "../utils/git.js";
 import { readAislopIgnorePatterns } from "../utils/source-files.js";
 import { applySuppressions } from "../utils/suppress.js";
 import { APP_VERSION } from "../version.js";
@@ -29,6 +27,7 @@ import {
 	type ScanOptions,
 } from "./scan-options.js";
 import { buildScanRender } from "./scan-render.js";
+import { scanTargetError } from "./scan-validation.js";
 
 export { buildScanRender } from "./scan-render.js";
 
@@ -41,32 +40,12 @@ export const scanCommand = async (
 	options: ScanOptions,
 ): Promise<{ exitCode: number }> => {
 	const resolvedDir = path.resolve(directory);
-
-	if (!fs.existsSync(resolvedDir)) {
-		const msg = `Path does not exist: ${resolvedDir}`;
+	const targetError = scanTargetError(resolvedDir, options);
+	if (targetError) {
 		if (options.json) {
-			console.log(JSON.stringify({ error: msg }, null, 2));
+			console.log(JSON.stringify({ error: targetError }, null, 2));
 		} else {
-			log.error(msg);
-		}
-		return { exitCode: 1 };
-	}
-	if (!fs.statSync(resolvedDir).isDirectory()) {
-		const msg = `Not a directory: ${resolvedDir}`;
-		if (options.json) {
-			console.log(JSON.stringify({ error: msg }, null, 2));
-		} else {
-			log.error(msg);
-		}
-		return { exitCode: 1 };
-	}
-
-	if (options.changes && options.base && !baseRefExists(resolvedDir, options.base)) {
-		const msg = `Could not resolve base ref "${options.base}". Make sure it exists and was fetched (e.g. \`git fetch origin ${options.base}\`).`;
-		if (options.json) {
-			console.log(JSON.stringify({ error: msg }, null, 2));
-		} else {
-			log.error(msg);
+			log.error(targetError);
 		}
 		return { exitCode: 1 };
 	}
