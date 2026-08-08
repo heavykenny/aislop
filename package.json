@@ -68,7 +68,10 @@
     "go",
     "rust",
     "ruby",
-    "php"
+    "php",
+    "csharp",
+    "dotnet",
+    "cpp"
   ],
   "author": {
     "name": "Kenny Olawuwo",

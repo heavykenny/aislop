@@ -28,6 +28,12 @@ pipx install aislop                  # Python
 
 See [Installation](#installation) for every option.
 
+## Language support
+
+aislop supports TypeScript, JavaScript, Expo / React Native, Python, Go, Rust, Ruby, PHP, C#, and C/C++.
+
+Coverage includes formatting, linting, complexity, AI-slop detection, and security checks. Some checks use optional system tools; see [Installation](docs/installation.md) and the [rules reference](docs/rules.md) for details.
+
 ```bash
 aislop agent                 # repair with your coding agent (Codex/Claude/OpenCode)
 aislop fix                   # auto-fix the mechanical issues
@@ -456,11 +462,11 @@ Six deterministic engines run in parallel:
 
 | Engine | What it checks | How |
 |---|---|---|
-| **Formatting** | Code style consistency | Biome, ruff, gofmt, cargo fmt, rubocop, php-cs-fixer, clang-format (C/C++, requires `.clang-format`) |
-| **Linting** | Language-specific issues | oxlint, ruff, golangci-lint, clippy, expo-doctor, cppcheck + clang-tidy (C/C++; clang-tidy requires `compile_commands.json`) |
+| **Formatting** | Code style consistency | Biome, ruff, gofmt, cargo fmt, rubocop, php-cs-fixer, dotnet format, clang-format |
+| **Linting** | Language-specific issues | oxlint, ruff, golangci-lint, clippy, expo-doctor, Roslynator, JetBrains InspectCode, cppcheck, clang-tidy |
 | **Code Quality** | Complexity and dead code | Function/file size limits, deep nesting, unused files/deps (knip), AST-based unused-declaration removal |
 | **AI Slop** | AI-authored code patterns | Narrative comments, trivial comments, dead patterns, unused imports, `as any`, `console.log` leftovers, TODO stubs, generic names |
-| **Security** | Vulnerabilities and risky code | eval, innerHTML, SQL/shell injection, dependency audits (npm/pip/cargo/govulncheck) |
+| **Security** | Vulnerabilities and risky code | eval, innerHTML, SQL/shell injection, dependency audits for JavaScript, Python, Rust, Go, and .NET |
 | **Architecture** | Structural rules (opt-in) | Custom import bans, layering rules, required patterns |
 
 See the full [rules reference](docs/rules.md).
