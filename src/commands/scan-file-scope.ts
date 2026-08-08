@@ -1,6 +1,7 @@
 import type { Coverage } from "../utils/discover.js";
 import { getChangedFiles, getStagedFiles } from "../utils/git.js";
 import {
+	filterDependencyAuditFiles,
 	filterEnumeratedProjectFiles,
 	filterEnumeratedTestFiles,
 	filterProjectDeclarationFiles,
@@ -20,6 +21,8 @@ interface ScanFileScopeRequest {
 }
 
 interface ScanFileScope {
+	readonly dependencyAuditFiles: string[];
+	readonly dependencyAuditScope: "files" | "full";
 	readonly files: string[];
 	readonly projectFiles: string[];
 	readonly scoreFileCount: number;
@@ -92,6 +95,13 @@ export const collectScanFileScope = (request: ScanFileScopeRequest): ScanFileSco
 		request.includePatterns,
 	);
 	return {
+		dependencyAuditFiles: filterDependencyAuditFiles(
+			request.rootDirectory,
+			candidates.files,
+			request.excludePatterns,
+			request.includePatterns,
+		),
+		dependencyAuditScope: request.mode.kind === "full" ? "full" : "files",
 		files,
 		projectFiles: [...new Set([...projectSourceFiles, ...declarations])],
 		scoreFileCount: projectSourceFiles.length + projectTestFiles.length,

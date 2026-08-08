@@ -11,7 +11,7 @@ export type AislopFramework =
 	| "redwoodsdk"
 	| "t3";
 
-export type AislopAdapterCommand = "ci" | "scan";
+type AislopAdapterCommand = "ci" | "scan";
 
 export interface AislopRunRequest {
 	framework: AislopFramework;
@@ -29,9 +29,7 @@ export interface AislopRunResult {
 	skipped: boolean;
 }
 
-export type AislopRunner = (
-	request: AislopRunRequest,
-) => AislopRunResult | Promise<AislopRunResult>;
+type AislopRunner = (request: AislopRunRequest) => AislopRunResult | Promise<AislopRunResult>;
 
 export interface AislopAdapterOptions {
 	/**

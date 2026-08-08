@@ -1,7 +1,7 @@
 import { isAislopDirectiveLine } from "../../utils/suppress.js";
 import { MEANINGFUL_JSDOC_TAGS } from "./narrative-comments-patterns.js";
 
-export type BlockKind = "line" | "jsdoc";
+type BlockKind = "line" | "jsdoc";
 
 export interface CommentBlock {
 	kind: BlockKind;
@@ -34,6 +34,7 @@ export const getCommentSyntax = (ext: string): { linePrefixes: string[] } | null
 		case ".go":
 		case ".rs":
 		case ".java":
+		case ".cs":
 			return { linePrefixes: ["//"] };
 		case ".py":
 		case ".rb":

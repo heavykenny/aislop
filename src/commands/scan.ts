@@ -1,7 +1,7 @@
-import fs from "node:fs";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
 import { type AislopConfig, findConfigDir, RULES_FILE } from "../config/index.js";
+import { recordFullScanActivity } from "../engagement/full-scan-activity.js";
 import type { EngineConfig } from "../engines/types.js";
 import { renderDiagnostics } from "../output/terminal.js";
 import { calculateScore } from "../scoring/index.js";
@@ -11,49 +11,28 @@ import { type EngineCounts, withCommandLifecycle } from "../telemetry/index.js";
 import { renderDisplayRows } from "../ui/display.js";
 import { renderHeader } from "../ui/header.js";
 import { log } from "../ui/logger.js";
-import { detectSourceLanguages, discoverProject } from "../utils/discover.js";
-import { baseRefExists } from "../utils/git.js";
-import { appendHistory } from "../utils/history.js";
+import { detectSourceLanguages, discoverProject, type Language } from "../utils/discover.js";
 import { readAislopIgnorePatterns } from "../utils/source-files.js";
 import { applySuppressions } from "../utils/suppress.js";
 import { APP_VERSION } from "../version.js";
 import { renderCoverageNotice } from "./scan-coverage.js";
 import { runEnginesWithProgress } from "./scan-engine-runner.js";
 import { computeScanExitCode } from "./scan-exit-code.js";
-import { collectScanFileScope, deriveScanCoverage, type ScanScopeMode } from "./scan-file-scope.js";
+import { collectScanFileScope, deriveScanCoverage } from "./scan-file-scope.js";
+import {
+	isFullProjectScan,
+	isHistoryComparableScan,
+	isMachineOutput,
+	resolveScanScopeMode,
+	type ScanOptions,
+} from "./scan-options.js";
 import { buildScanRender } from "./scan-render.js";
+import { scanTargetError } from "./scan-validation.js";
 
 export { buildScanRender } from "./scan-render.js";
 
-interface ScanOptions {
-	changes: boolean;
-	staged: boolean;
-	base?: string;
-	verbose: boolean;
-	json: boolean;
-	sarif?: boolean;
-	showHeader?: boolean;
-	printBrand?: boolean;
-	exclude?: string[];
-	include?: string[];
-	/** Used for telemetry to distinguish scan vs ci invocation */
-	command?: "scan" | "ci";
-}
-
-// SARIF and JSON are machine outputs: suppress all human chrome on stdout.
-const isMachineOutput = (options: ScanOptions): boolean =>
-	Boolean(options.json) || Boolean(options.sarif);
-
 const renderScopeRow = (value: string): string =>
 	`${renderDisplayRows([{ label: "Scope", value }], { indent: 1 }).join("\n")}\n`;
-
-const resolveScanScopeMode = (options: ScanOptions): ScanScopeMode => {
-	if (options.staged) return { kind: "staged" };
-	if (options.changes) {
-		return options.base ? { kind: "changes", base: options.base } : { kind: "changes" };
-	}
-	return { kind: "full" };
-};
 
 export const scanCommand = async (
 	directory: string,
@@ -61,32 +40,12 @@ export const scanCommand = async (
 	options: ScanOptions,
 ): Promise<{ exitCode: number }> => {
 	const resolvedDir = path.resolve(directory);
-
-	if (!fs.existsSync(resolvedDir)) {
-		const msg = `Path does not exist: ${resolvedDir}`;
+	const targetError = scanTargetError(resolvedDir, options);
+	if (targetError) {
 		if (options.json) {
-			console.log(JSON.stringify({ error: msg }, null, 2));
+			console.log(JSON.stringify({ error: targetError }, null, 2));
 		} else {
-			log.error(msg);
-		}
-		return { exitCode: 1 };
-	}
-	if (!fs.statSync(resolvedDir).isDirectory()) {
-		const msg = `Not a directory: ${resolvedDir}`;
-		if (options.json) {
-			console.log(JSON.stringify({ error: msg }, null, 2));
-		} else {
-			log.error(msg);
-		}
-		return { exitCode: 1 };
-	}
-
-	if (options.changes && options.base && !baseRefExists(resolvedDir, options.base)) {
-		const msg = `Could not resolve base ref "${options.base}". Make sure it exists and was fetched (e.g. \`git fetch origin ${options.base}\`).`;
-		if (options.json) {
-			console.log(JSON.stringify({ error: msg }, null, 2));
-		} else {
-			log.error(msg);
+			log.error(targetError);
 		}
 		return { exitCode: 1 };
 	}
@@ -113,7 +72,15 @@ export const scanCommand = async (
 			languages: projectInfo.languages,
 			fileCount: scanScope.scoreFileCount,
 		},
-		() => runScanBody(resolvedDir, config, options, projectInfo, scanScope),
+		() =>
+			runScanBody(
+				resolvedDir,
+				config,
+				options,
+				projectInfo,
+				scanScope,
+				discoveredProject.languages,
+			),
 	);
 };
 
@@ -123,6 +90,7 @@ const runScanBody = async (
 	options: ScanOptions,
 	projectInfo: Awaited<ReturnType<typeof discoverProject>>,
 	scanScope: ReturnType<typeof collectScanFileScope>,
+	dependencyAuditLanguages: Language[],
 ) => {
 	const startTime = performance.now();
 	const showHeader = options.showHeader !== false;
@@ -130,7 +98,18 @@ const runScanBody = async (
 	const projectName = projectInfo.projectName ?? "project";
 	const language = projectInfo.languages[0] ?? "unknown";
 	const printedHumanHeader = !machineOutput && showHeader;
-	const { files, projectFiles, scoreFileCount, scopeLabel, testFiles } = scanScope;
+	const {
+		dependencyAuditFiles,
+		dependencyAuditScope,
+		files,
+		projectFiles,
+		scoreFileCount,
+		scopeLabel,
+		testFiles,
+	} = scanScope;
+	// Raw user excludes for the build-backed C# engines' diagnostic post-filter
+	// (same derivation as the caller's scan-scope request).
+	const excludePatterns = [...config.exclude, ...readAislopIgnorePatterns(resolvedDir)];
 	const scanCoverage = deriveScanCoverage(projectInfo.coverage, scoreFileCount);
 	const reportProjectInfo = {
 		...projectInfo,
@@ -168,7 +147,11 @@ const runScanBody = async (
 			rootDirectory: resolvedDir,
 			languages: projectInfo.languages,
 			frameworks: projectInfo.frameworks,
+			dependencyAuditFiles,
+			dependencyAuditLanguages,
+			dependencyAuditScope,
 			files,
+			excludePatterns,
 			testFiles,
 			projectFiles,
 			installedTools: projectInfo.installedTools,
@@ -251,18 +234,20 @@ const runScanBody = async (
 		return completion;
 	}
 
-	// Only record full-project human scans: scoped (--staged/--changes) scores
-	// aren't comparable across runs, and CI runs would pollute local trends.
-	const isFullScopeScan = !options.staged && !options.changes && options.command !== "ci";
-	if (isFullScopeScan && !isCiEnv()) {
-		appendHistory({
-			directory: resolvedDir,
-			score: scoreResult.score,
-			errors: completion.errorCount,
-			warnings: completion.warningCount,
-			files: scoreFileCount,
-		});
-	}
+	const isLocalHistoryScan = isHistoryComparableScan(options) && !isCiEnv();
+	const showPilotInvitation = isLocalHistoryScan
+		? recordFullScanActivity(
+				{
+					directory: resolvedDir,
+					score: scoreResult.score,
+					errors: completion.errorCount,
+					warnings: completion.warningCount,
+					files: scoreFileCount,
+				},
+				isFullProjectScan(options) && options.printBrand !== false,
+				config.telemetry,
+			)
+		: false;
 
 	process.stdout.write(
 		buildScanRender({
@@ -277,6 +262,7 @@ const runScanBody = async (
 			verbose: options.verbose,
 			includeHeader: !printedHumanHeader && showHeader,
 			printBrand: options.printBrand,
+			showPilotInvitation,
 		}),
 	);
 

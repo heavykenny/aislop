@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { buildDoctorRender, type DoctorEngineRow } from "../../src/commands/doctor.js";
+import {
+	buildDoctorRender,
+	type DoctorEngineRow,
+	planFormatForTest,
+	planLintForTest,
+	planSecurityForTest,
+} from "../../src/commands/doctor.js";
 import { stripAnsi as strip } from "../helpers/ansi.js";
 
 describe("doctor render", () => {
@@ -74,5 +80,106 @@ describe("doctor render", () => {
 			}),
 		);
 		expect(out).toMatch(/Scan\s+aislop scan/);
+	});
+});
+
+describe("planLint csharp linter selection", () => {
+	it("reports jb inspectcode when jb is installed", () => {
+		const decision = planLintForTest({
+			languages: ["csharp"],
+			installedTools: { jb: true, roslynator: false },
+			projectEvaluation: true,
+		});
+		expect(decision.tool).toBe("jb inspectcode (system)");
+		expect(decision.status).toBe("ok");
+	});
+
+	it("reports roslynator when jb is absent but roslynator is installed", () => {
+		const decision = planLintForTest({
+			languages: ["csharp"],
+			installedTools: { jb: false, roslynator: true },
+			projectEvaluation: true,
+		});
+		expect(decision.tool).toBe("roslynator (system)");
+		expect(decision.status).toBe("ok");
+	});
+
+	it("reports not-found with jb install hint when neither tool is installed", () => {
+		const decision = planLintForTest({
+			languages: ["csharp"],
+			installedTools: { jb: false, roslynator: false },
+			projectEvaluation: true,
+		});
+		expect(decision.status).toBe("missing");
+		expect(decision.tool).toContain("not found");
+		expect(decision.remediation).toContain("JetBrains.ReSharper.GlobalTools");
+	});
+
+	it("reports the project-evaluation gate across C# engines", () => {
+		const overrides = {
+			languages: ["csharp"] as const,
+			installedTools: { dotnet: true, jb: true, roslynator: true },
+		};
+		const decisions = [
+			planFormatForTest({ ...overrides, languages: [...overrides.languages] }),
+			planLintForTest({ ...overrides, languages: [...overrides.languages] }),
+			planSecurityForTest({ ...overrides, languages: [...overrides.languages] }),
+		];
+
+		expect(decisions).toEqual(
+			Array.from({ length: 3 }, () => ({
+				tool: "project-backed C# tools",
+				status: "skipped",
+				skipReason: "set lint.csharp.projectEvaluation: true only for repositories you trust",
+			})),
+		);
+	});
+});
+
+describe("planFormat/planLint cpp tools", () => {
+	it("reports cpp tools: clang-format for format, cppcheck preferred for lint", () => {
+		const decisionFormat = planFormatForTest({
+			languages: ["cpp"],
+			installedTools: { "clang-format": true },
+		});
+		expect(decisionFormat).toMatchObject({ tool: "clang-format (system)", status: "ok" });
+
+		const decisionLint = planLintForTest({
+			languages: ["cpp"],
+			installedTools: { cppcheck: true, "clang-tidy": true },
+		});
+		expect(decisionLint).toMatchObject({ tool: "cppcheck (system)", status: "ok" });
+
+		const none = planLintForTest({
+			languages: ["cpp"],
+			installedTools: {},
+		});
+		expect(none.status).toBe("missing");
+		expect(none.tool).toContain("cppcheck not found");
+	});
+
+	it("falls through a gated C# tool to available C++ tools", () => {
+		const languages = ["csharp", "cpp"] as const;
+		expect(
+			planFormatForTest({
+				languages: [...languages],
+				installedTools: { dotnet: true, "clang-format": true },
+			}),
+		).toMatchObject({ tool: "clang-format (system)", status: "ok" });
+		expect(
+			planLintForTest({
+				languages: [...languages],
+				installedTools: { jb: true, cppcheck: true },
+			}),
+		).toMatchObject({ tool: "cppcheck (system)", status: "ok" });
+	});
+
+	it("keeps the C# trust gate visible when no fallback tool is available", () => {
+		expect(
+			planFormatForTest({
+				languages: ["csharp", "cpp"],
+				installedTools: { dotnet: true, "clang-format": false },
+			}),
+		).toMatchObject({ tool: "project-backed C# tools", status: "skipped" });
 	});
 });

@@ -1,7 +1,8 @@
 node_modules/
 .idea/
 dist/
-tools/
+tools/bin/
+tools/analyzers/
 assets/release-fix-scan.*
 *.tgz
 .DS_Store

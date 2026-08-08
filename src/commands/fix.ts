@@ -3,7 +3,7 @@ import path from "node:path";
 import { performance } from "node:perf_hooks";
 import { type AislopConfig, findConfigDir, RULES_FILE } from "../config/index.js";
 import { runEngines } from "../engines/orchestrator.js";
-import type { Diagnostic, EngineConfig, EngineContext, EngineResult } from "../engines/types.js";
+import type { Diagnostic, EngineConfig, EngineResult } from "../engines/types.js";
 import { calculateScore } from "../scoring/index.js";
 import { withCommandLifecycle } from "../telemetry/index.js";
 import { renderHeader } from "../ui/header.js";
@@ -13,9 +13,9 @@ import { theme as defaultTheme, style } from "../ui/theme.js";
 import { discoverProject } from "../utils/discover.js";
 import { APP_VERSION } from "../version.js";
 import { launchAgent, printPrompt } from "./fix-code.js";
+import { createEngineContext } from "./fix-context.js";
 import {
 	type PipelineDeps,
-	type ProjectInfo,
 	runAiSlopSteps,
 	runDeclarationStep,
 	runDependencyStep,
@@ -40,21 +40,6 @@ interface FixOptions {
 	showHeader?: boolean;
 	printBrand?: boolean;
 }
-
-const createEngineContext = (
-	rootDirectory: string,
-	projectInfo: ProjectInfo,
-	config: AislopConfig,
-	options: { safe?: boolean } = {},
-): EngineContext => ({
-	rootDirectory,
-	languages: projectInfo.languages,
-	frameworks: projectInfo.frameworks,
-	installedTools: options.safe
-		? { ...projectInfo.installedTools, rubocop: false, "php-cs-fixer": false }
-		: projectInfo.installedTools,
-	config: { quality: config.quality, security: config.security, lint: config.lint },
-});
 
 export const buildPostFixVerificationEngines = (
 	engines: AislopConfig["engines"],
@@ -91,20 +76,23 @@ export const fixCommand = async (
 	directory: string,
 	config: AislopConfig,
 	options: FixOptions = { verbose: false, showHeader: true },
-): Promise<void> => {
+): Promise<{ exitCode: number }> => {
 	const resolvedDir = path.resolve(directory);
+	const pathExists = fs.existsSync(resolvedDir);
 
-	if (!fs.existsSync(resolvedDir) || !fs.statSync(resolvedDir).isDirectory()) {
-		const msg = !fs.existsSync(resolvedDir)
+	if (!pathExists || !fs.statSync(resolvedDir).isDirectory()) {
+		const msg = !pathExists
 			? `Path does not exist: ${resolvedDir}`
 			: `Not a directory: ${resolvedDir}`;
-		log.error(msg);
-		return;
+		return withCommandLifecycle({ command: "fix", config: config.telemetry }, async () => {
+			log.error(msg);
+			return { exitCode: 1 };
+		});
 	}
 
 	const projectInfo = await discoverProject(resolvedDir);
 
-	await withCommandLifecycle(
+	return withCommandLifecycle(
 		{
 			command: "fix",
 			config: config.telemetry,
@@ -193,6 +181,7 @@ const runFixBody = async (
 			rootDirectory: resolvedDir,
 			languages: projectInfo.languages,
 			frameworks: projectInfo.frameworks,
+			excludePatterns: context.excludePatterns,
 			installedTools: context.installedTools,
 			config: engineConfig,
 		},

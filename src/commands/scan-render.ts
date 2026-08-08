@@ -114,6 +114,7 @@ interface BuildScanRenderInput {
 	verbose: boolean;
 	includeHeader?: boolean;
 	printBrand?: boolean;
+	showPilotInvitation?: boolean;
 }
 
 export const buildScanRender = (input: BuildScanRenderInput): string => {
@@ -147,9 +148,11 @@ export const buildScanRender = (input: BuildScanRenderInput): string => {
 	const cta =
 		input.printBrand === false
 			? ""
-			: errors + warnings > 0
+			: input.showPilotInvitation === true
 				? renderTeamCta(deps)
-				: renderStarCta(deps);
+				: errors + warnings === 0
+					? renderStarCta(deps)
+					: "";
 
 	if (input.diagnostics.length === 0 && input.score.score === 100) {
 		return `${header}${renderCleanRun(

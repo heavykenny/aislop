@@ -835,4 +835,120 @@ describe("detectRiskyConstructs", () => {
 		const sqlDiags = diagnostics.filter((d) => d.rule === "security/sql-injection");
 		expect(sqlDiags).toHaveLength(0);
 	});
+
+	// ── C# ──────────────────────────────────────────────────────────────────
+	it("detects a C# interpolated SQL string in a SqlCommand", async () => {
+		const filePath = writeFile(
+			"Repo.cs",
+			'var cmd = new SqlCommand($"SELECT * FROM Users WHERE Id = {id}", conn);',
+		);
+		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));
+		expect(diagnostics.filter((d) => d.rule === "security/sql-injection")).toHaveLength(1);
+	});
+
+	it("detects a C# concatenated SQL string on CommandText", async () => {
+		const filePath = writeFile(
+			"Repo.cs",
+			'cmd.CommandText = "SELECT * FROM Users WHERE Id = " + id;',
+		);
+		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));
+		expect(diagnostics.filter((d) => d.rule === "security/sql-injection")).toHaveLength(1);
+	});
+
+	it("detects a C# interpolated string in EF Core FromSqlRaw", async () => {
+		const filePath = writeFile(
+			"Repo.cs",
+			'var users = context.Users.FromSqlRaw($"SELECT * FROM Users WHERE Name = {name}");',
+		);
+		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));
+		expect(diagnostics.filter((d) => d.rule === "security/sql-injection")).toHaveLength(1);
+	});
+
+	it("does NOT flag EF Core FromSqlInterpolated (parameter-safe)", async () => {
+		const filePath = writeFile(
+			"Repo.cs",
+			'var users = context.Users.FromSqlInterpolated($"SELECT * FROM Users WHERE Name = {name}");',
+		);
+		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));
+		expect(diagnostics.filter((d) => d.rule === "security/sql-injection")).toHaveLength(0);
+	});
+
+	it("does NOT flag a C# SQL keyword sitting in a comment", async () => {
+		const filePath = writeFile(
+			"Repo.cs",
+			'// new SqlCommand($"SELECT {x}") would be unsafe, so we do not do it\nvar safe = 1;',
+		);
+		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));
+		expect(diagnostics.filter((d) => d.rule === "security/sql-injection")).toHaveLength(0);
+	});
+
+	it("detects C# command injection via interpolated Process.Start", async () => {
+		const filePath = writeFile("Runner.cs", 'Process.Start($"ping {host}");');
+		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));
+		expect(diagnostics.filter((d) => d.rule === "security/shell-injection")).toHaveLength(1);
+	});
+
+	it("detects C# command injection via concatenated Arguments", async () => {
+		const filePath = writeFile("Runner.cs", 'psi.Arguments = "-n 1 " + userSuppliedHost;');
+		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));
+		expect(diagnostics.filter((d) => d.rule === "security/shell-injection")).toHaveLength(1);
+	});
+
+	it("detects C# unsafe BinaryFormatter deserialization", async () => {
+		const filePath = writeFile(
+			"Loader.cs",
+			"var formatter = new BinaryFormatter();\nvar obj = formatter.Deserialize(stream);",
+		);
+		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));
+		expect(diagnostics.filter((d) => d.rule === "security/unsafe-deserialization")).toHaveLength(1);
+	});
+
+	// ── C / C++ ─────────────────────────────────────────────────────────────
+	it("detects a C++ system() call", async () => {
+		const filePath = writeFile("main.cpp", "int rc = system(cmd.c_str());");
+		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));
+		expect(diagnostics.filter((d) => d.rule === "security/shell-injection")).toHaveLength(1);
+	});
+
+	it("detects a qualified std::system() call but not a member access .system()", async () => {
+		const filePath = writeFile(
+			"main.cpp",
+			"std::system(cmd);\nmyRunner.system(cmd);\nobj->system(cmd);",
+		);
+		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));
+		expect(diagnostics.filter((d) => d.rule === "security/shell-injection")).toHaveLength(1);
+	});
+
+	it("detects unsafe C string functions in a .cpp file", async () => {
+		const filePath = writeFile(
+			"buf.cpp",
+			'strcpy(dest, src);\nsprintf(buf, "%s", src);\ngets(line);',
+		);
+		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));
+		expect(diagnostics.filter((d) => d.rule === "security/unsafe-c-call")).toHaveLength(3);
+	});
+
+	it("does NOT flag bounded C string functions (snprintf/strncpy)", async () => {
+		const filePath = writeFile("buf.cpp", 'snprintf(buf, n, "%s", src);\nstrncpy(dest, src, n);');
+		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));
+		expect(diagnostics.filter((d) => d.rule === "security/unsafe-c-call")).toHaveLength(0);
+	});
+
+	it("detects unsafe string functions in a C++ header (.hpp)", async () => {
+		const filePath = writeFile(
+			"inline.hpp",
+			"inline void copy(char* d, const char* s) { strcpy(d, s); }",
+		);
+		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));
+		expect(diagnostics.filter((d) => d.rule === "security/unsafe-c-call")).toHaveLength(1);
+	});
+
+	it("does NOT flag system() mentioned in a C++ comment", async () => {
+		const filePath = writeFile(
+			"main.cpp",
+			"// never call system() with untrusted input\nint x = 1;",
+		);
+		const diagnostics = await detectRiskyConstructs(makeContext([filePath]));
+		expect(diagnostics.filter((d) => d.rule === "security/shell-injection")).toHaveLength(0);
+	});
 });

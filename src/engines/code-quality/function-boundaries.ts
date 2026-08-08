@@ -1,3 +1,5 @@
+import { findInitializerListBodyStart } from "./initializer-list.js";
+
 const PYTHON_CONTROL_FLOW_RE = /^\s*(?:if|for|while|with|try|except|else|elif|finally|def|class)\b/;
 
 const ARROW_BLOCK_RE = /=>\s*\{/;
@@ -24,14 +26,32 @@ const findBraceFunctionEnd = (
 	let functionStartDepth = 0;
 	const braceStack: boolean[] = [];
 
-	for (let j = startIndex; j < lines.length; j++) {
+	// A C++ member-initializer list sits between the parameter list and the body,
+	// and its brace initializers (`value_{0}`) open and close before the body
+	// does. Start the scan at the brace that actually opens the body so those are
+	// never mistaken for it. Null means "no initializer list": scan from the top.
+	const bodyStart = findInitializerListBodyStart(lines, startIndex);
+
+	for (let j = bodyStart?.lineIndex ?? startIndex; j < lines.length; j++) {
 		const l = lines[j];
 
-		for (let ci = 0; ci < l.length; ci++) {
+		for (let ci = j === bodyStart?.lineIndex ? bodyStart.columnIndex : 0; ci < l.length; ci++) {
 			const ch = l[ci];
+			if (ch === ";" && !started) {
+				// A `;` reached before the body's opening `{` means this signature is
+				// a declaration/prototype (`void foo(int x);`), a static-call
+				// statement (`Foo::Bar(x);`), or an init the pattern matched by shape,
+				// not a definition. Signal "no function" (endLine < 0) so the caller
+				// skips it entirely rather than counting a body-less 1-line function.
+				return { endLine: -1, maxNesting: 0 };
+			}
 			if (ch === "{") {
 				depth++;
-				if (!started) {
+				if (!started && depth === 1) {
+					// Only latch onto the opening brace when depth transitions 0->1.
+					// If depth is already negative (we are inside a surrounding block
+					// that was open before startIndex), a `{` just brings depth toward
+					// zero and must not be treated as the function body opener.
 					started = true;
 					functionStartDepth = depth;
 					braceStack.push(false);

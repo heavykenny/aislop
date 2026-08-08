@@ -53,7 +53,9 @@ describe("cli json output", () => {
 		expect(
 			parsed.diagnostics.some((diagnostic) => diagnostic.rule === "security/hardcoded-secret"),
 		).toBe(true);
-		// Heavy test: scans 450 files through the full CLI subprocess. 15s was too tight under
-		// parallel load (CI/local both flaked ~15.6s); match sibling heavy tests' headroom.
-	}, 30_000);
+		// Heavy test: scans 450 files through the full CLI subprocess. 15s flaked at ~15.6s,
+		// 30s flaked at ~31.5s on Windows once the suite grew past 1800 tests (worker
+		// parallelism starves the spawned scan). Platform-aware headroom, matching
+		// PUBLIC_HELP_TIMEOUT_MS in cli-ergonomics.
+	}, process.platform === "win32" ? 120_000 : 60_000);
 });
