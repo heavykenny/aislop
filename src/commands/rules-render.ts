@@ -151,13 +151,13 @@ export const buildRuleDetailRender = (
 				});
 	const rows = [
 		["Rule", rule.id],
-		["Engine", `${presentation.label} — ${presentation.summary}`],
+		["Engine", `${presentation.label} - ${presentation.summary}`],
 		["Severity", severityLabel(rule.severity)],
 		[
 			"Fix",
 			`${fixModeLabel(rule.fixable)}${rule.fixable ? " (aislop fix can change it)" : " (review and fix intentionally)"}`,
 		],
-		["Impact", `${impactLabel(rule.id)} — ${scoreImpactForRule(rule.id).rationale}`],
+		["Impact", `${impactLabel(rule.id)} - ${scoreImpactForRule(rule.id).rationale}`],
 		["Meaning", descriptionForRule(rule.id)],
 	];
 	const labelWidth = Math.max(...rows.map(([label]) => label.length));

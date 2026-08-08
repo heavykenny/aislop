@@ -35,6 +35,50 @@ describe("csharp-patterns: NotImplementedException", () => {
 		const diags = await detectCSharpPatterns(ctx(root));
 		expect(diags.some((d) => d.rule === "ai-slop/csharp-not-implemented")).toBe(false);
 	});
+
+	it("does not flag detector tokens inside strings or block comments", async () => {
+		const root = fs.mkdtempSync(path.join(os.tmpdir(), "aislop-csp-"));
+		fs.writeFileSync(path.join(root, "Lib.csproj"), "<Project></Project>");
+		write(
+			root,
+			"A.cs",
+			[
+				"class A {",
+				'  const string Stub = "throw new NotImplementedException(";',
+				'  const string Output = "Console.WriteLine(";',
+				"  /*",
+				"  throw new NotImplementedException();",
+				'  Console.WriteLine("debug");',
+				"  */",
+				"}",
+			].join("\n"),
+		);
+
+		const diags = await detectCSharpPatterns(ctx(root));
+
+		expect(diags).toEqual([]);
+	});
+
+	it("retains diagnostic line numbers after multiline masking", async () => {
+		const root = fs.mkdtempSync(path.join(os.tmpdir(), "aislop-csp-"));
+		write(
+			root,
+			"A.cs",
+			[
+				"/*",
+				"throw new NotImplementedException();",
+				"*/",
+				"",
+				"throw new NotImplementedException();",
+			].join("\n"),
+		);
+
+		const diags = await detectCSharpPatterns(ctx(root));
+
+		expect(diags).toHaveLength(1);
+		expect(diags[0].rule).toBe("ai-slop/csharp-not-implemented");
+		expect(diags[0].line).toBe(5);
+	});
 });
 
 describe("csharp-patterns: redundant XML-doc", () => {
@@ -94,6 +138,14 @@ describe("csharp-patterns: sync-over-async", () => {
 		const root = fs.mkdtempSync(path.join(os.tmpdir(), "aislop-csp-"));
 		write(root, "A.cs", "class A { void M() { var x = GetAsync().Result; } }");
 		const diags = await detectCSharpPatterns(ctx(root));
+		expect(diags.some((d) => d.rule === "ai-slop/csharp-sync-over-async")).toBe(true);
+	});
+
+	it("flags .Result inside an interpolated expression", async () => {
+		const root = fs.mkdtempSync(path.join(os.tmpdir(), "aislop-csp-"));
+		write(root, "A.cs", 'class A { string M() => $"{GetAsync().Result}"; }');
+		const diags = await detectCSharpPatterns(ctx(root));
+
 		expect(diags.some((d) => d.rule === "ai-slop/csharp-sync-over-async")).toBe(true);
 	});
 
@@ -294,7 +346,10 @@ describe("csharp-patterns: console-leftover (Console.*)", () => {
 
 	it("does NOT flag Console.WriteLine in a Sdk.Web project with no OutputType", async () => {
 		const root = fs.mkdtempSync(path.join(os.tmpdir(), "aislop-csp-"));
-		fs.writeFileSync(path.join(root, "App.csproj"), '<Project Sdk="Microsoft.NET.Sdk.Web"></Project>');
+		fs.writeFileSync(
+			path.join(root, "App.csproj"),
+			'<Project Sdk="Microsoft.NET.Sdk.Web"></Project>',
+		);
 		write(root, "A.cs", 'class A { void M() { Console.WriteLine("hi"); } }');
 		const diags = await detectCSharpPatterns(ctx(root));
 		expect(diags.some((d) => d.rule === "ai-slop/csharp-console-leftover")).toBe(false);

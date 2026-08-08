@@ -1,11 +1,10 @@
 // Idiom-level C# rules (cf. the Python idiom layer): broad catch, LINQ Count,
 // index-for loops, if/else ladders and string concatenation in loops.
-import { maskStringsAndComments } from "../../utils/source-masker.js";
 import type { Diagnostic } from "../types.js";
 import {
 	buildCatchWindow,
 	CATCH_ONLY_THROW_RE,
-	isInLineComment,
+	type CSharpSourceLines,
 	pushFinding,
 	scanLineMatches,
 } from "./csharp-shared.js";
@@ -45,7 +44,7 @@ const extractBlockBody = (content: string, openBraceIndex: number): string | nul
 // `pass` bodies, not logged ones. A catch with no variable, or one whose variable is
 // never used, drops the error and stays flagged. The variable is block-scoped, so the
 // body is brace-matched to avoid crediting a reference in a sibling catch.
-const broadCatchSurfacesError = (lines: string[], catchLineIndex: number): boolean => {
+const broadCatchSurfacesError = (lines: readonly string[], catchLineIndex: number): boolean => {
 	const variableMatch = BROAD_CATCH_VAR_RE.exec(lines[catchLineIndex]);
 	if (!variableMatch) return false;
 	const content = lines.slice(catchLineIndex).join("\n");
@@ -61,7 +60,13 @@ const broadCatchSurfacesError = (lines: string[], catchLineIndex: number): boole
 // for. Empty and pure-rethrow broad catches are covered by swallowed-exception and
 // csharp-empty-catch-rethrow; a catch-and-log boundary (the body references the caught
 // exception) is observable recovery, matching python-broad-except - so skip those here.
-export const flagBroadCatch = (lines: string[], relPath: string, out: Diagnostic[]): void => {
+
+export const flagBroadCatch = (
+	source: CSharpSourceLines,
+	relPath: string,
+	out: Diagnostic[],
+): void => {
+	const lines = source.code;
 	for (let i = 0; i < lines.length; i++) {
 		if (lines[i].trim().startsWith("//")) continue;
 		if (!BROAD_CATCH_RE.test(lines[i])) continue;
@@ -69,7 +74,7 @@ export const flagBroadCatch = (lines: string[], relPath: string, out: Diagnostic
 		const window = buildCatchWindow(lines, i);
 		if (CATCH_ONLY_THROW_RE.test(window)) continue;
 		if (BROAD_CATCH_EMPTY_RE.test(window)) continue;
-		if (broadCatchSurfacesError(lines, i)) continue;
+		if (broadCatchSurfacesError(source.raw, i)) continue;
 		pushFinding(
 			out,
 			relPath,
@@ -86,7 +91,11 @@ export const flagBroadCatch = (lines: string[], relPath: string, out: Diagnostic
 const LINQ_COUNT_RE =
 	/\.Count\s*\(\s*\)\s*(?:==|!=|>=|<=|>|<)\s*\b[01]\b|\b[01]\b\s*(?:==|!=|>=|<=|>|<)\s*[A-Za-z_][\w.]*\.Count\s*\(\s*\)/;
 
-export const flagLinqCount = (lines: string[], relPath: string, out: Diagnostic[]): void => {
+export const flagLinqCount = (
+	lines: readonly string[],
+	relPath: string,
+	out: Diagnostic[],
+): void => {
 	scanLineMatches(
 		lines,
 		relPath,
@@ -95,7 +104,6 @@ export const flagLinqCount = (lines: string[], relPath: string, out: Diagnostic[
 		"ai-slop/csharp-linq-count",
 		"`.Count()` compared to 0/1 walks the whole sequence just to ask whether any element exists.",
 		"Use `.Any()` (or `!collection.Any()` for the empty check) instead of `.Count() > 0` / `.Count() == 0`.",
-		(match, i) => !isInLineComment(lines[i], match.index),
 	);
 };
 
@@ -107,7 +115,7 @@ const INDEX_FOR_RE =
 // Body of the `for` loop starting on `forLineIndex`, whether a `{ }` block or a single
 // braceless statement. The header's own parentheses (e.g. a `.Count()` call) are matched
 // past before the body is read.
-const extractLoopBody = (lines: string[], forLineIndex: number): string | null => {
+const extractLoopBody = (lines: readonly string[], forLineIndex: number): string | null => {
 	const content = lines.slice(forLineIndex).join("\n");
 	const forIndex = content.search(/\bfor\s*\(/);
 	if (forIndex === -1) return null;
@@ -135,7 +143,7 @@ const extractLoopBody = (lines: string[], forLineIndex: number): string | null =
 // so the loop is left alone. Mirrors the rule's own "if the index itself is used, ignore
 // this" guidance, which the line-only match could not honor.
 const indexUsedOnlyForElementAccess = (
-	lines: string[],
+	lines: readonly string[],
 	forLineIndex: number,
 	indexName: string,
 ): boolean => {
@@ -145,7 +153,11 @@ const indexUsedOnlyForElementAccess = (
 	return !new RegExp(`\\b${indexName}\\b`).test(withoutSubscripts);
 };
 
-export const flagIndexLoop = (lines: string[], relPath: string, out: Diagnostic[]): void => {
+export const flagIndexLoop = (
+	lines: readonly string[],
+	relPath: string,
+	out: Diagnostic[],
+): void => {
 	scanLineMatches(
 		lines,
 		relPath,
@@ -154,8 +166,7 @@ export const flagIndexLoop = (lines: string[], relPath: string, out: Diagnostic[
 		"ai-slop/csharp-index-loop",
 		"Index `for` loop over `.Length`/`.Count` is usually clearer as `foreach`.",
 		"Use `foreach (var item in collection)` when you don't need the index. If the index itself is used, ignore this.",
-		(match, i) =>
-			!isInLineComment(lines[i], match.index) && indexUsedOnlyForElementAccess(lines, i, match[1]),
+		(match, i) => indexUsedOnlyForElementAccess(lines, i, match[1]),
 	);
 };
 
@@ -166,7 +177,11 @@ const ELSE_IF_RE = /\belse\s+if\b/;
 
 // Walk consecutive if/else-if branches that compare the SAME value; a chain of
 // IF_LADDER_THRESHOLD+ is a switch (or handler map) wearing an if/else costume.
-export const flagIfLadder = (lines: string[], relPath: string, out: Diagnostic[]): void => {
+export const flagIfLadder = (
+	lines: readonly string[],
+	relPath: string,
+	out: Diagnostic[],
+): void => {
 	let chainVariable: string | null = null;
 	let count = 0;
 	let startLine = 0;
@@ -210,27 +225,19 @@ const STRING_CONCAT_RE = /(\w+)\s*\+=\s*[^;]*"/;
 // Loop bodies are tracked by brace depth (strings/comments stripped first); the
 // `{` may sit on the loop-header line or the next line, both handled.
 export const flagStringConcatInLoop = (
-	lines: string[],
+	source: CSharpSourceLines,
 	relPath: string,
 	out: Diagnostic[],
-	content: string,
 ): void => {
-	// Braces or loop keywords *inside* string/char literals and comments would skew
-	// the brace-depth tracking below, so mask them out up front. maskStringsAndComments
-	// preserves line count (masked regions become spaces, newlines are untouched), so
-	// indexing maskedLines[i] lines up with the original lines[i].
-	const maskedLines = maskStringsAndComments(content, ".cs").split("\n");
 	let braceDepth = 0;
 	const loopBodyDepths: number[] = [];
 	let pendingLoop = false;
-	for (let i = 0; i < lines.length; i++) {
-		const raw = lines[i];
-		if (raw.trim().startsWith("//")) continue;
-		const code = maskedLines[i];
+	for (let i = 0; i < source.code.length; i++) {
+		const code = source.code[i];
 
 		if (loopBodyDepths.length > 0) {
-			const match = STRING_CONCAT_RE.exec(raw);
-			if (match && !isInLineComment(raw, match.index)) {
+			const match = STRING_CONCAT_RE.exec(code);
+			if (match) {
 				pushFinding(
 					out,
 					relPath,

@@ -1,4 +1,4 @@
-import { consumeQuotedString, csharpStringAt } from "./string-literals.js";
+import { consumeQuotedString, cppRawStringAt, csharpStringAt } from "./string-literals.js";
 
 export const maskCSharp = (content: string, maskStrings: boolean): string => {
 	const out = content.split("");
@@ -21,6 +21,12 @@ export const maskCSharp = (content: string, maskStrings: boolean): string => {
 			const span = csharpStringAt(content, i);
 			if (span) {
 				if (maskStrings) mask(span.bodyStart, span.bodyEnd);
+				for (const range of span.interpolationRanges) {
+					const expression = maskCSharp(content.slice(range.start, range.end), maskStrings);
+					for (let offset = 0; offset < expression.length; offset++) {
+						out[range.start + offset] = expression[offset];
+					}
+				}
 				i = span.resumeAt;
 				continue;
 			}
@@ -69,6 +75,12 @@ export const maskCStyle = (content: string, maskStrings: boolean): string => {
 	while (i < len) {
 		const c = content[i];
 		const next = content[i + 1];
+		const rawString = cppRawStringAt(content, i);
+		if (rawString) {
+			if (maskStrings) mask(rawString.bodyStart, rawString.bodyEnd);
+			i = rawString.resumeAt;
+			continue;
+		}
 
 		if (c === '"' || c === "'") {
 			const strStart = i;
