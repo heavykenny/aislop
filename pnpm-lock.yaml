@@ -41,8 +41,8 @@ importers:
         specifier: ^14.0.3
         version: 14.0.3
       expo-doctor:
-        specifier: ^1.20.0
-        version: 1.20.0
+        specifier: ^1.20.1
+        version: 1.20.1
       ink:
         specifier: ^7.1.1
         version: 7.1.1(@types/react@19.2.17)(react@19.2.8)
@@ -1390,8 +1390,8 @@ packages:
     resolution: {integrity: sha512-knvyeauYhqjOYvQ66MznSMs83wmHrCycNEN6Ao+2AeYEfxUIkuiVxdEa1qlGEPK+We3n0THiDciYSsCcgW/DoA==}
     engines: {node: '>=12.0.0'}
 
-  expo-doctor@1.20.0:
-    resolution: {integrity: sha512-YL0uGQGZ65tWOCOiDH6BFzBkx/9N46MyBUdRfa4t6iuG4tbLg/phRrhmuaNm99QJVMqYtt3ksRbFCzuYOuX20Q==}
+  expo-doctor@1.20.1:
+    resolution: {integrity: sha512-u0QYTm3hTZbuMuNdnvscA1X6Xm31ilQ6uxrf8FfzO0ddpOEBrgVEYp8jXgFOBwrRf6DqJoD2j3eKUTWTqvKVzg==}
     engines: {node: ^20.19.4 || ^22.13.0 || ^24.3.0 || >= 25.0.0}
     hasBin: true
 
@@ -3163,7 +3163,7 @@ snapshots:
 
   expect-type@1.3.0: {}
 
-  expo-doctor@1.20.0: {}
+  expo-doctor@1.20.1: {}
 
   express-rate-limit@8.5.1(express@5.2.1):
     dependencies:
