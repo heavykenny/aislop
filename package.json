@@ -114,7 +114,7 @@
     "@types/react": "^19.2.17",
     "ink-testing-library": "^4.0.0",
     "tsdown": "^0.22.14",
-    "vite": "^8.1.5",
+    "vite": "^8.2.0",
     "vitest": "^4.1.10"
   }
 }
