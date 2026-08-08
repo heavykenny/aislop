@@ -95,7 +95,18 @@ Some checks depend on tools already installed on your machine:
 - `cargo`, `clippy` (Rust)
 - `rubocop` (Ruby)
 - `phpcs`, `php-cs-fixer` (PHP)
+- `.NET SDK`, `roslynator`, `jb` (C#)
 - `cppcheck`, `clang-format`, `clang-tidy` (C/C++)
+
+C# projects receive built-in text and complexity checks without optional lint tools. For project-aware formatting and dependency checks, install the .NET SDK and opt in for repositories you trust:
+
+```yaml
+lint:
+  csharp:
+    projectEvaluation: true
+```
+
+See the [rules reference](rules.md#c-linting-hybrid-jb--roslynator) for the optional lint setup.
 
 C/C++ tools are system installs that aislop shells out to - they are not bundled. Install them with your system package manager:
 
