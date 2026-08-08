@@ -23,14 +23,16 @@ const write = (root: string, name: string, body: string) => {
 	fs.writeFileSync(path.join(root, name), body);
 };
 
-const rulesFor = async (files: Record<string, string>) => {
+const diagnosticsFor = async (files: Record<string, string>) => {
 	const root = fs.mkdtempSync(path.join(os.tmpdir(), "aislop-cpp-"));
 	for (const [name, body] of Object.entries(files)) {
 		write(root, name, body);
 	}
-	const diags = await detectCppPatterns(ctx(root));
-	return diags.map((d) => d.rule);
+	return detectCppPatterns(ctx(root));
 };
+
+const rulesFor = async (files: Record<string, string>) =>
+	(await diagnosticsFor(files)).map((diagnostic) => diagnostic.rule);
 
 describe("detectCppPatterns", () => {
 	it("flags a not-implemented stub", async () => {
@@ -101,5 +103,34 @@ describe("detectCppPatterns", () => {
 		expect(await rulesFor({ "src/lib.cpp": 'void f(){ log << "x" << std::endl; }\n' })).toContain(
 			"ai-slop/cpp-endl-in-stream",
 		);
+	});
+
+	it("does not flag detector tokens inside strings or comments", async () => {
+		const rules = await rulesFor({
+			"src/a.hpp": [
+				'const char* nullText = "NULL";',
+				"int* value = nullptr; // NULL",
+				"/*",
+				"using namespace std;",
+				"delete value;",
+				"std::cout << value;",
+				'throw std::logic_error("not implemented");',
+				"*/",
+				'const char* sample = "throw std::logic_error(\\"not implemented\\")";',
+				"",
+			].join("\n"),
+		});
+
+		expect(rules).toEqual([]);
+	});
+
+	it("retains diagnostic line numbers after multiline masking", async () => {
+		const diagnostics = await diagnosticsFor({
+			"src/a.cpp": ["/*", "NULL", "*/", "", "int* value = NULL;", ""].join("\n"),
+		});
+
+		expect(diagnostics).toHaveLength(1);
+		expect(diagnostics[0].rule).toBe("ai-slop/cpp-null-literal");
+		expect(diagnostics[0].line).toBe(5);
 	});
 });
