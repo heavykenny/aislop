@@ -4,11 +4,29 @@
 
 interface LiteralSpan {
 	// First index of the literal body, with the opening delimiter excluded.
-	bodyStart: number;
+	readonly bodyStart: number;
 	// Index just past the last body character.
-	bodyEnd: number;
+	readonly bodyEnd: number;
 	// Index to resume scanning from, just past the closing delimiter.
-	resumeAt: number;
+	readonly resumeAt: number;
+	// Executable expressions inside an interpolated literal. The delimiter
+	// braces are excluded so structural passes do not read them as code blocks.
+	readonly interpolationRanges: readonly SourceRange[];
+}
+
+interface SourceRange {
+	readonly start: number;
+	readonly end: number;
+}
+
+interface InterpolationHole {
+	readonly range: SourceRange;
+	readonly resumeAt: number;
+}
+
+interface BraceScan {
+	readonly hole: InterpolationHole | null;
+	readonly resumeAt: number;
 }
 
 // Consume a quoted string starting at the opening quote. Returns the index
@@ -47,13 +65,14 @@ const consumeInterpolationHole = (
 	open: number,
 	openLength: number,
 	multiline: boolean,
-): number => {
+): InterpolationHole | null => {
 	const len = content.length;
 	let depth = openLength;
-	let i = open + openLength;
+	const contentStart = open + openLength;
+	let i = contentStart;
 	while (i < len) {
 		const c = content[i];
-		if (c === "\n" && !multiline) return -1;
+		if (c === "\n" && !multiline) return null;
 		if (c === '"' || c === "$" || c === "@") {
 			const nested = csharpStringAt(content, i);
 			if (nested) {
@@ -67,14 +86,16 @@ const consumeInterpolationHole = (
 		}
 		if (c === "{" || c === "}") {
 			const run = runLength(content, i, c);
+			if (c === "}" && depth - run <= 0) {
+				return { range: { start: contentStart, end: i }, resumeAt: i + run };
+			}
 			depth += c === "{" ? run : -run;
 			i += run;
-			if (depth <= 0) return i;
 			continue;
 		}
 		i++;
 	}
-	return -1;
+	return null;
 };
 
 // Advance past a `{` run in a plain or verbatim interpolated string, where a
@@ -82,21 +103,21 @@ const consumeInterpolationHole = (
 // that never closes means the source does not compile and the brace is better
 // read as literal text, so resume just past it instead of consuming the rest
 // of the file as an expression.
-const skipBraceRun = (content: string, start: number, multiline: boolean): number => {
+const scanBraceRun = (content: string, start: number, multiline: boolean): BraceScan => {
 	const run = runLength(content, start, "{");
 	const literalEnd = start + run - (run % 2);
-	if (run % 2 === 0) return literalEnd;
-	const holeEnd = consumeInterpolationHole(content, literalEnd, 1, multiline);
-	return holeEnd === -1 ? literalEnd + 1 : holeEnd;
+	if (run % 2 === 0) return { hole: null, resumeAt: literalEnd };
+	const hole = consumeInterpolationHole(content, literalEnd, 1, multiline);
+	return { hole, resumeAt: hole?.resumeAt ?? literalEnd + 1 };
 };
 
 // Advance past a `{` run in a raw interpolated string, where the `$` count
 // decides how many braces open a hole and any shorter run is literal text.
-const skipRawBraceRun = (content: string, start: number, holeLength: number): number => {
+const scanRawBraceRun = (content: string, start: number, holeLength: number): BraceScan => {
 	const run = runLength(content, start, "{");
-	if (run < holeLength) return start + run;
-	const holeEnd = consumeInterpolationHole(content, start + run - holeLength, holeLength, true);
-	return holeEnd === -1 ? start + run : holeEnd;
+	if (run < holeLength) return { hole: null, resumeAt: start + run };
+	const hole = consumeInterpolationHole(content, start + run - holeLength, holeLength, true);
+	return { hole, resumeAt: hole?.resumeAt ?? start + run };
 };
 
 // A plain C# string. Backslash escapes the next character and a newline ends
@@ -104,6 +125,7 @@ const skipRawBraceRun = (content: string, start: number, holeLength: number): nu
 const consumePlainString = (content: string, open: number, interpolated: boolean): LiteralSpan => {
 	const len = content.length;
 	const bodyStart = open + 1;
+	const interpolationRanges: SourceRange[] = [];
 	let i = bodyStart;
 	while (i < len) {
 		const c = content[i];
@@ -111,15 +133,17 @@ const consumePlainString = (content: string, open: number, interpolated: boolean
 			i += 2;
 			continue;
 		}
-		if (c === '"') return { bodyStart, bodyEnd: i, resumeAt: i + 1 };
-		if (c === "\n") return { bodyStart, bodyEnd: i, resumeAt: i };
+		if (c === '"') return { bodyStart, bodyEnd: i, resumeAt: i + 1, interpolationRanges };
+		if (c === "\n") return { bodyStart, bodyEnd: i, resumeAt: i, interpolationRanges };
 		if (interpolated && c === "{") {
-			i = skipBraceRun(content, i, false);
+			const brace = scanBraceRun(content, i, false);
+			if (brace.hole) interpolationRanges.push(brace.hole.range);
+			i = brace.resumeAt;
 			continue;
 		}
 		i++;
 	}
-	return { bodyStart, bodyEnd: len, resumeAt: len };
+	return { bodyStart, bodyEnd: len, resumeAt: len, interpolationRanges };
 };
 
 // A C# verbatim string. A doubled quote is the escape for one quote, a
@@ -131,6 +155,7 @@ const consumeVerbatimString = (
 ): LiteralSpan => {
 	const len = content.length;
 	const bodyStart = open + 1;
+	const interpolationRanges: SourceRange[] = [];
 	let i = bodyStart;
 	while (i < len) {
 		const c = content[i];
@@ -139,15 +164,17 @@ const consumeVerbatimString = (
 				i += 2;
 				continue;
 			}
-			return { bodyStart, bodyEnd: i, resumeAt: i + 1 };
+			return { bodyStart, bodyEnd: i, resumeAt: i + 1, interpolationRanges };
 		}
 		if (interpolated && c === "{") {
-			i = skipBraceRun(content, i, true);
+			const brace = scanBraceRun(content, i, true);
+			if (brace.hole) interpolationRanges.push(brace.hole.range);
+			i = brace.resumeAt;
 			continue;
 		}
 		i++;
 	}
-	return { bodyStart, bodyEnd: len, resumeAt: len };
+	return { bodyStart, bodyEnd: len, resumeAt: len, interpolationRanges };
 };
 
 // A C# raw string literal. An opening run of three or more quotes is closed by
@@ -157,22 +184,27 @@ const consumeRawString = (content: string, open: number, holeLength: number): Li
 	const len = content.length;
 	const openLength = runLength(content, open, '"');
 	const bodyStart = open + openLength;
+	const interpolationRanges: SourceRange[] = [];
 	let i = bodyStart;
 	while (i < len) {
 		const c = content[i];
 		if (c === '"') {
 			const run = runLength(content, i, '"');
-			if (run >= openLength) return { bodyStart, bodyEnd: i, resumeAt: i + run };
+			if (run >= openLength) {
+				return { bodyStart, bodyEnd: i, resumeAt: i + run, interpolationRanges };
+			}
 			i += run;
 			continue;
 		}
 		if (holeLength > 0 && c === "{") {
-			i = skipRawBraceRun(content, i, holeLength);
+			const brace = scanRawBraceRun(content, i, holeLength);
+			if (brace.hole) interpolationRanges.push(brace.hole.range);
+			i = brace.resumeAt;
 			continue;
 		}
 		i++;
 	}
-	return { bodyStart, bodyEnd: len, resumeAt: len };
+	return { bodyStart, bodyEnd: len, resumeAt: len, interpolationRanges };
 };
 
 interface LiteralPrefix {
@@ -211,4 +243,43 @@ export const csharpStringAt = (content: string, start: number): LiteralSpan | nu
 	if (verbatim) return consumeVerbatimString(content, open, dollars > 0);
 	if (runLength(content, open, '"') >= 3) return consumeRawString(content, open, dollars);
 	return consumePlainString(content, open, dollars > 0);
+};
+
+// The span of a C++ raw string beginning with R". An optional encoding prefix
+// is scanned as ordinary code before this point.
+export const cppRawStringAt = (content: string, start: number): LiteralSpan | null => {
+	if (content[start] !== "R" || content[start + 1] !== '"') return null;
+	const delimiterStart = start + 2;
+	let openParen = delimiterStart;
+	while (openParen < content.length && content[openParen] !== "(") {
+		const character = content[openParen];
+		if (
+			openParen - delimiterStart >= 16 ||
+			content.charCodeAt(openParen) <= 32 ||
+			character === "\\" ||
+			character === ")"
+		) {
+			return null;
+		}
+		openParen++;
+	}
+	if (content[openParen] !== "(") return null;
+	const delimiter = content.slice(delimiterStart, openParen);
+	const closing = `)${delimiter}"`;
+	const bodyStart = openParen + 1;
+	const bodyEnd = content.indexOf(closing, bodyStart);
+	if (bodyEnd === -1) {
+		return {
+			bodyStart,
+			bodyEnd: content.length,
+			resumeAt: content.length,
+			interpolationRanges: [],
+		};
+	}
+	return {
+		bodyStart,
+		bodyEnd,
+		resumeAt: bodyEnd + closing.length,
+		interpolationRanges: [],
+	};
 };

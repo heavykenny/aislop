@@ -86,6 +86,23 @@ describe("maskStringsAndComments still masks string bodies", () => {
 // comment markers and loop keywords from inside the literal stay visible to the
 // function-boundary, nesting and concatenation passes that read masked source.
 describe("maskStringsAndComments understands C# string literals", () => {
+	it("keeps executable interpolation expressions while masking literal text", () => {
+		const src = 'var value = $"label: {GetAsync().Result}";';
+		const out = maskStringsAndComments(src, ".cs");
+
+		expect(out).toContain("GetAsync().Result");
+		expect(out).not.toContain("label");
+		expect(out).not.toContain("{");
+	});
+
+	it("masks nested string contents inside an interpolation expression", () => {
+		const src = 'var value = $"{Format("GetAsync().Result")}";';
+		const out = maskStringsAndComments(src, ".cs");
+
+		expect(out).toContain("Format");
+		expect(out).not.toContain("GetAsync().Result");
+	});
+
 	it("treats a backslash before the closing quote of a verbatim string as literal", () => {
 		const src = ["void M() {", '\tvar p = @"C:\\temp\\";', "\tif (x) { Go(); }", "}", ""].join(
 			"\n",
@@ -166,7 +183,10 @@ describe("maskStringsAndComments understands C# string literals", () => {
 			"\n",
 		);
 		const out = maskStringsAndComments(src, ".cs").split("\n");
-		expect(out[0]).toBe(`var s = $"${" ".repeat(33)}";`);
+		expect(out[0]).toContain("string.Join");
+		expect(out[0]).toContain("items");
+		expect(out[0]).not.toContain('", "');
+		expect(out[0]).not.toContain("done");
 		expect(out[1]).toContain("{ Go(); }");
 	});
 
@@ -180,14 +200,20 @@ describe("maskStringsAndComments understands C# string literals", () => {
 	it("treats a doubled brace as literal text rather than an interpolation hole", () => {
 		const src = ['var s = $"{{literal}} {v} // no";', "if (q) { Go(); }", ""].join("\n");
 		const out = maskStringsAndComments(src, ".cs").split("\n");
-		expect(out[0]).toBe(`var s = $"${" ".repeat(21)}";`);
+		expect(out[0]).toContain("v");
+		expect(out[0]).not.toContain("literal");
+		expect(out[0]).not.toContain("// no");
+		expect(out[0]).not.toContain("{");
 		expect(out[1]).toContain("{ Go(); }");
 	});
 
 	it("skips nested literals in the hole of a raw interpolated string", () => {
 		const src = ['var t = $"""x {J("\\"", y)} z""";', "if (q) { Go(); }", ""].join("\n");
 		const out = maskStringsAndComments(src, ".cs").split("\n");
-		expect(out[0]).toBe(`var t = $"""${" ".repeat(16)}""";`);
+		expect(out[0]).toContain("J");
+		expect(out[0]).toContain("y");
+		expect(out[0]).not.toContain("\\");
+		expect(out[0]).not.toContain("{");
 		expect(out[1]).toContain("{ Go(); }");
 	});
 
@@ -219,6 +245,24 @@ describe("maskStringsAndComments understands C# string literals", () => {
 		const out = maskStringsAndComments(src, ".cs").split("\n");
 		expect(out[1]).not.toContain("{");
 		expect(out[3]).toContain("if (x) { Go(); }");
+	});
+});
+
+describe("maskStringsAndComments understands C++ raw string literals", () => {
+	it("masks quotes and detector tokens inside a raw string", () => {
+		const src = 'const char* text = R"(say "NULL")"; int* value = nullptr;';
+		const out = maskStringsAndComments(src, ".cpp");
+
+		expect(out).not.toContain("NULL");
+		expect(out).toContain("int* value = nullptr;");
+	});
+
+	it("closes a raw string with its custom delimiter", () => {
+		const src = 'const char* text = R"tag(NULL "quoted")tag"; int value = 1;';
+		const out = maskStringsAndComments(src, ".cpp");
+
+		expect(out).not.toContain("NULL");
+		expect(out).toContain("int value = 1;");
 	});
 });
 

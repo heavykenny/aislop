@@ -64,9 +64,13 @@ describe("csharp-patterns: NotImplementedException", () => {
 		write(
 			root,
 			"A.cs",
-			["/*", "throw new NotImplementedException();", "*/", "", "throw new NotImplementedException();"].join(
-				"\n",
-			),
+			[
+				"/*",
+				"throw new NotImplementedException();",
+				"*/",
+				"",
+				"throw new NotImplementedException();",
+			].join("\n"),
 		);
 
 		const diags = await detectCSharpPatterns(ctx(root));
@@ -134,6 +138,14 @@ describe("csharp-patterns: sync-over-async", () => {
 		const root = fs.mkdtempSync(path.join(os.tmpdir(), "aislop-csp-"));
 		write(root, "A.cs", "class A { void M() { var x = GetAsync().Result; } }");
 		const diags = await detectCSharpPatterns(ctx(root));
+		expect(diags.some((d) => d.rule === "ai-slop/csharp-sync-over-async")).toBe(true);
+	});
+
+	it("flags .Result inside an interpolated expression", async () => {
+		const root = fs.mkdtempSync(path.join(os.tmpdir(), "aislop-csp-"));
+		write(root, "A.cs", 'class A { string M() => $"{GetAsync().Result}"; }');
+		const diags = await detectCSharpPatterns(ctx(root));
+
 		expect(diags.some((d) => d.rule === "ai-slop/csharp-sync-over-async")).toBe(true);
 	});
 
@@ -334,7 +346,10 @@ describe("csharp-patterns: console-leftover (Console.*)", () => {
 
 	it("does NOT flag Console.WriteLine in a Sdk.Web project with no OutputType", async () => {
 		const root = fs.mkdtempSync(path.join(os.tmpdir(), "aislop-csp-"));
-		fs.writeFileSync(path.join(root, "App.csproj"), '<Project Sdk="Microsoft.NET.Sdk.Web"></Project>');
+		fs.writeFileSync(
+			path.join(root, "App.csproj"),
+			'<Project Sdk="Microsoft.NET.Sdk.Web"></Project>',
+		);
 		write(root, "A.cs", 'class A { void M() { Console.WriteLine("hi"); } }');
 		const diags = await detectCSharpPatterns(ctx(root));
 		expect(diags.some((d) => d.rule === "ai-slop/csharp-console-leftover")).toBe(false);

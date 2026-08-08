@@ -84,6 +84,15 @@ describe("detectCppPatterns", () => {
 		);
 	});
 
+	it("does not flag NULL inside C++ raw string literals", async () => {
+		expect(await rulesFor({ "src/a.cpp": 'const char* text = R"(say "NULL")";\n' })).not.toContain(
+			"ai-slop/cpp-null-literal",
+		);
+		expect(
+			await rulesFor({ "src/a.cpp": 'const char* text = R"tag(NULL "quoted")tag";\n' }),
+		).not.toContain("ai-slop/cpp-null-literal");
+	});
+
 	it("flags an object-like #define constant but not function-like macros or header guards", async () => {
 		expect(await rulesFor({ "src/a.cpp": "#define MAX_SIZE 1024\n" })).toContain(
 			"ai-slop/cpp-define-constant",
