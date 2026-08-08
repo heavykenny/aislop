@@ -2,11 +2,13 @@ import type { Diagnostic, Engine, EngineContext, EngineResult } from "../types.j
 import { runClangTidy } from "./clang-tidy.js";
 import { resolveCppLintConfig, runCppcheck } from "./cppcheck.js";
 import { runDotnetLint } from "./dotnet.js";
+import { runExpoDoctor } from "./expo-doctor.js";
 import { runGenericLinter } from "./generic.js";
 import { runGolangciLint } from "./golangci.js";
 import { resolveCsharpLintConfig, runJbLint } from "./jb.js";
 import { runOxlint } from "./oxlint.js";
 import { runRuffLint } from "./ruff.js";
+import { runTypecheck } from "./typecheck.js";
 
 // jb reports a Roslyn finding as "jb/<id>" and roslynator as "dotnet/<id>"; when
 // a project both references one of aislop's bundled analyzers AND jb runs it, the
@@ -74,13 +76,13 @@ export const lintEngine: Engine = {
 		if (languages.includes("typescript") || languages.includes("javascript")) {
 			promises.push(runOxlint(context));
 			if (context.config.lint.typecheck) {
-				promises.push(import("./typecheck.js").then((mod) => mod.runTypecheck(context)));
+				promises.push(runTypecheck(context));
 			}
 		}
 
 		if (context.frameworks.includes("expo") && context.config.lint.expoDoctor) {
 			// Expo Doctor may evaluate project config, so only run it when explicitly enabled.
-			promises.push(import("./expo-doctor.js").then((mod) => mod.runExpoDoctor(context)));
+			promises.push(runExpoDoctor(context));
 		}
 
 		if (languages.includes("python") && installedTools.ruff) {
