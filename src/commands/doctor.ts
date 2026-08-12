@@ -10,7 +10,8 @@ import {
 import { renderHeader } from "../ui/header.js";
 import { detectInvocation } from "../ui/invocation.js";
 import { style, theme } from "../ui/theme.js";
-import { discoverProject } from "../utils/discover.js";
+import { detectSourceLanguages, discoverProject } from "../utils/discover.js";
+import { getSourceFilesForRoot } from "../utils/source-files.js";
 import { APP_VERSION } from "../version.js";
 import { buildRows, type DoctorEngineRow, languageLabelFor } from "./doctor-plan.js";
 
@@ -101,7 +102,19 @@ export const doctorCommand = async (
 	options: DoctorOptions = {},
 ): Promise<void> => {
 	const resolvedDir = path.resolve(directory);
-	const projectInfo = await discoverProject(resolvedDir);
+	const sourceFiles = getSourceFilesForRoot(resolvedDir);
+	const discoveredProject = await discoverProject(resolvedDir, [], { sourceFiles });
+	// scan plans its engines from the languages of the files it will actually read,
+	// so doctor has to as well or it promises tooling scan never runs. A manifest can
+	// name a language the tree does not contain: a root package.json that exists only
+	// to pin a CLI tool makes a C# or C++ repository look like a JavaScript one, and
+	// the JS-gated planners then claim every engine. Manifest languages remain the
+	// answer for a project with no source files yet.
+	const sourceLanguages = detectSourceLanguages(sourceFiles);
+	const projectInfo =
+		sourceLanguages.length > 0
+			? { ...discoveredProject, languages: sourceLanguages }
+			: discoveredProject;
 	const config = loadConfig(resolvedDir);
 
 	const rows = buildRows({ rootDirectory: resolvedDir, projectInfo, config });
