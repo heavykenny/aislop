@@ -11,10 +11,19 @@ const BROAD_EXCEPT_RE = /^\s*except\s+(Exception|BaseException)\s*(?:as\s+\w+)?\
 const PRINT_RE = /^\s*print\s*\(/;
 const DEF_RE = /^\s*(?:async\s+)?def\s+\w+\s*\(/;
 const MUTABLE_DEFAULT_RE = /(\w+)\s*(?::\s*[^,)=]+)?\s*=\s*(\[\s*\]|\{\s*\}|set\(\s*\))/g;
-// FastAPI request-parameter markers (Body/Query/Header/Cookie/Form) build a fresh
-// value per request from their own `default=` keyword arg, so `default={}` right
-// after one of these isn't the classic shared-mutable-default footgun.
-const FASTAPI_MARKER_DEFAULT_PREFIX_RE = /\b(?:Body|Query|Header|Cookie|Form)\(\s*$/;
+// Parenthesis depth at `index`, counting from the start of the signature text.
+// Top-level parameters sit at depth 1 (inside the def's own parentheses); a match
+// at depth 2+ is a keyword argument inside a call expression. Like the signature
+// scanner above, this counts parentheses without masking string literals.
+const parenthesisDepthAt = (text: string, index: number): number => {
+	let depth = 0;
+	for (let position = 0; position < index; position++) {
+		const character = text[position];
+		if (character === "(") depth++;
+		else if (character === ")") depth--;
+	}
+	return depth;
+};
 const RANGE_LEN_LOOP_RE =
 	/^\s*for\s+([A-Za-z_]\w*)\s+in\s+range\s*\(\s*len\s*\(\s*([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)\s*\)\s*\)\s*:\s*(?:#.*)?$/;
 const CHAINED_DICT_GET_RE = /\.get\s*\([^)]*,\s*\{\s*\}\s*\)\s*\.get\s*\(/;
@@ -179,8 +188,13 @@ const flagMutableDefaults = (lines: string[], relPath: string, out: Diagnostic[]
 		}
 		let found: RegExpMatchArray | null = null;
 		for (const match of signature.matchAll(MUTABLE_DEFAULT_RE)) {
-			const prefix = signature.slice(0, match.index);
-			if (match[1] === "default" && FASTAPI_MARKER_DEFAULT_PREFIX_RE.test(prefix)) continue;
+			// A mutable literal that is a keyword argument inside a call, like
+			// `Body(default={})`, `typer.Option(default=[])`, or `Field(default={})`,
+			// is not the shared-mutable-default footgun: the wrapper decides the
+			// value's lifetime (FastAPI and friends build a fresh value per request).
+			// Only a bare default at the signature's top level aliases one object
+			// across every call.
+			if (parenthesisDepthAt(signature, match.index ?? 0) > 1) continue;
 			found = match;
 			break;
 		}

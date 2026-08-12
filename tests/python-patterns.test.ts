@@ -177,6 +177,43 @@ describe("python: mutable-default-arg", () => {
 		const matches = diagnostics.filter((d) => d.rule === "ai-slop/python-mutable-default");
 		expect(matches).toHaveLength(1);
 	});
+
+	it("does NOT flag a keyword argument inside any call expression, only bare defaults", async () => {
+		writeFile(
+			"src/cli_options.py",
+			[
+				"def configure(tags: list = typer.Option(default=[]), retries: int = 3):",
+				"    return (tags, retries)",
+				"",
+				"def build(session = ClientFactory(headers={}, pool=[])):",
+				"    return session",
+				"",
+			].join("\n"),
+		);
+		const diagnostics = await detectPythonPatterns(buildContext());
+		const matches = diagnostics.filter((d) => d.rule === "ai-slop/python-mutable-default");
+		expect(matches).toEqual([]);
+	});
+
+	it("skips call-wrapped keyword arguments across a multi-line signature but flags its bare default", async () => {
+		writeFile(
+			"src/multi_line.py",
+			[
+				"def handler(",
+				"    payload: dict = Body(",
+				"        default={},",
+				"    ),",
+				"    seen=[],",
+				"):",
+				"    return (payload, seen)",
+				"",
+			].join("\n"),
+		);
+		const diagnostics = await detectPythonPatterns(buildContext());
+		const matches = diagnostics.filter((d) => d.rule === "ai-slop/python-mutable-default");
+		expect(matches).toHaveLength(1);
+		expect(matches[0]?.message).toContain("seen=[]");
+	});
 });
 
 describe("python: print-debug", () => {
