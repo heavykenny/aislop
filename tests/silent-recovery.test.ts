@@ -267,4 +267,49 @@ describe("silent-recovery (Python)", () => {
 		);
 		expect(await silentRecoveryDiags()).toHaveLength(0);
 	});
+
+	it("does NOT flag a bare except with logger.exception (traceback is captured automatically)", async () => {
+		writeFile(
+			"src/e.py",
+			[
+				"def run_benchmark():",
+				"    try:",
+				"        execute()",
+				"    except Exception:",
+				"        logger.exception('bench run failed')",
+				"",
+			].join("\n"),
+		);
+		expect(await silentRecoveryDiags()).toHaveLength(0);
+	});
+
+	it("does NOT flag except-as-e with logger.exception even when the binding is unused in the log call", async () => {
+		writeFile(
+			"src/f.py",
+			[
+				"def run_benchmark(run_id):",
+				"    try:",
+				"        execute()",
+				"    except Exception as e:",
+				"        logger.exception('benchmark run %s crashed', run_id)",
+				"",
+			].join("\n"),
+		);
+		expect(await silentRecoveryDiags()).toHaveLength(0);
+	});
+
+	it("does NOT flag except that logs with exc_info=True (traceback attached explicitly)", async () => {
+		writeFile(
+			"src/g.py",
+			[
+				"def run_benchmark():",
+				"    try:",
+				"        execute()",
+				"    except Exception:",
+				"        logger.error('bench run failed', exc_info=True)",
+				"",
+			].join("\n"),
+		);
+		expect(await silentRecoveryDiags()).toHaveLength(0);
+	});
 });

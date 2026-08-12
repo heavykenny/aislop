@@ -111,6 +111,11 @@ const PY_EXCEPT_BINDING_RE = /\bas\s+(\w+)\s*:/;
 const PY_LOG_STATEMENT_RE =
 	/^(?:logging|logger|log|self\.log|self\.logger|print)(?:\.(?:debug|info|warning|warn|error|exception|critical))?\s*\(/;
 const PY_HANDLING_TOKEN_RE = /^(?:raise\b|return\b|continue\b|break\b|self\.|[\w.]+\s*=)/;
+// `logging.Logger.exception(...)` always attaches the currently-handled exception's
+// traceback (it is exactly `.error(..., exc_info=True)`), and `exc_info=True` on any
+// logging call does the same explicitly. Either one means the failure cause is
+// captured even though no `except ... as <name>` identifier appears in the log call.
+const PY_LOG_CAPTURES_EXCEPTION_RE = /\.exception\s*\(|\bexc_info\s*=\s*True\b/;
 
 const detectPySilentRecovery = (content: string, relPath: string): Diagnostic[] => {
 	const out: Diagnostic[] = [];
@@ -140,6 +145,7 @@ const detectPySilentRecovery = (content: string, relPath: string): Diagnostic[] 
 		);
 		const sawLog = bodyLines.some((line) => PY_LOG_STATEMENT_RE.test(line));
 		if (!allLogs || !sawLog) continue;
+		if (bodyLines.some((line) => PY_LOG_CAPTURES_EXCEPTION_RE.test(line))) continue;
 		if (!recoveryDropsError(PY_EXCEPT_BINDING_RE.exec(lines[i])?.[1], bodyLines.join(" ")))
 			continue;
 
