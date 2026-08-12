@@ -146,7 +146,9 @@ describe("pilot invitation", () => {
 
 		expect(fs.existsSync(pilotStatePath())).toBe(false);
 		expect(await runHumanScan()).not.toContain("intent=team-baseline");
-	});
+		// 8 sequential real scan invocations; a loaded Windows CI runner has been
+		// observed blowing past the 30s suite default on this test alone.
+	}, 120_000);
 
 	it("preserves history when an unbranded scan suppresses the invitation", async () => {
 		fs.mkdirSync(path.join(projectDir, ".aislop"));

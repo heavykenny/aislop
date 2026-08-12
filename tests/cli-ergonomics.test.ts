@@ -64,7 +64,10 @@ const PUBLIC_HELP_COMMANDS: string[][] = [
 	["version", "--help"],
 	["commands", "--help"],
 ];
-const PUBLIC_HELP_TIMEOUT_MS = process.platform === "win32" ? 120_000 : 60_000;
+// 44 sequential CLI spawns; windows-latest Node 22 runners have been observed
+// taking ~1.5s per spawn (65s total), so lower ceilings left no headroom for
+// runner variance.
+const PUBLIC_HELP_TIMEOUT_MS = process.platform === "win32" ? 180_000 : 60_000;
 
 describe("cli ergonomics", () => {
 	it("uses the installed command in top-level help and keeps npx for one-off latest runs", () => {
