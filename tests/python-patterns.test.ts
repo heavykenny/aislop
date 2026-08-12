@@ -148,6 +148,35 @@ describe("python: mutable-default-arg", () => {
 		const matches = diagnostics.filter((d) => d.rule === "ai-slop/python-mutable-default");
 		expect(matches).toHaveLength(1);
 	});
+
+	it("does NOT flag `default={}` inside a FastAPI Body()/Query() marker (a fresh value per request)", async () => {
+		writeFile(
+			"src/routes.py",
+			[
+				"@router.delete('/server/lock')",
+				"async def api_delete_server_lock(payload: dict = Body(default={})):",
+				"    return payload",
+				"",
+			].join("\n"),
+		);
+		const diagnostics = await detectPythonPatterns(buildContext());
+		const matches = diagnostics.filter((d) => d.rule === "ai-slop/python-mutable-default");
+		expect(matches).toEqual([]);
+	});
+
+	it("still flags a real mutable default alongside an unrelated FastAPI marker param", async () => {
+		writeFile(
+			"src/routes-mixed.py",
+			[
+				"async def api_thing(payload: dict = Body(default={}), items=[]):",
+				"    return (payload, items)",
+				"",
+			].join("\n"),
+		);
+		const diagnostics = await detectPythonPatterns(buildContext());
+		const matches = diagnostics.filter((d) => d.rule === "ai-slop/python-mutable-default");
+		expect(matches).toHaveLength(1);
+	});
 });
 
 describe("python: print-debug", () => {

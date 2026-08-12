@@ -10,7 +10,11 @@ const BARE_EXCEPT_RE = /^\s*except\s*:\s*(?:#.*)?$/;
 const BROAD_EXCEPT_RE = /^\s*except\s+(Exception|BaseException)\s*(?:as\s+\w+)?\s*:\s*(?:#.*)?$/;
 const PRINT_RE = /^\s*print\s*\(/;
 const DEF_RE = /^\s*(?:async\s+)?def\s+\w+\s*\(/;
-const MUTABLE_DEFAULT_RE = /(\w+)\s*(?::\s*[^,)=]+)?\s*=\s*(\[\s*\]|\{\s*\}|set\(\s*\))/;
+const MUTABLE_DEFAULT_RE = /(\w+)\s*(?::\s*[^,)=]+)?\s*=\s*(\[\s*\]|\{\s*\}|set\(\s*\))/g;
+// FastAPI request-parameter markers (Body/Query/Header/Cookie/Form) build a fresh
+// value per request from their own `default=` keyword arg, so `default={}` right
+// after one of these isn't the classic shared-mutable-default footgun.
+const FASTAPI_MARKER_DEFAULT_PREFIX_RE = /\b(?:Body|Query|Header|Cookie|Form)\(\s*$/;
 const RANGE_LEN_LOOP_RE =
 	/^\s*for\s+([A-Za-z_]\w*)\s+in\s+range\s*\(\s*len\s*\(\s*([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)\s*\)\s*\)\s*:\s*(?:#.*)?$/;
 const CHAINED_DICT_GET_RE = /\.get\s*\([^)]*,\s*\{\s*\}\s*\)\s*\.get\s*\(/;
@@ -173,8 +177,13 @@ const flagMutableDefaults = (lines: string[], relPath: string, out: Diagnostic[]
 				else if (ch === ")") parenDepth--;
 			}
 		}
-		MUTABLE_DEFAULT_RE.lastIndex = 0;
-		const found = MUTABLE_DEFAULT_RE.exec(signature);
+		let found: RegExpMatchArray | null = null;
+		for (const match of signature.matchAll(MUTABLE_DEFAULT_RE)) {
+			const prefix = signature.slice(0, match.index);
+			if (match[1] === "default" && FASTAPI_MARKER_DEFAULT_PREFIX_RE.test(prefix)) continue;
+			found = match;
+			break;
+		}
 		if (found) {
 			pushFinding(out, {
 				relPath,
