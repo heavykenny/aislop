@@ -215,7 +215,14 @@ describe("runSubprocess output capture", () => {
 			//
 			// existsSync is a synchronous syscall and yields nothing to the event
 			// loop, so the parent stays starved for the whole poll.
-			const spinDeadline = Date.now() + 30000;
+			//
+			// The deadline must stay well under vitest's 30s testTimeout
+			// (vitest.config.ts): if a real regression left the child blocked and
+			// the marker never appeared, the poll needs to exhaust and land on the
+			// expect(markerWrittenWhileStarved).toBe(true) failure below, not get
+			// killed by the framework's own timeout first, which would report an
+			// opaque hang instead of the actual assertion failure.
+			const spinDeadline = Date.now() + 20000;
 			let markerWrittenWhileStarved = false;
 			while (Date.now() < spinDeadline) {
 				if (existsSync(markerFile)) {
