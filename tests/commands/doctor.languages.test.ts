@@ -84,4 +84,58 @@ describe("doctor language detection", () => {
 		expect(out).toContain("javascript");
 		expect(out).toContain("biome (bundled)");
 	});
+
+	it("ignores a JavaScript subtree the config excludes", async () => {
+		writeCsharpProject();
+		writeProjectFile("legacy/app.js", "module.exports = {};\n");
+		writeProjectFile(".aislop/config.yml", "exclude:\n  - legacy/**\n");
+
+		const out = await runDoctor();
+
+		expect(out).toContain("csharp");
+		expect(out).not.toContain("javascript");
+		expect(out).not.toContain("biome");
+		expect(out).not.toContain("oxlint");
+	});
+
+	it("ignores a JavaScript subtree .aislopignore excludes", async () => {
+		writeCsharpProject();
+		writeProjectFile("legacy/app.js", "module.exports = {};\n");
+		writeProjectFile(".aislopignore", "legacy/\n");
+
+		const out = await runDoctor();
+
+		expect(out).toContain("csharp");
+		expect(out).not.toContain("javascript");
+		expect(out).not.toContain("biome");
+		expect(out).not.toContain("oxlint");
+	});
+
+	// The gitignore snapshot is cached per root and only discarded at the start of a
+	// run, so a long-lived caller (the interactive loop, the MCP server) classifies
+	// the second run's files against it. Enumerating before the reset made a file
+	// added between the two runs read as ignored.
+	it("sees a source file added between two runs in the same process", async () => {
+		writeToolPinManifest();
+		await runDoctor();
+
+		writeCsharpProject();
+		const out = await runDoctor();
+
+		expect(out).toContain("csharp");
+	});
+
+	// scan derives its languages from source and test files alike, so a C# project
+	// whose only JavaScript is its tests still gets the JS tools there. doctor has
+	// to name them or it reports tooling scan does not run.
+	it("reports javascript for a C# project whose only JavaScript is its tests", async () => {
+		writeCsharpProject();
+		writeProjectFile("tests/app.test.js", "test('works', () => {});\n");
+
+		const out = await runDoctor();
+
+		expect(out).toContain("javascript");
+		expect(out).toContain("biome (bundled)");
+		expect(out).toContain("oxlint (bundled)");
+	});
 });
