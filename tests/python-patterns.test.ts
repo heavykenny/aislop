@@ -250,6 +250,54 @@ describe("python: mutable-default-arg", () => {
 		expect(matches).toEqual([]);
 	});
 
+	it("still flags a bare default after an f-string nesting a same-quote string with an open parenthesis", async () => {
+		writeFile(
+			"src/fstring_nested_open_paren.py",
+			[
+				'def f(label=f"{lookup("(")}", cache={}):',
+				"    return (label, cache)",
+				"",
+				"def later(seen=[]):",
+				"    return seen",
+				"",
+			].join("\n"),
+		);
+		const diagnostics = await detectPythonPatterns(buildContext());
+		const matches = diagnostics.filter((d) => d.rule === "ai-slop/python-mutable-default");
+		expect(matches).toHaveLength(2);
+		expect(matches[0]?.message).toContain("cache={}");
+		expect(matches[1]?.message).toContain("seen=[]");
+	});
+
+	it("does NOT flag a wrapped keyword argument after an f-string nesting a same-quote string with a close parenthesis", async () => {
+		writeFile(
+			"src/fstring_nested_close_paren.py",
+			[
+				'def g(sep=f"{quote(")")}", payload: dict = Body(default={})):',
+				"    return (sep, payload)",
+				"",
+			].join("\n"),
+		);
+		const diagnostics = await detectPythonPatterns(buildContext());
+		const matches = diagnostics.filter((d) => d.rule === "ai-slop/python-mutable-default");
+		expect(matches).toEqual([]);
+	});
+
+	it("still flags a bare default after an f-string whose format spec nests a replacement field", async () => {
+		writeFile(
+			"src/fstring_format_spec.py",
+			[
+				'def h(width=8, label=f"{value:>{width}}", cache={}):',
+				"    return (width, label, cache)",
+				"",
+			].join("\n"),
+		);
+		const diagnostics = await detectPythonPatterns(buildContext());
+		const matches = diagnostics.filter((d) => d.rule === "ai-slop/python-mutable-default");
+		expect(matches).toHaveLength(1);
+		expect(matches[0]?.message).toContain("cache={}");
+	});
+
 	it("still flags a bare default when a trailing comment in the signature contains a parenthesis", async () => {
 		writeFile(
 			"src/comment_paren.py",

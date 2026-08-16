@@ -11,14 +11,99 @@ const BROAD_EXCEPT_RE = /^\s*except\s+(Exception|BaseException)\s*(?:as\s+\w+)?\
 const PRINT_RE = /^\s*print\s*\(/;
 const DEF_RE = /^\s*(?:async\s+)?def\s+\w+\s*\(/;
 const MUTABLE_DEFAULT_RE = /(\w+)\s*(?::\s*[^,)=]+)?\s*=\s*(\[\s*\]|\{\s*\}|set\(\s*\))/g;
+// True when the quote at `quoteIndex` opens an f-string: immediately preceded
+// by a short run of string-prefix letters containing `f`/`F` that is not the
+// tail of a longer identifier.
+const isFStringOpener = (text: string, quoteIndex: number): boolean => {
+	let start = quoteIndex;
+	while (start > 0 && /[A-Za-z]/.test(text.charAt(start - 1))) start--;
+	const prefix = text.slice(start, quoteIndex);
+	if (prefix.length === 0 || prefix.length > 3) return false;
+	if (start > 0 && /[0-9_]/.test(text.charAt(start - 1))) return false;
+	return /^[bBfFrRuU]+$/.test(prefix) && /[fF]/.test(prefix);
+};
+// Masks a string's interior in `masked`, starting just past its opening quote;
+// returns the index just past its closing quote. For f-strings, `{` opens a
+// replacement field (with `{{` as the literal-brace escape), which must be
+// scanned rather than skipped: PEP 701 (Python 3.12) lets a field nest strings
+// that reuse the enclosing quote, so stopping at the first matching quote
+// would end the outer string early.
+const maskStringInterior = (
+	text: string,
+	masked: string[],
+	start: number,
+	closer: string,
+	isFString: boolean,
+): number => {
+	let position = start;
+	while (position < text.length) {
+		if (text[position] === "\\") {
+			masked[position] = " ";
+			if (position + 1 < text.length) masked[position + 1] = " ";
+			position += 2;
+			continue;
+		}
+		if (text.startsWith(closer, position)) return position + closer.length;
+		if (isFString && text[position] === "{") {
+			masked[position] = " ";
+			if (text[position + 1] === "{") {
+				masked[position + 1] = " ";
+				position += 2;
+				continue;
+			}
+			position = maskReplacementField(text, masked, position + 1);
+			continue;
+		}
+		masked[position] = " ";
+		position++;
+	}
+	return position;
+};
+// Masks a replacement field's contents from just past its `{` to just past its
+// matching `}`, recursing into nested fields and nested string literals. The
+// whole field is blanked: any parentheses inside it are balanced within the
+// field, so hiding them keeps outer depth counts unchanged.
+const maskReplacementField = (text: string, masked: string[], start: number): number => {
+	let position = start;
+	while (position < text.length) {
+		const character = text[position];
+		if (character === "}") {
+			masked[position] = " ";
+			return position + 1;
+		}
+		if (character === "{") {
+			masked[position] = " ";
+			position = maskReplacementField(text, masked, position + 1);
+			continue;
+		}
+		if (character === '"' || character === "'") {
+			const closer = text.startsWith(character.repeat(3), position)
+				? character.repeat(3)
+				: character;
+			position = maskStringInterior(
+				text,
+				masked,
+				position + closer.length,
+				closer,
+				isFStringOpener(text, position),
+			);
+			continue;
+		}
+		masked[position] = " ";
+		position++;
+	}
+	return position;
+};
 // Length-preserving copy of Python source with every string-literal character
 // and trailing `#` comment replaced by a space, so parenthesis counting and
 // pattern matching see only code structure. Indices into the masked text line
-// up with the original. Handles both quote characters, triple-quoted forms,
-// and backslash escapes; string-prefix letters (r, b, f) sit outside the
-// quotes and need no special casing. Raw-string escape subtleties and
-// brace-nested f-string expressions are accepted as bounded approximations:
-// both still terminate at the closing quote scanned here.
+// up with the original, and quote characters stay visible so a blanked string
+// interior cannot read as an empty call argument. Handles both quote
+// characters, triple-quoted forms, backslash escapes, and f-string
+// replacement-field nesting (see maskStringInterior). Accepted bounded
+// approximation: a `#` comment inside a multi-line replacement field is
+// treated as expression text, because `#` is also a format-spec character
+// (`{value:#x}`) and must not swallow the rest of the line there.
 const maskStringsAndComments = (text: string): string => {
 	const masked = text.split("");
 	let position = 0;
@@ -35,21 +120,13 @@ const maskStringsAndComments = (text: string): string => {
 			const closer = text.startsWith(character.repeat(3), position)
 				? character.repeat(3)
 				: character;
-			position += closer.length;
-			while (position < text.length) {
-				if (text[position] === "\\") {
-					masked[position] = " ";
-					if (position + 1 < text.length) masked[position + 1] = " ";
-					position += 2;
-					continue;
-				}
-				if (text.startsWith(closer, position)) {
-					position += closer.length;
-					break;
-				}
-				masked[position] = " ";
-				position++;
-			}
+			position = maskStringInterior(
+				text,
+				masked,
+				position + closer.length,
+				closer,
+				isFStringOpener(text, position),
+			);
 			continue;
 		}
 		position++;
