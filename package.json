@@ -42,6 +42,7 @@
   "scripts": {
     "dev": "tsdown --watch",
     "build": "tsdown",
+    "prepare": "tsdown",
     "typecheck": "tsc --noEmit",
     "gen:schema": "node --experimental-strip-types scripts/gen-config-schema.mjs",
     "test": "pnpm build && vitest run",
@@ -87,7 +88,7 @@
     "url": "https://github.com/scanaislop/aislop/issues"
   },
   "engines": {
-    "node": ">=20"
+    "node": "^22.18.0 || >=24.11.0"
   },
   "packageManager": "pnpm@10.28.0",
   "dependencies": {

@@ -12,7 +12,7 @@ This project follows the [Contributor Covenant](CODE_OF_CONDUCT.md). By particip
 
 ### Prerequisites
 
-- **Node.js** >= 20
+- **Node.js** ^22.18 || >=24.11 (matches the tsdown 0.22 toolchain)
 - **pnpm** >= 10
 
 ### Setup
