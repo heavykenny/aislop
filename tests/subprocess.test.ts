@@ -201,27 +201,15 @@ describe("runSubprocess output capture", () => {
 			// Starve the loop: the child runs and writes its full output during
 			// the spin, independent of whether the parent is draining anything.
 			//
-			// The invariant is ORDERING, not duration: the child must finish its
-			// whole 1MiB write while the parent is still starved and draining
-			// nothing. So spin until the marker appears rather than for a fixed
-			// stretch, and assert on the marker's existence. Comparing clock
-			// readings with a fixed cushion instead would encode an assumption
-			// about how fast a process spawns on an idle machine - a shared CI
-			// runner erases that cushion and reddens a test whose subject is
-			// perfectly healthy. The deadline is a generous upper bound that only
-			// trips on a real regression (a child actually blocked on the pipe
-			// never writes the marker at all), and the loop exits the moment the
-			// marker lands, so the normal path is fast.
+			// The invariant is ordering, not duration, so spin until the marker
+			// appears instead of for a fixed stretch: a child genuinely blocked
+			// on the pipe never writes the marker, so exhausting the deadline is
+			// the regression signal, and the healthy path exits immediately.
 			//
-			// existsSync is a synchronous syscall and yields nothing to the event
-			// loop, so the parent stays starved for the whole poll.
-			//
-			// The deadline must stay well under vitest's 30s testTimeout
-			// (vitest.config.ts): if a real regression left the child blocked and
-			// the marker never appeared, the poll needs to exhaust and land on the
-			// expect(markerWrittenWhileStarved).toBe(true) failure below, not get
-			// killed by the framework's own timeout first, which would report an
-			// opaque hang instead of the actual assertion failure.
+			// existsSync is a synchronous syscall, so the loop never yields and
+			// the parent stays starved for the whole poll. The deadline must stay
+			// well under vitest's 30s testTimeout so a regression lands on the
+			// assertion below rather than an opaque framework timeout.
 			const spinDeadline = Date.now() + 20000;
 			let markerWrittenWhileStarved = false;
 			while (Date.now() < spinDeadline) {
