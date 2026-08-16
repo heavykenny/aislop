@@ -11,10 +11,55 @@ const BROAD_EXCEPT_RE = /^\s*except\s+(Exception|BaseException)\s*(?:as\s+\w+)?\
 const PRINT_RE = /^\s*print\s*\(/;
 const DEF_RE = /^\s*(?:async\s+)?def\s+\w+\s*\(/;
 const MUTABLE_DEFAULT_RE = /(\w+)\s*(?::\s*[^,)=]+)?\s*=\s*(\[\s*\]|\{\s*\}|set\(\s*\))/g;
+// Length-preserving copy of Python source with every string-literal character
+// and trailing `#` comment replaced by a space, so parenthesis counting and
+// pattern matching see only code structure. Indices into the masked text line
+// up with the original. Handles both quote characters, triple-quoted forms,
+// and backslash escapes; string-prefix letters (r, b, f) sit outside the
+// quotes and need no special casing. Raw-string escape subtleties and
+// brace-nested f-string expressions are accepted as bounded approximations:
+// both still terminate at the closing quote scanned here.
+const maskStringsAndComments = (text: string): string => {
+	const masked = text.split("");
+	let position = 0;
+	while (position < text.length) {
+		const character = text[position];
+		if (character === "#") {
+			while (position < text.length && text[position] !== "\n") {
+				masked[position] = " ";
+				position++;
+			}
+			continue;
+		}
+		if (character === '"' || character === "'") {
+			const closer = text.startsWith(character.repeat(3), position)
+				? character.repeat(3)
+				: character;
+			position += closer.length;
+			while (position < text.length) {
+				if (text[position] === "\\") {
+					masked[position] = " ";
+					if (position + 1 < text.length) masked[position + 1] = " ";
+					position += 2;
+					continue;
+				}
+				if (text.startsWith(closer, position)) {
+					position += closer.length;
+					break;
+				}
+				masked[position] = " ";
+				position++;
+			}
+			continue;
+		}
+		position++;
+	}
+	return masked.join("");
+};
 // Parenthesis depth at `index`, counting from the start of the signature text.
 // Top-level parameters sit at depth 1 (inside the def's own parentheses); a match
-// at depth 2+ is a keyword argument inside a call expression. Like the signature
-// scanner above, this counts parentheses without masking string literals.
+// at depth 2+ is a keyword argument inside a call expression. Callers pass text
+// already run through maskStringsAndComments so quoted parentheses don't count.
 const parenthesisDepthAt = (text: string, index: number): number => {
 	let depth = 0;
 	for (let position = 0; position < index; position++) {
@@ -170,31 +215,35 @@ const flagMutableDefaults = (lines: string[], relPath: string, out: Diagnostic[]
 			i++;
 			continue;
 		}
-		// Walk forward until the signature closes (line ending with `:` after balanced parens).
+		// Walk forward until the signature closes (balanced parens over the
+		// masked text, so parentheses inside strings or trailing comments
+		// don't hold the walk open or close it early). Re-masking the whole
+		// accumulated signature each iteration keeps triple-quoted strings
+		// that span lines masked correctly; signatures are a handful of lines,
+		// so the repeated pass costs nothing.
 		const startLine = i;
 		let signature = lines[i];
-		let parenDepth = 0;
-		for (const ch of signature) {
-			if (ch === "(") parenDepth++;
-			else if (ch === ")") parenDepth--;
-		}
-		while (parenDepth > 0 && i + 1 < lines.length) {
+		let maskedSignature = maskStringsAndComments(signature);
+		while (
+			parenthesisDepthAt(maskedSignature, maskedSignature.length) > 0 &&
+			i + 1 < lines.length
+		) {
 			i++;
 			signature += `\n${lines[i]}`;
-			for (const ch of lines[i]) {
-				if (ch === "(") parenDepth++;
-				else if (ch === ")") parenDepth--;
-			}
+			maskedSignature = maskStringsAndComments(signature);
 		}
 		let found: RegExpMatchArray | null = null;
-		for (const match of signature.matchAll(MUTABLE_DEFAULT_RE)) {
-			// A mutable literal that is a keyword argument inside a call, like
-			// `Body(default={})`, `typer.Option(default=[])`, or `Field(default={})`,
-			// is not the shared-mutable-default footgun: the wrapper decides the
-			// value's lifetime (FastAPI and friends build a fresh value per request).
-			// Only a bare default at the signature's top level aliases one object
-			// across every call.
-			if (parenthesisDepthAt(signature, match.index ?? 0) > 1) continue;
+		// Matching against the masked signature also drops lookalike text inside
+		// string defaults; a genuine match contains no string characters, so its
+		// captures read identically from masked and raw text.
+		for (const match of maskedSignature.matchAll(MUTABLE_DEFAULT_RE)) {
+			// A mutable literal appearing as a keyword argument inside a call
+			// (an empty dict handed to FastAPI's Body()/Query(), an empty list
+			// handed to typer.Option()) is not the shared-mutable-default
+			// footgun: the wrapper decides the value's lifetime, and FastAPI
+			// and friends build a fresh value per request. Only a bare default
+			// at the signature's top level aliases one object across every call.
+			if (parenthesisDepthAt(maskedSignature, match.index ?? 0) > 1) continue;
 			found = match;
 			break;
 		}

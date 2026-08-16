@@ -214,6 +214,58 @@ describe("python: mutable-default-arg", () => {
 		expect(matches).toHaveLength(1);
 		expect(matches[0]?.message).toContain("seen=[]");
 	});
+
+	it("still flags a bare mutable default after a string default containing an open parenthesis", async () => {
+		writeFile(
+			"src/string_paren.py",
+			['def f(pattern="(", cache={}):', "    return (pattern, cache)", ""].join("\n"),
+		);
+		const diagnostics = await detectPythonPatterns(buildContext());
+		const matches = diagnostics.filter((d) => d.rule === "ai-slop/python-mutable-default");
+		expect(matches).toHaveLength(1);
+		expect(matches[0]?.message).toContain("cache={}");
+	});
+
+	it("does NOT flag a wrapped keyword argument after a string containing a close parenthesis", async () => {
+		writeFile(
+			"src/string_close_paren.py",
+			[
+				'def g(payload: dict = Body(sep=")", default={})):',
+				"    return payload",
+				"",
+			].join("\n"),
+		);
+		const diagnostics = await detectPythonPatterns(buildContext());
+		const matches = diagnostics.filter((d) => d.rule === "ai-slop/python-mutable-default");
+		expect(matches).toEqual([]);
+	});
+
+	it("does NOT flag mutable-default-shaped text inside a string default", async () => {
+		writeFile(
+			"src/string_lookalike.py",
+			['def h(doc="use cache={} to reset"):', "    return doc", ""].join("\n"),
+		);
+		const diagnostics = await detectPythonPatterns(buildContext());
+		const matches = diagnostics.filter((d) => d.rule === "ai-slop/python-mutable-default");
+		expect(matches).toEqual([]);
+	});
+
+	it("still flags a bare default when a trailing comment in the signature contains a parenthesis", async () => {
+		writeFile(
+			"src/comment_paren.py",
+			[
+				"def handler(  # builds ( tuples",
+				"    seen=[],",
+				"):",
+				"    return seen",
+				"",
+			].join("\n"),
+		);
+		const diagnostics = await detectPythonPatterns(buildContext());
+		const matches = diagnostics.filter((d) => d.rule === "ai-slop/python-mutable-default");
+		expect(matches).toHaveLength(1);
+		expect(matches[0]?.message).toContain("seen=[]");
+	});
 });
 
 describe("python: print-debug", () => {
