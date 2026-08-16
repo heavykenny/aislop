@@ -217,7 +217,7 @@ The rules that make aislop unique. These catch the patterns AI assistants leave 
 | `ai-slop/double-type-assertion` | warning | `as unknown as X` pattern |
 | `ai-slop/ts-directive` | info | `@ts-ignore` / `@ts-expect-error` usage |
 | `ai-slop/duplicate-import` | warning | Multiple imports from the same module that should be merged |
-| `ai-slop/hardcoded-url` | warning | Environment-specific URLs hardcoded in production code instead of env/config |
+| `ai-slop/hardcoded-url` | warning | Environment-specific URLs hardcoded in production code instead of env/config. URLs inside Python docstrings are exempt; a triple-quoted literal counts as a docstring only when docstring-positioned (its opening delimiter, after optional prefix letters, starts the line - PEP 257 first-statement docstrings, attribute docstrings, and block-comment strings), including the single-line form. An assigned or call-wrapped triple-quoted value is a runtime value and stays scanned |
 | `ai-slop/hardcoded-id` | warning | Provider/project IDs hardcoded in production code instead of env/config |
 | `ai-slop/python-bare-except` | warning | Python `except:` blocks that catch everything without naming an exception type |
 | `ai-slop/python-broad-except` | warning | Python broad exception handlers with silent/pass-style bodies |
