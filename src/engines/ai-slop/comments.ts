@@ -38,6 +38,11 @@ const COMMENTED_CODE_CHARS = /[({=;}\]>]/;
 
 const MAX_TRIVIAL_COMMENT_LENGTH = 60;
 
+// A terse verb-led comment is only an AI-slop signal when the file is saturated with them.
+// Hand-written code carries a few (express lib/application.js has 3 in ~650 lines); generated
+// code narrates every few lines. Below this ratio the comments read as ordinary human style.
+const MIN_TRIVIAL_COMMENT_DENSITY = 0.02;
+
 const isJsComment = (trimmed: string): boolean =>
 	trimmed.startsWith("//") && !trimmed.startsWith("///") && !trimmed.startsWith("//!");
 const isPythonComment = (trimmed: string): boolean =>
@@ -200,6 +205,11 @@ const scanFileForTrivialComments = (
 			fixable: true,
 		});
 	}
+
+	const codeLineCount = lines.filter((line) => line.trim() !== "").length;
+	if (codeLineCount === 0) return [];
+	if (diagnostics.length / codeLineCount < MIN_TRIVIAL_COMMENT_DENSITY) return [];
+
 	return diagnostics;
 };
 

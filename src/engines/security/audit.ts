@@ -5,7 +5,12 @@ import { isDependencyAuditInputFile } from "../../utils/source-file-selection.js
 import { runSubprocess } from "../../utils/subprocess.js";
 import type { Diagnostic, EngineContext } from "../types.js";
 import { runCargoAudit, runDotnetAudit, runGovulncheck, runPipAudit } from "./audit-ecosystem.js";
-import { type JsAuditSource, parseBunAudit, parseJsAudit } from "./audit-js-parser.js";
+import {
+	type JsAuditManifest,
+	type JsAuditSource,
+	parseBunAudit,
+	parseJsAudit,
+} from "./audit-js-parser.js";
 
 export { parseDotnetAudit } from "./audit-ecosystem.js";
 export { parseBunAudit, parseJsAudit } from "./audit-js-parser.js";
@@ -126,13 +131,37 @@ const auditSkippedDiagnostic = (source: JsAuditSource, help: string): Diagnostic
 	fixable: false,
 });
 
+/**
+ * Packages the project actually ships. devDependencies are excluded so that test and
+ * build tooling advisories can be demoted rather than scored as shipped defects.
+ */
+const readRuntimeDependencies = (rootDir: string): JsAuditManifest | undefined => {
+	try {
+		const raw = fs.readFileSync(path.join(rootDir, "package.json"), "utf-8");
+		const parsed: unknown = JSON.parse(raw);
+		if (!parsed || typeof parsed !== "object") return undefined;
+
+		const manifest = parsed as Record<string, unknown>;
+		const names = new Set<string>();
+		for (const field of ["dependencies", "optionalDependencies", "peerDependencies"]) {
+			const section = manifest[field];
+			if (section && typeof section === "object") {
+				for (const name of Object.keys(section)) names.add(name);
+			}
+		}
+		return { runtimeDependencies: names };
+	} catch {
+		return undefined;
+	}
+};
+
 const runNpmAudit = async (rootDir: string, timeout: number): Promise<Diagnostic[]> => {
 	try {
 		const result = await runSubprocess("npm", ["audit", "--json"], {
 			cwd: rootDir,
 			timeout,
 		});
-		return parseJsAudit(result.stdout, "npm audit");
+		return parseJsAudit(result.stdout, "npm audit", readRuntimeDependencies(rootDir));
 	} catch (error) {
 		return [
 			auditSkippedDiagnostic("npm audit", `Failed to run npm audit: ${errorMessageOf(error)}`),
@@ -174,7 +203,7 @@ const runPnpmAuditWithFallback = async (
 			cwd: rootDir,
 			timeout,
 		});
-		const diagnostics = parseJsAudit(result.stdout, "pnpm audit");
+		const diagnostics = parseJsAudit(result.stdout, "pnpm audit", readRuntimeDependencies(rootDir));
 		const hasAuditFailure = diagnostics.some((d) => d.rule === "security/dependency-audit-skipped");
 		if (hasAuditFailure) {
 			if (canFallbackToNpm) {
