@@ -28,19 +28,15 @@ const TRIVIAL_PYTHON_COMMENT_PATTERNS = [
 	new RegExp(`^#\\s*(?:${TRIVIAL_VERB_STEMS})(?:e|es|ing|s)?\\b`, "i"),
 ];
 
-// Keywords that indicate a comment adds context (a reason or condition), not just restating the
-// code: explanatory markers plus conditionals/necessity words ("... if X", "needs to ...").
+// Conditionals and necessity words count as explanatory: they state a reason, not the code.
 const EXPLANATORY_KEYWORDS =
 	/\b(?:because|since|note|todo|fixme|hack|warn|warning|workaround|caveat|important|assumes?|if|when|unless|until|only|except|otherwise|needs?|must|should|ensure|avoid|prevent|requires?)\b/i;
 
-// Characters that suggest commented-out code rather than prose
 const COMMENTED_CODE_CHARS = /[({=;}\]>]/;
 
 const MAX_TRIVIAL_COMMENT_LENGTH = 60;
 
-// A terse verb-led comment is only an AI-slop signal when the file is saturated with them.
-// Hand-written code carries a few (express lib/application.js has 3 in ~650 lines); generated
-// code narrates every few lines. Below this ratio the comments read as ordinary human style.
+// Hand-written files carry a few terse comments; generated ones narrate every few lines.
 const MIN_TRIVIAL_COMMENT_DENSITY = 0.02;
 
 const isJsComment = (trimmed: string): boolean =>
@@ -58,9 +54,6 @@ const isInMultiLineCommentRun = (lines: string[], index: number): boolean => {
 	return isLineComment(prev) || isLineComment(next);
 };
 
-/**
- * Extract just the comment text after the comment marker.
- */
 const getCommentBody = (trimmed: string): string => {
 	if (trimmed.startsWith("//")) return trimmed.slice(2).trim();
 	if (trimmed.startsWith("#")) return trimmed.slice(1).trim();
@@ -74,26 +67,18 @@ const isTrivialComment = (trimmed: string, nextLine: string | undefined): boolea
 
 	const commentBody = getCommentBody(trimmed);
 
-	// Skip long comments — they likely contain meaningful context
 	if (commentBody.length > MAX_TRIVIAL_COMMENT_LENGTH) return false;
-
-	// Skip comments with explanatory keywords
 	if (EXPLANATORY_KEYWORDS.test(commentBody)) return false;
 
-	// Skip parenthetical explanations like "(excluding ignored directories)"
+	// A parenthetical qualifies the statement, e.g. "(excluding ignored directories)".
 	if (commentBody.includes("(") && commentBody.includes(")")) return false;
-
-	// Skip commented-out code (contains code-like characters)
 	if (COMMENTED_CODE_CHARS.test(commentBody)) return false;
 
-	// Skip section dividers (followed by a blank line)
+	// A blank line below, box drawing, or a rule of dashes all mark a section divider.
 	if (nextLine !== undefined && nextLine.trim() === "") return false;
-
-	// Skip section divider / header comments (contain box-drawing or repeated dashes)
 	if (/[─━═╌╍┄┅│┃]/.test(commentBody)) return false;
 	if (/^-{3,}|─{3,}/.test(commentBody)) return false;
 
-	// Now check against the actual trivial patterns
 	const patterns = isJs ? TRIVIAL_JS_COMMENT_PATTERNS : TRIVIAL_PYTHON_COMMENT_PATTERNS;
 	return patterns.some((pattern) => pattern.test(trimmed));
 };
@@ -136,31 +121,22 @@ const isDocCommentForDeclaration = (lines: string[], lineIdx: number, ext: strin
 	return false;
 };
 
-/**
- * Heuristic: many real (non-slop) short comments in bundler/build configs are just
- * section labels right above rule objects (e.g. "// Vue SFC" above `test: /\.vue$/`).
- * These were responsible for very high trivial-comment volume in OSS benchmarks.
- * We still allow other ai-slop rules on these files.
- */
+// In bundler configs a short comment above a rule object is a section label, not narration.
 const isLikelyConfigSectionLabel = (trimmed: string, nextLine: string | undefined): boolean => {
 	if (!nextLine) return false;
 	const body = getCommentBody(trimmed).toLowerCase().trim();
 	const next = nextLine.trim();
 
-	// Common config rule keys in bundlers (webpack, vite, rollup, next, etc.)
 	const configRuleRe =
 		/^(test|use|loader|rules|plugins|resolve|module|build|server|optimizeDeps|defineConfig|config):\s*[[\x7b]/;
 	if (configRuleRe.test(next)) return true;
 
-	// Property assignment like test: /... or use: ['...']
 	if (/\b(test|use|loader)\s*:\s*["'/\x5b]/.test(next)) return true;
 
-	// Generic short label before object key in config (e.g. // Build styles \n css: {...} or rules: )
 	if (/^[a-zA-Z0-9_$-]+\s*:\s*[[\x7b]/.test(next) && body.length < 30) {
 		return true;
 	}
 
-	// Very short imperative labels at top level of config objects
 	if (
 		/^\/\/\s*(Vue|React|Build|Styles|Scripts|Assets|Images|Fonts|Icons)/i.test(trimmed) &&
 		/:\s*\x7b/.test(next)
@@ -185,9 +161,6 @@ const scanFileForTrivialComments = (
 		if (isInMultiLineCommentRun(lines, i)) continue;
 		if (isDocCommentForDeclaration(lines, i, ext)) continue;
 
-		// Contextual skip for common non-slop label comments in build/tooling configs.
-		// This targets the high-volume FP cases from benchmarks (e.g. "// Vue SFC" above test: rules)
-		// while still allowing detection of real trivial comments inside actual JS logic in the same file.
 		if (isToolingConfigFile(relativePath) && isLikelyConfigSectionLabel(trimmed, nextLine)) {
 			continue;
 		}
