@@ -221,7 +221,7 @@ The rules that make aislop unique. These catch the patterns AI assistants leave 
 | `ai-slop/hardcoded-id` | warning | Provider/project IDs hardcoded in production code instead of env/config |
 | `ai-slop/python-bare-except` | warning | Python `except:` blocks that catch everything without naming an exception type |
 | `ai-slop/python-broad-except` | warning | Python broad exception handlers with silent/pass-style bodies |
-| `ai-slop/python-mutable-default` | warning | Python function defaults such as `[]`, `{}`, or `set()` that are shared across calls |
+| `ai-slop/python-mutable-default` | warning | Python function defaults such as `[]`, `{}`, or `set()` that are shared across calls; only bare top-level defaults, not call-wrapped keyword arguments (see notes below the table) |
 | `ai-slop/python-print-debug` | warning | Python `print(...)` debug output left in production modules |
 | `ai-slop/python-range-len-loop` | info | Python `for i in range(len(items))` loops that usually want direct iteration or `enumerate()` |
 | `ai-slop/python-chained-dict-get` | warning | Python `.get(..., {}).get(...)` fallback chains that hide missing-data cases |
@@ -255,6 +255,21 @@ The rules that make aislop unique. These catch the patterns AI assistants leave 
 | `ai-slop/cpp-endl-in-stream` | warning | `<< std::endl` flushes the stream on every call; prefer `'\n'` |
 
 Note: `ai-slop/trivial-comment`, `ai-slop/narrative-comment`, and `ai-slop/swallowed-exception` also cover C# (`.cs`) and C/C++ (`.c`, `.cpp`, `.h`, `.hpp`).
+
+### Rule notes
+
+**`ai-slop/python-mutable-default` and call-wrapped keyword arguments.** Only
+bare defaults at the signature's top parenthesis level are flagged. A mutable
+literal passed as a keyword argument inside a call (FastAPI/typer/pydantic
+markers like `Body(default={})`) is deliberately not, because whether the
+wrapper shares its result across calls is framework semantics the rule cannot
+decide from syntax. flake8-bugbear covers that separate case as B008, and
+needs a per-framework `extend-immutable-calls` allowlist to do it. Signature
+scanning masks string literals and trailing comments before counting
+parentheses, including f-string replacement fields that nest same-quote
+strings (PEP 701, Python 3.12+); the one accepted approximation is a `#`
+comment inside a multi-line replacement field, which is treated as expression
+text because `#` is also a format-spec character.
 
 ## Security
 
