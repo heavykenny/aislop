@@ -131,10 +131,7 @@ const auditSkippedDiagnostic = (source: JsAuditSource, help: string): Diagnostic
 	fixable: false,
 });
 
-/**
- * Packages the project actually ships. devDependencies are excluded so that test and
- * build tooling advisories can be demoted rather than scored as shipped defects.
- */
+// devDependencies are excluded so tooling advisories can be demoted, not scored as shipped.
 const readRuntimeDependencies = (rootDir: string): JsAuditManifest | undefined => {
 	try {
 		const raw = fs.readFileSync(path.join(rootDir, "package.json"), "utf-8");

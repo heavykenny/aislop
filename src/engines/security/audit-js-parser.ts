@@ -21,18 +21,12 @@ interface VulnAggregate {
 	devOnly?: boolean;
 }
 
-/**
- * Manifest context used to tell shipped dependencies from test/build tooling.
- * Omit it and every advisory keeps full severity, which is the safe default.
- */
+// Omit this and every advisory keeps full severity, which is the safe default.
 export interface JsAuditManifest {
 	runtimeDependencies: Set<string>;
 }
 
-/**
- * npm's audit JSON carries no dev flag, but `effects` names the packages that pull a
- * vulnerable one in. Walking that chain tells us whether any runtime dependency reaches it.
- */
+// npm's audit JSON has no dev flag; `effects` names the packages pulling a vulnerable one in.
 const reachesRuntime = (
 	packageName: string,
 	vulnerabilities: Record<string, unknown>,
