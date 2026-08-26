@@ -200,24 +200,29 @@ describe("runSubprocess output capture", () => {
 
 			// Starve the loop: the child runs and writes its full output during
 			// the spin, independent of whether the parent is draining anything.
-			const spinUntil = Date.now() + 2000;
-			while (Date.now() < spinUntil) {
-				// Busy-wait: simulates a synchronous engine pass starving the loop.
+			//
+			// The invariant is ordering, not duration, so spin until the marker
+			// appears instead of for a fixed stretch: a child genuinely blocked
+			// on the pipe never writes the marker, so exhausting the deadline is
+			// the regression signal, and the healthy path exits immediately.
+			//
+			// existsSync is a synchronous syscall, so the loop never yields and
+			// the parent stays starved for the whole poll. The deadline must stay
+			// well under vitest's 30s testTimeout so a regression lands on the
+			// assertion below rather than an opaque framework timeout.
+			const spinDeadline = Date.now() + 20000;
+			let markerWrittenWhileStarved = false;
+			while (Date.now() < spinDeadline) {
+				if (existsSync(markerFile)) {
+					markerWrittenWhileStarved = true;
+					break;
+				}
 			}
-			const spinEnd = Date.now();
 
 			const result = await promise;
 
 			expect(result.stdout.length).toBe(1048576);
-
-			const markerTimestamp = Number(readFileSync(markerFile, "utf-8"));
-			// A pipe-blocked child cannot write the marker until the parent
-			// drains after the spin, so any margin before spinEnd proves the
-			// child finished while the parent was still starved. Keep the
-			// margin small: the old 1500ms version budgeted only 500ms for
-			// child spawn plus write, which loaded Windows CI runners
-			// repeatedly overshot by tens of milliseconds.
-			expect(markerTimestamp).toBeLessThan(spinEnd - 250);
+			expect(markerWrittenWhileStarved).toBe(true);
 		} finally {
 			rmSync(markerFile, { force: true });
 		}
