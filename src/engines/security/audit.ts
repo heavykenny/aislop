@@ -6,6 +6,7 @@ import { runSubprocess } from "../../utils/subprocess.js";
 import type { Diagnostic, EngineContext } from "../types.js";
 import { runCargoAudit, runDotnetAudit, runGovulncheck, runPipAudit } from "./audit-ecosystem.js";
 import { type JsAuditSource, parseBunAudit, parseJsAudit } from "./audit-js-parser.js";
+import { readRuntimeDependencies } from "./runtime-dependencies.js";
 
 export { parseDotnetAudit } from "./audit-ecosystem.js";
 export { parseBunAudit, parseJsAudit } from "./audit-js-parser.js";
@@ -132,7 +133,7 @@ const runNpmAudit = async (rootDir: string, timeout: number): Promise<Diagnostic
 			cwd: rootDir,
 			timeout,
 		});
-		return parseJsAudit(result.stdout, "npm audit");
+		return parseJsAudit(result.stdout, "npm audit", readRuntimeDependencies(rootDir));
 	} catch (error) {
 		return [
 			auditSkippedDiagnostic("npm audit", `Failed to run npm audit: ${errorMessageOf(error)}`),
@@ -174,7 +175,7 @@ const runPnpmAuditWithFallback = async (
 			cwd: rootDir,
 			timeout,
 		});
-		const diagnostics = parseJsAudit(result.stdout, "pnpm audit");
+		const diagnostics = parseJsAudit(result.stdout, "pnpm audit", readRuntimeDependencies(rootDir));
 		const hasAuditFailure = diagnostics.some((d) => d.rule === "security/dependency-audit-skipped");
 		if (hasAuditFailure) {
 			if (canFallbackToNpm) {
