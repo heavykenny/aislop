@@ -20,7 +20,7 @@ import {
 	removeUnusedDeclarations,
 } from "../engines/code-quality/unused-removal.js";
 import { runExpoDoctor } from "../engines/lint/expo-doctor.js";
-import { fixRubyLint } from "../engines/lint/generic.js";
+import { fixRubyLint, runGenericLinter } from "../engines/lint/generic.js";
 import { fixOxlint, runOxlint } from "../engines/lint/oxlint.js";
 import { fixRuffLint, fixRuffLintForce, runRuffLint } from "../engines/lint/ruff.js";
 import { runDependencyAudit } from "../engines/security/audit.js";
@@ -137,10 +137,7 @@ export const runLintSteps = async (deps: PipelineDeps): Promise<void> => {
 	if (deps.projectInfo.languages.includes("ruby") && deps.projectInfo.installedTools.rubocop) {
 		await deps.runStep(
 			"Lint fixes (ruby)",
-			() =>
-				import("../engines/lint/generic.js").then((mod) =>
-					mod.runGenericLinter(deps.context, "ruby"),
-				),
+			() => runGenericLinter(deps.context, "ruby"),
 			() => fixRubyLint(deps.resolvedDir),
 		);
 	} else if (deps.projectInfo.languages.includes("ruby")) {

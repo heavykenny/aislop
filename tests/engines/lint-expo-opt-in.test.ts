@@ -3,7 +3,9 @@ import { DEFAULT_CONFIG } from "../../src/config/defaults.js";
 import { lintEngine } from "../../src/engines/lint/index.js";
 import type { EngineContext } from "../../src/engines/types.js";
 
-const runExpoDoctorMock = vi.fn(async () => []);
+const { runExpoDoctorMock } = vi.hoisted(() => ({
+	runExpoDoctorMock: vi.fn(async () => []),
+}));
 
 vi.mock("../../src/engines/lint/expo-doctor.js", () => ({
 	runExpoDoctor: runExpoDoctorMock,

@@ -9,6 +9,14 @@ export interface ScoreResult {
 }
 
 const PERFECT_SCORE = 100;
+
+// Project size at which a rule cap keeps its literal value; larger trees scale it up.
+const CAP_REFERENCE_FILES = 10;
+
+// Turns weighted findings-per-file into the curve's input. Calibrated on a corpus of
+// mature and generated repositories.
+const DENSITY_SCALE = 5;
+
 type ResolvedFileCount = {
 	effectiveSourceFileCount: number;
 	sourceFileCountMode: "provided" | "estimated-from-diagnostics";
@@ -60,6 +68,11 @@ export const calculateScore = (
 			(deductionsByRule.get(key) ?? 0) + severityPenalty * engineWeight * ruleImpact.multiplier,
 		);
 	}
+	const fileCount = resolveEffectiveFileCount(diagnostics, sourceFileCount);
+	const smoothingConstant = typeof smoothing === "number" ? smoothing : 10;
+
+	// A flat cap lets one rule dominate a small tree and vanish in a large one.
+	const capScale = Math.max(1, fileCount.effectiveSourceFileCount / CAP_REFERENCE_FILES);
 	const defaultRuleCap = typeof maxPerRule === "number" && maxPerRule > 0 ? maxPerRule : null;
 	const capForRule = (key: string): number | null => {
 		const rule = key.slice(key.indexOf(":") + 1);
@@ -71,16 +84,12 @@ export const calculateScore = (
 	};
 	const deductions = [...deductionsByRule.entries()].reduce((total, [key, value]) => {
 		const cap = capForRule(key);
-		return total + (cap ? Math.min(value, cap) : value);
+		return total + (cap ? Math.min(value, cap * capScale) : value);
 	}, 0);
 
-	const fileCount = resolveEffectiveFileCount(diagnostics, sourceFileCount);
-	const smoothingConstant = typeof smoothing === "number" ? smoothing : 10;
-	const issueDensity = Math.min(
-		1,
-		diagnostics.length / (fileCount.effectiveSourceFileCount + smoothingConstant),
-	);
-	const scaledDeductions = deductions * Math.sqrt(issueDensity);
+	// Per file, not per repo: size must not be what moves the score.
+	const deductionDensity = deductions / (fileCount.effectiveSourceFileCount + smoothingConstant);
+	const scaledDeductions = deductionDensity * DENSITY_SCALE;
 
 	// Logarithmic scaling: first issues matter most, score can't go below 0
 	const score = Math.max(

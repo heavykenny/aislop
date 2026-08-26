@@ -10,7 +10,9 @@ export default defineConfig([
 		entry: {
 			cli: "./src/cli.ts",
 		},
-		external: ["oxlint", "knip", "knip/session", "@biomejs/biome", "typescript"],
+		deps: {
+			neverBundle: ["oxlint", "knip", "knip/session", "@biomejs/biome", "typescript"],
+		},
 		dts: true,
 		target: "node18",
 		platform: "node",
@@ -29,7 +31,9 @@ export default defineConfig([
 			"adapters/sveltekit": "./src/framework-adapters/sveltekit.ts",
 			"adapters/vite": "./src/framework-adapters/vite.ts",
 		},
-		external: ["oxlint", "knip", "knip/session", "@biomejs/biome", "typescript"],
+		deps: {
+			neverBundle: ["oxlint", "knip", "knip/session", "@biomejs/biome", "typescript"],
+		},
 		dts: true,
 		target: "node18",
 		platform: "node",
@@ -42,7 +46,9 @@ export default defineConfig([
 		entry: {
 			mcp: "./src/mcp.ts",
 		},
-		external: ["oxlint", "knip", "knip/session", "@biomejs/biome", "typescript"],
+		deps: {
+			neverBundle: ["oxlint", "knip", "knip/session", "@biomejs/biome", "typescript"],
+		},
 		dts: false,
 		target: "node18",
 		platform: "node",
