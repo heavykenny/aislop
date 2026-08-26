@@ -10,9 +10,12 @@ import {
 import { renderHeader } from "../ui/header.js";
 import { detectInvocation } from "../ui/invocation.js";
 import { style, theme } from "../ui/theme.js";
-import { discoverProject } from "../utils/discover.js";
+import { detectSourceLanguages, discoverProject } from "../utils/discover.js";
+import { resetGitIgnoreSnapshots } from "../utils/git-ignore.js";
+import { readAislopIgnorePatterns } from "../utils/source-files.js";
 import { APP_VERSION } from "../version.js";
 import { buildRows, type DoctorEngineRow, languageLabelFor } from "./doctor-plan.js";
+import { collectScanFileScope } from "./scan-file-scope.js";
 
 export type { DoctorEngineRow } from "./doctor-plan.js";
 export { planFormatForTest, planLintForTest, planSecurityForTest } from "./doctor-plan.js";
@@ -101,8 +104,36 @@ export const doctorCommand = async (
 	options: DoctorOptions = {},
 ): Promise<void> => {
 	const resolvedDir = path.resolve(directory);
-	const projectInfo = await discoverProject(resolvedDir);
 	const config = loadConfig(resolvedDir);
+	const excludePatterns = [...config.exclude, ...readAislopIgnorePatterns(resolvedDir)];
+	// discoverProject resets the cached gitignore snapshot, but the scan scope below is
+	// enumerated before it runs, so reset here first: the enumeration must not answer
+	// from a snapshot an earlier call left behind, and the interactive loop and the MCP
+	// server both keep one process alive across calls.
+	resetGitIgnoreSnapshots();
+	const scanScope = collectScanFileScope({
+		excludePatterns,
+		includePatterns: config.include,
+		mode: { kind: "full" },
+		rootDirectory: resolvedDir,
+	});
+	const discoveredProject = await discoverProject(resolvedDir, excludePatterns, {
+		includePatterns: config.include,
+		sourceFiles: scanScope.files,
+	});
+	// scan plans its engines from the languages of the files it will actually read,
+	// so doctor has to as well or it promises tooling scan never runs. A manifest can
+	// name a language the tree does not contain: a root package.json that exists only
+	// to pin a CLI tool makes a C# or C++ repository look like a JavaScript one, and
+	// the JS-gated planners then claim every engine. Reading the same full-scan scope
+	// keeps the two commands in step over config.include, config.exclude, .aislopignore
+	// and test files, any one of which otherwise moves a language between them.
+	// Manifest languages remain the answer for a project with no source files yet.
+	const sourceLanguages = detectSourceLanguages([...scanScope.files, ...scanScope.testFiles]);
+	const projectInfo =
+		sourceLanguages.length > 0
+			? { ...discoveredProject, languages: sourceLanguages }
+			: discoveredProject;
 
 	const rows = buildRows({ rootDirectory: resolvedDir, projectInfo, config });
 
