@@ -5,12 +5,8 @@ import { isDependencyAuditInputFile } from "../../utils/source-file-selection.js
 import { runSubprocess } from "../../utils/subprocess.js";
 import type { Diagnostic, EngineContext } from "../types.js";
 import { runCargoAudit, runDotnetAudit, runGovulncheck, runPipAudit } from "./audit-ecosystem.js";
-import {
-	type JsAuditManifest,
-	type JsAuditSource,
-	parseBunAudit,
-	parseJsAudit,
-} from "./audit-js-parser.js";
+import { type JsAuditSource, parseBunAudit, parseJsAudit } from "./audit-js-parser.js";
+import { readRuntimeDependencies } from "./runtime-dependencies.js";
 
 export { parseDotnetAudit } from "./audit-ecosystem.js";
 export { parseBunAudit, parseJsAudit } from "./audit-js-parser.js";
@@ -130,27 +126,6 @@ const auditSkippedDiagnostic = (source: JsAuditSource, help: string): Diagnostic
 	category: "Security",
 	fixable: false,
 });
-
-// devDependencies are excluded so tooling advisories can be demoted, not scored as shipped.
-const readRuntimeDependencies = (rootDir: string): JsAuditManifest | undefined => {
-	try {
-		const raw = fs.readFileSync(path.join(rootDir, "package.json"), "utf-8");
-		const parsed: unknown = JSON.parse(raw);
-		if (!parsed || typeof parsed !== "object") return undefined;
-
-		const manifest = parsed as Record<string, unknown>;
-		const names = new Set<string>();
-		for (const field of ["dependencies", "optionalDependencies", "peerDependencies"]) {
-			const section = manifest[field];
-			if (section && typeof section === "object") {
-				for (const name of Object.keys(section)) names.add(name);
-			}
-		}
-		return { runtimeDependencies: names };
-	} catch {
-		return undefined;
-	}
-};
 
 const runNpmAudit = async (rootDir: string, timeout: number): Promise<Diagnostic[]> => {
 	try {
