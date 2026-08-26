@@ -6,6 +6,41 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## Unreleased
 
+## 0.15.0 (2026-08-26)
+
+Calibration release. Scores now describe how code is written rather than how much of it there is, and three rules that fired on ordinary hand-written code have been corrected. **Every score moves in this release**, most of them upward. Badges, CI gates, and stored scans will all shift; if you gate CI on a threshold, re-baseline after upgrading.
+
+### Changed
+
+- **Score reflects finding density, not project size.** Deductions are divided by file count before the scoring curve, so a large project and a small one with the same habits land on the same number. Previously the density term clamped to 1 for any project with more findings than `files + 10`, which is effectively every real project, so deductions accumulated in absolute terms and larger trees scored worse for being larger. Copying a project three times, byte for byte, used to drop its score by 26 points.
+- **Rule caps scale with project size.** A flat cap decided a small project's score and disappeared in a large one. Caps now mean the same thing at any scale.
+- **Default scoring smoothing lowered from 20 to 5.** With the density term corrected, the old value was all that remained of a systematic advantage for small repositories.
+
+Representative scores, before and after:
+
+| Project | 0.14.1 | 0.15.0 |
+| --- | --- | --- |
+| expressjs/express | 72 | 78 Healthy |
+| rohitg00/agentmemory | 9 | 72 Needs Work |
+| playcanvas/supersplat | 14 | 65 Needs Work |
+| obra/superpowers | 33 | 57 Needs Work |
+| github/spec-kit | 3 | 41 Critical |
+
+### Fixed
+
+- **`ai-slop/trivial-comment` no longer flags ordinary terse comments.** The rule matched any short comment opening with a verb stem, which is normal English comment style rather than evidence of generation, and marked each one auto-fixable. It now requires a file to be saturated with them (at least one per 50 non-blank lines), which is the shape generated code actually has. A mature library carrying three such comments in 650 lines is left alone.
+- **`security/vulnerable-dependency` no longer scores dev tooling as shipped risk.** Advisories reaching a project only through `devDependencies` are still reported, labelled `dev-only`, at `info` severity instead of raising an error. Runtime reachability is resolved by walking npm audit's `effects` chain back to the manifests, including every workspace member, so a production dependency declared by a member package is correctly treated as shipped. Where the origin cannot be determined, full severity is kept.
+- **`ai-slop/python-mutable-default` no longer flags call-wrapped keyword arguments.** FastAPI, typer, and pydantic markers such as `Body(default={})` are framework semantics the rule cannot decide from syntax. Signature scanning also masks string literals and comments, including f-string replacement fields, before counting parentheses.
+- **`doctor` derives languages from the configured scan scope** rather than from manifests alone, so reported languages match what is actually scanned.
+- **Build no longer emits tsdown warnings.**
+
+### Internal
+
+- Workspace-aware runtime dependency resolution extracted to its own module with dedicated tests.
+- The starved-pipe subprocess test asserts ordering instead of wall-clock timing, removing a source of flakiness on loaded Windows runners.
+- Narrative comments removed from the trivial-comment detector.
+- Dependency bumps: `@biomejs/biome` 2.5.8, `knip` 6.32.2, `vite` 8.2.2, `@types/node` 26.2.0, `github/codeql-action` 4.37.7.
+
 ## 0.14.1 (2026-08-08)
 
 Patch release: adds first-class C# and C/C++ support, improves scanner accuracy across real-world project layouts, and refreshes cross-platform tooling.
