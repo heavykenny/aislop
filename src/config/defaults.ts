@@ -54,7 +54,7 @@ export const DEFAULT_CONFIG: AislopConfig = {
 			good: 75,
 			ok: 50,
 		},
-		smoothing: 20,
+		smoothing: 5,
 		maxPerRule: 40,
 	},
 	ci: {

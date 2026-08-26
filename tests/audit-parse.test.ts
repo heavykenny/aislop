@@ -48,6 +48,48 @@ describe("parseJsAudit — modern vulnerabilities", () => {
 		expect(diagnostics[0].rule).toBe("security/vulnerable-dependency");
 	});
 
+	// Mirrors expressjs/express: `diff` is vulnerable only by way of mocha, a devDependency.
+	// A test-tooling advisory is not a defect in the code the project ships.
+	const devOnlyAudit = JSON.stringify({
+		vulnerabilities: {
+			diff: {
+				name: "diff",
+				severity: "critical",
+				isDirect: false,
+				effects: ["mocha"],
+				fixAvailable: { name: "mocha", version: "11.3.0" },
+				via: [{ source: 1112706, name: "diff", title: "DoS", severity: "critical" }],
+			},
+		},
+	});
+
+	it("demotes a vulnerability that is only reachable through a devDependency", () => {
+		const diagnostics = parseJsAudit(devOnlyAudit, "npm audit", {
+			runtimeDependencies: new Set([]),
+		});
+
+		expect(diagnostics).toHaveLength(1);
+		expect(diagnostics[0].severity).toBe("info");
+		expect(diagnostics[0].message).toContain("dev-only");
+	});
+
+	it("keeps full severity when the same chain reaches a runtime dependency", () => {
+		const diagnostics = parseJsAudit(devOnlyAudit, "npm audit", {
+			runtimeDependencies: new Set(["mocha"]),
+		});
+
+		expect(diagnostics).toHaveLength(1);
+		expect(diagnostics[0].severity).toBe("error");
+		expect(diagnostics[0].message).not.toContain("dev-only");
+	});
+
+	it("keeps full severity when dependency origin is unknown", () => {
+		const diagnostics = parseJsAudit(devOnlyAudit, "npm audit");
+
+		expect(diagnostics).toHaveLength(1);
+		expect(diagnostics[0].severity).toBe("error");
+	});
+
 	it("reports every package when none carry an advisory object (no root info)", () => {
 		const audit = JSON.stringify({
 			vulnerabilities: {

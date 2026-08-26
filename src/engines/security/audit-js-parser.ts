@@ -18,7 +18,34 @@ interface VulnAggregate {
 	worstSeverity: string;
 	advisories: number;
 	recommendations: Set<string>;
+	devOnly?: boolean;
 }
+
+// Omit this and every advisory keeps full severity, which is the safe default.
+export interface JsAuditManifest {
+	runtimeDependencies: Set<string>;
+}
+
+// npm's audit JSON has no dev flag; `effects` names the packages pulling a vulnerable one in.
+const reachesRuntime = (
+	packageName: string,
+	vulnerabilities: Record<string, unknown>,
+	runtimeDependencies: Set<string>,
+	visited: Set<string>,
+): boolean => {
+	if (runtimeDependencies.has(packageName)) return true;
+	if (visited.has(packageName)) return false;
+	visited.add(packageName);
+
+	const entry = vulnerabilities[packageName];
+	if (!isRecord(entry) || !Array.isArray(entry.effects)) return false;
+
+	return entry.effects.some(
+		(effect) =>
+			typeof effect === "string" &&
+			reachesRuntime(effect, vulnerabilities, runtimeDependencies, visited),
+	);
+};
 
 const upsertVuln = (
 	bucket: Map<string, VulnAggregate>,
@@ -70,12 +97,13 @@ const aggregateToDiagnostic = (agg: VulnAggregate, source: JsAuditSource): Diagn
 	const best = cleanRecommendation(pickBestRecommendation(recs));
 	const countLabel = agg.advisories > 1 ? ` (${agg.advisories} advisories)` : "";
 	const recLabel = best ? ` — ${best}` : "";
+	const scopeLabel = agg.devOnly ? ", dev-only" : "";
 	return {
 		filePath: "package.json",
 		engine: "security",
 		rule: "security/vulnerable-dependency",
-		severity: toSeverity(agg.worstSeverity),
-		message: `${agg.packageName} (${agg.worstSeverity})${recLabel}${countLabel}`,
+		severity: agg.devOnly ? "info" : toSeverity(agg.worstSeverity),
+		message: `${agg.packageName} (${agg.worstSeverity}${scopeLabel})${recLabel}${countLabel}`,
 		help: "",
 		line: 0,
 		column: 0,
@@ -143,6 +171,7 @@ const carriesAdvisory = (vulnerability: Record<string, unknown>): boolean =>
 const parseModernVulnerabilities = (
 	vulnerabilities: Record<string, unknown>,
 	source: JsAuditSource,
+	manifest?: JsAuditManifest,
 ): Diagnostic[] => {
 	const bucket = new Map<string, VulnAggregate>();
 	const records = Object.entries(vulnerabilities).filter(
@@ -172,12 +201,28 @@ const parseModernVulnerabilities = (
 		}
 
 		upsertVuln(bucket, packageName, severity, recommendation);
+
+		if (manifest) {
+			const aggregate = bucket.get(packageName);
+			if (aggregate) {
+				aggregate.devOnly = !reachesRuntime(
+					packageName,
+					vulnerabilities,
+					manifest.runtimeDependencies,
+					new Set(),
+				);
+			}
+		}
 	}
 
 	return [...bucket.values()].map((agg) => aggregateToDiagnostic(agg, source));
 };
 
-export const parseJsAudit = (output: string, source: JsAuditSource): Diagnostic[] => {
+export const parseJsAudit = (
+	output: string,
+	source: JsAuditSource,
+	manifest?: JsAuditManifest,
+): Diagnostic[] => {
 	if (!output) return [];
 	try {
 		const parsed: unknown = JSON.parse(output);
@@ -232,7 +277,7 @@ export const parseJsAudit = (output: string, source: JsAuditSource): Diagnostic[
 
 		const vulnerabilities = parsed.vulnerabilities;
 		if (isRecord(vulnerabilities)) {
-			return parseModernVulnerabilities(vulnerabilities, source);
+			return parseModernVulnerabilities(vulnerabilities, source, manifest);
 		}
 
 		return [];

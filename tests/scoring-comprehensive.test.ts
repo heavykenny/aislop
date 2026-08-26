@@ -66,11 +66,8 @@ describe("Issue #9: single issue in codebases of different sizes", () => {
 		// This is the #9 scenario: one innerHTML drops score dramatically
 		const result = calculateScore([makeInnerHTMLDiagnostic()], defaultWeights, defaultThresholds);
 
-		// Document the exact current score for regression tracking.
-		// security weight=2.0, error penalty=3, deduction=6
-		// score = max(0, round(100 - (100 * log1p(6)) / log1p(106)))
-		expect(result.score).toMatchInlineSnapshot(`78`);
-		expect(result.label).toBe("Healthy");
+		expect(result.score).toMatchInlineSnapshot(`72`);
+		expect(result.label).toBe("Needs Work");
 	});
 
 	it("single format info produces a minimal score drop", () => {
@@ -93,7 +90,7 @@ describe("Issue #9: single issue in codebases of different sizes", () => {
 		);
 
 		// lint weight=1.0, warning penalty=1, deduction=1.0
-		expect(result.score).toMatchInlineSnapshot(`94`);
+		expect(result.score).toMatchInlineSnapshot(`92`);
 		expect(result.label).toBe("Healthy");
 	});
 
@@ -110,7 +107,7 @@ describe("Issue #9: single issue in codebases of different sizes", () => {
 		);
 
 		// code-quality weight=1.5, error penalty=3, deduction=4.5
-		expect(result.score).toMatchInlineSnapshot(`81`);
+		expect(result.score).toMatchInlineSnapshot(`76`);
 		expect(result.label).toBe("Healthy");
 	});
 });
@@ -192,35 +189,35 @@ describe("multiple issues of same severity", () => {
 		const diagnostics = Array(5).fill(makeDiagnostic({ engine: "lint", severity: "warning" }));
 		const result = calculateScore(diagnostics, defaultWeights, defaultThresholds);
 
-		expect(result.score).toMatchInlineSnapshot(`68`);
+		expect(result.score).toMatchInlineSnapshot(`74`);
 	});
 
 	it("snapshot: 10 lint warnings", () => {
 		const diagnostics = Array(10).fill(makeDiagnostic({ engine: "lint", severity: "warning" }));
 		const result = calculateScore(diagnostics, defaultWeights, defaultThresholds);
 
-		expect(result.score).toMatchInlineSnapshot(`50`);
+		expect(result.score).toMatchInlineSnapshot(`63`);
 	});
 
 	it("snapshot: 20 lint warnings", () => {
 		const diagnostics = Array(20).fill(makeDiagnostic({ engine: "lint", severity: "warning" }));
 		const result = calculateScore(diagnostics, defaultWeights, defaultThresholds);
 
-		expect(result.score).toMatchInlineSnapshot(`37`);
+		expect(result.score).toMatchInlineSnapshot(`51`);
 	});
 
 	it("snapshot: 5 security errors", () => {
 		const diagnostics = Array(5).fill(makeDiagnostic({ engine: "security", severity: "error" }));
 		const result = calculateScore(diagnostics, defaultWeights, defaultThresholds);
 
-		expect(result.score).toMatchInlineSnapshot(`36`);
+		expect(result.score).toMatchInlineSnapshot(`43`);
 	});
 
 	it("snapshot: 10 security errors", () => {
 		const diagnostics = Array(10).fill(makeDiagnostic({ engine: "security", severity: "error" }));
 		const result = calculateScore(diagnostics, defaultWeights, defaultThresholds);
 
-		expect(result.score).toMatchInlineSnapshot(`20`);
+		expect(result.score).toMatchInlineSnapshot(`31`);
 	});
 
 	it("diminishing returns: overall trend is sublinear", () => {
@@ -252,7 +249,7 @@ describe("mixed severity issues", () => {
 		];
 		const result = calculateScore(diagnostics, defaultWeights, defaultThresholds);
 
-		expect(result.score).toMatchInlineSnapshot(`62`);
+		expect(result.score).toMatchInlineSnapshot(`67`);
 		expect(result.label).toBe("Needs Work");
 	});
 
@@ -294,7 +291,7 @@ describe("mixed severity issues", () => {
 		];
 		const result = calculateScore(diagnostics, defaultWeights, defaultThresholds);
 
-		expect(result.score).toMatchInlineSnapshot(`34`);
+		expect(result.score).toMatchInlineSnapshot(`48`);
 		expect(result.label).toBe("Critical");
 	});
 
@@ -483,43 +480,43 @@ describe("snapshot: score table for known inputs", () => {
 		{
 			name: "1 lint warning",
 			diagnostics: [makeDiagnostic({ engine: "lint", severity: "warning" })],
-			expectedScore: 94,
+			expectedScore: 92,
 			expectedLabel: "Healthy",
 		},
 		{
 			name: "1 lint error",
 			diagnostics: [makeDiagnostic({ engine: "lint", severity: "error" })],
-			expectedScore: 86,
+			expectedScore: 81,
 			expectedLabel: "Healthy",
 		},
 		{
 			name: "1 security error (the #9 scenario)",
 			diagnostics: [makeInnerHTMLDiagnostic()],
-			expectedScore: 78,
-			expectedLabel: "Healthy",
+			expectedScore: 72,
+			expectedLabel: "Needs Work",
 		},
 		{
 			name: "1 code-quality error",
 			diagnostics: [makeDiagnostic({ engine: "code-quality", severity: "error" })],
-			expectedScore: 81,
+			expectedScore: 76,
 			expectedLabel: "Healthy",
 		},
 		{
 			name: "3 lint warnings",
 			diagnostics: Array(3).fill(makeDiagnostic({ engine: "lint", severity: "warning" })),
-			expectedScore: 80,
+			expectedScore: 81,
 			expectedLabel: "Healthy",
 		},
 		{
 			name: "10 format infos",
 			diagnostics: Array(10).fill(makeDiagnostic({ engine: "format", severity: "info" })),
-			expectedScore: 83,
+			expectedScore: 90,
 			expectedLabel: "Healthy",
 		},
 		{
 			name: "3 security errors",
 			diagnostics: Array(3).fill(makeDiagnostic({ engine: "security", severity: "error" })),
-			expectedScore: 50,
+			expectedScore: 53,
 			expectedLabel: "Needs Work",
 		},
 	];
@@ -624,7 +621,7 @@ describe("density-aware scoring (sourceFileCount)", () => {
 			defaultThresholds,
 		);
 
-		expect(withoutFileCount.score).toBe(78);
+		expect(withoutFileCount.score).toBe(72);
 		expect(withoutFileCount.effectiveSourceFileCount).toBe(1);
 		expect(withoutFileCount.sourceFileCountMode).toBe("estimated-from-diagnostics");
 	});
@@ -641,14 +638,41 @@ describe("density-aware scoring (sourceFileCount)", () => {
 		expect(result.sourceFileCountMode).toBe("estimated-from-diagnostics");
 	});
 
-	it("density caps at 1.0 for heavily polluted codebases", () => {
-		// 100 issues in 5 files = extremely dense, density capped at 1.0
-		const diagnostics = Array(100).fill(makeDiagnostic({ engine: "security", severity: "error" }));
-		const withDensity = calculateScore(diagnostics, defaultWeights, defaultThresholds, 5);
-		const withoutDensity = calculateScore(diagnostics, defaultWeights, defaultThresholds);
+	it("scores the same habits the same way at ten times the size", () => {
+		// The score has to describe the code, not how much of it there is. A project with
+		// four findings across twenty files is in the same shape as one with forty across
+		// two hundred, and used to score far worse purely for being bigger.
+		const small = calculateScore(
+			Array(4).fill(makeDiagnostic({ engine: "lint", severity: "warning" })),
+			defaultWeights,
+			defaultThresholds,
+			20,
+		);
+		const large = calculateScore(
+			Array(40).fill(makeDiagnostic({ engine: "lint", severity: "warning" })),
+			defaultWeights,
+			defaultThresholds,
+			200,
+		);
 
-		// When density >= 1.0, sqrt(1.0)=1.0, so deductions are unscaled
-		expect(withDensity.score).toBe(withoutDensity.score);
+		expect(Math.abs(small.score - large.score)).toBeLessThanOrEqual(3);
+	});
+
+	it("still separates a dense codebase from a sparse one of equal size", () => {
+		const sparse = calculateScore(
+			Array(5).fill(makeDiagnostic({ engine: "lint", severity: "warning" })),
+			defaultWeights,
+			defaultThresholds,
+			100,
+		);
+		const dense = calculateScore(
+			Array(100).fill(makeDiagnostic({ engine: "lint", severity: "warning" })),
+			defaultWeights,
+			defaultThresholds,
+			100,
+		);
+
+		expect(sparse.score).toBeGreaterThan(dense.score + 20);
 	});
 
 	it("more files = higher score for the same diagnostics", () => {
