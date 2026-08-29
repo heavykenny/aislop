@@ -199,6 +199,7 @@ The deterministic layer beneath [`aislop agent`](#run-a-local-repair-agent): aut
 
 ```bash
 aislop fix                 # auto-fixes
+aislop fix --dry-run       # preview planned steps without writing files
 aislop fix -d              # detailed fix progress
 aislop fix --safe          # only reversible fixes (imports, comment removal, safe formatters)
 aislop fix -f              # aggressive: deps, unused files

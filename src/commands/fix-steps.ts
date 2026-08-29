@@ -16,13 +16,31 @@ export interface FixStepResult {
 const uniqueFileCount = (diagnostics: Diagnostic[]): number =>
 	new Set(diagnostics.map((d) => d.filePath)).size;
 
+export interface RunFixStepOptions {
+	/** Detect only. Never invoke the mutating fixer. */
+	dryRun?: boolean;
+}
+
 export const runOneFixStep = async (
 	name: string,
 	detect: () => Promise<Diagnostic[]>,
 	applyFix: () => Promise<void>,
+	options: RunFixStepOptions = {},
 ): Promise<FixStepResult> => {
 	const started = performance.now();
 	const before = await detect();
+	if (options.dryRun) {
+		return {
+			name,
+			beforeIssues: before.length,
+			afterIssues: before.length,
+			resolvedIssues: 0,
+			beforeFiles: uniqueFileCount(before),
+			failed: false,
+			elapsedMs: performance.now() - started,
+			afterDiagnostics: before,
+		};
+	}
 	let applyError: unknown = null;
 	if (before.length > 0) {
 		try {
@@ -65,3 +83,15 @@ export const statusFor = (s: FixStepResult): RailStep["status"] => {
 	if (s.afterIssues > 0) return "warn";
 	return "done";
 };
+
+const findingLabel = (count: number): string => (count === 1 ? "finding" : "findings");
+const fileLabel = (count: number): string => (count === 1 ? "file" : "files");
+
+export const describePreviewStep = (result: FixStepResult): string => {
+	if (result.beforeIssues === 0) {
+		return `${result.name} - 0 findings`;
+	}
+	return `${result.name} - ${result.beforeIssues} ${findingLabel(result.beforeIssues)} in ${result.beforeFiles} ${fileLabel(result.beforeFiles)}`;
+};
+
+export const describeSkippedStep = (name: string, reason: string): string => `${name} - ${reason}`;

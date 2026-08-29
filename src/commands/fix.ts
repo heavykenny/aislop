@@ -8,7 +8,7 @@ import { calculateScore } from "../scoring/index.js";
 import { withCommandLifecycle } from "../telemetry/index.js";
 import { renderHeader } from "../ui/header.js";
 import { LiveRail } from "../ui/live-rail.js";
-import { log } from "../ui/logger.js";
+import { log, renderHintLine } from "../ui/logger.js";
 import { theme as defaultTheme, style } from "../ui/theme.js";
 import { discoverProject } from "../utils/discover.js";
 import { APP_VERSION } from "../version.js";
@@ -23,7 +23,16 @@ import {
 	runFormattingStep,
 	runLintSteps,
 } from "./fix-pipeline.js";
-import { describeStep, type FixStepResult, runOneFixStep, statusFor } from "./fix-steps.js";
+import { buildFixPlan, skippedFixSteps } from "./fix-plan.js";
+import { NO_CHANGES_APPLIED } from "./fix-render.js";
+import {
+	describePreviewStep,
+	describeSkippedStep,
+	describeStep,
+	type FixStepResult,
+	runOneFixStep,
+	statusFor,
+} from "./fix-steps.js";
 import { buildScanRender } from "./scan.js";
 
 export { buildFixRender } from "./fix-render.js";
@@ -33,6 +42,8 @@ interface FixOptions {
 	force?: boolean;
 	/** Restrict to reversible fixes only (imports, comment removal, safe formatter runs) */
 	safe?: boolean;
+	/** Detect and print the plan without invoking mutating fixers */
+	dryRun?: boolean;
 	/** Agent CLI to launch with remaining issues (e.g. "claude", "codex") */
 	agent?: string;
 	/** Print the prompt to stdout instead of launching an agent */
@@ -98,9 +109,52 @@ export const fixCommand = async (
 			config: config.telemetry,
 			languages: projectInfo.languages,
 			fileCount: projectInfo.sourceFileCount,
+			properties: options.dryRun ? { dry_run: true } : undefined,
 		},
 		() => runFixBody(resolvedDir, config, options, projectInfo),
 	);
+};
+
+const runFixPipeline = async (deps: PipelineDeps, safe: boolean): Promise<void> => {
+	await runAiSlopSteps(deps);
+	if (!safe) {
+		await runDeclarationStep(deps);
+		await runLintSteps(deps);
+		await runDependencyStep(deps);
+	}
+	await runFormattingStep(deps);
+	await runForceSteps(deps);
+};
+
+const finishDryRun = (input: {
+	rail: LiveRail;
+	steps: FixStepResult[];
+	projectInfo: Awaited<ReturnType<typeof discoverProject>>;
+	config: AislopConfig;
+	options: FixOptions;
+}): { exitCode: number; fixSteps: number; fixResolved: number } => {
+	const plan = buildFixPlan(input.projectInfo, input.config, {
+		force: Boolean(input.options.force),
+		safe: Boolean(input.options.safe),
+	});
+	const ran = new Set(input.steps.map((step) => step.name));
+	for (const step of skippedFixSteps(plan)) {
+		if (ran.has(step.name)) continue;
+		input.rail.complete({
+			status: "skipped",
+			label: describeSkippedStep(step.name, step.reason ?? "skipped"),
+		});
+	}
+	if (input.steps.length === 0 && skippedFixSteps(plan).length === 0) {
+		input.rail.complete({ status: "skipped", label: "No applicable auto-fixers found" });
+	}
+	input.rail.finish({ footer: "Preview · no changes applied" });
+	process.stdout.write(`\n${renderHintLine(NO_CHANGES_APPLIED)}`);
+	return {
+		exitCode: 0,
+		fixSteps: input.steps.length,
+		fixResolved: 0,
+	};
 };
 
 const runFixBody = async (
@@ -113,11 +167,12 @@ const runFixBody = async (
 	const showHeader = options.showHeader !== false;
 	const projectName = projectInfo.projectName ?? "project";
 
+	const dryRun = Boolean(options.dryRun);
 	if (showHeader) {
 		process.stdout.write(
 			renderHeader({
 				version: APP_VERSION,
-				command: "Fix run",
+				command: dryRun ? "Fix plan" : "Fix run",
 				context: [projectName],
 				brand: options.printBrand !== false,
 			}),
@@ -127,7 +182,7 @@ const runFixBody = async (
 	const safe = Boolean(options.safe);
 	const context = createEngineContext(resolvedDir, projectInfo, config, { safe });
 	const steps: FixStepResult[] = [];
-	const rail = new LiveRail();
+	const rail = new LiveRail(process.env.CI === "1" ? { tty: false } : {});
 
 	const runStep = async (
 		name: string,
@@ -135,9 +190,12 @@ const runFixBody = async (
 		applyFix: () => Promise<void>,
 	) => {
 		rail.start(name);
-		const result = await runOneFixStep(name, detect, applyFix);
+		const result = await runOneFixStep(name, detect, applyFix, { dryRun });
 		steps.push(result);
-		rail.complete({ status: statusFor(result), label: describeStep(result) });
+		rail.complete({
+			status: dryRun ? "done" : statusFor(result),
+			label: dryRun ? describePreviewStep(result) : describeStep(result),
+		});
 		return result;
 	};
 
@@ -152,17 +210,17 @@ const runFixBody = async (
 		runStep,
 	};
 
-	await runAiSlopSteps(pipelineDeps);
-	// Safe mode skips the steps that delete code or rewrite behaviour/attributes.
-	if (!safe) {
-		await runDeclarationStep(pipelineDeps);
-		await runLintSteps(pipelineDeps);
-		await runDependencyStep(pipelineDeps);
+	await runFixPipeline(pipelineDeps, safe);
+
+	if (dryRun) {
+		return finishDryRun({
+			rail,
+			steps,
+			projectInfo,
+			config,
+			options,
+		});
 	}
-
-	await runFormattingStep(pipelineDeps);
-
-	await runForceSteps(pipelineDeps);
 
 	const totalResolved = steps.reduce((sum, s) => sum + s.resolvedIssues, 0);
 

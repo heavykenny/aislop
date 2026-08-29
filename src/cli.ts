@@ -128,6 +128,7 @@ const fixProgram = program
 		"--safe",
 		"only apply reversible fixes (imports, comment removal, safe formatters); skip anything that deletes code, rewrites behaviour, or runs unsafe formatter configs",
 	)
+	.option("--dry-run", "print planned fix steps without writing files")
 	.option("-p, --prompt", "print a prompt for your coding agent to fix remaining issues");
 
 for (const a of FIX_AGENT_FLAGS) fixProgram.option(`--${a.flag}`, a.help);
@@ -138,6 +139,7 @@ fixProgram.action(async (directory = ".", _flags, command) => {
 		verbose: Boolean(flags.verbose),
 		force: Boolean(flags.force),
 		safe: Boolean(flags.safe),
+		dryRun: Boolean(flags.dryRun),
 		prompt: Boolean(flags.prompt),
 		agent: matchFixAgent(flags),
 	});
