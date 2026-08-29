@@ -289,9 +289,13 @@ export const runKnipUnusedFiles = async (rootDirectory: string): Promise<Diagnos
 	return all.filter((d) => d.rule === "knip/files");
 };
 
-export const fixUnusedFiles = async (rootDirectory: string): Promise<void> => {
+export const fixUnusedFiles = async (
+	rootDirectory: string,
+	allow: (filePath: string) => boolean = () => true,
+): Promise<void> => {
 	const diagnostics = await runKnipUnusedFiles(rootDirectory);
 	for (const d of diagnostics) {
+		if (!allow(d.filePath)) continue;
 		const absolutePath = getSafeUnusedFilePath(rootDirectory, d.filePath);
 		if (absolutePath) {
 			fs.unlinkSync(absolutePath);

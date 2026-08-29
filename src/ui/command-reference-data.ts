@@ -42,6 +42,9 @@ const FIX_FLAGS = [
 	"-f, --force",
 	"--safe",
 	"--dry-run",
+	"--changes",
+	"--staged",
+	"--base <ref>",
 	"-p, --prompt",
 	...FIX_AGENT_FLAGS,
 ];

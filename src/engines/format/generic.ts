@@ -1,3 +1,4 @@
+import path from "node:path";
 import type { Language } from "../../utils/discover.js";
 import { projectRelativePosix } from "../../utils/paths.js";
 import { runSubprocess } from "../../utils/subprocess.js";
@@ -113,24 +114,55 @@ export const runGenericFormatter = async (
 
 		const output = result.stdout || result.stderr;
 		if (!output) return [];
-		return config.parseOutput(output, context.rootDirectory).map((diagnostic) => ({
+		const diagnostics = config.parseOutput(output, context.rootDirectory).map((diagnostic) => ({
 			...diagnostic,
 			filePath: projectRelativePosix(context.rootDirectory, diagnostic.filePath),
 		}));
+		if (!context.files) return diagnostics;
+		const allowed = new Set(relativeTargets(context, language));
+		return diagnostics.filter((diagnostic) => allowed.has(diagnostic.filePath));
 	} catch {
 		return [];
 	}
 };
 
+const LANGUAGE_EXTENSIONS: Partial<Record<Language, ReadonlySet<string>>> = {
+	rust: new Set([".rs"]),
+	ruby: new Set([".rb"]),
+	php: new Set([".php"]),
+};
+
+const relativeTargets = (context: EngineContext, language: Language): string[] => {
+	const extensions = LANGUAGE_EXTENSIONS[language];
+	if (!extensions || !context.files) return [];
+	return [
+		...new Set(
+			context.files
+				.filter((filePath) => extensions.has(path.extname(filePath).toLowerCase()))
+				.map((filePath) => projectRelativePosix(context.rootDirectory, filePath))
+				.filter((filePath) => filePath.length > 0 && !filePath.startsWith("..")),
+		),
+	];
+};
+
 export const fixGenericFormatter = async (
-	rootDirectory: string,
+	context: EngineContext,
 	language: Language,
 ): Promise<void> => {
 	const config = FORMATTERS[language];
 	if (!config) return;
+	const scoped = relativeTargets(context, language);
+	if (context.files && scoped.length === 0) return;
 
-	const result = await runSubprocess(config.command, config.fixArgs, {
-		cwd: rootDirectory,
+	const args =
+		language === "php" && context.files
+			? ["fix", ...scoped]
+			: context.files
+				? [...config.fixArgs, ...scoped]
+				: config.fixArgs;
+
+	const result = await runSubprocess(config.command, args, {
+		cwd: context.rootDirectory,
 		timeout: 60000,
 	});
 

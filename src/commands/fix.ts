@@ -6,11 +6,13 @@ import { runEngines } from "../engines/orchestrator.js";
 import type { Diagnostic, EngineConfig, EngineResult } from "../engines/types.js";
 import { calculateScore } from "../scoring/index.js";
 import { withCommandLifecycle } from "../telemetry/index.js";
+import { renderDisplayRows } from "../ui/display.js";
 import { renderHeader } from "../ui/header.js";
 import { LiveRail } from "../ui/live-rail.js";
 import { log, renderHintLine } from "../ui/logger.js";
 import { theme as defaultTheme, style } from "../ui/theme.js";
-import { discoverProject } from "../utils/discover.js";
+import { detectSourceLanguages, discoverProject } from "../utils/discover.js";
+import { readAislopIgnorePatterns } from "../utils/source-files.js";
 import { APP_VERSION } from "../version.js";
 import { launchAgent, printPrompt } from "./fix-code.js";
 import { createEngineContext } from "./fix-context.js";
@@ -25,6 +27,7 @@ import {
 } from "./fix-pipeline.js";
 import { buildFixPlan, skippedFixSteps } from "./fix-plan.js";
 import { NO_CHANGES_APPLIED } from "./fix-render.js";
+import { collectFixFileScope, fixScopeError } from "./fix-scope.js";
 import {
 	describePreviewStep,
 	describeSkippedStep,
@@ -44,6 +47,9 @@ interface FixOptions {
 	safe?: boolean;
 	/** Detect and print the plan without invoking mutating fixers */
 	dryRun?: boolean;
+	changes?: boolean;
+	staged?: boolean;
+	base?: string;
 	/** Agent CLI to launch with remaining issues (e.g. "claude", "codex") */
 	agent?: string;
 	/** Print the prompt to stdout instead of launching an agent */
@@ -97,6 +103,14 @@ export const fixCommand = async (
 			: `Not a directory: ${resolvedDir}`;
 		return withCommandLifecycle({ command: "fix", config: config.telemetry }, async () => {
 			log.error(msg);
+			return { exitCode: 1 };
+		});
+	}
+
+	const scopeError = fixScopeError(resolvedDir, options);
+	if (scopeError) {
+		return withCommandLifecycle({ command: "fix", config: config.telemetry }, async () => {
+			log.error(scopeError);
 			return { exitCode: 1 };
 		});
 	}
@@ -180,7 +194,31 @@ const runFixBody = async (
 	}
 
 	const safe = Boolean(options.safe);
-	const context = createEngineContext(resolvedDir, projectInfo, config, { safe });
+	const excludePatterns = [...config.exclude, ...readAislopIgnorePatterns(resolvedDir)];
+	const scope = collectFixFileScope(resolvedDir, excludePatterns, config.include, options);
+	const scopedProjectInfo = scope
+		? {
+				...projectInfo,
+				languages: detectSourceLanguages([...scope.files, ...scope.testFiles]),
+			}
+		: projectInfo;
+	const context = createEngineContext(resolvedDir, scopedProjectInfo, config, {
+		safe,
+		scope: scope ?? undefined,
+	});
+	if (scope) {
+		process.stdout.write(
+			`${renderDisplayRows(
+				[
+					{
+						label: "Scope",
+						value: `${scope.files.length + scope.testFiles.length} ${scope.scopeLabel}`,
+					},
+				],
+				{ indent: 1 },
+			).join("\n")}\n`,
+		);
+	}
 	const steps: FixStepResult[] = [];
 	const rail = new LiveRail(process.env.CI === "1" ? { tty: false } : {});
 
@@ -199,15 +237,20 @@ const runFixBody = async (
 		return result;
 	};
 
+	const skipStep = (name: string, reason: string) => {
+		rail.complete({ status: "skipped", label: describeSkippedStep(name, reason) });
+	};
+
 	const pipelineDeps: PipelineDeps = {
 		rail,
 		context,
 		config,
 		resolvedDir,
-		projectInfo,
+		projectInfo: scopedProjectInfo,
 		force: safe ? false : Boolean(options.force),
 		safe,
 		runStep,
+		skipStep,
 	};
 
 	await runFixPipeline(pipelineDeps, safe);
@@ -216,7 +259,7 @@ const runFixBody = async (
 		return finishDryRun({
 			rail,
 			steps,
-			projectInfo,
+			projectInfo: scopedProjectInfo,
 			config,
 			options,
 		});
@@ -237,11 +280,20 @@ const runFixBody = async (
 	const verificationResults = await runEngines(
 		{
 			rootDirectory: resolvedDir,
-			languages: projectInfo.languages,
+			languages: scopedProjectInfo.languages,
 			frameworks: projectInfo.frameworks,
 			excludePatterns: context.excludePatterns,
 			installedTools: context.installedTools,
 			config: engineConfig,
+			...(scope
+				? {
+						files: context.files,
+						testFiles: context.testFiles,
+						projectFiles: context.projectFiles,
+						dependencyAuditFiles: context.dependencyAuditFiles,
+						dependencyAuditScope: context.dependencyAuditScope,
+					}
+				: {}),
 		},
 		buildPostFixVerificationEngines(config.engines),
 		() => {},
@@ -258,7 +310,7 @@ const runFixBody = async (
 		allDiagnostics,
 		config.scoring.weights,
 		config.scoring.thresholds,
-		projectInfo.sourceFileCount,
+		scope ? scope.files.length + scope.testFiles.length : projectInfo.sourceFileCount,
 		config.scoring.smoothing,
 		config.scoring.maxPerRule,
 	);
@@ -284,12 +336,14 @@ const runFixBody = async (
 				`\n ${style(t, "success", `Resolved ${totalResolved} issue${totalResolved === 1 ? "" : "s"}`)} ${arrow} ${style(t, "success", `${scoreResult.score} / 100 ${scoreResult.label}`)}\n`,
 			);
 		}
-		const language = projectInfo.languages[0] ?? "unknown";
+		const language = scopedProjectInfo.languages[0] ?? "unknown";
 		process.stdout.write(
 			buildScanRender({
 				projectName,
 				language,
-				fileCount: projectInfo.sourceFileCount,
+				fileCount: scope
+					? scope.files.length + scope.testFiles.length
+					: projectInfo.sourceFileCount,
 				results: scanResults,
 				diagnostics: actionableDiagnostics,
 				score: scoreResult,
