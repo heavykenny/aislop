@@ -17,7 +17,6 @@ const uniqueFileCount = (diagnostics: Diagnostic[]): number =>
 	new Set(diagnostics.map((d) => d.filePath)).size;
 
 export interface RunFixStepOptions {
-	/** Detect only. Never invoke the mutating fixer. */
 	dryRun?: boolean;
 }
 
