@@ -42,7 +42,6 @@ interface FixOptions {
 	force?: boolean;
 	/** Restrict to reversible fixes only (imports, comment removal, safe formatter runs) */
 	safe?: boolean;
-	/** Detect and print the plan without invoking mutating fixers */
 	dryRun?: boolean;
 	/** Agent CLI to launch with remaining issues (e.g. "claude", "codex") */
 	agent?: string;
