@@ -126,8 +126,7 @@ const planFormatters = (
 	);
 	add(
 		"Formatting (cpp)",
-		projectInfo.languages.includes("cpp") &&
-			Boolean(projectInfo.installedTools["clang-format"]),
+		projectInfo.languages.includes("cpp") && Boolean(projectInfo.installedTools["clang-format"]),
 	);
 	return steps;
 };

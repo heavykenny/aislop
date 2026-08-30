@@ -1,4 +1,5 @@
 import { Box, Text } from "ink";
+import { useEffect, useState } from "react";
 import { computeCostUsd, resolvePricing } from "../../agents/pricing.js";
 import type { AgentSessionState } from "../../agents/session-state.js";
 import { fmtElapsed, fmtTokens } from "./format.js";
@@ -19,7 +20,21 @@ const scoreColor = (score: number | null, target: number): string => {
 	return "red";
 };
 
+// Reading the clock during render makes the component impure and, with nothing
+// driving a re-render, leaves elapsed stale until an unrelated update happens.
+const useElapsedSince = (startedAt: number): number => {
+	const [now, setNow] = useState(startedAt);
+	useEffect(() => {
+		const tick = () => setNow(Date.now());
+		tick();
+		const timer = setInterval(tick, 1000);
+		return () => clearInterval(timer);
+	}, []);
+	return Math.max(0, now - startedAt);
+};
+
 export const Sidebar = ({ state }: { state: AgentSessionState }) => {
+	const elapsed = useElapsedSince(state.startedAt);
 	const pricing = resolvePricing(state.provider, state.model);
 	const cost = state.usage?.costUsd ?? computeCostUsd(pricing, state.tokens);
 	// Context is the share of the model window the current turn occupies, so it
@@ -66,7 +81,7 @@ export const Sidebar = ({ state }: { state: AgentSessionState }) => {
 				/>
 				{hasUsage && cost != null ? <Row label="Cost" value={`$${cost.toFixed(2)}`} /> : null}
 				{hasUsage && ctx != null ? <Row label="Context" value={`${Math.round(ctx)}%`} /> : null}
-				<Row label="Elapsed" value={fmtElapsed(Date.now() - state.startedAt)} />
+				<Row label="Elapsed" value={fmtElapsed(elapsed)} />
 			</Box>
 		</Box>
 	);
