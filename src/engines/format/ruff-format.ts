@@ -47,10 +47,12 @@ const parseRuffFormatOutput = (output: string, rootDir: string): Diagnostic[] =>
 	return diagnostics;
 };
 
-export const fixRuffFormat = async (rootDirectory: string): Promise<void> => {
+export const fixRuffFormat = async (context: EngineContext): Promise<void> => {
+	const targets = context.files ? getPythonTargets(context) : [context.rootDirectory];
+	if (context.files && targets.length === 0) return;
 	const ruffBinary = resolveToolBinary("ruff");
-	const result = await runSubprocess(ruffBinary, ["format", rootDirectory], {
-		cwd: rootDirectory,
+	const result = await runSubprocess(ruffBinary, ["format", ...targets], {
+		cwd: context.rootDirectory,
 		timeout: 60000,
 	});
 	if (result.exitCode !== 0) {

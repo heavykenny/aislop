@@ -91,6 +91,9 @@ Use `--changes --base origin/<target>` to gate a pull request on only the files 
 | `-f, --force` | Run aggressive fixes: dependency audit, framework alignment, unused file removal |
 | `--safe` | Only apply reversible fixes |
 | `--dry-run` | Print planned fix steps, eligible findings, and skipped steps without writing files |
+| `--changes` | Only fix changed files (defaults to diffing `HEAD`) |
+| `--base <ref>` | Diff base for `--changes`, e.g. `origin/main` (default `HEAD`) |
+| `--staged` | Only fix staged files |
 | `-p, --prompt` | Print an agent-ready prompt for remaining issues |
 
 Agent handoff flags: `--claude`, `--codex`, `--cursor`, `--windsurf`, `--vscode`, `--amp`, `--antigravity`, `--deep-agents`, `--gemini`, `--kimi`, `--opencode`, `--warp`, `--aider`, `--goose`, `--pi`, `--crush`.

@@ -30,6 +30,11 @@ import type { discoverProject } from "../utils/discover.js";
 import { fixExpoDependencies } from "./fix-expo.js";
 import { fixDependencyAudit } from "./fix-force.js";
 import { hasJsOrTs } from "./fix-pipeline-language.js";
+import {
+	isPathInFixScope,
+	MISSING_MANIFEST_REASON,
+	scopeIncludesManifestWrites,
+} from "./fix-scope.js";
 import type { FixStepResult } from "./fix-steps.js";
 
 export { runFormattingStep } from "./fix-formatting-pipeline.js";
@@ -55,6 +60,7 @@ export interface PipelineDeps {
 	// Restrict to reversible fixes only (imports, comment removal, safe formatter runs).
 	safe: boolean;
 	runStep: RunStepFn;
+	skipStep?: (name: string, reason: string) => void;
 }
 
 export const runAiSlopSteps = async (deps: PipelineDeps): Promise<void> => {
@@ -128,7 +134,7 @@ export const runLintSteps = async (deps: PipelineDeps): Promise<void> => {
 		await deps.runStep(
 			"Lint fixes (python)",
 			() => runRuffLint(deps.context),
-			() => (deps.force ? fixRuffLintForce(deps.resolvedDir) : fixRuffLint(deps.resolvedDir)),
+			() => (deps.force ? fixRuffLintForce(deps.context) : fixRuffLint(deps.context)),
 		);
 	} else if (deps.projectInfo.languages.includes("python")) {
 		log.warn("Python detected but ruff is not installed; skipping Python lint fixes.");
@@ -138,16 +144,27 @@ export const runLintSteps = async (deps: PipelineDeps): Promise<void> => {
 		await deps.runStep(
 			"Lint fixes (ruby)",
 			() => runGenericLinter(deps.context, "ruby"),
-			() => fixRubyLint(deps.resolvedDir),
+			() => fixRubyLint(deps.context),
 		);
 	} else if (deps.projectInfo.languages.includes("ruby")) {
 		log.warn("Ruby detected but rubocop is not installed; skipping Ruby lint fixes.");
 	}
 };
 
+// Dependency work follows the project's languages, not the selection's: a scope holding
+// only package.json detects no source language but still needs the JS/TS fixers.
+const dependencyLanguages = (deps: PipelineDeps): ProjectInfo => ({
+	...deps.projectInfo,
+	languages: deps.context.dependencyAuditLanguages ?? deps.projectInfo.languages,
+});
+
 export const runDependencyStep = async (deps: PipelineDeps): Promise<void> => {
 	if (!deps.config.engines["code-quality"]) return;
-	if (!hasJsOrTs(deps.projectInfo)) return;
+	if (!hasJsOrTs(dependencyLanguages(deps))) return;
+	if (!scopeIncludesManifestWrites(deps.context)) {
+		deps.skipStep?.("Unused dependencies", MISSING_MANIFEST_REASON);
+		return;
+	}
 
 	await deps.runStep(
 		"Unused dependencies",
@@ -162,26 +179,40 @@ export const runForceSteps = async (deps: PipelineDeps): Promise<void> => {
 	if (deps.config.engines["code-quality"] && hasJsOrTs(deps.projectInfo)) {
 		await deps.runStep(
 			"Remove unused files",
-			() => runKnipUnusedFiles(deps.resolvedDir),
-			() => fixUnusedFiles(deps.resolvedDir),
+			async () => {
+				const diagnostics = await runKnipUnusedFiles(deps.resolvedDir);
+				return diagnostics.filter((diagnostic) =>
+					isPathInFixScope(deps.context, diagnostic.filePath),
+				);
+			},
+			() =>
+				fixUnusedFiles(deps.resolvedDir, (filePath) => isPathInFixScope(deps.context, filePath)),
 		);
 	}
 
 	const railUpdate = (label: string) => deps.rail.setActiveLabel(label);
 
 	if (deps.config.engines.security) {
-		await deps.runStep(
-			"Dependency audit fixes",
-			() => runDependencyAudit(deps.context),
-			() => fixDependencyAudit(deps.context, railUpdate),
-		);
+		if (!scopeIncludesManifestWrites(deps.context)) {
+			deps.skipStep?.("Dependency audit fixes", MISSING_MANIFEST_REASON);
+		} else {
+			await deps.runStep(
+				"Dependency audit fixes",
+				() => runDependencyAudit(deps.context),
+				() => fixDependencyAudit(deps.context, railUpdate),
+			);
+		}
 	}
 
 	if (deps.projectInfo.frameworks.includes("expo") && deps.config.lint.expoDoctor) {
-		await deps.runStep(
-			"Expo dependency alignment",
-			() => runExpoDoctor(deps.context),
-			() => fixExpoDependencies(deps.context, railUpdate),
-		);
+		if (!scopeIncludesManifestWrites(deps.context)) {
+			deps.skipStep?.("Expo dependency alignment", MISSING_MANIFEST_REASON);
+		} else {
+			await deps.runStep(
+				"Expo dependency alignment",
+				() => runExpoDoctor(deps.context),
+				() => fixExpoDependencies(deps.context, railUpdate),
+			);
+		}
 	}
 };

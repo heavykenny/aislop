@@ -11,6 +11,7 @@ import { fixRuffFormat, runRuffFormat } from "../engines/format/ruff-format.js";
 import { log } from "../ui/logger.js";
 import type { PipelineDeps } from "./fix-pipeline.js";
 import { hasJsOrTs } from "./fix-pipeline-language.js";
+import { CANNOT_SCOPE_REASON, isScopedFix } from "./fix-scope.js";
 
 const skipUnsafeSafeFormatter = (deps: PipelineDeps, language: "ruby" | "php"): boolean => {
 	if (!deps.safe) return false;
@@ -51,7 +52,7 @@ export const runFormattingStep = async (deps: PipelineDeps): Promise<void> => {
 		await deps.runStep(
 			"Formatting (python)",
 			() => runRuffFormat(deps.context),
-			() => fixRuffFormat(deps.resolvedDir),
+			() => fixRuffFormat(deps.context),
 		);
 	} else if (deps.projectInfo.languages.includes("python")) {
 		log.warn("Python detected but ruff is not installed; skipping Python formatting fixes.");
@@ -61,18 +62,22 @@ export const runFormattingStep = async (deps: PipelineDeps): Promise<void> => {
 		await deps.runStep(
 			"Formatting (go)",
 			() => runGofmt(deps.context),
-			() => fixGofmt(deps.resolvedDir),
+			() => fixGofmt(deps.context),
 		);
 	} else if (deps.projectInfo.languages.includes("go")) {
 		log.warn("Go detected but gofmt is not installed; skipping Go formatting fixes.");
 	}
 
 	if (deps.projectInfo.languages.includes("rust") && deps.projectInfo.installedTools.rustfmt) {
-		await deps.runStep(
-			"Formatting (rust)",
-			() => runGenericFormatter(deps.context, "rust"),
-			() => fixGenericFormatter(deps.resolvedDir, "rust"),
-		);
+		if (isScopedFix(deps.context)) {
+			deps.skipStep?.("Formatting (rust)", CANNOT_SCOPE_REASON);
+		} else {
+			await deps.runStep(
+				"Formatting (rust)",
+				() => runGenericFormatter(deps.context, "rust"),
+				() => fixGenericFormatter(deps.context, "rust"),
+			);
+		}
 	} else if (deps.projectInfo.languages.includes("rust")) {
 		log.warn("Rust detected but rustfmt is not installed; skipping Rust formatting fixes.");
 	}
@@ -82,7 +87,7 @@ export const runFormattingStep = async (deps: PipelineDeps): Promise<void> => {
 			await deps.runStep(
 				"Formatting (ruby)",
 				() => runGenericFormatter(deps.context, "ruby"),
-				() => fixGenericFormatter(deps.resolvedDir, "ruby"),
+				() => fixGenericFormatter(deps.context, "ruby"),
 			);
 		}
 	} else if (deps.projectInfo.languages.includes("ruby")) {
@@ -97,7 +102,7 @@ export const runFormattingStep = async (deps: PipelineDeps): Promise<void> => {
 			await deps.runStep(
 				"Formatting (php)",
 				() => runGenericFormatter(deps.context, "php"),
-				() => fixGenericFormatter(deps.resolvedDir, "php"),
+				() => fixGenericFormatter(deps.context, "php"),
 			);
 		}
 	} else if (deps.projectInfo.languages.includes("php")) {
@@ -113,6 +118,8 @@ const runNativeFormattingSteps = async (deps: PipelineDeps): Promise<void> => {
 			log.warn(
 				"Skipping C# formatting: set lint.csharp.projectEvaluation: true only for repositories you trust.",
 			);
+		} else if (isScopedFix(deps.context)) {
+			deps.skipStep?.("Formatting (csharp)", CANNOT_SCOPE_REASON);
 		} else if (!skipUnscopableCsharpFormatter(deps)) {
 			await deps.runStep(
 				"Formatting (csharp)",

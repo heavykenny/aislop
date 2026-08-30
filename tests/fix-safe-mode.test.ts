@@ -182,3 +182,59 @@ describe("fix --dry-run --safe", () => {
 		).toBe(statusBefore);
 	});
 });
+
+describe("fix --dry-run --changes", () => {
+	let root = "";
+
+	afterEach(() => {
+		if (root) fs.rmSync(root, { recursive: true, force: true });
+	});
+
+	it("previews only the selected change set and still writes nothing", async () => {
+		root = fs.mkdtempSync(path.join(os.tmpdir(), "aislop-fix-dry-run-changes-"));
+		git(root, ["init"]);
+		git(root, ["config", "user.email", "test@example.com"]);
+		git(root, ["config", "user.name", "test"]);
+		git(root, ["config", "commit.gpgsign", "false"]);
+		write(root, "untouched.ts", 'import { leftover } from "./missing";\nexport const value = 1;\n');
+		git(root, ["add", "."]);
+		git(root, ["commit", "-m", "base", "--no-verify"]);
+		const baseSha = execFileSync("git", ["rev-parse", "HEAD"], {
+			cwd: root,
+			encoding: "utf-8",
+		}).trim();
+		write(root, "changed.ts", 'import { leftover } from "./missing";\nexport const value = 1;\n');
+		git(root, ["add", "."]);
+		git(root, ["commit", "-m", "feat", "--no-verify"]);
+		const before = posixTree(root);
+
+		const config: AislopConfig = {
+			...DEFAULT_CONFIG,
+			engines: {
+				...DEFAULT_CONFIG.engines,
+				format: false,
+				lint: false,
+				"code-quality": false,
+				architecture: false,
+				security: false,
+				"ai-slop": true,
+			},
+			telemetry: { enabled: false },
+		};
+		const output = await captureStdout(() =>
+			fixCommand(root, config, {
+				verbose: false,
+				dryRun: true,
+				changes: true,
+				base: baseSha,
+				showHeader: true,
+			}),
+		);
+
+		expect(output).toContain("Fix plan");
+		expect(output).toContain("Scope");
+		expect(output).toContain("changed vs");
+		expect(output).toContain(NO_CHANGES_APPLIED);
+		expect(posixTree(root)).toEqual(before);
+	});
+});
