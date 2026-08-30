@@ -2,8 +2,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { spawnSync } from "node:child_process";
 import { createEngineContext } from "../src/commands/fix-context.js";
 import { scopeIncludesManifestWrites } from "../src/commands/fix-scope.js";
+import { collectScanFileScope } from "../src/commands/scan-file-scope.js";
 import { DEFAULT_CONFIG } from "../src/config/defaults.js";
 import type { EngineContext } from "../src/engines/types.js";
 
@@ -15,6 +17,7 @@ const contextFor = (files?: string[]): EngineContext =>
 		languages: ["typescript"],
 		frameworks: [],
 		files: files?.map((name) => path.join(tmpDir, name)),
+		dependencyAuditFiles: files?.map((name) => path.join(tmpDir, name)),
 		installedTools: {},
 		config: {
 			quality: { maxFunctionLoc: 80, maxFileLoc: 400, maxNesting: 5, maxParams: 6 },
@@ -87,5 +90,43 @@ describe("manifest-only scopes keep project languages for dependency work", () =
 
 		expect(context.languages).toEqual([]);
 		expect(context.dependencyAuditLanguages).toEqual(["typescript"]);
+	});
+});
+
+// The hand-built contexts above cannot catch a mismatch between the shape this gate reads
+// and the shape the collector actually produces, so drive one case through the real thing.
+describe("scopeIncludesManifestWrites against a real collected scope", () => {
+	const git = (...args: string[]): void => {
+		spawnSync("git", args, { cwd: tmpDir, encoding: "utf-8" });
+	};
+
+	it("passes when a changed manifest and lockfile are the whole change", () => {
+		git("init");
+		git("config", "user.email", "test@example.com");
+		git("config", "user.name", "test");
+		fs.writeFileSync(path.join(tmpDir, "pnpm-lock.yaml"), "packages:\n");
+		fs.mkdirSync(path.join(tmpDir, "src"));
+		fs.writeFileSync(path.join(tmpDir, "src", "a.ts"), "export const a = 1;\n");
+		git("add", "-A");
+		git("commit", "-m", "init", "--no-verify");
+		fs.writeFileSync(path.join(tmpDir, "package.json"), '{"name":"x"}');
+		fs.writeFileSync(path.join(tmpDir, "pnpm-lock.yaml"), "packages:\n  x: 1\n");
+
+		const scope = collectScanFileScope({
+			excludePatterns: [],
+			includePatterns: [],
+			mode: { kind: "changes" },
+			rootDirectory: tmpDir,
+		});
+		const context = createEngineContext(
+			tmpDir,
+			{ languages: ["typescript"], frameworks: [], installedTools: {} } as unknown as Parameters<
+				typeof createEngineContext
+			>[1],
+			DEFAULT_CONFIG,
+			{ scope },
+		);
+
+		expect(scopeIncludesManifestWrites(context)).toBe(true);
 	});
 });
