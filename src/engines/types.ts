@@ -10,6 +10,8 @@ export type EngineName =
 	| "architecture"
 	| "security";
 
+export type ChangeContext = "changed-line" | "existing-file-context" | "unknown";
+
 export interface Diagnostic {
 	filePath: string;
 	engine: EngineName;
@@ -22,6 +24,7 @@ export interface Diagnostic {
 	category: string;
 	fixable: boolean;
 	detail?: string;
+	changeContext?: ChangeContext;
 }
 
 export interface EngineResult {
