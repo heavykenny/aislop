@@ -118,6 +118,17 @@ const planFormatters = (
 		projectInfo.languages.includes("php") && Boolean(projectInfo.installedTools["php-cs-fixer"]),
 		safe ? SKIPPED_BY_SAFE : undefined,
 	);
+	add(
+		"Formatting (csharp)",
+		projectInfo.languages.includes("csharp") &&
+			Boolean(projectInfo.installedTools.dotnet) &&
+			config.lint?.csharp?.projectEvaluation === true,
+	);
+	add(
+		"Formatting (cpp)",
+		projectInfo.languages.includes("cpp") &&
+			Boolean(projectInfo.installedTools["clang-format"]),
+	);
 	return steps;
 };
 
