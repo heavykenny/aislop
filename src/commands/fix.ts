@@ -106,6 +106,13 @@ export const fixCommand = async (
 		});
 	}
 
+	if (options.dryRun && (options.agent || options.prompt)) {
+		return withCommandLifecycle({ command: "fix", config: config.telemetry }, async () => {
+			log.error("--dry-run cannot be combined with an agent handoff or --prompt.");
+			return { exitCode: 1 };
+		});
+	}
+
 	const scopeError = fixScopeError(resolvedDir, options);
 	if (scopeError) {
 		return withCommandLifecycle({ command: "fix", config: config.telemetry }, async () => {
@@ -220,7 +227,8 @@ const runFixBody = async (
 		);
 	}
 	const steps: FixStepResult[] = [];
-	const rail = new LiveRail(process.env.CI === "1" ? { tty: false } : {});
+	const isCi = process.env.CI === "true" || process.env.CI === "1";
+	const rail = new LiveRail(isCi ? { tty: false } : {});
 
 	const runStep = async (
 		name: string,
@@ -310,7 +318,7 @@ const runFixBody = async (
 		allDiagnostics,
 		config.scoring.weights,
 		config.scoring.thresholds,
-		scope ? scope.files.length + scope.testFiles.length : projectInfo.sourceFileCount,
+		scope ? scope.scoreFileCount : projectInfo.sourceFileCount,
 		config.scoring.smoothing,
 		config.scoring.maxPerRule,
 	);

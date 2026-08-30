@@ -169,6 +169,26 @@ describe("changed-line hunk classification", () => {
 		).toBe("changed-line");
 	});
 
+	it("does not treat added content that looks like a header as a new file", () => {
+		// With -U0 an added line is written "+<content>", so content starting with "++ "
+		// reproduces a "+++ " header and used to hijack the current file.
+		const diff = [
+			"diff --git a/src/real.ts b/src/real.ts",
+			"--- a/src/real.ts",
+			"+++ b/src/real.ts",
+			"@@ -1,0 +2,2 @@",
+			"++ not a header, just content",
+			"+++ b/src/phantom.ts",
+			"@@ -10,0 +11,1 @@",
+			"+const after = 1;",
+		].join("\n");
+
+		const map = parseUnifiedDiffHunks(diff);
+
+		expect(map.has("src/phantom.ts")).toBe(false);
+		expect(map.get("src/real.ts")?.kind).toBe("hunks");
+	});
+
 	it("parses hunks when the user has git colour forced on", () => {
 		// color.ui=always puts ANSI escapes ahead of the +++ and @@ markers, which hides
 		// every file and range from the hunk parser.
