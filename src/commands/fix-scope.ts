@@ -1,6 +1,7 @@
+import fs from "node:fs";
+import path from "node:path";
 import type { EngineContext } from "../engines/types.js";
 import { projectRelativePosix } from "../utils/paths.js";
-import { isDependencyAuditInputFile } from "../utils/source-file-selection.js";
 import { collectScanFileScope, type ScanFileScope } from "./scan-file-scope.js";
 import { resolveScanScopeMode, type ScanOptions } from "./scan-options.js";
 import { scanTargetError } from "./scan-validation.js";
@@ -53,11 +54,26 @@ export const collectFixFileScope = (
 
 export const isScopedFix = (context: EngineContext): boolean => context.files !== undefined;
 
-export const scopeIncludesDependencyManifest = (context: EngineContext): boolean => {
+// Every dependency fixer rewrites package.json, and npm/pnpm/expo also rewrite the
+// lockfile. A scope holding only one of them would let a fix touch the other.
+const WRITTEN_LOCKFILES = [
+	"package-lock.json",
+	"pnpm-lock.yaml",
+	"yarn.lock",
+	"bun.lock",
+	"bun.lockb",
+];
+
+export const scopeIncludesManifestWrites = (context: EngineContext): boolean => {
 	if (!isScopedFix(context)) return true;
-	const files = context.dependencyAuditFiles ?? context.files ?? [];
-	return files.some((filePath) =>
-		isDependencyAuditInputFile(projectRelativePosix(context.rootDirectory, filePath)),
+	const selected = new Set(
+		(context.files ?? []).map((candidate) =>
+			projectRelativePosix(context.rootDirectory, candidate),
+		),
+	);
+	if (!selected.has("package.json")) return false;
+	return WRITTEN_LOCKFILES.every(
+		(name) => !fs.existsSync(path.join(context.rootDirectory, name)) || selected.has(name),
 	);
 };
 

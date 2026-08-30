@@ -33,7 +33,7 @@ import { hasJsOrTs } from "./fix-pipeline-language.js";
 import {
 	isPathInFixScope,
 	MISSING_MANIFEST_REASON,
-	scopeIncludesDependencyManifest,
+	scopeIncludesManifestWrites,
 } from "./fix-scope.js";
 import type { FixStepResult } from "./fix-steps.js";
 
@@ -151,10 +151,17 @@ export const runLintSteps = async (deps: PipelineDeps): Promise<void> => {
 	}
 };
 
+// Dependency work follows the project's languages, not the selection's: a scope holding
+// only package.json detects no source language but still needs the JS/TS fixers.
+const dependencyLanguages = (deps: PipelineDeps): ProjectInfo => ({
+	...deps.projectInfo,
+	languages: deps.context.dependencyAuditLanguages ?? deps.projectInfo.languages,
+});
+
 export const runDependencyStep = async (deps: PipelineDeps): Promise<void> => {
 	if (!deps.config.engines["code-quality"]) return;
-	if (!hasJsOrTs(deps.projectInfo)) return;
-	if (!scopeIncludesDependencyManifest(deps.context)) {
+	if (!hasJsOrTs(dependencyLanguages(deps))) return;
+	if (!scopeIncludesManifestWrites(deps.context)) {
 		deps.skipStep?.("Unused dependencies", MISSING_MANIFEST_REASON);
 		return;
 	}
@@ -186,7 +193,7 @@ export const runForceSteps = async (deps: PipelineDeps): Promise<void> => {
 	const railUpdate = (label: string) => deps.rail.setActiveLabel(label);
 
 	if (deps.config.engines.security) {
-		if (!scopeIncludesDependencyManifest(deps.context)) {
+		if (!scopeIncludesManifestWrites(deps.context)) {
 			deps.skipStep?.("Dependency audit fixes", MISSING_MANIFEST_REASON);
 		} else {
 			await deps.runStep(
@@ -198,7 +205,7 @@ export const runForceSteps = async (deps: PipelineDeps): Promise<void> => {
 	}
 
 	if (deps.projectInfo.frameworks.includes("expo") && deps.config.lint.expoDoctor) {
-		if (!scopeIncludesDependencyManifest(deps.context)) {
+		if (!scopeIncludesManifestWrites(deps.context)) {
 			deps.skipStep?.("Expo dependency alignment", MISSING_MANIFEST_REASON);
 		} else {
 			await deps.runStep(

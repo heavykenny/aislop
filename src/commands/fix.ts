@@ -204,6 +204,7 @@ const runFixBody = async (
 	const context = createEngineContext(resolvedDir, scopedProjectInfo, config, {
 		safe,
 		scope: scope ?? undefined,
+		dependencyAuditLanguages: projectInfo.languages,
 	});
 	if (scope) {
 		process.stdout.write(
