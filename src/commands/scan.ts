@@ -11,7 +11,9 @@ import { type EngineCounts, withCommandLifecycle } from "../telemetry/index.js";
 import { renderDisplayRows } from "../ui/display.js";
 import { renderHeader } from "../ui/header.js";
 import { log } from "../ui/logger.js";
+import { applyChangeContext } from "../utils/change-context.js";
 import { detectSourceLanguages, discoverProject, type Language } from "../utils/discover.js";
+import { getChangedLineMap } from "../utils/git.js";
 import { readAislopIgnorePatterns } from "../utils/source-files.js";
 import { applySuppressions } from "../utils/suppress.js";
 import { APP_VERSION } from "../version.js";
@@ -165,10 +167,22 @@ const runScanBody = async (
 		...result,
 		diagnostics: applyRuleSeverities(result.diagnostics, config.rules),
 	}));
-	const { results, suppressedCount } = applySuppressions(severityAdjusted, resolvedDir);
+	const { results: unannotated, suppressedCount } = applySuppressions(
+		severityAdjusted,
+		resolvedDir,
+	);
 	if (suppressedCount > 0 && !machineOutput) {
 		log.muted(`Suppressed ${suppressedCount} finding(s) via aislop-ignore directives`);
 	}
+
+	const classifyChanges = options.changes && !options.staged;
+	const changeMap = classifyChanges ? getChangedLineMap(resolvedDir, options.base) : null;
+	const results = changeMap
+		? unannotated.map((result) => ({
+				...result,
+				diagnostics: applyChangeContext(result.diagnostics, changeMap, resolvedDir),
+			}))
+		: unannotated;
 
 	const allDiagnostics = results.flatMap((r) => r.diagnostics);
 	const elapsedMs = performance.now() - startTime;
