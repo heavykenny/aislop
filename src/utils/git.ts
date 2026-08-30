@@ -17,7 +17,7 @@ export const baseRefExists = (cwd: string, ref: string): boolean => {
 
 export const getChangedFiles = (cwd: string, base?: string): string[] => {
 	const baseRef = base ?? "HEAD";
-	const diff = spawnSync("git", ["diff", "--name-only", "--diff-filter=ACMR", baseRef], {
+	const diff = spawnSync("git", ["diff", "--no-color", "--name-only", "--diff-filter=ACMR", baseRef], {
 		cwd,
 		encoding: "utf-8",
 		maxBuffer: MAX_BUFFER,
@@ -44,7 +44,7 @@ export const getChangedFiles = (cwd: string, base?: string): string[] => {
 };
 
 export const getStagedFiles = (cwd: string): string[] => {
-	const result = spawnSync("git", ["diff", "--cached", "--name-only", "--diff-filter=ACMR"], {
+	const result = spawnSync("git", ["diff", "--no-color", "--cached", "--name-only", "--diff-filter=ACMR"], {
 		cwd,
 		encoding: "utf-8",
 		maxBuffer: MAX_BUFFER,
@@ -68,7 +68,7 @@ const listUntrackedFiles = (cwd: string): string[] => {
 
 export const getChangedLineMap = (cwd: string, base?: string): Map<string, ChangedLines> => {
 	const baseRef = base ?? "HEAD";
-	const diff = spawnSync("git", ["diff", "-U0", "--diff-filter=ACMR", baseRef], {
+	const diff = spawnSync("git", ["diff", "--no-color", "-U0", "--diff-filter=ACMR", baseRef], {
 		cwd,
 		encoding: "utf-8",
 		maxBuffer: MAX_BUFFER,

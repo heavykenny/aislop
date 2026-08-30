@@ -169,6 +169,30 @@ describe("changed-line hunk classification", () => {
 		).toBe("changed-line");
 	});
 
+	it("parses hunks when the user has git colour forced on", () => {
+		// color.ui=always puts ANSI escapes ahead of the +++ and @@ markers, which hides
+		// every file and range from the hunk parser.
+		const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "aislop-git-color-"));
+		try {
+			git(tmpDir, ["init"]);
+			git(tmpDir, ["config", "user.email", "test@example.com"]);
+			git(tmpDir, ["config", "user.name", "test"]);
+			git(tmpDir, ["config", "commit.gpgsign", "false"]);
+			git(tmpDir, ["config", "color.ui", "always"]);
+			git(tmpDir, ["config", "color.diff", "always"]);
+			write(tmpDir, "app.ts", "export const a = 1;\nexport const b = 2;\n");
+			git(tmpDir, ["add", "app.ts"]);
+			git(tmpDir, ["commit", "-m", "init", "--no-verify"]);
+			write(tmpDir, "app.ts", "export const a = 1;\nexport const b = 3;\n");
+
+			const map = getChangedLineMap(tmpDir);
+
+			expect(map.get("app.ts")?.kind).toBe("hunks");
+		} finally {
+			fs.rmSync(tmpDir, { recursive: true, force: true });
+		}
+	});
+
 	it("maps renamed files to the new path and treats untracked files as whole-file changes", () => {
 		const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "aislop-git-hunks-"));
 		try {
