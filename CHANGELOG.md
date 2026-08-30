@@ -6,6 +6,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## Unreleased
 
+## 0.16.0 (2026-08-30)
+
+Scoping release. `fix` and `scan` can now be pointed at what changed rather than the whole tree, and `fix` can show what it would do before it does it.
+
+### Added
+
+- **`aislop fix --dry-run`.** Prints the planned fix steps, including the ones that will be skipped and why, without writing anything.
+- **`aislop fix --changes`, `--staged`, and `--base <ref>`.** Restricts fixes to changed or staged files, matching the flags `scan` already accepted. `--base` sets the diff base, defaulting to `HEAD`.
+- **Changed-line context on findings.** Diagnostics are classified as changed-line or existing-file context, so a scoped run separates what a change introduced from what it merely sits next to. Surfaced in terminal, JSON, and SARIF output.
+
+### Fixed
+
+- **Dependency fixes stay inside the selected scope.** A scope holding a lockfile and a source file, but not `package.json`, previously still ran the unused-dependency fixer, which always rewrites `package.json`. Fixes can no longer touch a file outside the selection. The force audit and Expo alignment steps shared the same gap.
+- **Dependency-only scopes work.** Selecting just a manifest detected no source language, so every dependency fixer skipped a scope that explicitly asked for it.
+- **`--dry-run` no longer deletes a same-named file.** The dotnet format report was written into the project root and removed on every run, destroying a user-owned `.aislop-dotnet-format.json`. It now lives outside the tree, which fixes the non-preview path too.
+- **C# and C/C++ formatters appear in the dry-run plan** instead of being omitted from the skipped-step list.
+- **Changed-line detection survives forced git colour.** With `color.ui=always`, `git diff` emitted ANSI escapes ahead of the hunk markers, so every diagnostic silently fell back to unknown context.
+
+### Internal
+
+- Dependency bumps: `@biomejs/biome` 2.5.10, `vitest` 4.1.11, `@types/node` 26.4.0, `expo-doctor` 1.20.3, `github/codeql-action` 4.37.9.
+
 ## 0.15.0 (2026-08-26)
 
 Calibration release. Scores now describe how code is written rather than how much of it there is, and three rules that fired on ordinary hand-written code have been corrected. **Every score moves in this release**, most of them upward. Badges, CI gates, and stored scans will all shift; if you gate CI on a threshold, re-baseline after upgrading.
