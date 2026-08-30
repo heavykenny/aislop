@@ -66,8 +66,10 @@ const WRITTEN_LOCKFILES = [
 
 export const scopeIncludesManifestWrites = (context: EngineContext): boolean => {
 	if (!isScopedFix(context)) return true;
+	// Manifests and lockfiles are collected separately: context.files holds only source
+	// extensions, so package.json is never in it and reading it here always says no.
 	const selected = new Set(
-		(context.files ?? []).map((candidate) =>
+		(context.dependencyAuditFiles ?? []).map((candidate) =>
 			projectRelativePosix(context.rootDirectory, candidate),
 		),
 	);
