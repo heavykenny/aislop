@@ -81,6 +81,34 @@ describe("ci --changes --base", () => {
 		const parsed = JSON.parse(res.stdout) as { error?: string };
 		expect(parsed.error).toMatch(/does-not-exist/);
 	});
+
+	it("classifies new-line findings vs existing-file context without hiding either", () => {
+		write(tmpDir, "tainted.ts", `${SECRET}export const extra = 1 as any;\n`);
+		git(tmpDir, ["add", "."]);
+		git(tmpDir, ["commit", "-m", "edit", "--no-verify"]);
+		const scoped = runCli(["scan", tmpDir, "--changes", "--base", baseSha, "--json"]);
+		const parsed = JSON.parse(scoped.stdout) as {
+			diagnostics?: Array<{ rule: string; line: number; changeContext?: string }>;
+		};
+		const byRule = new Map((parsed.diagnostics ?? []).map((d) => [d.rule, d]));
+		expect(byRule.get("security/hardcoded-secret")?.changeContext).toBe("existing-file-context");
+		expect(byRule.get("ai-slop/unsafe-type-assertion")?.changeContext).toBe("changed-line");
+	});
+
+	it("does not classify full scans or staged scans", () => {
+		write(tmpDir, "clean.ts", `${CLEAN}export const extra = 1 as any;\n`);
+		git(tmpDir, ["add", "clean.ts"]);
+		const full = runCli(["scan", tmpDir, "--json"]);
+		const staged = runCli(["scan", tmpDir, "--staged", "--json"]);
+		const fullDiag = (
+			JSON.parse(full.stdout) as { diagnostics?: Array<{ changeContext?: string }> }
+		).diagnostics?.[0];
+		const stagedDiag = (
+			JSON.parse(staged.stdout) as { diagnostics?: Array<{ changeContext?: string }> }
+		).diagnostics?.[0];
+		expect(fullDiag?.changeContext).toBeUndefined();
+		expect(stagedDiag?.changeContext).toBeUndefined();
+	});
 });
 
 const UNUSED_IMPORT = 'import { leftover } from "./missing";\nexport const value = 1;\n';

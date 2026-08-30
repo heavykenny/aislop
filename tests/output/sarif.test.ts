@@ -62,6 +62,20 @@ describe("buildSarifLog", () => {
 		expect(log.runs[0]?.results[2]?.ruleIndex).toBe(1);
 	});
 
+	it("exposes changeContext on result properties when classified", () => {
+		const log = buildSarifLog([
+			createResult([createDiagnostic({ changeContext: "existing-file-context" })]),
+		]);
+		expect(log.runs[0]?.results[0]?.properties).toEqual({
+			changeContext: "existing-file-context",
+		});
+	});
+
+	it("omits result properties when changeContext is absent", () => {
+		const log = buildSarifLog([createResult([createDiagnostic()])]);
+		expect(log.runs[0]?.results[0]?.properties).toBeUndefined();
+	});
+
 	it("emits a 1-based physical location", () => {
 		const log = buildSarifLog([
 			createResult([createDiagnostic({ filePath: "src/a/b.ts", line: 0, column: 0 })]),

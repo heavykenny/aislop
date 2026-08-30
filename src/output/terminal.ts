@@ -1,8 +1,9 @@
-import type { Diagnostic, EngineResult } from "../engines/types.js";
+import type { ChangeContext, Diagnostic, EngineResult } from "../engines/types.js";
 import { highlightAislop } from "../ui/brand.js";
 import { log } from "../ui/logger.js";
 import { symbols } from "../ui/symbols.js";
 import { style, theme } from "../ui/theme.js";
+import { changeContextOrder } from "../utils/change-context.js";
 import { getEngineLabel } from "./engine-info.js";
 
 const groupBy = <T>(items: T[], key: (item: T) => string): Map<string, T[]> => {
@@ -146,8 +147,13 @@ const renderHiddenFooter = (
 	lines.push("");
 };
 
-export const renderDiagnostics = (diagnostics: Diagnostic[], verbose: boolean): string => {
-	const lines: string[] = [];
+const CHANGE_CONTEXT_HEADING: Record<ChangeContext, string> = {
+	"changed-line": "Changed lines",
+	"existing-file-context": "Existing file context",
+	unknown: "Unclassified",
+};
+
+const renderEngineGroups = (diagnostics: Diagnostic[], verbose: boolean, lines: string[]): void => {
 	const byEngine = groupBy(diagnostics, (d) => d.engine);
 
 	for (const [engine, engineDiags] of byEngine) {
@@ -175,6 +181,34 @@ export const renderDiagnostics = (diagnostics: Diagnostic[], verbose: boolean): 
 		}
 
 		if (sorted.length > maxRules) renderHiddenFooter(sorted, maxRules, lines);
+	}
+};
+
+export const renderDiagnostics = (diagnostics: Diagnostic[], verbose: boolean): string => {
+	const lines: string[] = [];
+	const classified = diagnostics.some((diagnostic) => diagnostic.changeContext);
+	if (!classified) {
+		renderEngineGroups(diagnostics, verbose, lines);
+		return `${lines.join("\n")}\n`;
+	}
+
+	const partitions = new Map<ChangeContext, Diagnostic[]>();
+	for (const diagnostic of [...diagnostics].sort(
+		(left, right) =>
+			changeContextOrder(left.changeContext) - changeContextOrder(right.changeContext),
+	)) {
+		const key = diagnostic.changeContext ?? "unknown";
+		const group = partitions.get(key) ?? [];
+		group.push(diagnostic);
+		partitions.set(key, group);
+	}
+
+	const order: ChangeContext[] = ["changed-line", "existing-file-context", "unknown"];
+	for (const key of order) {
+		const group = partitions.get(key);
+		if (!group || group.length === 0) continue;
+		lines.push(`  ${style(theme, "section", CHANGE_CONTEXT_HEADING[key])}`);
+		renderEngineGroups(group, verbose, lines);
 	}
 
 	return `${lines.join("\n")}\n`;
