@@ -22,17 +22,27 @@ const parseHunkRange = (
 	return { start, end: start + count - 1 };
 };
 
+// git writes "+++ a/path", "+++ b/path" or "+++ /dev/null"; a bare "+++ " is content.
+const FILE_HEADER_RE = /^\+\+\+ (?:[ab]\/|\/dev\/null$)/;
+
 export const parseUnifiedDiffHunks = (diff: string): Map<string, ChangedLines> => {
 	const byFile = new Map<string, { start: number; end: number }[]>();
 	let current: string | null = null;
 
+	// Inside a hunk body an added line is written "+<content>", so content beginning with
+	// "++ " reproduces a "+++ " header. Only trust the header before the first hunk.
+	let inHunkBody = false;
+
 	for (const raw of diff.split(/\r?\n/)) {
+		if (raw.startsWith("diff --git ") || raw.startsWith("rename to ")) {
+			inHunkBody = false;
+		}
 		if (raw.startsWith("rename to ")) {
 			current = toPosix(raw.slice("rename to ".length).trim());
 			if (current && !byFile.has(current)) byFile.set(current, []);
 			continue;
 		}
-		if (raw.startsWith("+++ ")) {
+		if (!inHunkBody && FILE_HEADER_RE.test(raw)) {
 			const name = stripDiffPrefix(raw.slice(4).trim());
 			current = name === "/dev/null" ? null : toPosix(name);
 			if (current && !byFile.has(current)) byFile.set(current, []);
@@ -40,7 +50,10 @@ export const parseUnifiedDiffHunks = (diff: string): Map<string, ChangedLines> =
 		}
 		if (!current) continue;
 		const match = HUNK_RE.exec(raw);
-		if (!match) continue;
+		if (!match) {
+			continue;
+		}
+		inHunkBody = true;
 		const range = parseHunkRange(match[3], match[4]);
 		if (!range) continue;
 		const ranges = byFile.get(current);

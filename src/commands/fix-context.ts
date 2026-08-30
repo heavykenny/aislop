@@ -27,7 +27,9 @@ export const createEngineContext = (
 	config: { quality: config.quality, security: config.security, lint: config.lint },
 	...(options.scope
 		? {
-				files: [...new Set([...options.scope.files, ...options.scope.testFiles])],
+				// Kept apart the way scan does it: merging them made scoped fixers rewrite test
+				// files that an unscoped fix never touches.
+				files: options.scope.files,
 				testFiles: options.scope.testFiles,
 				projectFiles: options.scope.projectFiles,
 				dependencyAuditFiles: options.scope.dependencyAuditFiles,
