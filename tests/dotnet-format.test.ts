@@ -105,6 +105,22 @@ describe("runDotnetFormat restore-evidence gating", () => {
 		fs.rmSync(tmpDir, { recursive: true, force: true });
 	});
 
+	it("leaves a user file named like the report alone", async () => {
+		// The report used to be written into the project root and deleted on every path,
+		// so a file a user happened to own at that name was destroyed by a scan.
+		const warmDir = path.join(tmpDir, "Warm");
+		fs.mkdirSync(path.join(warmDir, "obj"), { recursive: true });
+		fs.writeFileSync(path.join(warmDir, "Warm.csproj"), "");
+		fs.writeFileSync(path.join(warmDir, "obj", "project.assets.json"), "{}");
+		const userFile = path.join(tmpDir, ".aislop-dotnet-format.json");
+		fs.writeFileSync(userFile, '{"mine":true}');
+
+		await runDotnetFormat(formatContext(tmpDir));
+
+		expect(fs.existsSync(userFile)).toBe(true);
+		expect(fs.readFileSync(userFile, "utf-8")).toBe('{"mine":true}');
+	});
+
 	it("formats only projects with restore evidence, silently skipping cold ones", async () => {
 		const warmDir = path.join(tmpDir, "Warm");
 		fs.mkdirSync(path.join(warmDir, "obj"), { recursive: true });
