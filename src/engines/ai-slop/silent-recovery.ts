@@ -111,6 +111,19 @@ const PY_EXCEPT_BINDING_RE = /\bas\s+(\w+)\s*:/;
 const PY_LOG_STATEMENT_RE =
 	/^(?:logging|logger|log|self\.log|self\.logger|print)(?:\.(?:debug|info|warning|warn|error|exception|critical))?\s*\(/;
 const PY_HANDLING_TOKEN_RE = /^(?:raise\b|return\b|continue\b|break\b|self\.|[\w.]+\s*=)/;
+// `logging.Logger.exception(...)` defaults to attaching the currently-handled
+// exception's traceback (it is `.error(..., exc_info=True)`), and `exc_info=True` on any
+// logging call does the same explicitly. Either one means the failure cause is
+// captured even though no `except ... as <name>` identifier appears in the log call.
+const PY_LOG_CAPTURES_EXCEPTION_RE = /\.exception\s*\(|\bexc_info\s*=\s*True\b/;
+// `.exception(..., exc_info=False)` forwards that value to `Logger.error` and drops the
+// traceback, so the literal spelling on the same line cancels the exemption. Only the
+// literal `False` is recognized; an `exc_info` set to anything else stays exempt rather
+// than guessed at.
+const PY_EXC_INFO_DISABLED_RE = /\bexc_info\s*=\s*False\b/;
+
+const pyLogLineCapturesException = (line: string): boolean =>
+	PY_LOG_CAPTURES_EXCEPTION_RE.test(line) && !PY_EXC_INFO_DISABLED_RE.test(line);
 
 const detectPySilentRecovery = (content: string, relPath: string): Diagnostic[] => {
 	const out: Diagnostic[] = [];
@@ -140,6 +153,7 @@ const detectPySilentRecovery = (content: string, relPath: string): Diagnostic[] 
 		);
 		const sawLog = bodyLines.some((line) => PY_LOG_STATEMENT_RE.test(line));
 		if (!allLogs || !sawLog) continue;
+		if (bodyLines.some(pyLogLineCapturesException)) continue;
 		if (!recoveryDropsError(PY_EXCEPT_BINDING_RE.exec(lines[i])?.[1], bodyLines.join(" ")))
 			continue;
 

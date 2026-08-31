@@ -198,7 +198,7 @@ The rules that make aislop unique. These catch the patterns AI assistants leave 
 | `ai-slop/trivial-comment` | warning | Comments restating the code (`// Import React`, `// Return the value`) |
 | `ai-slop/narrative-comment` | warning | Decorative separators, phase/section headers, JSDoc preambles without meaningful tags (caught on top-level *and* interface/type members), cross-reference commentary, and longer prose blocks that carry an AI-narration signal (a restatement opener or step-by-step narration). Length alone is not flagged. |
 | `ai-slop/swallowed-exception` | error | Empty catch blocks, catch blocks that only log (JS/TS/Python/Go/Ruby/Java/C#) |
-| `ai-slop/silent-recovery` | warning | Catch blocks that log without including the caught error and then continue |
+| `ai-slop/silent-recovery` | warning | Catch blocks that log without including the caught error and then continue; Python logging calls that attach the traceback are exempt (see notes below the table) |
 | `ai-slop/meta-comment` | warning | Comments about implementation phases, agent behavior, or generated-code process instead of the code itself |
 | `ai-slop/hidden-fallback` | warning | JS/TS fallback logic that turns missing counts, failed diagnostics, or impossible states into safe-looking values without surfacing the missing input or failure |
 | `ai-slop/redundant-try-catch` | warning | JS/TS catch blocks that only rethrow the same error without adding context, cleanup, or recovery |
@@ -279,6 +279,15 @@ its line, making the string a bare expression statement - PEP 257
 first-statement docstrings, attribute docstrings, and block-comment strings,
 including the single-line form. An assigned or call-wrapped triple-quoted
 value is a runtime value and stays scanned.
+
+**`ai-slop/silent-recovery` and Python traceback-attaching logs.** A Python
+except-block is exempt when a log line calls `logger.exception(...)` or passes
+`exc_info=True`, since both attach the currently-handled exception's traceback
+even though no bound exception name appears in the call. The exemption is
+cancelled when that same line spells the literal `exc_info=False`, which
+Python forwards to `Logger.error`, omitting the traceback. Any other
+`exc_info` value (a variable, an expression) stays exempt rather than guessed
+at, since deciding its value would mean evaluating Python.
 
 ## Security
 
