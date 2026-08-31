@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { Command } from "commander";
+import { Command, Option } from "commander";
 import { registerAgentCommand } from "./cli/agent-command.js";
 import { registerHookAliases, registerHookCommand } from "./cli/hook-command.js";
 import { registerExtraCommands } from "./cli-extra-commands.js";
@@ -128,6 +128,10 @@ const fixProgram = program
 		"--safe",
 		"only apply reversible fixes (imports, comment removal, safe formatters); skip anything that deletes code, rewrites behaviour, or runs unsafe formatter configs",
 	)
+	.option("--dry-run", "print planned fix steps without writing files")
+	.addOption(new Option("--changes", "only fix changed files (git diff)").conflicts("staged"))
+	.addOption(new Option("--staged", "only fix staged files").conflicts("changes"))
+	.option("--base <ref>", "diff base for --changes, e.g. origin/main (default HEAD)")
 	.option("-p, --prompt", "print a prompt for your coding agent to fix remaining issues");
 
 for (const a of FIX_AGENT_FLAGS) fixProgram.option(`--${a.flag}`, a.help);
@@ -138,6 +142,10 @@ fixProgram.action(async (directory = ".", _flags, command) => {
 		verbose: Boolean(flags.verbose),
 		force: Boolean(flags.force),
 		safe: Boolean(flags.safe),
+		dryRun: Boolean(flags.dryRun),
+		changes: Boolean(flags.changes),
+		staged: Boolean(flags.staged),
+		base: typeof flags.base === "string" ? flags.base : undefined,
 		prompt: Boolean(flags.prompt),
 		agent: matchFixAgent(flags),
 	});

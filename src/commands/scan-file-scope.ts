@@ -20,7 +20,7 @@ interface ScanFileScopeRequest {
 	readonly rootDirectory: string;
 }
 
-interface ScanFileScope {
+export interface ScanFileScope {
 	readonly dependencyAuditFiles: string[];
 	readonly dependencyAuditScope: "files" | "full";
 	readonly files: string[];

@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import micromatch from "micromatch";
 import { normalizeExcludePatterns } from "../../utils/exclude.js";
@@ -68,7 +69,16 @@ export const parseDotnetFormatReport = (json: string, rootDirectory: string): Di
 	return diagnostics;
 };
 
-const reportPathFor = (rootDirectory: string): string => path.join(rootDirectory, REPORT_FILENAME);
+// The report is scratch state, so it lives outside the tree. Writing it into the
+// project meant an unconditional delete of that path, destroying a same-named user file.
+const withReportPath = async <T>(run: (reportPath: string) => Promise<T>): Promise<T> => {
+	const dir = fs.mkdtempSync(path.join(os.tmpdir(), "aislop-dotnet-format-"));
+	try {
+		return await run(path.join(dir, REPORT_FILENAME));
+	} finally {
+		fs.rmSync(dir, { recursive: true, force: true });
+	}
+};
 
 // Syntax micromatch accepts that Microsoft.Extensions.FileSystemGlobbing does
 // not: character classes, extglobs, negation, and escapes have no equivalent,
@@ -118,37 +128,35 @@ const excludeOption = (scope: DotnetFormatExcludeScope): string[] =>
 // the check to the same excludes the fixer honors keeps a step's before/after
 // counts consistent; a pattern dotnet format cannot express is left to
 // filterExcludedDiagnostics, which reads nothing but the reported paths.
-const checkTarget = async (context: EngineContext, target: string): Promise<Diagnostic[]> => {
-	const reportPath = reportPathFor(context.rootDirectory);
-	const scope = buildDotnetFormatExcludeScope(context.excludePatterns);
-	try {
-		await runSubprocess(
-			"dotnet",
-			[
-				"format",
-				"whitespace",
-				target,
-				"--no-restore",
-				...excludeOption(scope),
-				"--verify-no-changes",
-				"--report",
-				reportPath,
-			],
-			{ cwd: context.rootDirectory, timeout: 180000 },
-		);
-		let json: string;
+const checkTarget = async (context: EngineContext, target: string): Promise<Diagnostic[]> =>
+	withReportPath(async (reportPath) => {
+		const scope = buildDotnetFormatExcludeScope(context.excludePatterns);
 		try {
-			json = fs.readFileSync(reportPath, "utf-8");
-			fs.rmSync(reportPath, { force: true });
+			await runSubprocess(
+				"dotnet",
+				[
+					"format",
+					"whitespace",
+					target,
+					"--no-restore",
+					...excludeOption(scope),
+					"--verify-no-changes",
+					"--report",
+					reportPath,
+				],
+				{ cwd: context.rootDirectory, timeout: 180000 },
+			);
+			let json: string;
+			try {
+				json = fs.readFileSync(reportPath, "utf-8");
+			} catch {
+				return [];
+			}
+			return parseDotnetFormatReport(json, context.rootDirectory);
 		} catch {
 			return [];
 		}
-		return parseDotnetFormatReport(json, context.rootDirectory);
-	} catch {
-		fs.rmSync(reportPath, { force: true });
-		return [];
-	}
-};
+	});
 
 export const runDotnetFormat = async (context: EngineContext): Promise<Diagnostic[]> => {
 	// Silent restore-evidence gate: the skip notice is the

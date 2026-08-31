@@ -227,6 +227,10 @@ describe("cli ergonomics", () => {
 		expect(fix.status).toBe(0);
 		expect(fix.stdout).toContain("Auto-fix findings or hand off to a coding agent");
 		expect(fix.stdout).toContain("--safe");
+		expect(fix.stdout).toContain("--dry-run");
+		expect(fix.stdout).toContain("--changes");
+		expect(fix.stdout).toContain("--staged");
+		expect(fix.stdout).toContain("--base <ref>");
 		expect(fix.stdout).toContain("--claude");
 		expect(fix.stdout).toContain("--codex");
 		expect(fix.stdout).toContain("--opencode");

@@ -37,7 +37,17 @@ const FIX_AGENT_FLAGS = [
 	"--crush",
 ];
 
-const FIX_FLAGS = ["-d, --verbose", "-f, --force", "--safe", "-p, --prompt", ...FIX_AGENT_FLAGS];
+const FIX_FLAGS = [
+	"-d, --verbose",
+	"-f, --force",
+	"--safe",
+	"--dry-run",
+	"--changes",
+	"--staged",
+	"--base <ref>",
+	"-p, --prompt",
+	...FIX_AGENT_FLAGS,
+];
 
 const AGENT_FLAGS = [
 	"--provider <provider>",

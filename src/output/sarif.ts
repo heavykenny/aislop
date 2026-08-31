@@ -27,6 +27,7 @@ interface SarifResult {
 			region: { startLine: number; startColumn: number };
 		};
 	}>;
+	properties?: { changeContext: string };
 }
 
 interface SarifLog {
@@ -88,6 +89,7 @@ export const buildSarifLog = (results: EngineResult[]): SarifLog => {
 				},
 			},
 		],
+		...(d.changeContext ? { properties: { changeContext: d.changeContext } } : {}),
 	}));
 
 	return {

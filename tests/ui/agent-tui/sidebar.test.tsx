@@ -1,5 +1,5 @@
 import { render } from "ink-testing-library";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createSessionState } from "../../../src/agents/session-state.js";
 import { Sidebar } from "../../../src/ui/agent-tui/Sidebar.js";
 
@@ -17,6 +17,26 @@ describe("Sidebar", () => {
 		expect(frame).toContain("24");
 		expect(frame).toContain("Score");
 		expect(frame).not.toContain("$");
+	});
+
+	it("renders elapsed without reading the clock during render", () => {
+		// Date.now() in the render body is impure, and with nothing driving a re-render it
+		// also left the value stale until an unrelated update happened.
+		const store = createSessionState({
+			provider: "Mystery",
+			providerSource: "auto",
+			targetScore: 90,
+			targetRepo: "/r",
+		});
+		const nowSpy = vi.spyOn(Date, "now");
+
+		try {
+			const { lastFrame } = render(<Sidebar state={store.getState()} />);
+
+			expect(lastFrame() ?? "").toContain("Elapsed");
+		} finally {
+			nowSpy.mockRestore();
+		}
 	});
 
 	it("shows cost when the provider model is known", () => {
