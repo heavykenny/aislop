@@ -12,7 +12,7 @@ Scoping release. `fix` and `scan` can now be pointed at what changed rather than
 
 ### Added
 
-- **`aislop fix --dry-run`.** Prints the planned fix steps, including the ones that will be skipped and why, without writing anything.
+- **`aislop fix --dry-run`.** Prints the planned fix steps, including the ones that will be skipped and why, without writing anything. It cannot be combined with an agent handoff or `--prompt`; that combination is rejected rather than silently ignored.
 - **`aislop fix --changes`, `--staged`, and `--base <ref>`.** Restricts fixes to changed or staged files, matching the flags `scan` already accepted. `--base` sets the diff base, defaulting to `HEAD`.
 - **Changed-line context on findings.** Diagnostics are classified as changed-line or existing-file context, so a scoped run separates what a change introduced from what it merely sits next to. Surfaced in terminal, JSON, and SARIF output.
 
@@ -23,6 +23,11 @@ Scoping release. `fix` and `scan` can now be pointed at what changed rather than
 - **`--dry-run` no longer deletes a same-named file.** The dotnet format report was written into the project root and removed on every run, destroying a user-owned `.aislop-dotnet-format.json`. It now lives outside the tree, which fixes the non-preview path too.
 - **C# and C/C++ formatters appear in the dry-run plan** instead of being omitted from the skipped-step list.
 - **Changed-line detection survives forced git colour.** With `color.ui=always`, `git diff` emitted ANSI escapes ahead of the hunk markers, so every diagnostic silently fell back to unknown context.
+- **Scoped `fix` no longer rewrites test files.** A scoped run merged test files into the fixer's file list, so `fix --changes` edited a changed test file that a plain `fix` leaves alone.
+- **Scoped `fix` and `scan` agree on the score.** `fix` measured finding density against the selection while `scan` measured it against the project, so the same scope reported different numbers.
+- **Changed-line detection survives an external differ and diff-shaped content.** `git diff` now runs with `--no-ext-diff`, and a header is only recognised outside a hunk body, so an added line beginning `++ ` can no longer be read as a new file and swallow the hunks that follow it.
+- **`fix` respects `CI=true`.** Only `CI=1` was honoured, so spinner escape sequences reached the logs on GitHub Actions, GitLab and CircleCI.
+- **The agent TUI elapsed time advances.** It was derived from the clock during render with nothing scheduling a repaint, so it sat stale until an unrelated update happened to redraw the sidebar.
 
 ### Internal
 
