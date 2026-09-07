@@ -99,4 +99,48 @@ describe("provider output formatting", () => {
 			costUsd: 0.0123,
 		});
 	});
+
+	it("renders pi toolcall stream events as tool lines", () => {
+		expect(
+			formatProviderOutputLine(
+				JSON.stringify({
+					type: "message_update",
+					usage: { totalTokens: 900 },
+					assistantMessageEvent: { type: "toolcall_start", id: "t1", toolName: "edit" },
+				}),
+			),
+		).toBe("tool: edit");
+	});
+
+	it("renders pi tool execution events and completion state", () => {
+		expect(
+			formatProviderOutputLine(
+				JSON.stringify({ type: "tool_execution_start", toolCallId: "t1", toolName: "bash" }),
+			),
+		).toBe("tool: bash");
+		expect(formatProviderOutputLine(JSON.stringify({ type: "tool_execution_end", isError: false }))).toBe(
+			"tool done",
+		);
+		expect(formatProviderOutputLine(JSON.stringify({ type: "tool_execution_end", isError: true }))).toBe(
+			"tool done (error)",
+		);
+	});
+
+	it("extracts token usage from pi message_update events", () => {
+		const metadata = extractProviderOutputMetadata(
+			JSON.stringify({
+				type: "message_update",
+				usage: { input: 500, output: 120, cached: 0, total: 620 },
+				assistantMessageEvent: {
+					type: "toolcall_start",
+					id: "t1",
+					toolName: "write",
+					args: { path: "src/pi-edit.ts" },
+				},
+			}),
+		);
+
+		expect(metadata.usage).toMatchObject({ totalTokens: 620 });
+		expect(metadata.files).toEqual(["src/pi-edit.ts"]);
+	});
 });

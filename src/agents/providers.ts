@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 
 const PROVIDER_PROBE_TIMEOUT_MS = 1200;
 
-export type AgentProviderId = "codex" | "claude" | "opencode";
+export type AgentProviderId = "codex" | "claude" | "opencode" | "pi";
 export type AgentProviderSelection = AgentProviderId | "auto";
 
 export interface AgentProvider {
@@ -55,6 +55,16 @@ export const PROVIDERS: AgentProvider[] = [
 		loginCommand: { command: "opencode", args: ["auth", "login"] },
 		loginHint: "Run `opencode auth login`.",
 		buildArgs: (prompt) => ["run", prompt],
+	},
+	{
+		id: "pi",
+		label: "Pi",
+		bin: "pi",
+		// pi has no non-interactive `auth status` probe (auth is `pi /login` or
+		// an API key env var), so auth stays unknown and is treated as OK.
+		loginCommand: { command: "pi", args: ["/login"] },
+		loginHint: "Run `pi` and use `/login`, or export a provider API key (e.g. ANTHROPIC_API_KEY).",
+		buildArgs: (prompt) => ["--mode", "json", "--no-session", "-p", prompt],
 	},
 ];
 

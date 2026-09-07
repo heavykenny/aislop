@@ -42,7 +42,7 @@ describe("agent providers render", () => {
 		expect(out).toMatch(/Version\s+codex-cli 0\.134\.0/);
 		expect(out).toMatch(/Connect\s+aislop agent connect codex/);
 		expect(out).toContain("Actions");
-		expect(out).toMatch(/Switch\s+aislop agent --provider <codex\|claude\|opencode\|auto>/);
+		expect(out).toMatch(/Switch\s+aislop agent --provider <codex\|claude\|opencode\|pi\|auto>/);
 		expect(out).toMatch(/Save\s+aislop agent use <provider\|auto>/);
 		expect(out).not.toContain("\n\n\n");
 

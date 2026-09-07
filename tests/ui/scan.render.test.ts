@@ -51,7 +51,7 @@ describe("scan render", () => {
 		expect(out).toContain("Agent repair plan");
 		expect(out).toMatch(/Agent\s+aislop agent\s+run a local worktree repair session/);
 		expect(out).toMatch(
-			/Provider\s+aislop agent --provider codex\s+or use --provider claude\/opencode/,
+			/Provider\s+aislop agent --provider codex\s+or use --provider claude\/opencode\/pi/,
 		);
 		expect(out).toMatch(
 			/Preview\s+aislop agent plan\s+preview provider, worktree, findings, and publish actions/,

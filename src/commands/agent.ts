@@ -28,7 +28,7 @@ const guideNoProvider = (statuses: ProviderStatus[]): void => {
 	log.error(
 		anyInstalled
 			? "No coding agent is ready to run."
-			: "No coding agent is installed. `aislop agent` drives Codex, Claude Code, or OpenCode.",
+			: "No coding agent is installed. `aislop agent` drives Codex, Claude Code, OpenCode, or Pi.",
 	);
 	for (const status of statuses) {
 		const state = !status.installed

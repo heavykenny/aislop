@@ -8,6 +8,7 @@ describe("pricing", () => {
 	});
 	it("falls back to a provider default model", () => {
 		expect(resolvePricing("claude", null)).not.toBeNull();
+		expect(resolvePricing("pi", null)).not.toBeNull();
 	});
 	it("returns null for an unknown provider/model", () => {
 		expect(resolvePricing("mystery", "who-knows")).toBeNull();
