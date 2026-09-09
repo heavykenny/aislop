@@ -7,11 +7,12 @@ const OVERRIDES = ".github/contributors-overrides.json";
 const START = "<!-- CONTRIBUTORS-START -->";
 const END = "<!-- CONTRIBUTORS-END -->";
 
-// Copilot commits as "Copilot" from a plain numeric noreply address, so an
-// email-only check treats an agent as a person.
+// Copilot's noreply address carries no [bot] marker, and its author name is
+// not an authenticated identity, so match the login GitHub puts in the address.
 const isBot = (name, email) =>
-	/\[bot\]$|^Copilot$/i.test(name) ||
-	/\[bot\]@|github-actions|scanaislop\[bot\]|^bot@scanaislop/i.test(email);
+	/\[bot\]$/i.test(name) ||
+	/\[bot\]@|github-actions|scanaislop\[bot\]|^bot@scanaislop/i.test(email) ||
+	/^\d+\+Copilot@users\.noreply\.github\.com$/i.test(email);
 
 const overrides = existsSync(OVERRIDES)
 	? JSON.parse(readFileSync(OVERRIDES, "utf8"))
