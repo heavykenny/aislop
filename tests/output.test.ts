@@ -45,4 +45,37 @@ describe("terminal rendering", () => {
 		expect(output).toContain("src/example-4.ts:4:1");
 		expect(output).not.toContain("more location(s)");
 	});
+
+	it("lists changed-line findings before existing-file-context and still shows all in verbose mode", () => {
+		const output = renderDiagnostics(
+			[
+				createDiagnostic({
+					filePath: "src/old.ts",
+					line: 4,
+					message: "existing finding",
+					changeContext: "existing-file-context",
+				}),
+				createDiagnostic({
+					filePath: "src/new.ts",
+					line: 1,
+					message: "new finding",
+					changeContext: "changed-line",
+				}),
+				createDiagnostic({
+					filePath: "src/file.ts",
+					line: 0,
+					message: "file-level finding",
+					changeContext: "unknown",
+				}),
+			],
+			true,
+		);
+
+		expect(output).toContain("Changed lines");
+		expect(output).toContain("Existing file context");
+		expect(output).toContain("Unclassified");
+		expect(output.indexOf("Changed lines")).toBeLessThan(output.indexOf("Existing file context"));
+		expect(output.indexOf("new finding")).toBeLessThan(output.indexOf("existing finding"));
+		expect(output).toContain("file-level finding");
+	});
 });

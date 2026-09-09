@@ -1032,6 +1032,112 @@ import cv2
 
 		expect(diagnostics).toEqual([]);
 	});
+
+	it("finds a nested requirements.txt scope under a dot-directory (e.g. .ci)", async () => {
+		// Regression: nested manifest discovery used to blanket-skip every
+		// dot-prefixed directory, so CI tooling under .ci/.github/etc. with its
+		// own requirements.txt never got a dependency scope (llvm-project's
+		// .ci/requirements.txt is the real-world case that surfaced this).
+		writeFile("pyproject.toml", `[project]\nname = "root-demo"\n`);
+		writeFile(".ci/requirements.txt", "junitparser==3.2.0\n");
+		writeFile(".ci/generate_report.py", `import junitparser\n`);
+
+		const diagnostics = await detectHallucinatedImports(buildContext());
+
+		expect(diagnostics).toEqual([]);
+	});
+
+	it("still skips known noise directories when discovering nested Python scopes", async () => {
+		writeFile("pyproject.toml", `[project]\nname = "root-demo"\n`);
+		writeFile(".venv/lib/requirements.txt", "shouldnotcount==1.0\n");
+		writeFile("src/main.py", `import shouldnotcount\n`);
+
+		const diagnostics = await detectHallucinatedImports(buildContext());
+
+		expect(diagnostics).toHaveLength(1);
+		expect(diagnostics[0].message).toContain("shouldnotcount");
+	});
+
+	it("resolves the github import name to the PyGithub distribution", async () => {
+		writeFile("requirements.txt", "PyGithub==2.8.1\n");
+		writeFile(
+			"src/bot.py",
+			`import github
+from github import Github
+`,
+		);
+
+		const diagnostics = await detectHallucinatedImports(buildContext());
+
+		expect(diagnostics).toEqual([]);
+	});
+
+	it("does not flag an import of a sibling script-style module in the same directory", async () => {
+		// Regression: plain script-style Python (no package/__init__.py) commonly
+		// imports a sibling file by its bare module name. This never needs a
+		// dependency manifest entry, but was previously always flagged unless
+		// the sibling happened to be a package under a scope's package roots.
+		writeFile("requirements.txt", "requests==2.31.0\n");
+		writeFile(".ci/report_lib.py", "def build():\n    return 1\n");
+		writeFile(
+			".ci/report_main.py",
+			`import requests
+import report_lib
+`,
+		);
+
+		const diagnostics = await detectHallucinatedImports(buildContext());
+
+		expect(diagnostics).toEqual([]);
+	});
+
+	it("does not flag a sibling package import (directory with __init__.py)", async () => {
+		writeFile("requirements.txt", "requests==2.31.0\n");
+		writeFile("tools/helpers/__init__.py", "");
+		writeFile(
+			"tools/main.py",
+			`import requests
+import helpers
+`,
+		);
+
+		const diagnostics = await detectHallucinatedImports(buildContext());
+
+		expect(diagnostics).toEqual([]);
+	});
+
+	it("still flags an import with no matching sibling file, package, or manifest entry", async () => {
+		writeFile("requirements.txt", "requests==2.31.0\n");
+		writeFile(".ci/report_lib.py", "def build():\n    return 1\n");
+		writeFile(
+			".ci/report_main.py",
+			`import requests
+import made_up_lib
+`,
+		);
+
+		const diagnostics = await detectHallucinatedImports(buildContext());
+
+		expect(diagnostics).toHaveLength(1);
+		expect(diagnostics[0].message).toContain("made_up_lib");
+	});
+
+	it("does not leak a dot-directory manifest's deps into a root file with an empty root manifest", async () => {
+		// Regression: when the scan root has a valid but dependency-free manifest
+		// (an empty requirements.txt here), pythonDepsForFile fell back to the
+		// aggregate manifest.pyDeps once its own scope came up empty. Now that
+		// dot-directories are walked for nested scopes, that aggregate could
+		// include .ci-only dependencies, wrongly clearing a root-level file that
+		// imports a package declared only under .ci/requirements.txt.
+		writeFile("requirements.txt", "# no top-level runtime deps yet\n");
+		writeFile(".ci/requirements.txt", "junitparser==3.2.0\n");
+		writeFile("src/app.py", "import junitparser\n");
+
+		const diagnostics = await detectHallucinatedImports(buildContext());
+
+		expect(diagnostics).toHaveLength(1);
+		expect(diagnostics[0].message).toContain("junitparser");
+	});
 });
 
 describe("detectHallucinatedImports: uv workspace", () => {

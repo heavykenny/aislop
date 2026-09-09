@@ -1,7 +1,9 @@
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { fixCommand } from "../src/commands/fix.js";
 import {
 	collectPnpmOverrides,
 	guardOverrides,
@@ -12,6 +14,9 @@ import {
 	patchedRangeToVersion,
 	readInstalledVersions,
 } from "../src/commands/fix-force.js";
+import { NO_CHANGES_APPLIED } from "../src/commands/fix-render.js";
+import { DEFAULT_CONFIG } from "../src/config/defaults.js";
+import type { AislopConfig } from "../src/config/index.js";
 
 describe("patchedRangeToVersion", () => {
 	it("handles a simple >=", () => {
@@ -215,5 +220,106 @@ describe("readInstalledVersions", () => {
 
 	it("omits packages that are not installed anywhere", () => {
 		expect(readInstalledVersions(tmpDir, ["missing"]).has("missing")).toBe(false);
+	});
+});
+
+const git = (cwd: string, args: string[]) => execFileSync("git", args, { cwd, stdio: "ignore" });
+
+const posixTree = (root: string): Record<string, string> => {
+	const files: Record<string, string> = {};
+	const walk = (dir: string) => {
+		for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+			if (entry.name === ".git") continue;
+			const abs = path.join(dir, entry.name);
+			if (entry.isDirectory()) {
+				walk(abs);
+				continue;
+			}
+			files[path.relative(root, abs).split(path.sep).join("/")] = fs.readFileSync(abs, "utf-8");
+		}
+	};
+	walk(root);
+	return files;
+};
+
+const captureStdout = async (run: () => Promise<unknown>): Promise<string> => {
+	const chunks: string[] = [];
+	const original = process.stdout.write.bind(process.stdout);
+	const previousCi = process.env.CI;
+	process.env.CI = "1";
+	process.stdout.write = ((chunk: unknown) => {
+		chunks.push(String(chunk));
+		return true;
+	}) as typeof process.stdout.write;
+	try {
+		await run();
+		return chunks.join("");
+	} finally {
+		process.stdout.write = original;
+		if (previousCi === undefined) delete process.env.CI;
+		else process.env.CI = previousCi;
+	}
+};
+
+describe("fix --dry-run --force", () => {
+	let root = "";
+
+	afterEach(() => {
+		if (root) fs.rmSync(root, { recursive: true, force: true });
+	});
+
+	it("reports aggressive steps without mutating manifests, lockfiles, or dependencies", async () => {
+		root = fs.mkdtempSync(path.join(os.tmpdir(), "aislop-fix-force-dry-run-"));
+		git(root, ["init"]);
+		git(root, ["config", "user.email", "test@example.com"]);
+		git(root, ["config", "user.name", "test"]);
+		git(root, ["config", "commit.gpgsign", "false"]);
+		const packageJson = `${JSON.stringify({ name: "force-preview", version: "1.0.0" }, null, 2)}\n`;
+		const lockfile = "lockfile-must-not-change\n";
+		fs.writeFileSync(path.join(root, "package.json"), packageJson);
+		fs.writeFileSync(path.join(root, "pnpm-lock.yaml"), lockfile);
+		fs.mkdirSync(path.join(root, "src"), { recursive: true });
+		fs.writeFileSync(
+			path.join(root, "src/app.ts"),
+			'import { leftover } from "./missing";\nexport const value = 1;\n',
+		);
+		git(root, ["add", "."]);
+		git(root, ["commit", "-m", "init", "--no-verify"]);
+		const before = posixTree(root);
+		const statusBefore = execFileSync("git", ["status", "--porcelain", "-uall"], {
+			cwd: root,
+			encoding: "utf-8",
+		});
+
+		const config: AislopConfig = {
+			...DEFAULT_CONFIG,
+			engines: {
+				...DEFAULT_CONFIG.engines,
+				format: false,
+				lint: false,
+				architecture: false,
+				security: false,
+				"code-quality": true,
+				"ai-slop": true,
+			},
+			telemetry: { enabled: false },
+		};
+		const output = await captureStdout(() =>
+			fixCommand(root, config, { verbose: false, dryRun: true, force: true, showHeader: true }),
+		);
+
+		expect(output).toContain("Fix plan");
+		expect(output).toContain("Remove unused files");
+		expect(output).toContain("Dependency audit fixes");
+		expect(output).not.toContain("running pnpm");
+		expect(output).not.toContain("npm audit");
+		expect(output).not.toContain("expo install");
+		expect(output).toContain(NO_CHANGES_APPLIED);
+		expect(posixTree(root)).toEqual(before);
+		expect(fs.readFileSync(path.join(root, "package.json"), "utf-8")).toBe(packageJson);
+		expect(fs.readFileSync(path.join(root, "pnpm-lock.yaml"), "utf-8")).toBe(lockfile);
+		expect(
+			execFileSync("git", ["status", "--porcelain", "-uall"], { cwd: root, encoding: "utf-8" }),
+		).toBe(statusBefore);
 	});
 });

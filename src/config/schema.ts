@@ -25,6 +25,25 @@ const QualitySchema = z.object({
 	maxParams: z.number().positive().default(6),
 });
 
+const CsharpLintSchema = z.object({
+	projectEvaluation: z.boolean().default(false),
+	jb: z.boolean().default(true),
+	roslynator: z.boolean().default(true),
+	jbSeverityFloor: z.enum(["ERROR", "WARNING", "SUGGESTION", "HINT"]).default("WARNING"),
+	jbExcludeTypes: z.array(z.string()).default(() => ["InconsistentNaming"]),
+	jbProjects: z.string().optional(),
+});
+
+const CppLintSchema = z.object({
+	cppcheck: z.boolean().default(true),
+	clangTidy: z.boolean().default(true),
+	cppcheckEnable: z.string().default("warning,performance,portability"),
+	jb: z.boolean().default(false),
+	jbProjects: z.string().optional(),
+	jbSeverityFloor: z.enum(["ERROR", "WARNING", "SUGGESTION", "HINT"]).default("WARNING"),
+	jbExcludeTypes: z.array(z.string()).default(() => []),
+});
+
 const LintConfigSchema = z.object({
 	typecheck: z.boolean().default(false),
 	/**
@@ -32,6 +51,21 @@ const LintConfigSchema = z.object({
 	 * disabled by default so scans do not execute code from untrusted repos.
 	 */
 	expoDoctor: z.boolean().default(false),
+	csharp: CsharpLintSchema.default(() => ({
+		projectEvaluation: false,
+		jb: true,
+		roslynator: true,
+		jbSeverityFloor: "WARNING" as const,
+		jbExcludeTypes: ["InconsistentNaming"],
+	})),
+	cpp: CppLintSchema.default(() => ({
+		cppcheck: true,
+		clangTidy: true,
+		cppcheckEnable: "warning,performance,portability",
+		jb: false,
+		jbSeverityFloor: "WARNING" as const,
+		jbExcludeTypes: [],
+	})),
 });
 
 const SecurityConfigSchema = z.object({
@@ -50,7 +84,7 @@ const ScoringSchema = z.object({
 		good: 75,
 		ok: 50,
 	})),
-	smoothing: z.number().nonnegative().default(20),
+	smoothing: z.number().nonnegative().default(5),
 	maxPerRule: z.number().positive().default(40),
 });
 
@@ -86,6 +120,21 @@ const AislopConfigSchema = z.object({
 	lint: LintConfigSchema.default(() => ({
 		typecheck: false,
 		expoDoctor: false,
+		csharp: {
+			projectEvaluation: false,
+			jb: true,
+			roslynator: true,
+			jbSeverityFloor: "WARNING" as const,
+			jbExcludeTypes: ["InconsistentNaming"],
+		},
+		cpp: {
+			cppcheck: true,
+			clangTidy: true,
+			cppcheckEnable: "warning,performance,portability",
+			jb: false,
+			jbSeverityFloor: "WARNING" as const,
+			jbExcludeTypes: [],
+		},
 	})),
 	security: SecurityConfigSchema.default(() => ({
 		audit: true,
@@ -97,7 +146,7 @@ const AislopConfigSchema = z.object({
 			good: 75,
 			ok: 50,
 		},
-		smoothing: 20,
+		smoothing: 5,
 		maxPerRule: 40,
 	})),
 	ci: CiSchema.default(() => ({

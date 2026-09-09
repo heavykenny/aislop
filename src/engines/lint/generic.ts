@@ -1,3 +1,4 @@
+import path from "node:path";
 import type { Language } from "../../utils/discover.js";
 import { projectRelativePosix } from "../../utils/paths.js";
 import { runSubprocess } from "../../utils/subprocess.js";
@@ -18,15 +19,26 @@ export const runGenericLinter = async (
 		default:
 			return [];
 	}
-	return diagnostics.map((diagnostic) => ({
+	const normalized = diagnostics.map((diagnostic) => ({
 		...diagnostic,
 		filePath: projectRelativePosix(context.rootDirectory, diagnostic.filePath),
 	}));
+	if (!context.files) return normalized;
+	const allowed = new Set(
+		context.files.map((filePath) => projectRelativePosix(context.rootDirectory, filePath)),
+	);
+	return normalized.filter((diagnostic) => allowed.has(diagnostic.filePath));
 };
 
-export const fixRubyLint = async (rootDirectory: string): Promise<void> => {
-	const result = await runSubprocess("rubocop", ["-a", "--except", "Layout"], {
-		cwd: rootDirectory,
+export const fixRubyLint = async (context: EngineContext): Promise<void> => {
+	const targets =
+		context.files
+			?.filter((filePath) => path.extname(filePath).toLowerCase() === ".rb")
+			.map((filePath) => projectRelativePosix(context.rootDirectory, filePath))
+			.filter((filePath) => filePath.length > 0 && !filePath.startsWith("..")) ?? [];
+	if (context.files && targets.length === 0) return;
+	const result = await runSubprocess("rubocop", ["-a", "--except", "Layout", ...targets], {
+		cwd: context.rootDirectory,
 		timeout: 60000,
 	});
 

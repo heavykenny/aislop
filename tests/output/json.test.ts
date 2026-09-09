@@ -75,6 +75,28 @@ describe("json output", () => {
 		expect(out.findingAssessment.byKind["confirmed-defect"]).toBe(1);
 	});
 
+	it("exposes stable changeContext metadata when present", () => {
+		const out = buildJsonOutput(
+			[result([diagnostic({ changeContext: "changed-line" })])],
+			{ score: 50, label: "Critical" },
+			10,
+			10,
+			scoreable,
+		);
+		expect(out.diagnostics[0].changeContext).toBe("changed-line");
+	});
+
+	it("omits changeContext when the scan did not classify diffs", () => {
+		const out = buildJsonOutput(
+			[result([diagnostic()])],
+			{ score: 50, label: "Critical" },
+			10,
+			10,
+			scoreable,
+		);
+		expect(out.diagnostics[0].changeContext).toBeUndefined();
+	});
+
 	it("includes advisory score impact metadata for soft config warnings", () => {
 		const out = buildJsonOutput(
 			[

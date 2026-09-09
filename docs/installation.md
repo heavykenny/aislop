@@ -95,6 +95,43 @@ Some checks depend on tools already installed on your machine:
 - `cargo`, `clippy` (Rust)
 - `rubocop` (Ruby)
 - `phpcs`, `php-cs-fixer` (PHP)
+- `.NET SDK`, `roslynator`, `jb` (C#)
+- `cppcheck`, `clang-format`, `clang-tidy` (C/C++)
+
+C# projects receive built-in text and complexity checks without optional lint tools. For project-aware formatting and dependency checks, install the .NET SDK and opt in for repositories you trust:
+
+```yaml
+lint:
+  csharp:
+    projectEvaluation: true
+```
+
+See the [rules reference](rules.md#c-linting-hybrid-jb--roslynator) for the optional lint setup.
+
+C/C++ tools are system installs that aislop shells out to - they are not bundled. Install them with your system package manager:
+
+```bash
+# macOS
+brew install cppcheck llvm
+
+# Debian / Ubuntu
+sudo apt install cppcheck clang-format clang-tidy
+
+# Windows (scoop)
+scoop install cppcheck llvm
+```
+
+Notes:
+- `cppcheck` runs on any C/C++ checkout
+- `clang-format` runs only when the repo ships a `.clang-format` file
+- `clang-tidy` runs only when a `compile_commands.json` is present. aislop discovers it in common generated layouts such as `build/`, `build/<Configuration>/`, `out/`, and `cmake-build-*` (including one or more nested subdirectories under those paths).
+
+If your project writes the database outside the repo root, keep that path stable:
+
+```bash
+cmake -S . -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+cmake --build build
+```
 
 Run `aislop doctor` to see what is available on your system.
 

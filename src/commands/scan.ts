@@ -1,4 +1,3 @@
-import fs from "node:fs";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
 import { type AislopConfig, findConfigDir, RULES_FILE } from "../config/index.js";
@@ -12,8 +11,9 @@ import { type EngineCounts, withCommandLifecycle } from "../telemetry/index.js";
 import { renderDisplayRows } from "../ui/display.js";
 import { renderHeader } from "../ui/header.js";
 import { log } from "../ui/logger.js";
+import { applyChangeContext } from "../utils/change-context.js";
 import { detectSourceLanguages, discoverProject, type Language } from "../utils/discover.js";
-import { baseRefExists } from "../utils/git.js";
+import { getChangedLineMap } from "../utils/git.js";
 import { readAislopIgnorePatterns } from "../utils/source-files.js";
 import { applySuppressions } from "../utils/suppress.js";
 import { APP_VERSION } from "../version.js";
@@ -29,6 +29,7 @@ import {
 	type ScanOptions,
 } from "./scan-options.js";
 import { buildScanRender } from "./scan-render.js";
+import { scanTargetError } from "./scan-validation.js";
 
 export { buildScanRender } from "./scan-render.js";
 
@@ -41,32 +42,12 @@ export const scanCommand = async (
 	options: ScanOptions,
 ): Promise<{ exitCode: number }> => {
 	const resolvedDir = path.resolve(directory);
-
-	if (!fs.existsSync(resolvedDir)) {
-		const msg = `Path does not exist: ${resolvedDir}`;
+	const targetError = scanTargetError(resolvedDir, options);
+	if (targetError) {
 		if (options.json) {
-			console.log(JSON.stringify({ error: msg }, null, 2));
+			console.log(JSON.stringify({ error: targetError }, null, 2));
 		} else {
-			log.error(msg);
-		}
-		return { exitCode: 1 };
-	}
-	if (!fs.statSync(resolvedDir).isDirectory()) {
-		const msg = `Not a directory: ${resolvedDir}`;
-		if (options.json) {
-			console.log(JSON.stringify({ error: msg }, null, 2));
-		} else {
-			log.error(msg);
-		}
-		return { exitCode: 1 };
-	}
-
-	if (options.changes && options.base && !baseRefExists(resolvedDir, options.base)) {
-		const msg = `Could not resolve base ref "${options.base}". Make sure it exists and was fetched (e.g. \`git fetch origin ${options.base}\`).`;
-		if (options.json) {
-			console.log(JSON.stringify({ error: msg }, null, 2));
-		} else {
-			log.error(msg);
+			log.error(targetError);
 		}
 		return { exitCode: 1 };
 	}
@@ -128,6 +109,9 @@ const runScanBody = async (
 		scopeLabel,
 		testFiles,
 	} = scanScope;
+	// Raw user excludes for the build-backed C# engines' diagnostic post-filter
+	// (same derivation as the caller's scan-scope request).
+	const excludePatterns = [...config.exclude, ...readAislopIgnorePatterns(resolvedDir)];
 	const scanCoverage = deriveScanCoverage(projectInfo.coverage, scoreFileCount);
 	const reportProjectInfo = {
 		...projectInfo,
@@ -169,6 +153,7 @@ const runScanBody = async (
 			dependencyAuditLanguages,
 			dependencyAuditScope,
 			files,
+			excludePatterns,
 			testFiles,
 			projectFiles,
 			installedTools: projectInfo.installedTools,
@@ -182,10 +167,22 @@ const runScanBody = async (
 		...result,
 		diagnostics: applyRuleSeverities(result.diagnostics, config.rules),
 	}));
-	const { results, suppressedCount } = applySuppressions(severityAdjusted, resolvedDir);
+	const { results: unannotated, suppressedCount } = applySuppressions(
+		severityAdjusted,
+		resolvedDir,
+	);
 	if (suppressedCount > 0 && !machineOutput) {
 		log.muted(`Suppressed ${suppressedCount} finding(s) via aislop-ignore directives`);
 	}
+
+	const classifyChanges = options.changes && !options.staged;
+	const changeMap = classifyChanges ? getChangedLineMap(resolvedDir, options.base) : null;
+	const results = changeMap
+		? unannotated.map((result) => ({
+				...result,
+				diagnostics: applyChangeContext(result.diagnostics, changeMap, resolvedDir),
+			}))
+		: unannotated;
 
 	const allDiagnostics = results.flatMap((r) => r.diagnostics);
 	const elapsedMs = performance.now() - startTime;

@@ -6,6 +6,109 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## Unreleased
 
+## 0.16.1 (2026-09-09)
+
+Maintenance release. Three rule fixes from contributors, each removing findings that should never have fired, one fix that closes a matching gap in the other direction, plus dependency patches.
+
+### Fixed
+
+- **`silent-recovery` no longer flags `logger.exception`.** Python's `logger.exception` captures the traceback, so a handler using it is not swallowing the error. It is still flagged when `exc_info` is explicitly disabled, because that discards the very thing the rule cares about. Thanks to @mtschoen.
+- **`hardcoded-url` ignores URLs in Python docstrings.** A URL in documentation is a reference, not a hardcoded endpoint. Only docstring-positioned strings are exempt, so a module-level constant that merely looks like prose still reports. Thanks to @mtschoen.
+- **Python `except` bodies are read as statements rather than lines.** A log call wrapped across several lines was split at each line break, so a keyword argument on its own line looked like an assignment and the handler was treated as doing real work. `silent-recovery` therefore missed multi-line handlers entirely, including `logger.exception(..., exc_info=False)` with the argument on its own line, which discards the traceback the rule exists to protect.
+- **`silent-recovery` no longer misreads `;` or prose in Python handlers.** A handler that logged and then re-raised on the same line, separated by a semicolon, was reported as swallowing the error. A log message that merely mentioned `exc_info=False` cancelled the traceback exemption, since the keyword checks did not distinguish code from string contents.
+- **Build output directories are pruned from scans.** Rust and other `target/` style build directories were being walked, which inflated file counts and surfaced findings in generated code. Thanks to @daveslutzkin.
+
+### Changed
+
+- Patched transitive advisories in `fast-uri`, `qs` and `hono`, and refreshed `oxlint`, `knip`, `biome`, `smol-toml` and `expo-doctor`. The lint and unused-code engines are bundled, so their updates can change which findings a scan reports.
+
+
+## 0.16.0 (2026-08-30)
+
+Scoping release. `fix` and `scan` can now be pointed at what changed rather than the whole tree, and `fix` can show what it would do before it does it.
+
+### Added
+
+- **`aislop fix --dry-run`.** Prints the planned fix steps, including the ones that will be skipped and why, without writing anything. It cannot be combined with an agent handoff or `--prompt`; that combination is rejected rather than silently ignored.
+- **`aislop fix --changes`, `--staged`, and `--base <ref>`.** Restricts fixes to changed or staged files, matching the flags `scan` already accepted. `--base` sets the diff base, defaulting to `HEAD`.
+- **Changed-line context on findings.** Diagnostics are classified as changed-line or existing-file context, so a scoped run separates what a change introduced from what it merely sits next to. Surfaced in terminal, JSON, and SARIF output.
+
+### Fixed
+
+- **Dependency fixes stay inside the selected scope.** A scope holding a lockfile and a source file, but not `package.json`, previously still ran the unused-dependency fixer, which always rewrites `package.json`. Fixes can no longer touch a file outside the selection. The force audit and Expo alignment steps shared the same gap.
+- **Dependency-only scopes work.** Selecting just a manifest detected no source language, so every dependency fixer skipped a scope that explicitly asked for it.
+- **`--dry-run` no longer deletes a same-named file.** The dotnet format report was written into the project root and removed on every run, destroying a user-owned `.aislop-dotnet-format.json`. It now lives outside the tree, which fixes the non-preview path too.
+- **C# and C/C++ formatters appear in the dry-run plan** instead of being omitted from the skipped-step list.
+- **Changed-line detection survives forced git colour.** With `color.ui=always`, `git diff` emitted ANSI escapes ahead of the hunk markers, so every diagnostic silently fell back to unknown context.
+- **Scoped `fix` no longer rewrites test files.** A scoped run merged test files into the fixer's file list, so `fix --changes` edited a changed test file that a plain `fix` leaves alone.
+- **Scoped `fix` and `scan` agree on the score.** `fix` measured finding density against the selection while `scan` measured it against the project, so the same scope reported different numbers.
+- **Changed-line detection survives an external differ and diff-shaped content.** `git diff` now runs with `--no-ext-diff`, and a header is only recognised outside a hunk body, so an added line beginning `++ ` can no longer be read as a new file and swallow the hunks that follow it.
+- **`fix` respects `CI=true`.** Only `CI=1` was honoured, so spinner escape sequences reached the logs on GitHub Actions, GitLab and CircleCI.
+- **The agent TUI elapsed time advances.** It was derived from the clock during render with nothing scheduling a repaint, so it sat stale until an unrelated update happened to redraw the sidebar.
+
+### Internal
+
+- Dependency bumps: `@biomejs/biome` 2.5.10, `vitest` 4.1.11, `@types/node` 26.4.0, `expo-doctor` 1.20.3, `github/codeql-action` 4.37.9.
+
+## 0.15.0 (2026-08-26)
+
+Calibration release. Scores now describe how code is written rather than how much of it there is, and three rules that fired on ordinary hand-written code have been corrected. **Every score moves in this release**, most of them upward. Badges, CI gates, and stored scans will all shift; if you gate CI on a threshold, re-baseline after upgrading.
+
+### Changed
+
+- **Score reflects finding density, not project size.** Deductions are divided by file count before the scoring curve, so a large project and a small one with the same habits land on the same number. Previously the density term clamped to 1 for any project with more findings than `files + 10`, which is effectively every real project, so deductions accumulated in absolute terms and larger trees scored worse for being larger. Copying a project three times, byte for byte, used to drop its score by 26 points.
+- **Rule caps scale with project size.** A flat cap decided a small project's score and disappeared in a large one. Caps now mean the same thing at any scale.
+- **Default scoring smoothing lowered from 20 to 5.** With the density term corrected, the old value was all that remained of a systematic advantage for small repositories.
+
+Representative scores, before and after:
+
+| Project | 0.14.1 | 0.15.0 |
+| --- | --- | --- |
+| expressjs/express | 72 | 78 Healthy |
+| rohitg00/agentmemory | 9 | 72 Needs Work |
+| playcanvas/supersplat | 14 | 65 Needs Work |
+| obra/superpowers | 33 | 57 Needs Work |
+| github/spec-kit | 3 | 41 Critical |
+
+### Fixed
+
+- **`ai-slop/trivial-comment` no longer flags ordinary terse comments.** The rule matched any short comment opening with a verb stem, which is normal English comment style rather than evidence of generation, and marked each one auto-fixable. It now requires a file to be saturated with them (at least one per 50 non-blank lines), which is the shape generated code actually has. A mature library carrying three such comments in 650 lines is left alone.
+- **`security/vulnerable-dependency` no longer scores dev tooling as shipped risk.** Advisories reaching a project only through `devDependencies` are still reported, labelled `dev-only`, at `info` severity instead of raising an error. Runtime reachability is resolved by walking npm audit's `effects` chain back to the manifests, including every workspace member, so a production dependency declared by a member package is correctly treated as shipped. Where the origin cannot be determined, full severity is kept.
+- **`ai-slop/python-mutable-default` no longer flags call-wrapped keyword arguments.** FastAPI, typer, and pydantic markers such as `Body(default={})` are framework semantics the rule cannot decide from syntax. Signature scanning also masks string literals and comments, including f-string replacement fields, before counting parentheses.
+- **`doctor` derives languages from the configured scan scope** rather than from manifests alone, so reported languages match what is actually scanned.
+- **Build no longer emits tsdown warnings.**
+
+### Internal
+
+- Workspace-aware runtime dependency resolution extracted to its own module with dedicated tests.
+- The starved-pipe subprocess test asserts ordering instead of wall-clock timing, removing a source of flakiness on loaded Windows runners.
+- Narrative comments removed from the trivial-comment detector.
+- Dependency bumps: `@biomejs/biome` 2.5.8, `knip` 6.32.2, `vite` 8.2.2, `@types/node` 26.2.0, `github/codeql-action` 4.37.7.
+
+## 0.14.1 (2026-08-08)
+
+Patch release: adds first-class C# and C/C++ support, improves scanner accuracy across real-world project layouts, and refreshes cross-platform tooling.
+
+### Added
+
+- **C# support.** First-class project discovery, formatting, linting, complexity analysis, dependency checks, and C#-specific AI-slop rules.
+- **C/C++ support.** First-class detection and scoring with cppcheck, clang-tidy, clang-format, complexity analysis, and C/C++-specific AI-slop rules.
+
+### Fixed
+
+- **More accurate C# and C++ scanning.** Strings, comments, raw strings, and interpolated expressions are handled correctly, reducing false findings without hiding executable code.
+- **Consistent project discovery.** File exclusions and nested repositories behave consistently across platforms and repeated scans.
+- **More reliable CLI behavior.** Invalid targets, timed-out tools, Windows tool lookup, dependency scans, and Python import checks now produce more predictable results.
+
+### Changed
+
+- **Dependencies and CI.** Refreshed the project dependency and CI toolchain.
+- **Maintainability.** Split large integration modules into smaller, focused components.
+
+### Tests
+
+Full suite at 2,032 passing, with cross-platform coverage for the new language support and scanner accuracy improvements.
+
 ## 0.14.0 (2026-07-14)
 
 Minor release: expands project discovery and Python workspace awareness, makes diagnostics and tool execution reliable across operating systems, and tightens scanner accuracy around real-world source layouts.

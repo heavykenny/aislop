@@ -10,6 +10,7 @@ import {
 	getProjectSourceFiles,
 	getSourceFilesForRoot,
 	getTestFiles,
+	listProjectFiles,
 	readAislopIgnorePatterns,
 } from "../src/utils/source-files.js";
 
@@ -384,5 +385,39 @@ describe("source file selection", () => {
 		);
 
 		expect(filtered).toEqual([path.join(tmpDir, "src/app.ts")]);
+	});
+});
+
+describe("C/C++ file discovery", () => {
+	it("includes C/C++ sources and excludes C/C++ test files", () => {
+		const root = fs.mkdtempSync(path.join(os.tmpdir(), "aislop-cpp-"));
+		fs.mkdirSync(path.join(root, "src"), { recursive: true });
+		fs.mkdirSync(path.join(root, "tests"), { recursive: true });
+		fs.writeFileSync(path.join(root, "src/widget.cpp"), "int x;\n");
+		fs.writeFileSync(path.join(root, "src/widget.h"), "int x;\n");
+		fs.writeFileSync(path.join(root, "src/widget_test.cpp"), "int main(){}\n");
+		fs.writeFileSync(path.join(root, "tests/runner.cpp"), "int main(){}\n");
+		const files = filterProjectFiles(root, listProjectFiles(root)).map((f) => path.basename(f));
+		expect(files).toContain("widget.cpp");
+		expect(files).toContain("widget.h");
+		expect(files).not.toContain("widget_test.cpp");
+		expect(files).not.toContain("runner.cpp"); // under tests/
+	});
+});
+
+describe("C# file discovery", () => {
+	it("includes .cs source files", () => {
+		const root = fs.mkdtempSync(path.join(os.tmpdir(), "aislop-cs-"));
+		fs.writeFileSync(path.join(root, "Service.cs"), "class Service {}");
+		const result = filterProjectFiles(root, ["Service.cs"]);
+		expect(result).toHaveLength(1);
+	});
+
+	it("excludes C# test files by convention", () => {
+		const root = fs.mkdtempSync(path.join(os.tmpdir(), "aislop-cs-"));
+		fs.writeFileSync(path.join(root, "ServiceTests.cs"), "class ServiceTests {}");
+		fs.writeFileSync(path.join(root, "Widget.Test.cs"), "class WidgetTest {}");
+		const result = filterProjectFiles(root, ["ServiceTests.cs", "Widget.Test.cs"]);
+		expect(result).toHaveLength(0);
 	});
 });

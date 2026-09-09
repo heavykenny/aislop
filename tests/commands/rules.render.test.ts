@@ -78,5 +78,7 @@ describe("rules render", () => {
 		expect(out).toContain("style");
 		expect(out).toContain("Leftover debug output is visible cleanup");
 		expect(out).toContain("console/debug output was left in application code.");
+		expect(out).not.toContain(String.fromCodePoint(0x2014));
+		expect(out).toContain("AI Slop - Generated-code leftovers");
 	});
 });

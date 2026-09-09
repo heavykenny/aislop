@@ -148,6 +148,172 @@ describe("python: mutable-default-arg", () => {
 		const matches = diagnostics.filter((d) => d.rule === "ai-slop/python-mutable-default");
 		expect(matches).toHaveLength(1);
 	});
+
+	it("does NOT flag `default={}` inside a FastAPI Body()/Query() marker (a fresh value per request)", async () => {
+		writeFile(
+			"src/routes.py",
+			[
+				"@router.delete('/server/lock')",
+				"async def api_delete_server_lock(payload: dict = Body(default={})):",
+				"    return payload",
+				"",
+			].join("\n"),
+		);
+		const diagnostics = await detectPythonPatterns(buildContext());
+		const matches = diagnostics.filter((d) => d.rule === "ai-slop/python-mutable-default");
+		expect(matches).toEqual([]);
+	});
+
+	it("still flags a real mutable default alongside an unrelated FastAPI marker param", async () => {
+		writeFile(
+			"src/routes-mixed.py",
+			[
+				"async def api_thing(payload: dict = Body(default={}), items=[]):",
+				"    return (payload, items)",
+				"",
+			].join("\n"),
+		);
+		const diagnostics = await detectPythonPatterns(buildContext());
+		const matches = diagnostics.filter((d) => d.rule === "ai-slop/python-mutable-default");
+		expect(matches).toHaveLength(1);
+	});
+
+	it("does NOT flag a keyword argument inside any call expression, only bare defaults", async () => {
+		writeFile(
+			"src/cli_options.py",
+			[
+				"def configure(tags: list = typer.Option(default=[]), retries: int = 3):",
+				"    return (tags, retries)",
+				"",
+				"def build(session = ClientFactory(headers={}, pool=[])):",
+				"    return session",
+				"",
+			].join("\n"),
+		);
+		const diagnostics = await detectPythonPatterns(buildContext());
+		const matches = diagnostics.filter((d) => d.rule === "ai-slop/python-mutable-default");
+		expect(matches).toEqual([]);
+	});
+
+	it("skips call-wrapped keyword arguments across a multi-line signature but flags its bare default", async () => {
+		writeFile(
+			"src/multi_line.py",
+			[
+				"def handler(",
+				"    payload: dict = Body(",
+				"        default={},",
+				"    ),",
+				"    seen=[],",
+				"):",
+				"    return (payload, seen)",
+				"",
+			].join("\n"),
+		);
+		const diagnostics = await detectPythonPatterns(buildContext());
+		const matches = diagnostics.filter((d) => d.rule === "ai-slop/python-mutable-default");
+		expect(matches).toHaveLength(1);
+		expect(matches[0]?.message).toContain("seen=[]");
+	});
+
+	it("still flags a bare mutable default after a string default containing an open parenthesis", async () => {
+		writeFile(
+			"src/string_paren.py",
+			['def f(pattern="(", cache={}):', "    return (pattern, cache)", ""].join("\n"),
+		);
+		const diagnostics = await detectPythonPatterns(buildContext());
+		const matches = diagnostics.filter((d) => d.rule === "ai-slop/python-mutable-default");
+		expect(matches).toHaveLength(1);
+		expect(matches[0]?.message).toContain("cache={}");
+	});
+
+	it("does NOT flag a wrapped keyword argument after a string containing a close parenthesis", async () => {
+		writeFile(
+			"src/string_close_paren.py",
+			[
+				'def g(payload: dict = Body(sep=")", default={})):',
+				"    return payload",
+				"",
+			].join("\n"),
+		);
+		const diagnostics = await detectPythonPatterns(buildContext());
+		const matches = diagnostics.filter((d) => d.rule === "ai-slop/python-mutable-default");
+		expect(matches).toEqual([]);
+	});
+
+	it("does NOT flag mutable-default-shaped text inside a string default", async () => {
+		writeFile(
+			"src/string_lookalike.py",
+			['def h(doc="use cache={} to reset"):', "    return doc", ""].join("\n"),
+		);
+		const diagnostics = await detectPythonPatterns(buildContext());
+		const matches = diagnostics.filter((d) => d.rule === "ai-slop/python-mutable-default");
+		expect(matches).toEqual([]);
+	});
+
+	it("still flags a bare default after an f-string nesting a same-quote string with an open parenthesis", async () => {
+		writeFile(
+			"src/fstring_nested_open_paren.py",
+			[
+				'def f(label=f"{lookup("(")}", cache={}):',
+				"    return (label, cache)",
+				"",
+				"def later(seen=[]):",
+				"    return seen",
+				"",
+			].join("\n"),
+		);
+		const diagnostics = await detectPythonPatterns(buildContext());
+		const matches = diagnostics.filter((d) => d.rule === "ai-slop/python-mutable-default");
+		expect(matches).toHaveLength(2);
+		expect(matches[0]?.message).toContain("cache={}");
+		expect(matches[1]?.message).toContain("seen=[]");
+	});
+
+	it("does NOT flag a wrapped keyword argument after an f-string nesting a same-quote string with a close parenthesis", async () => {
+		writeFile(
+			"src/fstring_nested_close_paren.py",
+			[
+				'def g(sep=f"{quote(")")}", payload: dict = Body(default={})):',
+				"    return (sep, payload)",
+				"",
+			].join("\n"),
+		);
+		const diagnostics = await detectPythonPatterns(buildContext());
+		const matches = diagnostics.filter((d) => d.rule === "ai-slop/python-mutable-default");
+		expect(matches).toEqual([]);
+	});
+
+	it("still flags a bare default after an f-string whose format spec nests a replacement field", async () => {
+		writeFile(
+			"src/fstring_format_spec.py",
+			[
+				'def h(width=8, label=f"{value:>{width}}", cache={}):',
+				"    return (width, label, cache)",
+				"",
+			].join("\n"),
+		);
+		const diagnostics = await detectPythonPatterns(buildContext());
+		const matches = diagnostics.filter((d) => d.rule === "ai-slop/python-mutable-default");
+		expect(matches).toHaveLength(1);
+		expect(matches[0]?.message).toContain("cache={}");
+	});
+
+	it("still flags a bare default when a trailing comment in the signature contains a parenthesis", async () => {
+		writeFile(
+			"src/comment_paren.py",
+			[
+				"def handler(  # builds ( tuples",
+				"    seen=[],",
+				"):",
+				"    return seen",
+				"",
+			].join("\n"),
+		);
+		const diagnostics = await detectPythonPatterns(buildContext());
+		const matches = diagnostics.filter((d) => d.rule === "ai-slop/python-mutable-default");
+		expect(matches).toHaveLength(1);
+		expect(matches[0]?.message).toContain("seen=[]");
+	});
 });
 
 describe("python: print-debug", () => {
@@ -255,6 +421,21 @@ describe("python: print-debug", () => {
 				"        print(data)",
 				'    """',
 				"    return {}",
+				"",
+			].join("\n"),
+		);
+		const diagnostics = await detectPythonPatterns(buildContext());
+		const matches = diagnostics.filter((d) => d.rule === "ai-slop/python-print-debug");
+		expect(matches).toEqual([]);
+	});
+
+	it("does NOT flag print-shaped lines inside an assigned triple-quoted template string", async () => {
+		writeFile(
+			"src/template.py",
+			[
+				'SCRIPT_TEMPLATE = """',
+				"print('hello from the generated script')",
+				'"""',
 				"",
 			].join("\n"),
 		);

@@ -6,7 +6,7 @@
 
 The patterns Claude Code, Cursor, Codex, and OpenCode leave behind: narrative comments above self-explanatory code, swallowed exceptions, hidden fallbacks, `as any` casts, hallucinated imports, duplicated helpers, dead code, todo stubs, oversized functions. Tests pass. Lint passes. The code rots anyway.
 
-aislop catches them. 50+ rules across 8 language targets (TypeScript, JavaScript, Expo / React Native, Python, Go, Rust, Ruby, PHP). Scores every change 0–100. Sub-second. Deterministic — no LLM in the runtime path, same code in, same score out. MIT-licensed, free CLI.
+aislop catches them. 50+ rules across 10 language targets (TypeScript, JavaScript, Expo / React Native, Python, Go, Rust, Ruby, PHP, C#, C/C++). Scores every change 0–100. Sub-second. Deterministic: no LLM in the runtime path, same code in, same score out. MIT-licensed, free CLI.
 
 ## Quick start
 
@@ -27,6 +27,12 @@ pipx install aislop                  # Python
 ```
 
 See [Installation](#installation) for every option.
+
+## Language support
+
+aislop supports TypeScript, JavaScript, Expo / React Native, Python, Go, Rust, Ruby, PHP, C#, and C/C++.
+
+Coverage includes formatting, linting, complexity, AI-slop detection, and security checks. Some checks use optional system tools; see [Installation](docs/installation.md) and the [rules reference](docs/rules.md) for details.
 
 ```bash
 aislop agent                 # repair with your coding agent (Codex/Claude/OpenCode)
@@ -143,7 +149,7 @@ exclude:
 
 Or via CLI: `aislop scan --exclude "**/*.test.ts,dist"`
 
-**Unsupported languages**: aislop only analyses the 8 language targets above. If a repo is mostly something else (C, C++, C#, Swift, Kotlin, …), scoring a handful of incidental files would misrepresent it, so aislop **withholds the score** and says so rather than printing a number off code it never read. `--json` returns `score: null`, `scoreable: false`, and a `coverage` breakdown.
+**Unsupported languages**: aislop only analyses the 10 language targets above. If a repo is mostly something else (Swift, Kotlin, Java, …), scoring a handful of incidental files would misrepresent it, so aislop **withholds the score** and says so rather than printing a number off code it never read. `--json` returns `score: null`, `scoreable: false`, and a `coverage` breakdown.
 
 **Per-rule severity**: Override the severity of any rule by id, or turn it off:
 
@@ -193,6 +199,9 @@ The deterministic layer beneath [`aislop agent`](#run-a-local-repair-agent): aut
 
 ```bash
 aislop fix                 # auto-fixes
+aislop fix --dry-run       # preview planned steps without writing files
+aislop fix --changes       # only rewrite files changed vs HEAD
+aislop fix --staged        # only rewrite staged files
 aislop fix -d              # detailed fix progress
 aislop fix --safe          # only reversible fixes (imports, comment removal, safe formatters)
 aislop fix -f              # aggressive: deps, unused files
@@ -456,11 +465,11 @@ Six deterministic engines run in parallel:
 
 | Engine | What it checks | How |
 |---|---|---|
-| **Formatting** | Code style consistency | Biome, ruff, gofmt, cargo fmt, rubocop, php-cs-fixer |
-| **Linting** | Language-specific issues | oxlint, ruff, golangci-lint, clippy, expo-doctor |
+| **Formatting** | Code style consistency | Biome, ruff, gofmt, cargo fmt, rubocop, php-cs-fixer, dotnet format, clang-format |
+| **Linting** | Language-specific issues | oxlint, ruff, golangci-lint, clippy, expo-doctor, Roslynator, JetBrains InspectCode, cppcheck, clang-tidy |
 | **Code Quality** | Complexity and dead code | Function/file size limits, deep nesting, unused files/deps (knip), AST-based unused-declaration removal |
 | **AI Slop** | AI-authored code patterns | Narrative comments, trivial comments, dead patterns, unused imports, `as any`, `console.log` leftovers, TODO stubs, generic names |
-| **Security** | Vulnerabilities and risky code | eval, innerHTML, SQL/shell injection, dependency audits (npm/pip/cargo/govulncheck) |
+| **Security** | Vulnerabilities and risky code | eval, innerHTML, SQL/shell injection, dependency audits for JavaScript, Python, Rust, Go, and .NET |
 | **Architecture** | Structural rules (opt-in) | Custom import bans, layering rules, required patterns |
 
 See the full [rules reference](docs/rules.md).
@@ -492,8 +501,12 @@ Built on: [Biome](https://biomejs.dev/), [oxlint](https://oxc.rs/), [knip](https
 ## Contributors
 
 <!-- CONTRIBUTORS-START -->
+- [@daveslutzkin](https://github.com/daveslutzkin)
+- [@gtheys](https://github.com/gtheys)
 - [@heavykenny](https://github.com/heavykenny)
+- [@mtschoen](https://github.com/mtschoen)
 - [@myke-awoniran](https://github.com/myke-awoniran)
+- [@swjturay](https://github.com/swjturay)
 - [@yashrajoria](https://github.com/yashrajoria)
 <!-- CONTRIBUTORS-END -->
 

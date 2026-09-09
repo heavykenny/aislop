@@ -3,7 +3,7 @@ import { symbols as defaultSymbols, type Symbols } from "./symbols.js";
 import { theme as defaultTheme, style, type Theme, type Token } from "./theme.js";
 import { padEnd, padStart, truncate } from "./width.js";
 
-export type GridRowStatus = "queued" | "running" | "done" | "skipped";
+type GridRowStatus = "queued" | "running" | "done" | "skipped";
 export type GridRowOutcome = "ok" | "warn" | "fail";
 
 export interface GridRow {

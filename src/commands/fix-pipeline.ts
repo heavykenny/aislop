@@ -19,12 +19,8 @@ import {
 	diagnosticsToDeclarations,
 	removeUnusedDeclarations,
 } from "../engines/code-quality/unused-removal.js";
-import { fixBiomeFormat, runBiomeFormat } from "../engines/format/biome.js";
-import { fixGenericFormatter, runGenericFormatter } from "../engines/format/generic.js";
-import { fixGofmt, runGofmt } from "../engines/format/gofmt.js";
-import { fixRuffFormat, runRuffFormat } from "../engines/format/ruff-format.js";
 import { runExpoDoctor } from "../engines/lint/expo-doctor.js";
-import { fixRubyLint } from "../engines/lint/generic.js";
+import { fixRubyLint, runGenericLinter } from "../engines/lint/generic.js";
 import { fixOxlint, runOxlint } from "../engines/lint/oxlint.js";
 import { fixRuffLint, fixRuffLintForce, runRuffLint } from "../engines/lint/ruff.js";
 import { runDependencyAudit } from "../engines/security/audit.js";
@@ -33,11 +29,19 @@ import { log } from "../ui/logger.js";
 import type { discoverProject } from "../utils/discover.js";
 import { fixExpoDependencies } from "./fix-expo.js";
 import { fixDependencyAudit } from "./fix-force.js";
+import { hasJsOrTs } from "./fix-pipeline-language.js";
+import {
+	isPathInFixScope,
+	MISSING_MANIFEST_REASON,
+	scopeIncludesManifestWrites,
+} from "./fix-scope.js";
 import type { FixStepResult } from "./fix-steps.js";
+
+export { runFormattingStep } from "./fix-formatting-pipeline.js";
 
 export type ProjectInfo = Awaited<ReturnType<typeof discoverProject>>;
 
-export type RunStepFn = (
+type RunStepFn = (
 	name: string,
 	detect: () => Promise<Diagnostic[]>,
 	applyFix: () => Promise<void>,
@@ -56,20 +60,8 @@ export interface PipelineDeps {
 	// Restrict to reversible fixes only (imports, comment removal, safe formatter runs).
 	safe: boolean;
 	runStep: RunStepFn;
+	skipStep?: (name: string, reason: string) => void;
 }
-
-const hasJsOrTs = (projectInfo: ProjectInfo): boolean =>
-	projectInfo.languages.includes("typescript") || projectInfo.languages.includes("javascript");
-
-const skipUnsafeSafeFormatter = (deps: PipelineDeps, language: "ruby" | "php"): boolean => {
-	if (!deps.safe) return false;
-	const tool = language === "ruby" ? "rubocop" : "php-cs-fixer";
-	const label = language === "ruby" ? "Ruby" : "PHP";
-	log.warn(
-		`Safe mode skips ${label} formatting because ${tool} can execute project-controlled configuration. Run \`aislop fix\` without --safe if you trust this repository.`,
-	);
-	return true;
-};
 
 export const runAiSlopSteps = async (deps: PipelineDeps): Promise<void> => {
 	if (!deps.config.engines["ai-slop"]) return;
@@ -142,7 +134,7 @@ export const runLintSteps = async (deps: PipelineDeps): Promise<void> => {
 		await deps.runStep(
 			"Lint fixes (python)",
 			() => runRuffLint(deps.context),
-			() => (deps.force ? fixRuffLintForce(deps.resolvedDir) : fixRuffLint(deps.resolvedDir)),
+			() => (deps.force ? fixRuffLintForce(deps.context) : fixRuffLint(deps.context)),
 		);
 	} else if (deps.projectInfo.languages.includes("python")) {
 		log.warn("Python detected but ruff is not installed; skipping Python lint fixes.");
@@ -151,20 +143,28 @@ export const runLintSteps = async (deps: PipelineDeps): Promise<void> => {
 	if (deps.projectInfo.languages.includes("ruby") && deps.projectInfo.installedTools.rubocop) {
 		await deps.runStep(
 			"Lint fixes (ruby)",
-			() =>
-				import("../engines/lint/generic.js").then((mod) =>
-					mod.runGenericLinter(deps.context, "ruby"),
-				),
-			() => fixRubyLint(deps.resolvedDir),
+			() => runGenericLinter(deps.context, "ruby"),
+			() => fixRubyLint(deps.context),
 		);
 	} else if (deps.projectInfo.languages.includes("ruby")) {
 		log.warn("Ruby detected but rubocop is not installed; skipping Ruby lint fixes.");
 	}
 };
 
+// Dependency work follows the project's languages, not the selection's: a scope holding
+// only package.json detects no source language but still needs the JS/TS fixers.
+const dependencyLanguages = (deps: PipelineDeps): ProjectInfo => ({
+	...deps.projectInfo,
+	languages: deps.context.dependencyAuditLanguages ?? deps.projectInfo.languages,
+});
+
 export const runDependencyStep = async (deps: PipelineDeps): Promise<void> => {
 	if (!deps.config.engines["code-quality"]) return;
-	if (!hasJsOrTs(deps.projectInfo)) return;
+	if (!hasJsOrTs(dependencyLanguages(deps))) return;
+	if (!scopeIncludesManifestWrites(deps.context)) {
+		deps.skipStep?.("Unused dependencies", MISSING_MANIFEST_REASON);
+		return;
+	}
 
 	await deps.runStep(
 		"Unused dependencies",
@@ -173,101 +173,46 @@ export const runDependencyStep = async (deps: PipelineDeps): Promise<void> => {
 	);
 };
 
-export const runFormattingStep = async (deps: PipelineDeps): Promise<void> => {
-	if (!deps.config.engines.format) return;
-
-	if (hasJsOrTs(deps.projectInfo)) {
-		await deps.runStep(
-			"Formatting (js/ts)",
-			() => runBiomeFormat(deps.context),
-			() => fixBiomeFormat(deps.context),
-		);
-	}
-
-	if (deps.projectInfo.languages.includes("python") && deps.projectInfo.installedTools.ruff) {
-		await deps.runStep(
-			"Formatting (python)",
-			() => runRuffFormat(deps.context),
-			() => fixRuffFormat(deps.resolvedDir),
-		);
-	} else if (deps.projectInfo.languages.includes("python")) {
-		log.warn("Python detected but ruff is not installed; skipping Python formatting fixes.");
-	}
-
-	if (deps.projectInfo.languages.includes("go") && deps.projectInfo.installedTools.gofmt) {
-		await deps.runStep(
-			"Formatting (go)",
-			() => runGofmt(deps.context),
-			() => fixGofmt(deps.resolvedDir),
-		);
-	} else if (deps.projectInfo.languages.includes("go")) {
-		log.warn("Go detected but gofmt is not installed; skipping Go formatting fixes.");
-	}
-
-	if (deps.projectInfo.languages.includes("rust") && deps.projectInfo.installedTools.rustfmt) {
-		await deps.runStep(
-			"Formatting (rust)",
-			() => runGenericFormatter(deps.context, "rust"),
-			() => fixGenericFormatter(deps.resolvedDir, "rust"),
-		);
-	} else if (deps.projectInfo.languages.includes("rust")) {
-		log.warn("Rust detected but rustfmt is not installed; skipping Rust formatting fixes.");
-	}
-
-	if (deps.projectInfo.languages.includes("ruby") && deps.projectInfo.installedTools.rubocop) {
-		if (!skipUnsafeSafeFormatter(deps, "ruby")) {
-			await deps.runStep(
-				"Formatting (ruby)",
-				() => runGenericFormatter(deps.context, "ruby"),
-				() => fixGenericFormatter(deps.resolvedDir, "ruby"),
-			);
-		}
-	} else if (deps.projectInfo.languages.includes("ruby")) {
-		log.warn("Ruby detected but rubocop is not installed; skipping Ruby formatting fixes.");
-	}
-
-	if (
-		deps.projectInfo.languages.includes("php") &&
-		deps.projectInfo.installedTools["php-cs-fixer"]
-	) {
-		if (!skipUnsafeSafeFormatter(deps, "php")) {
-			await deps.runStep(
-				"Formatting (php)",
-				() => runGenericFormatter(deps.context, "php"),
-				() => fixGenericFormatter(deps.resolvedDir, "php"),
-			);
-		}
-	} else if (deps.projectInfo.languages.includes("php")) {
-		log.warn("PHP detected but php-cs-fixer is not installed; skipping PHP formatting fixes.");
-	}
-};
-
 export const runForceSteps = async (deps: PipelineDeps): Promise<void> => {
 	if (!deps.force) return;
 
 	if (deps.config.engines["code-quality"] && hasJsOrTs(deps.projectInfo)) {
 		await deps.runStep(
 			"Remove unused files",
-			() => runKnipUnusedFiles(deps.resolvedDir),
-			() => fixUnusedFiles(deps.resolvedDir),
+			async () => {
+				const diagnostics = await runKnipUnusedFiles(deps.resolvedDir);
+				return diagnostics.filter((diagnostic) =>
+					isPathInFixScope(deps.context, diagnostic.filePath),
+				);
+			},
+			() =>
+				fixUnusedFiles(deps.resolvedDir, (filePath) => isPathInFixScope(deps.context, filePath)),
 		);
 	}
 
 	const railUpdate = (label: string) => deps.rail.setActiveLabel(label);
 
 	if (deps.config.engines.security) {
-		await deps.runStep(
-			"Dependency audit fixes",
-			() => runDependencyAudit(deps.context),
-			() => fixDependencyAudit(deps.context, railUpdate),
-		);
+		if (!scopeIncludesManifestWrites(deps.context)) {
+			deps.skipStep?.("Dependency audit fixes", MISSING_MANIFEST_REASON);
+		} else {
+			await deps.runStep(
+				"Dependency audit fixes",
+				() => runDependencyAudit(deps.context),
+				() => fixDependencyAudit(deps.context, railUpdate),
+			);
+		}
 	}
 
 	if (deps.projectInfo.frameworks.includes("expo") && deps.config.lint.expoDoctor) {
-		await deps.runStep(
-			"Expo dependency alignment",
-			() => runExpoDoctor(deps.context),
-			() => fixExpoDependencies(deps.context, railUpdate),
-		);
+		if (!scopeIncludesManifestWrites(deps.context)) {
+			deps.skipStep?.("Expo dependency alignment", MISSING_MANIFEST_REASON);
+		} else {
+			await deps.runStep(
+				"Expo dependency alignment",
+				() => runExpoDoctor(deps.context),
+				() => fixExpoDependencies(deps.context, railUpdate),
+			);
+		}
 	}
 };

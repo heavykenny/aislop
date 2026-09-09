@@ -21,6 +21,21 @@ export const DEFAULT_CONFIG: AislopConfig = {
 	lint: {
 		typecheck: false,
 		expoDoctor: false,
+		csharp: {
+			projectEvaluation: false,
+			jb: true,
+			roslynator: true,
+			jbSeverityFloor: "WARNING",
+			jbExcludeTypes: ["InconsistentNaming"],
+		},
+		cpp: {
+			cppcheck: true,
+			clangTidy: true,
+			cppcheckEnable: "warning,performance,portability",
+			jb: false,
+			jbSeverityFloor: "WARNING" as const,
+			jbExcludeTypes: [],
+		},
 	},
 	security: {
 		audit: true,
@@ -39,7 +54,7 @@ export const DEFAULT_CONFIG: AislopConfig = {
 			good: 75,
 			ok: 50,
 		},
-		smoothing: 20,
+		smoothing: 5,
 		maxPerRule: 40,
 	},
 	ci: {

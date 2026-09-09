@@ -54,6 +54,28 @@ describe("withCommandLifecycle", () => {
 		}
 	});
 
+	it("reports handled non-zero results as failed completions", async () => {
+		const cap = captureStderr();
+		try {
+			const result = await withCommandLifecycle({ command: "fix" }, async () => ({
+				exitCode: 1,
+			}));
+			expect(result.exitCode).toBe(1);
+			const events = cap.lines
+				.map((l) => l.match(/^\[telemetry\] (\{.*\})\n?$/))
+				.filter((m): m is RegExpMatchArray => !!m)
+				.map((m) => JSON.parse(m[1]));
+			const completed = events.find((e) => e.event === "cli_command_completed");
+			expect(completed?.properties).toMatchObject({
+				command: "fix",
+				exit_code: 1,
+			});
+			expect(completed?.properties.error_kind).toBeUndefined();
+		} finally {
+			cap.restore();
+		}
+	});
+
 	it("carries allowlisted agent properties and drops unsafe ones", async () => {
 		const cap = captureStderr();
 		try {

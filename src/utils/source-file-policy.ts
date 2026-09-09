@@ -15,6 +15,15 @@ const SOURCE_EXTENSIONS = new Set([
 	".rb",
 	".java",
 	".php",
+	".cs",
+	".c",
+	".cc",
+	".cpp",
+	".cxx",
+	".h",
+	".hh",
+	".hpp",
+	".hxx",
 ]);
 
 export const EXCLUDED_SOURCE_DIRECTORIES = [
@@ -100,6 +109,7 @@ export const WALK_PRUNE_DIRECTORIES = new Set([
 	"dist",
 	"build",
 	"out",
+	"target",
 	"coverage",
 	"vendor",
 	"vendors",
@@ -113,6 +123,13 @@ const TEST_FILE_PATTERNS = [
 	/(?:^|\/).*\.stor(?:y|ies)\.[^/]+$/i,
 	/(?:^|\/)test_[^/]+\.(?:py|rb|php|js|jsx|d\.ts|ts|tsx|java)$/i,
 	/(?:^|\/)[^/]+_test\.(?:py|go|rb|php|js|jsx|d\.ts|ts|tsx|java)$/i,
+	// C#: *Tests.cs / *Test.cs / *.Tests.cs, or anything under a Tests/ dir
+	/(?:^|\/)[^/]+Tests?\.cs$/i,
+	/(?:^|\/)[^/]+\.Tests?\.cs$/i,
+	/(?:^|\/)[^/]*Tests?\/.*\.cs$/i,
+	// C/C++: foo_test.cpp / test_foo.cc / foo_tests.cxx
+	/(?:^|\/)[^/]+_tests?\.(?:c|cc|cpp|cxx)$/i,
+	/(?:^|\/)test_[^/]+\.(?:c|cc|cpp|cxx)$/i,
 ];
 
 export const toProjectPath = (rootDirectory: string, filePath: string): string => {

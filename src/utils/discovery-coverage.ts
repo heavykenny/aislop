@@ -19,15 +19,6 @@ interface CoverageSelection {
 }
 
 const UNSUPPORTED_CODE_EXTENSIONS: Readonly<Record<string, string>> = {
-	".c": "C/C++",
-	".h": "C/C++",
-	".cc": "C/C++",
-	".cpp": "C/C++",
-	".cxx": "C/C++",
-	".hpp": "C/C++",
-	".hh": "C/C++",
-	".hxx": "C/C++",
-	".cs": "C#",
 	".swift": "Swift",
 	".kt": "Kotlin",
 	".kts": "Kotlin",

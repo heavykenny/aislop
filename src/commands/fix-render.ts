@@ -47,3 +47,5 @@ export const buildFixRender = (input: BuildFixRenderInput): string => {
 			: "";
 	return `${header}${rail}${tail}`;
 };
+
+export const NO_CHANGES_APPLIED = "No changes were applied.";

@@ -3,19 +3,21 @@ import path from "node:path";
 import { performance } from "node:perf_hooks";
 import { type AislopConfig, findConfigDir, RULES_FILE } from "../config/index.js";
 import { runEngines } from "../engines/orchestrator.js";
-import type { Diagnostic, EngineConfig, EngineContext, EngineResult } from "../engines/types.js";
+import type { Diagnostic, EngineConfig, EngineResult } from "../engines/types.js";
 import { calculateScore } from "../scoring/index.js";
 import { withCommandLifecycle } from "../telemetry/index.js";
+import { renderDisplayRows } from "../ui/display.js";
 import { renderHeader } from "../ui/header.js";
 import { LiveRail } from "../ui/live-rail.js";
-import { log } from "../ui/logger.js";
+import { log, renderHintLine } from "../ui/logger.js";
 import { theme as defaultTheme, style } from "../ui/theme.js";
-import { discoverProject } from "../utils/discover.js";
+import { detectSourceLanguages, discoverProject } from "../utils/discover.js";
+import { readAislopIgnorePatterns } from "../utils/source-files.js";
 import { APP_VERSION } from "../version.js";
 import { launchAgent, printPrompt } from "./fix-code.js";
+import { createEngineContext } from "./fix-context.js";
 import {
 	type PipelineDeps,
-	type ProjectInfo,
 	runAiSlopSteps,
 	runDeclarationStep,
 	runDependencyStep,
@@ -23,7 +25,17 @@ import {
 	runFormattingStep,
 	runLintSteps,
 } from "./fix-pipeline.js";
-import { describeStep, type FixStepResult, runOneFixStep, statusFor } from "./fix-steps.js";
+import { buildFixPlan, skippedFixSteps } from "./fix-plan.js";
+import { NO_CHANGES_APPLIED } from "./fix-render.js";
+import { collectFixFileScope, fixScopeError } from "./fix-scope.js";
+import {
+	describePreviewStep,
+	describeSkippedStep,
+	describeStep,
+	type FixStepResult,
+	runOneFixStep,
+	statusFor,
+} from "./fix-steps.js";
 import { buildScanRender } from "./scan.js";
 
 export { buildFixRender } from "./fix-render.js";
@@ -33,6 +45,10 @@ interface FixOptions {
 	force?: boolean;
 	/** Restrict to reversible fixes only (imports, comment removal, safe formatter runs) */
 	safe?: boolean;
+	dryRun?: boolean;
+	changes?: boolean;
+	staged?: boolean;
+	base?: string;
 	/** Agent CLI to launch with remaining issues (e.g. "claude", "codex") */
 	agent?: string;
 	/** Print the prompt to stdout instead of launching an agent */
@@ -40,21 +56,6 @@ interface FixOptions {
 	showHeader?: boolean;
 	printBrand?: boolean;
 }
-
-const createEngineContext = (
-	rootDirectory: string,
-	projectInfo: ProjectInfo,
-	config: AislopConfig,
-	options: { safe?: boolean } = {},
-): EngineContext => ({
-	rootDirectory,
-	languages: projectInfo.languages,
-	frameworks: projectInfo.frameworks,
-	installedTools: options.safe
-		? { ...projectInfo.installedTools, rubocop: false, "php-cs-fixer": false }
-		: projectInfo.installedTools,
-	config: { quality: config.quality, security: config.security, lint: config.lint },
-});
 
 export const buildPostFixVerificationEngines = (
 	engines: AislopConfig["engines"],
@@ -91,28 +92,89 @@ export const fixCommand = async (
 	directory: string,
 	config: AislopConfig,
 	options: FixOptions = { verbose: false, showHeader: true },
-): Promise<void> => {
+): Promise<{ exitCode: number }> => {
 	const resolvedDir = path.resolve(directory);
+	const pathExists = fs.existsSync(resolvedDir);
 
-	if (!fs.existsSync(resolvedDir) || !fs.statSync(resolvedDir).isDirectory()) {
-		const msg = !fs.existsSync(resolvedDir)
+	if (!pathExists || !fs.statSync(resolvedDir).isDirectory()) {
+		const msg = !pathExists
 			? `Path does not exist: ${resolvedDir}`
 			: `Not a directory: ${resolvedDir}`;
-		log.error(msg);
-		return;
+		return withCommandLifecycle({ command: "fix", config: config.telemetry }, async () => {
+			log.error(msg);
+			return { exitCode: 1 };
+		});
+	}
+
+	if (options.dryRun && (options.agent || options.prompt)) {
+		return withCommandLifecycle({ command: "fix", config: config.telemetry }, async () => {
+			log.error("--dry-run cannot be combined with an agent handoff or --prompt.");
+			return { exitCode: 1 };
+		});
+	}
+
+	const scopeError = fixScopeError(resolvedDir, options);
+	if (scopeError) {
+		return withCommandLifecycle({ command: "fix", config: config.telemetry }, async () => {
+			log.error(scopeError);
+			return { exitCode: 1 };
+		});
 	}
 
 	const projectInfo = await discoverProject(resolvedDir);
 
-	await withCommandLifecycle(
+	return withCommandLifecycle(
 		{
 			command: "fix",
 			config: config.telemetry,
 			languages: projectInfo.languages,
 			fileCount: projectInfo.sourceFileCount,
+			properties: options.dryRun ? { dry_run: true } : undefined,
 		},
 		() => runFixBody(resolvedDir, config, options, projectInfo),
 	);
+};
+
+const runFixPipeline = async (deps: PipelineDeps, safe: boolean): Promise<void> => {
+	await runAiSlopSteps(deps);
+	if (!safe) {
+		await runDeclarationStep(deps);
+		await runLintSteps(deps);
+		await runDependencyStep(deps);
+	}
+	await runFormattingStep(deps);
+	await runForceSteps(deps);
+};
+
+const finishDryRun = (input: {
+	rail: LiveRail;
+	steps: FixStepResult[];
+	projectInfo: Awaited<ReturnType<typeof discoverProject>>;
+	config: AislopConfig;
+	options: FixOptions;
+}): { exitCode: number; fixSteps: number; fixResolved: number } => {
+	const plan = buildFixPlan(input.projectInfo, input.config, {
+		force: Boolean(input.options.force),
+		safe: Boolean(input.options.safe),
+	});
+	const ran = new Set(input.steps.map((step) => step.name));
+	for (const step of skippedFixSteps(plan)) {
+		if (ran.has(step.name)) continue;
+		input.rail.complete({
+			status: "skipped",
+			label: describeSkippedStep(step.name, step.reason ?? "skipped"),
+		});
+	}
+	if (input.steps.length === 0 && skippedFixSteps(plan).length === 0) {
+		input.rail.complete({ status: "skipped", label: "No applicable auto-fixers found" });
+	}
+	input.rail.finish({ footer: "Preview · no changes applied" });
+	process.stdout.write(`\n${renderHintLine(NO_CHANGES_APPLIED)}`);
+	return {
+		exitCode: 0,
+		fixSteps: input.steps.length,
+		fixResolved: 0,
+	};
 };
 
 const runFixBody = async (
@@ -125,11 +187,12 @@ const runFixBody = async (
 	const showHeader = options.showHeader !== false;
 	const projectName = projectInfo.projectName ?? "project";
 
+	const dryRun = Boolean(options.dryRun);
 	if (showHeader) {
 		process.stdout.write(
 			renderHeader({
 				version: APP_VERSION,
-				command: "Fix run",
+				command: dryRun ? "Fix plan" : "Fix run",
 				context: [projectName],
 				brand: options.printBrand !== false,
 			}),
@@ -137,9 +200,35 @@ const runFixBody = async (
 	}
 
 	const safe = Boolean(options.safe);
-	const context = createEngineContext(resolvedDir, projectInfo, config, { safe });
+	const excludePatterns = [...config.exclude, ...readAislopIgnorePatterns(resolvedDir)];
+	const scope = collectFixFileScope(resolvedDir, excludePatterns, config.include, options);
+	const scopedProjectInfo = scope
+		? {
+				...projectInfo,
+				languages: detectSourceLanguages([...scope.files, ...scope.testFiles]),
+			}
+		: projectInfo;
+	const context = createEngineContext(resolvedDir, scopedProjectInfo, config, {
+		safe,
+		scope: scope ?? undefined,
+		dependencyAuditLanguages: projectInfo.languages,
+	});
+	if (scope) {
+		process.stdout.write(
+			`${renderDisplayRows(
+				[
+					{
+						label: "Scope",
+						value: `${scope.files.length + scope.testFiles.length} ${scope.scopeLabel}`,
+					},
+				],
+				{ indent: 1 },
+			).join("\n")}\n`,
+		);
+	}
 	const steps: FixStepResult[] = [];
-	const rail = new LiveRail();
+	const isCi = process.env.CI === "true" || process.env.CI === "1";
+	const rail = new LiveRail(isCi ? { tty: false } : {});
 
 	const runStep = async (
 		name: string,
@@ -147,10 +236,17 @@ const runFixBody = async (
 		applyFix: () => Promise<void>,
 	) => {
 		rail.start(name);
-		const result = await runOneFixStep(name, detect, applyFix);
+		const result = await runOneFixStep(name, detect, applyFix, { dryRun });
 		steps.push(result);
-		rail.complete({ status: statusFor(result), label: describeStep(result) });
+		rail.complete({
+			status: dryRun ? "done" : statusFor(result),
+			label: dryRun ? describePreviewStep(result) : describeStep(result),
+		});
 		return result;
+	};
+
+	const skipStep = (name: string, reason: string) => {
+		rail.complete({ status: "skipped", label: describeSkippedStep(name, reason) });
 	};
 
 	const pipelineDeps: PipelineDeps = {
@@ -158,23 +254,24 @@ const runFixBody = async (
 		context,
 		config,
 		resolvedDir,
-		projectInfo,
+		projectInfo: scopedProjectInfo,
 		force: safe ? false : Boolean(options.force),
 		safe,
 		runStep,
+		skipStep,
 	};
 
-	await runAiSlopSteps(pipelineDeps);
-	// Safe mode skips the steps that delete code or rewrite behaviour/attributes.
-	if (!safe) {
-		await runDeclarationStep(pipelineDeps);
-		await runLintSteps(pipelineDeps);
-		await runDependencyStep(pipelineDeps);
+	await runFixPipeline(pipelineDeps, safe);
+
+	if (dryRun) {
+		return finishDryRun({
+			rail,
+			steps,
+			projectInfo: scopedProjectInfo,
+			config,
+			options,
+		});
 	}
-
-	await runFormattingStep(pipelineDeps);
-
-	await runForceSteps(pipelineDeps);
 
 	const totalResolved = steps.reduce((sum, s) => sum + s.resolvedIssues, 0);
 
@@ -191,10 +288,20 @@ const runFixBody = async (
 	const verificationResults = await runEngines(
 		{
 			rootDirectory: resolvedDir,
-			languages: projectInfo.languages,
+			languages: scopedProjectInfo.languages,
 			frameworks: projectInfo.frameworks,
+			excludePatterns: context.excludePatterns,
 			installedTools: context.installedTools,
 			config: engineConfig,
+			...(scope
+				? {
+						files: context.files,
+						testFiles: context.testFiles,
+						projectFiles: context.projectFiles,
+						dependencyAuditFiles: context.dependencyAuditFiles,
+						dependencyAuditScope: context.dependencyAuditScope,
+					}
+				: {}),
 		},
 		buildPostFixVerificationEngines(config.engines),
 		() => {},
@@ -211,7 +318,7 @@ const runFixBody = async (
 		allDiagnostics,
 		config.scoring.weights,
 		config.scoring.thresholds,
-		projectInfo.sourceFileCount,
+		scope ? scope.scoreFileCount : projectInfo.sourceFileCount,
 		config.scoring.smoothing,
 		config.scoring.maxPerRule,
 	);
@@ -237,12 +344,14 @@ const runFixBody = async (
 				`\n ${style(t, "success", `Resolved ${totalResolved} issue${totalResolved === 1 ? "" : "s"}`)} ${arrow} ${style(t, "success", `${scoreResult.score} / 100 ${scoreResult.label}`)}\n`,
 			);
 		}
-		const language = projectInfo.languages[0] ?? "unknown";
+		const language = scopedProjectInfo.languages[0] ?? "unknown";
 		process.stdout.write(
 			buildScanRender({
 				projectName,
 				language,
-				fileCount: projectInfo.sourceFileCount,
+				fileCount: scope
+					? scope.files.length + scope.testFiles.length
+					: projectInfo.sourceFileCount,
 				results: scanResults,
 				diagnostics: actionableDiagnostics,
 				score: scoreResult,
