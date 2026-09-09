@@ -122,41 +122,67 @@ const PY_LOG_CAPTURES_EXCEPTION_RE = /\.exception\s*\(|\bexc_info\s*=\s*True\b/;
 // than guessed at.
 const PY_EXC_INFO_DISABLED_RE = /\bexc_info\s*=\s*False\b/;
 
-// Python continues a call across lines while a bracket is open, so reading the body
-// one raw line at a time splits a single call into fragments: `exc_info=False,` looks
-// like an assignment, and the call it belongs to is never seen whole.
-const joinPyLogicalLines = (bodyLines: string[]): string[] => {
-	const statements: string[] = [];
-	let current = "";
+type PyStatement = { text: string; masked: string };
+
+// Python continues a call while a bracket is open and separates simple statements with
+// `;`, so a raw line is neither reliably one statement nor a whole one. Reading them
+// per line split a call into fragments, and `exc_info=False,` alone on a line matched
+// the assignment pattern that marks a handler as doing real work.
+// `masked` blanks string bodies and comments so prose cannot satisfy a keyword check;
+// `text` keeps them, since an f-string is a real reference to the bound exception.
+const splitPyStatements = (bodyLines: string[]): PyStatement[] => {
+	const statements: PyStatement[] = [];
+	let text = "";
+	let masked = "";
 	let depth = 0;
 	let quote: string | null = null;
 
+	const flush = (): void => {
+		if (text.trim() !== "") statements.push({ text: text.trim(), masked: masked.trim() });
+		text = "";
+		masked = "";
+	};
+
 	for (const line of bodyLines) {
-		current = current === "" ? line : `${current} ${line}`;
+		if (text !== "") {
+			text += " ";
+			masked += " ";
+		}
 
 		let i = 0;
 		while (i < line.length) {
 			if (quote !== null) {
-				if (line[i] === "\\") {
-					i += 2;
-					continue;
-				}
-				if (line.startsWith(quote, i)) {
-					i += quote.length;
+				const closes = line.startsWith(quote, i);
+				const width = line[i] === "\\" ? 2 : closes ? quote.length : 1;
+				text += line.slice(i, i + width);
+				if (closes) {
+					masked += quote;
 					quote = null;
-					continue;
 				}
-				i += 1;
+				i += width;
 				continue;
 			}
+
 			const ch = line[i];
-			if (ch === "#") break;
+			if (ch === "#") {
+				text += line.slice(i);
+				break;
+			}
 			if (ch === '"' || ch === "'") {
-				const triple = line.slice(i, i + 3);
-				quote = triple === ch.repeat(3) ? triple : ch;
+				quote = line.startsWith(ch.repeat(3), i) ? ch.repeat(3) : ch;
+				text += quote;
+				masked += quote;
 				i += quote.length;
 				continue;
 			}
+			if (ch === ";" && depth === 0) {
+				flush();
+				i += 1;
+				continue;
+			}
+
+			text += ch;
+			masked += ch;
 			if (ch === "(" || ch === "[" || ch === "{") depth += 1;
 			else if (ch === ")" || ch === "]" || ch === "}") depth = Math.max(0, depth - 1);
 			i += 1;
@@ -165,13 +191,9 @@ const joinPyLogicalLines = (bodyLines: string[]): string[] => {
 		// A single-quoted string cannot span a line break, so one still open at the end of
 		// the line means the scan misread it rather than that the statement continues.
 		if (quote !== null && quote.length === 1) quote = null;
-
-		if (depth === 0 && quote === null && !line.endsWith("\\")) {
-			statements.push(current);
-			current = "";
-		}
+		if (depth === 0 && quote === null && !line.endsWith("\\")) flush();
 	}
-	if (current !== "") statements.push(current);
+	flush();
 
 	return statements;
 };
@@ -198,19 +220,19 @@ const detectPySilentRecovery = (content: string, relPath: string): Diagnostic[] 
 			rawBodyLines.push(raw.trim());
 		}
 
-		const bodyLines = joinPyLogicalLines(rawBodyLines);
-		if (bodyLines.length === 0) continue;
-		if (bodyLines.some((line) => PY_HANDLING_TOKEN_RE.test(line))) continue;
-		if (bodyLines.some((line) => line === "pass")) continue; // swallowed-exception's job.
+		const body = splitPyStatements(rawBodyLines);
+		if (body.length === 0) continue;
+		if (body.some((s) => PY_HANDLING_TOKEN_RE.test(s.masked))) continue;
+		if (body.some((s) => s.masked === "pass")) continue; // swallowed-exception's job.
 
-		const allLogs = bodyLines.every(
-			(line) => PY_LOG_STATEMENT_RE.test(line) || /^[\w"'(),.\s+:%{}[\]-]+$/.test(line),
+		const allLogs = body.every(
+			(s) => PY_LOG_STATEMENT_RE.test(s.masked) || /^[\w"'(),.\s+:%{}[\]-]+$/.test(s.masked),
 		);
-		const sawLog = bodyLines.some((line) => PY_LOG_STATEMENT_RE.test(line));
+		const sawLog = body.some((s) => PY_LOG_STATEMENT_RE.test(s.masked));
 		if (!allLogs || !sawLog) continue;
-		if (bodyLines.some(pyLogStatementCapturesException)) continue;
-		if (!recoveryDropsError(PY_EXCEPT_BINDING_RE.exec(lines[i])?.[1], bodyLines.join(" ")))
-			continue;
+		if (body.some((s) => pyLogStatementCapturesException(s.masked))) continue;
+		const bodyText = body.map((s) => s.text).join(" ");
+		if (!recoveryDropsError(PY_EXCEPT_BINDING_RE.exec(lines[i])?.[1], bodyText)) continue;
 
 		out.push({
 			filePath: relPath,
