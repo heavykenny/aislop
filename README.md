@@ -501,8 +501,12 @@ Built on: [Biome](https://biomejs.dev/), [oxlint](https://oxc.rs/), [knip](https
 ## Contributors
 
 <!-- CONTRIBUTORS-START -->
+- [@daveslutzkin](https://github.com/daveslutzkin)
+- [@gtheys](https://github.com/gtheys)
 - [@heavykenny](https://github.com/heavykenny)
+- [@mtschoen](https://github.com/mtschoen)
 - [@myke-awoniran](https://github.com/myke-awoniran)
+- [@swjturay](https://github.com/swjturay)
 - [@yashrajoria](https://github.com/yashrajoria)
 <!-- CONTRIBUTORS-END -->
 
