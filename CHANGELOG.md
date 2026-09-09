@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## Unreleased
 
+## 0.16.1 (2026-09-09)
+
+Maintenance release. Three rule fixes from contributors, all of which remove findings that should never have fired, plus dependency patches.
+
+### Fixed
+
+- **`silent-recovery` no longer flags `logger.exception`.** Python's `logger.exception` captures the traceback, so a handler using it is not swallowing the error. It is still flagged when `exc_info` is explicitly disabled, because that discards the very thing the rule cares about. Thanks to @mtschoen.
+- **`hardcoded-url` ignores URLs in Python docstrings.** A URL in documentation is a reference, not a hardcoded endpoint. Only docstring-positioned strings are exempt, so a module-level constant that merely looks like prose still reports. Thanks to @mtschoen.
+- **Build output directories are pruned from scans.** Rust and other `target/` style build directories were being walked, which inflated file counts and surfaced findings in generated code. Thanks to @daveslutzkin.
+
+### Changed
+
+- Patched transitive advisories in `fast-uri`, `qs` and `hono`, and refreshed `oxlint`, `knip`, `biome`, `smol-toml` and `expo-doctor`. The lint and unused-code engines are bundled, so their updates can change which findings a scan reports.
+
+
 ## 0.16.0 (2026-08-30)
 
 Scoping release. `fix` and `scan` can now be pointed at what changed rather than the whole tree, and `fix` can show what it would do before it does it.
