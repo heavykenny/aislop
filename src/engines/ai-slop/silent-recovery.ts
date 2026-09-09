@@ -117,7 +117,7 @@ const PY_HANDLING_TOKEN_RE = /^(?:raise\b|return\b|continue\b|break\b|self\.|[\w
 // captured even though no `except ... as <name>` identifier appears in the log call.
 const PY_LOG_CAPTURES_EXCEPTION_RE = /\.exception\s*\(|\bexc_info\s*=\s*True\b/;
 // `.exception(..., exc_info=False)` forwards that value to `Logger.error` and drops the
-// traceback, so the literal spelling anywhere in the same call cancels the exemption. Only the
+// traceback, so spelling it in the call's own arguments cancels the exemption. Only the
 // literal `False` is recognized; an `exc_info` set to anything else stays exempt rather
 // than guessed at.
 const PY_EXC_INFO_DISABLED_RE = /\bexc_info\s*=\s*False\b/;
@@ -188,9 +188,9 @@ const splitPyStatements = (bodyLines: string[]): PyStatement[] => {
 			i += 1;
 		}
 
-		// A single-quoted string cannot span a line break, so one still open at the end of
-		// the line means the scan misread it rather than that the statement continues.
-		if (quote !== null && quote.length === 1) quote = null;
+		// A single-quoted string spans a line break only when the break is escaped, so one
+		// still open on an unescaped line end means the scan misread it.
+		if (quote !== null && quote.length === 1 && !line.endsWith("\\")) quote = null;
 		if (depth === 0 && quote === null && !line.endsWith("\\")) flush();
 	}
 	flush();
@@ -198,8 +198,35 @@ const splitPyStatements = (bodyLines: string[]): PyStatement[] => {
 	return statements;
 };
 
-const pyLogStatementCapturesException = (statement: string): boolean =>
-	PY_LOG_CAPTURES_EXCEPTION_RE.test(statement) && !PY_EXC_INFO_DISABLED_RE.test(statement);
+// Only the logging call's own arguments decide whether the traceback is attached; an
+// `exc_info` passed to a helper nested inside them belongs to that helper.
+const pyTopLevelArgs = (statement: string): string => {
+	const open = statement.indexOf("(");
+	if (open < 0) return "";
+
+	let depth = 0;
+	let args = "";
+	for (let i = open; i < statement.length; i += 1) {
+		const ch = statement[i];
+		if (ch === "(" || ch === "[" || ch === "{") {
+			depth += 1;
+			if (depth === 1) continue;
+		} else if (ch === ")" || ch === "]" || ch === "}") {
+			depth -= 1;
+			if (depth === 0) break;
+		}
+		if (depth === 1) args += ch;
+	}
+	return args;
+};
+
+// Cancelling the exemption is held to the stricter test of the two: a nested
+// `exc_info=True` still exempts, while only a top-level `exc_info=False` reports.
+// Both errors would be a false positive, so neither is worth reaching for.
+const pyLogStatementCapturesException = (statement: string): boolean => {
+	if (PY_EXC_INFO_DISABLED_RE.test(pyTopLevelArgs(statement))) return false;
+	return PY_LOG_CAPTURES_EXCEPTION_RE.test(statement);
+};
 
 const detectPySilentRecovery = (content: string, relPath: string): Diagnostic[] => {
 	const out: Diagnostic[] = [];

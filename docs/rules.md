@@ -290,8 +290,9 @@ across several lines are read as one statement, so it makes no difference
 which line an argument sits on. Any other
 `exc_info` value (a variable, an expression) stays exempt rather than guessed
 at, since deciding its value would mean evaluating Python. The keyword is
-only recognised as code, so a message that mentions `exc_info=False` in its
-text does not cancel the exemption.
+only recognised as code in the logging call's own arguments, so neither a
+message that mentions `exc_info=False` nor a helper called with it inside
+those arguments cancels the exemption.
 
 ## Security
 

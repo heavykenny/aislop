@@ -536,4 +536,58 @@ describe("silent-recovery (Python)", () => {
 		);
 		expect(await silentRecoveryDiags()).toHaveLength(1);
 	});
+	// A keyword handed to a helper inside the argument list belongs to that helper, not
+	// to the logging call, so it cannot cancel the traceback the call still attaches.
+	it("does NOT flag logger.exception whose nested helper takes exc_info=False", async () => {
+		writeFile(
+			"src/u.py",
+			[
+				"def run_benchmark():",
+				"    try:",
+				"        execute()",
+				"    except Exception:",
+				"        logger.exception(",
+				"            'bench run failed',",
+				"            extra=make_context(exc_info=False),",
+				"        )",
+				"",
+			].join("\n"),
+		);
+		expect(await silentRecoveryDiags()).toHaveLength(0);
+	});
+
+	it("still flags exc_info=False alongside a nested call in the same arguments", async () => {
+		writeFile(
+			"src/v.py",
+			[
+				"def run_benchmark():",
+				"    try:",
+				"        execute()",
+				"    except Exception:",
+				"        logger.exception(",
+				"            'bench run failed',",
+				"            extra=make_context(run_id),",
+				"            exc_info=False,",
+				"        )",
+				"",
+			].join("\n"),
+		);
+		expect(await silentRecoveryDiags()).toHaveLength(1);
+	});
+
+	it("does NOT flag a message continued across an escaped newline", async () => {
+		writeFile(
+			"src/w.py",
+			[
+				"def run_benchmark():",
+				"    try:",
+				"        execute()",
+				"    except Exception:",
+				"        logger.exception('bench run failed, \\",
+				"            pass exc_info=False to hide the traceback')",
+				"",
+			].join("\n"),
+		);
+		expect(await silentRecoveryDiags()).toHaveLength(0);
+	});
 });
