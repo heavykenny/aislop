@@ -8,12 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## 0.16.1 (2026-09-09)
 
-Maintenance release. Three rule fixes from contributors, all of which remove findings that should never have fired, plus dependency patches.
+Maintenance release. Three rule fixes from contributors, each removing findings that should never have fired, one fix that closes a matching gap in the other direction, plus dependency patches.
 
 ### Fixed
 
 - **`silent-recovery` no longer flags `logger.exception`.** Python's `logger.exception` captures the traceback, so a handler using it is not swallowing the error. It is still flagged when `exc_info` is explicitly disabled, because that discards the very thing the rule cares about. Thanks to @mtschoen.
 - **`hardcoded-url` ignores URLs in Python docstrings.** A URL in documentation is a reference, not a hardcoded endpoint. Only docstring-positioned strings are exempt, so a module-level constant that merely looks like prose still reports. Thanks to @mtschoen.
+- **Python `except` bodies are read as statements rather than lines.** A log call wrapped across several lines was split at each line break, so a keyword argument on its own line looked like an assignment and the handler was treated as doing real work. `silent-recovery` therefore missed multi-line handlers entirely, including `logger.exception(..., exc_info=False)` with the argument on its own line, which discards the traceback the rule exists to protect.
+- **`silent-recovery` no longer misreads `;` or prose in Python handlers.** A handler that logged and then re-raised on the same line, separated by a semicolon, was reported as swallowing the error. A log message that merely mentioned `exc_info=False` cancelled the traceback exemption, since the keyword checks did not distinguish code from string contents.
 - **Build output directories are pruned from scans.** Rust and other `target/` style build directories were being walked, which inflated file counts and surfaced findings in generated code. Thanks to @daveslutzkin.
 
 ### Changed

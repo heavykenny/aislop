@@ -359,4 +359,181 @@ describe("silent-recovery (Python)", () => {
 		);
 		expect(await silentRecoveryDiags()).toHaveLength(0);
 	});
+
+	it("flags a multi-line logger.exception whose exc_info=False sits on its own line", async () => {
+		writeFile(
+			"src/k.py",
+			[
+				"def run_benchmark():",
+				"    try:",
+				"        execute()",
+				"    except Exception:",
+				"        logger.exception(",
+				"            'bench run failed',",
+				"            exc_info=False,",
+				"        )",
+				"",
+			].join("\n"),
+		);
+		const diags = await silentRecoveryDiags();
+		expect(diags).toHaveLength(1);
+		expect(diags[0].line).toBe(4);
+	});
+
+	it("does NOT flag a multi-line logger.exception that keeps the traceback", async () => {
+		writeFile(
+			"src/l.py",
+			[
+				"def run_benchmark(run_id):",
+				"    try:",
+				"        execute()",
+				"    except Exception:",
+				"        logger.exception(",
+				"            'benchmark run %s crashed',",
+				"            run_id,",
+				"        )",
+				"",
+			].join("\n"),
+		);
+		expect(await silentRecoveryDiags()).toHaveLength(0);
+	});
+
+	// A keyword argument on its own line used to read as an assignment, which meant the
+	// handler looked like it did real work and the whole block was skipped.
+	it("flags a multi-line log call carrying an unrelated keyword argument", async () => {
+		writeFile(
+			"src/m.py",
+			[
+				"def run_benchmark():",
+				"    try:",
+				"        execute()",
+				"    except Exception:",
+				"        logger.error(",
+				"            'bench run failed',",
+				"            stacklevel=2,",
+				"        )",
+				"",
+			].join("\n"),
+		);
+		expect(await silentRecoveryDiags()).toHaveLength(1);
+	});
+
+	it("does NOT flag a multi-line handler that assigns before logging", async () => {
+		writeFile(
+			"src/n.py",
+			[
+				"def run_benchmark():",
+				"    try:",
+				"        execute()",
+				"    except Exception:",
+				"        summary = {",
+				"            'status': 'failed',",
+				"        }",
+				"        logger.error('bench run failed: %s', summary)",
+				"",
+			].join("\n"),
+		);
+		expect(await silentRecoveryDiags()).toHaveLength(0);
+	});
+
+	it("does NOT join past a bracket that closes inside a string literal", async () => {
+		writeFile(
+			"src/o.py",
+			[
+				"def run_benchmark(run_id):",
+				"    try:",
+				"        execute()",
+				"    except Exception as e:",
+				"        logger.error('bench run failed :-( for %s', run_id)",
+				"        raise",
+				"",
+			].join("\n"),
+		);
+		expect(await silentRecoveryDiags()).toHaveLength(0);
+	});
+	// The keyword check reads a masked copy of the statement, so prose that merely
+	// mentions the keyword cannot cancel the traceback exemption.
+	it("does NOT flag a multi-line logger.exception whose message mentions exc_info=False", async () => {
+		writeFile(
+			"src/p.py",
+			[
+				"def run_benchmark():",
+				"    try:",
+				"        execute()",
+				"    except Exception:",
+				"        logger.exception(",
+				"            'bench run failed, pass exc_info=False to hide the traceback',",
+				"        )",
+				"",
+			].join("\n"),
+		);
+		expect(await silentRecoveryDiags()).toHaveLength(0);
+	});
+
+	it("does NOT flag a handler whose log call is followed by a semicolon-joined raise", async () => {
+		writeFile(
+			"src/q.py",
+			[
+				"def run_benchmark():",
+				"    try:",
+				"        execute()",
+				"    except Exception:",
+				"        logger.error(",
+				"            'bench run failed',",
+				"        ); raise",
+				"",
+			].join("\n"),
+		);
+		expect(await silentRecoveryDiags()).toHaveLength(0);
+	});
+
+	it("does NOT flag a single-line log and raise separated by a semicolon", async () => {
+		writeFile(
+			"src/r.py",
+			[
+				"def run_benchmark():",
+				"    try:",
+				"        execute()",
+				"    except Exception:",
+				"        logger.error('bench run failed'); raise",
+				"",
+			].join("\n"),
+		);
+		expect(await silentRecoveryDiags()).toHaveLength(0);
+	});
+
+	// The bound name is looked for in the unmasked text, so an f-string still counts.
+	it("does NOT flag a multi-line log that interpolates the caught error", async () => {
+		writeFile(
+			"src/s.py",
+			[
+				"def run_benchmark():",
+				"    try:",
+				"        execute()",
+				"    except Exception as e:",
+				"        logger.error(",
+				"            f'bench run failed: {e}',",
+				"        )",
+				"",
+			].join("\n"),
+		);
+		expect(await silentRecoveryDiags()).toHaveLength(0);
+	});
+
+	it("flags a multi-line handler whose trailing comment mentions raise", async () => {
+		writeFile(
+			"src/t.py",
+			[
+				"def run_benchmark():",
+				"    try:",
+				"        execute()",
+				"    except Exception:",
+				"        logger.error(",
+				"            'bench run failed',",
+				"        )  # raise once we work out why",
+				"",
+			].join("\n"),
+		);
+		expect(await silentRecoveryDiags()).toHaveLength(1);
+	});
 });
