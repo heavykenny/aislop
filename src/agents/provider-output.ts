@@ -88,6 +88,9 @@ export const formatProviderOutputLine = (line: string): string | null => {
 	if (toolName && (type === "tool_execution_start" || type === "message_update")) {
 		return compact(`tool: ${toolName}`);
 	}
+	// Pi streams text deltas on `message_update`; the authoritative text is
+	// rendered once from `message_end`, so other updates stay silent.
+	if (type === "message_update") return null;
 	if (type === "tool_execution_end") {
 		const failed = event.isError === true;
 		return compact(`tool done${failed ? " (error)" : ""}`);

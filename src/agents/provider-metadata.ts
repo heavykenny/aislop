@@ -74,7 +74,14 @@ function usageFrom(value: unknown): Partial<ProviderUsage> | null {
 		"out",
 	]);
 	const directTotalTokens = tokenValue(value, ["total_tokens", "totalTokens", "total"]);
-	const costUsd = tokenValue(value, ["cost_usd", "total_cost_usd", "costUsd", "totalCostUsd"]);
+	// pi --mode json reports cost as a plain `cost` field
+	const costUsd = tokenValue(value, [
+		"cost_usd",
+		"total_cost_usd",
+		"costUsd",
+		"totalCostUsd",
+		"cost",
+	]);
 	const hasTokenUsage =
 		inputTokens !== null ||
 		cachedInputTokens !== null ||

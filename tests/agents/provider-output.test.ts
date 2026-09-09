@@ -143,4 +143,27 @@ describe("provider output formatting", () => {
 		expect(metadata.usage).toMatchObject({ totalTokens: 620 });
 		expect(metadata.files).toEqual(["src/pi-edit.ts"]);
 	});
+
+	it("suppresses pi text delta message_update events", () => {
+		expect(
+			formatProviderOutputLine(
+				JSON.stringify({
+					type: "message_update",
+					usage: { in: 10, out: 2, total: 12 },
+					assistantMessageEvent: { type: "text", text: "partial delta" },
+				}),
+			),
+		).toBeNull();
+	});
+
+	it("extracts pi usage cost from the plain cost field", () => {
+		const metadata = extractProviderOutputMetadata(
+			JSON.stringify({
+				type: "message_update",
+				usage: { in: 500, out: 120, cached: 0, total: 620, cost: 0.0123 },
+				}),
+			);
+
+		expect(metadata.usage).toMatchObject({ totalTokens: 620, costUsd: 0.0123 });
+	});
 });
