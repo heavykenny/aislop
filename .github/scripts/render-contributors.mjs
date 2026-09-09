@@ -7,7 +7,10 @@ const OVERRIDES = ".github/contributors-overrides.json";
 const START = "<!-- CONTRIBUTORS-START -->";
 const END = "<!-- CONTRIBUTORS-END -->";
 
-const isBot = (email) =>
+// Copilot commits as "Copilot" from a plain numeric noreply address, so an
+// email-only check treats an agent as a person.
+const isBot = (name, email) =>
+	/\[bot\]$|^Copilot$/i.test(name) ||
 	/\[bot\]@|github-actions|scanaislop\[bot\]|^bot@scanaislop/i.test(email);
 
 const overrides = existsSync(OVERRIDES)
@@ -81,7 +84,7 @@ async function resolve(email) {
 
 const collected = new Map();
 for (const [email, name] of seen) {
-	if (isBot(email)) continue;
+	if (isBot(name, email)) continue;
 	const login = await resolve(email);
 	if (!login) continue;
 	if (!collected.has(login)) collected.set(login, name);
