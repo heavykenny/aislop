@@ -212,7 +212,7 @@ aislop fix -p              # print an agent handoff prompt
 
 ### Run a local repair agent
 
-`aislop agent` keeps the deterministic scanner in charge while using the coding agent you already have installed. It creates a local git worktree, runs safe fixes, streams a headless Codex / Claude Code / OpenCode repair session, verifies the result with `aislop scan --json`, writes a local session transcript, and leaves the diff for review.
+`aislop agent` keeps the deterministic scanner in charge while using the coding agent you already have installed. It creates a local git worktree, runs safe fixes, streams a headless Codex / Claude Code / OpenCode / Pi repair session, verifies the result with `aislop scan --json`, writes a local session transcript, and leaves the diff for review.
 
 ```bash
 aislop agent providers        # see installed providers and setup hints

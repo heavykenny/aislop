@@ -47,6 +47,22 @@ const toolNameFromContent = (content: unknown): string | null => {
 const messageFrom = (event: JsonObject): JsonObject | null =>
 	isObject(event.message) ? event.message : isObject(event.item) ? event.item : null;
 
+// Pi's JSON event stream (pi --mode json) tags tool activity with a nested
+// `assistantMessageEvent.toolName` on toolcall events (delivered inside
+// `message_update`), separate from the message-content shape the generic
+// branches below handle.
+const piToolNameFrom = (event: JsonObject): string | null => {
+	if (!isObject(event.assistantMessageEvent)) return null;
+	const innerType = asString(event.assistantMessageEvent.type);
+	if (!innerType?.startsWith("toolcall")) return null;
+	return asString(event.assistantMessageEvent.toolName);
+};
+
+// Pi reports tool execution directly as `{ type: "tool_execution_start",
+// toolName: ... }` events alongside the streaming message events.
+const piToolExecutionFrom = (event: JsonObject): string | null =>
+	asString(event.type)?.startsWith("tool_execution") ? asString(event.toolName) : null;
+
 export const formatProviderOutputLine = (line: string): string | null => {
 	const raw = asString(line);
 	if (!raw) return null;
@@ -59,13 +75,26 @@ export const formatProviderOutputLine = (line: string): string | null => {
 	const messageContent = message ? textFromContent(message.content) : null;
 	const eventContent = textFromContent(event.content);
 	const directText = asString(event.text) ?? asString(event.message);
+	const piToolName = piToolNameFrom(event) ?? piToolExecutionFrom(event);
 	const toolName =
 		toolNameFromContent(message?.content) ??
 		toolNameFromContent(event.content) ??
 		asString(event.name) ??
+		asString(event.toolName) ??
+		piToolName ??
 		asString(message?.name);
 	const command = asString(event.command) ?? asString(message?.command);
 
+	if (toolName && (type === "tool_execution_start" || type === "message_update")) {
+		return compact(`tool: ${toolName}`);
+	}
+	// Pi streams text deltas on `message_update`; the authoritative text is
+	// rendered once from `message_end`, so other updates stay silent.
+	if (type === "message_update") return null;
+	if (type === "tool_execution_end") {
+		const failed = event.isError === true;
+		return compact(`tool done${failed ? " (error)" : ""}`);
+	}
 	if (messageContent) return compact(`assistant: ${messageContent}`);
 	if (eventContent) return compact(`assistant: ${eventContent}`);
 	if (directText) return compact(`${type ?? "message"}: ${directText}`);

@@ -24,7 +24,7 @@ const registerProviderSubcommands = (agent: Command): void => {
 		.option("--dry-run", "print the provider login command without running it")
 		.action(async (provider, _flags, command) => {
 			const flags = command.optsWithGlobals() as AgentConnectFlags;
-			const selection = (provider ?? "auto") as "auto" | "codex" | "claude" | "opencode";
+			const selection = (provider ?? "auto") as "auto" | "codex" | "claude" | "opencode" | "pi";
 			await withAgentLifecycle(
 				"agent_connect",
 				".",
@@ -102,7 +102,7 @@ const registerPlanSubcommand = (agent: Command): void => {
 export const registerAgentCommand = (program: Command): void => {
 	const agent = program
 		.command("agent [directory]")
-		.description("Run a local AI slop repair session with Codex, Claude Code, or OpenCode");
+		.description("Run a local AI slop repair session with Codex, Claude Code, OpenCode, or Pi");
 
 	addAgentOptions(agent);
 

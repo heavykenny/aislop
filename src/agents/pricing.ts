@@ -34,6 +34,7 @@ const PROVIDER_DEFAULT: Record<string, string> = {
 	codex: "gpt-5.4",
 	claude: "claude-opus-4-8",
 	opencode: "claude-sonnet-4-6",
+	pi: "claude-sonnet-4-6",
 };
 
 export const resolvePricing = (provider: string, model: string | null): Pricing | null => {

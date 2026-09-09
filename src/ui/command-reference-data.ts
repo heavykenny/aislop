@@ -312,6 +312,9 @@ export const FLAG_GUIDE_ROWS: DisplayRow[] = [
 	{ label: "--json", value: "emit machine-readable scan output" },
 	{ label: "--sarif", value: "emit SARIF for code scanning" },
 	{ label: "--safe", value: "only apply reversible fixes" },
-	{ label: "--provider", value: "choose auto, codex, claude, or opencode for local agent runs" },
+	{
+		label: "--provider",
+		value: "choose auto, codex, claude, opencode, or pi for local agent runs",
+	},
 	{ label: "--dry-run", value: "preview the action without writing changes" },
 ];
