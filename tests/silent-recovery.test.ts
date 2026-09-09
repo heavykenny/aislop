@@ -359,4 +359,96 @@ describe("silent-recovery (Python)", () => {
 		);
 		expect(await silentRecoveryDiags()).toHaveLength(0);
 	});
+
+	it("flags a multi-line logger.exception whose exc_info=False sits on its own line", async () => {
+		writeFile(
+			"src/k.py",
+			[
+				"def run_benchmark():",
+				"    try:",
+				"        execute()",
+				"    except Exception:",
+				"        logger.exception(",
+				"            'bench run failed',",
+				"            exc_info=False,",
+				"        )",
+				"",
+			].join("\n"),
+		);
+		const diags = await silentRecoveryDiags();
+		expect(diags).toHaveLength(1);
+		expect(diags[0].line).toBe(4);
+	});
+
+	it("does NOT flag a multi-line logger.exception that keeps the traceback", async () => {
+		writeFile(
+			"src/l.py",
+			[
+				"def run_benchmark(run_id):",
+				"    try:",
+				"        execute()",
+				"    except Exception:",
+				"        logger.exception(",
+				"            'benchmark run %s crashed',",
+				"            run_id,",
+				"        )",
+				"",
+			].join("\n"),
+		);
+		expect(await silentRecoveryDiags()).toHaveLength(0);
+	});
+
+	// A keyword argument on its own line used to read as an assignment, which meant the
+	// handler looked like it did real work and the whole block was skipped.
+	it("flags a multi-line log call carrying an unrelated keyword argument", async () => {
+		writeFile(
+			"src/m.py",
+			[
+				"def run_benchmark():",
+				"    try:",
+				"        execute()",
+				"    except Exception:",
+				"        logger.error(",
+				"            'bench run failed',",
+				"            stacklevel=2,",
+				"        )",
+				"",
+			].join("\n"),
+		);
+		expect(await silentRecoveryDiags()).toHaveLength(1);
+	});
+
+	it("does NOT flag a multi-line handler that assigns before logging", async () => {
+		writeFile(
+			"src/n.py",
+			[
+				"def run_benchmark():",
+				"    try:",
+				"        execute()",
+				"    except Exception:",
+				"        summary = {",
+				"            'status': 'failed',",
+				"        }",
+				"        logger.error('bench run failed: %s', summary)",
+				"",
+			].join("\n"),
+		);
+		expect(await silentRecoveryDiags()).toHaveLength(0);
+	});
+
+	it("does NOT join past a bracket that closes inside a string literal", async () => {
+		writeFile(
+			"src/o.py",
+			[
+				"def run_benchmark(run_id):",
+				"    try:",
+				"        execute()",
+				"    except Exception as e:",
+				"        logger.error('bench run failed :-( for %s', run_id)",
+				"        raise",
+				"",
+			].join("\n"),
+		);
+		expect(await silentRecoveryDiags()).toHaveLength(0);
+	});
 });

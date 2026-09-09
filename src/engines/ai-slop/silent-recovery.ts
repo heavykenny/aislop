@@ -117,13 +117,67 @@ const PY_HANDLING_TOKEN_RE = /^(?:raise\b|return\b|continue\b|break\b|self\.|[\w
 // captured even though no `except ... as <name>` identifier appears in the log call.
 const PY_LOG_CAPTURES_EXCEPTION_RE = /\.exception\s*\(|\bexc_info\s*=\s*True\b/;
 // `.exception(..., exc_info=False)` forwards that value to `Logger.error` and drops the
-// traceback, so the literal spelling on the same line cancels the exemption. Only the
+// traceback, so the literal spelling anywhere in the same call cancels the exemption. Only the
 // literal `False` is recognized; an `exc_info` set to anything else stays exempt rather
 // than guessed at.
 const PY_EXC_INFO_DISABLED_RE = /\bexc_info\s*=\s*False\b/;
 
-const pyLogLineCapturesException = (line: string): boolean =>
-	PY_LOG_CAPTURES_EXCEPTION_RE.test(line) && !PY_EXC_INFO_DISABLED_RE.test(line);
+// Python continues a call across lines while a bracket is open, so reading the body
+// one raw line at a time splits a single call into fragments: `exc_info=False,` looks
+// like an assignment, and the call it belongs to is never seen whole.
+const joinPyLogicalLines = (bodyLines: string[]): string[] => {
+	const statements: string[] = [];
+	let current = "";
+	let depth = 0;
+	let quote: string | null = null;
+
+	for (const line of bodyLines) {
+		current = current === "" ? line : `${current} ${line}`;
+
+		let i = 0;
+		while (i < line.length) {
+			if (quote !== null) {
+				if (line[i] === "\\") {
+					i += 2;
+					continue;
+				}
+				if (line.startsWith(quote, i)) {
+					i += quote.length;
+					quote = null;
+					continue;
+				}
+				i += 1;
+				continue;
+			}
+			const ch = line[i];
+			if (ch === "#") break;
+			if (ch === '"' || ch === "'") {
+				const triple = line.slice(i, i + 3);
+				quote = triple === ch.repeat(3) ? triple : ch;
+				i += quote.length;
+				continue;
+			}
+			if (ch === "(" || ch === "[" || ch === "{") depth += 1;
+			else if (ch === ")" || ch === "]" || ch === "}") depth = Math.max(0, depth - 1);
+			i += 1;
+		}
+
+		// A single-quoted string cannot span a line break, so one still open at the end of
+		// the line means the scan misread it rather than that the statement continues.
+		if (quote !== null && quote.length === 1) quote = null;
+
+		if (depth === 0 && quote === null && !line.endsWith("\\")) {
+			statements.push(current);
+			current = "";
+		}
+	}
+	if (current !== "") statements.push(current);
+
+	return statements;
+};
+
+const pyLogStatementCapturesException = (statement: string): boolean =>
+	PY_LOG_CAPTURES_EXCEPTION_RE.test(statement) && !PY_EXC_INFO_DISABLED_RE.test(statement);
 
 const detectPySilentRecovery = (content: string, relPath: string): Diagnostic[] => {
 	const out: Diagnostic[] = [];
@@ -134,16 +188,17 @@ const detectPySilentRecovery = (content: string, relPath: string): Diagnostic[] 
 		if (!exceptMatch) continue;
 		const indent = exceptMatch[1].length;
 
-		const bodyLines: string[] = [];
+		const rawBodyLines: string[] = [];
 		let j = i + 1;
 		for (; j < lines.length; j += 1) {
 			const raw = lines[j];
 			if (raw.trim() === "") continue;
 			const lineIndent = raw.length - raw.trimStart().length;
 			if (lineIndent <= indent) break;
-			bodyLines.push(raw.trim());
+			rawBodyLines.push(raw.trim());
 		}
 
+		const bodyLines = joinPyLogicalLines(rawBodyLines);
 		if (bodyLines.length === 0) continue;
 		if (bodyLines.some((line) => PY_HANDLING_TOKEN_RE.test(line))) continue;
 		if (bodyLines.some((line) => line === "pass")) continue; // swallowed-exception's job.
@@ -153,7 +208,7 @@ const detectPySilentRecovery = (content: string, relPath: string): Diagnostic[] 
 		);
 		const sawLog = bodyLines.some((line) => PY_LOG_STATEMENT_RE.test(line));
 		if (!allLogs || !sawLog) continue;
-		if (bodyLines.some(pyLogLineCapturesException)) continue;
+		if (bodyLines.some(pyLogStatementCapturesException)) continue;
 		if (!recoveryDropsError(PY_EXCEPT_BINDING_RE.exec(lines[i])?.[1], bodyLines.join(" ")))
 			continue;
 

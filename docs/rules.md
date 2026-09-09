@@ -281,11 +281,13 @@ including the single-line form. An assigned or call-wrapped triple-quoted
 value is a runtime value and stays scanned.
 
 **`ai-slop/silent-recovery` and Python traceback-attaching logs.** A Python
-except-block is exempt when a log line calls `logger.exception(...)` or passes
+except-block is exempt when a log call uses `logger.exception(...)` or passes
 `exc_info=True`, since both attach the currently-handled exception's traceback
 even though no bound exception name appears in the call. The exemption is
-cancelled when that same line spells the literal `exc_info=False`, which
-Python forwards to `Logger.error`, omitting the traceback. Any other
+cancelled when that same call spells the literal `exc_info=False`, which
+Python forwards to `Logger.error`, omitting the traceback. Calls wrapped
+across several lines are read as one statement, so it makes no difference
+which line an argument sits on. Any other
 `exc_info` value (a variable, an expression) stays exempt rather than guessed
 at, since deciding its value would mean evaluating Python.
 
