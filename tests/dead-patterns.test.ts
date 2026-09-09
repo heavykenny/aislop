@@ -477,6 +477,57 @@ describe("hardcoded config literals", () => {
 		expect(diagnostics.filter((d) => d.rule === "ai-slop/hardcoded-url")).toEqual([]);
 	});
 
+	it("does not flag a URL used only as a format example inside a Python docstring", async () => {
+		const filePath = writeFile(
+			"gitea.py",
+			[
+				"def parse_gitea_remote(remote_url: str) -> tuple[str, str] | None:",
+				'    """Parse a git remote URL and return (owner, repo) if it points at Gitea.',
+				"",
+				"    Recognises both SSH (``gitea@host:owner/repo.git``) and HTTPS",
+				"    (``https://gitea.host/owner/repo.git``) formats across the hostnames",
+				"    from ``get_gitea_hosts()``. Returns ``None`` for non-Gitea remotes,",
+				"    malformed input, or when no hosts are configured.",
+				'    """',
+				"    if not remote_url:",
+				"        return None",
+				"",
+			].join("\n"),
+		);
+		const diagnostics = await detectHardcodedConfigLiterals(makeContext([filePath]));
+		expect(diagnostics.filter((d) => d.rule === "ai-slop/hardcoded-url")).toEqual([]);
+	});
+
+	it("still flags a URL inside an assigned triple-quoted string value", async () => {
+		const filePath = writeFile(
+			"assigned_config.py",
+			[
+				'DEFAULT_CONFIG = """',
+				"{",
+				'    "api_url": "https://api.acme.com/v1"',
+				"}",
+				'"""',
+				"",
+			].join("\n"),
+		);
+		const diagnostics = await detectHardcodedConfigLiterals(makeContext([filePath]));
+		expect(diagnostics.filter((d) => d.rule === "ai-slop/hardcoded-url")).toHaveLength(1);
+	});
+
+	it("does not flag a URL inside a single-line Python docstring", async () => {
+		const filePath = writeFile(
+			"single_line_doc.py",
+			[
+				"def default_endpoint() -> str:",
+				'    """Point clients at `https://api.acme.com/v1` in production."""',
+				"    return read_endpoint_from_environment()",
+				"",
+			].join("\n"),
+		);
+		const diagnostics = await detectHardcodedConfigLiterals(makeContext([filePath]));
+		expect(diagnostics.filter((d) => d.rule === "ai-slop/hardcoded-url")).toEqual([]);
+	});
+
 	it("detects hardcoded provider IDs in production code", async () => {
 		const filePath = writeFile("billing.ts", 'const STRIPE_PRICE_ID = "price_123456789abcdef";');
 		const diagnostics = await detectHardcodedConfigLiterals(makeContext([filePath]));

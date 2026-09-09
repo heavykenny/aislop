@@ -429,6 +429,21 @@ describe("python: print-debug", () => {
 		expect(matches).toEqual([]);
 	});
 
+	it("does NOT flag print-shaped lines inside an assigned triple-quoted template string", async () => {
+		writeFile(
+			"src/template.py",
+			[
+				'SCRIPT_TEMPLATE = """',
+				"print('hello from the generated script')",
+				'"""',
+				"",
+			].join("\n"),
+		);
+		const diagnostics = await detectPythonPatterns(buildContext());
+		const matches = diagnostics.filter((d) => d.rule === "ai-slop/python-print-debug");
+		expect(matches).toEqual([]);
+	});
+
 	it("STILL flags `print()` outside the docstring even when other prints are inside", async () => {
 		writeFile(
 			"src/mixed.py",

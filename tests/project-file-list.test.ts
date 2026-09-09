@@ -7,6 +7,10 @@ import {
 	enumerateProjectFiles,
 	enumerateProjectFilesFromDisk,
 } from "../src/utils/project-file-list.js";
+import {
+	listProjectFiles,
+	listProjectFilesFromDisk,
+} from "../src/utils/source-file-selection.js";
 
 const writeFile = (rootDirectory: string, relativePath: string): void => {
 	const filePath = path.join(rootDirectory, relativePath);
@@ -38,6 +42,19 @@ describe("project file enumeration", () => {
 		expect(enumerateProjectFiles(rootDirectory, new Set(["dist", "vendor"]))).toEqual([
 			"src/app.ts",
 		]);
+	});
+
+	it("prunes target build directories from default enumeration", () => {
+		execFileSync("git", ["init"], { cwd: rootDirectory, stdio: "ignore" });
+		writeFile(rootDirectory, "src/app.ts");
+		writeFile(rootDirectory, "target/debug/generated.rs");
+		execFileSync("git", ["add", "-f", "src/app.ts", "target/debug/generated.rs"], {
+			cwd: rootDirectory,
+			stdio: "ignore",
+		});
+
+		expect(listProjectFiles(rootDirectory)).toEqual(["src/app.ts"]);
+		expect(listProjectFilesFromDisk(rootDirectory)).toEqual(["src/app.ts"]);
 	});
 
 	it("does not follow directory symlinks or junctions during disk enumeration", () => {

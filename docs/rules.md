@@ -198,7 +198,7 @@ The rules that make aislop unique. These catch the patterns AI assistants leave 
 | `ai-slop/trivial-comment` | warning | Comments restating the code (`// Import React`, `// Return the value`) |
 | `ai-slop/narrative-comment` | warning | Decorative separators, phase/section headers, JSDoc preambles without meaningful tags (caught on top-level *and* interface/type members), cross-reference commentary, and longer prose blocks that carry an AI-narration signal (a restatement opener or step-by-step narration). Length alone is not flagged. |
 | `ai-slop/swallowed-exception` | error | Empty catch blocks, catch blocks that only log (JS/TS/Python/Go/Ruby/Java/C#) |
-| `ai-slop/silent-recovery` | warning | Catch blocks that log without including the caught error and then continue |
+| `ai-slop/silent-recovery` | warning | Catch blocks that log without including the caught error and then continue; Python logging calls that attach the traceback are exempt (see notes below the table) |
 | `ai-slop/meta-comment` | warning | Comments about implementation phases, agent behavior, or generated-code process instead of the code itself |
 | `ai-slop/hidden-fallback` | warning | JS/TS fallback logic that turns missing counts, failed diagnostics, or impossible states into safe-looking values without surfacing the missing input or failure |
 | `ai-slop/redundant-try-catch` | warning | JS/TS catch blocks that only rethrow the same error without adding context, cleanup, or recovery |
@@ -217,7 +217,7 @@ The rules that make aislop unique. These catch the patterns AI assistants leave 
 | `ai-slop/double-type-assertion` | warning | `as unknown as X` pattern |
 | `ai-slop/ts-directive` | info | `@ts-ignore` / `@ts-expect-error` usage |
 | `ai-slop/duplicate-import` | warning | Multiple imports from the same module that should be merged |
-| `ai-slop/hardcoded-url` | warning | Environment-specific URLs hardcoded in production code instead of env/config |
+| `ai-slop/hardcoded-url` | warning | Environment-specific URLs hardcoded in production code instead of env/config; Python docstring content is exempt (see notes below the table) |
 | `ai-slop/hardcoded-id` | warning | Provider/project IDs hardcoded in production code instead of env/config |
 | `ai-slop/python-bare-except` | warning | Python `except:` blocks that catch everything without naming an exception type |
 | `ai-slop/python-broad-except` | warning | Python broad exception handlers with silent/pass-style bodies |
@@ -270,6 +270,28 @@ parentheses, including f-string replacement fields that nest same-quote
 strings (PEP 701, Python 3.12+); the one accepted approximation is a `#`
 comment inside a multi-line replacement field, which is treated as expression
 text because `#` is also a format-spec character.
+
+**`ai-slop/hardcoded-url` and Python docstrings.** URLs inside Python
+docstrings are documentation examples, not deployment targets, and are exempt.
+A triple-quoted literal counts as a docstring only when docstring-positioned:
+its opening delimiter (after optional prefix letters) is the first thing on
+its line, making the string a bare expression statement - PEP 257
+first-statement docstrings, attribute docstrings, and block-comment strings,
+including the single-line form. An assigned or call-wrapped triple-quoted
+value is a runtime value and stays scanned.
+
+**`ai-slop/silent-recovery` and Python traceback-attaching logs.** A Python
+except-block is exempt when a log call uses `logger.exception(...)` or passes
+`exc_info=True`, since both attach the currently-handled exception's traceback
+even though no bound exception name appears in the call. The exemption is
+cancelled when that same call spells the literal `exc_info=False`, which
+Python forwards to `Logger.error`, omitting the traceback. Calls wrapped
+across several lines are read as one statement, so it makes no difference
+which line an argument sits on. Any other
+`exc_info` value (a variable, an expression) stays exempt rather than guessed
+at, since deciding its value would mean evaluating Python. The keyword is
+only recognised as code, so a message that mentions `exc_info=False` in its
+text does not cancel the exemption.
 
 ## Security
 
